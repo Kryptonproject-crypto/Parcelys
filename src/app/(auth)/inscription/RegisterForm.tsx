@@ -95,7 +95,7 @@ export function RegisterForm() {
         />
       </Field>
 
-      <hr className="border-ardoise-200" />
+      <hr className="border-line" />
 
       <Field
         label="Nom de l'exploitation"
@@ -115,17 +115,17 @@ export function RegisterForm() {
         <Input id="siret" name="siret" inputMode="numeric" />
       </Field>
 
-      <div className="space-y-2 rounded-lg bg-ardoise-50 p-3">
-        <label className="flex items-start gap-2.5 text-sm text-ardoise-700">
+      <div className="space-y-2 rounded-lg bg-surface-2 p-3">
+        <label className="flex items-start gap-2.5 text-sm text-ink-2">
           <input
             type="checkbox"
             name="acceptTerms"
             required
-            className="mt-0.5 h-4 w-4 rounded border-ardoise-300 text-champ-600 focus:ring-champ-500"
+            className="mt-0.5 h-4 w-4 rounded border-line-strong text-champ-600 focus:ring-champ-500"
           />
           <span>
             J&apos;accepte les{' '}
-            <Link href="/cgu" target="_blank" className="text-champ-700 underline">
+            <Link href="/cgu" target="_blank" className="text-champ-700 dark:text-champ-400 underline">
               conditions générales d&apos;utilisation
             </Link>
           </span>
@@ -134,16 +134,16 @@ export function RegisterForm() {
           <p className="text-xs font-medium text-brique-500">{fieldErrors.acceptTerms}</p>
         ) : null}
 
-        <label className="flex items-start gap-2.5 text-sm text-ardoise-700">
+        <label className="flex items-start gap-2.5 text-sm text-ink-2">
           <input
             type="checkbox"
             name="acceptPrivacy"
             required
-            className="mt-0.5 h-4 w-4 rounded border-ardoise-300 text-champ-600 focus:ring-champ-500"
+            className="mt-0.5 h-4 w-4 rounded border-line-strong text-champ-600 focus:ring-champ-500"
           />
           <span>
             J&apos;accepte la{' '}
-            <Link href="/confidentialite" target="_blank" className="text-champ-700 underline">
+            <Link href="/confidentialite" target="_blank" className="text-champ-700 dark:text-champ-400 underline">
               politique de confidentialité
             </Link>
           </span>

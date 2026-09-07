@@ -18,7 +18,7 @@ export default async function ResetPasswordPage({
       title="Choisir un nouveau mot de passe"
       subtitle="Toutes vos sessions seront fermées après le changement."
       footer={
-        <Link href="/connexion" className="font-medium text-champ-700 hover:underline">
+        <Link href="/connexion" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
           Retour à la connexion
         </Link>
       }

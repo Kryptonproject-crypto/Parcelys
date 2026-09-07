@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { apiDelete } from '@/lib/client/api';
+import { ApiRequestError, apiDelete } from '@/lib/client/api';
+import { useToast } from '@/components/ui/Toast';
 import {
   DOCUMENT_CATEGORY_LABELS,
   OPERATION_LABELS,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/constants/agronomy';
 import { formatBytes } from '@/lib/storage/format';
 import { Modal } from '@/components/forms/Modal';
+import { ConfirmDialog, useConfirm } from '@/components/forms/ConfirmDialog';
 import { CropYearForm } from '@/components/forms/CropYearForm';
 import { FertilizationForm } from '@/components/forms/FertilizationForm';
 import { PhytoForm } from '@/components/forms/PhytoForm';
@@ -28,6 +30,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import type { ParcelTabsProps } from '@/app/(app)/parcelles/[id]/types';
+import { IconAttachment, IconCrops, IconDocuments, IconFile, IconHistory, IconImage, IconInputs, IconOperation, IconPhyto } from '@/components/ui/icons';
 
 const TABS = [
   { key: 'general', label: 'Général' },
@@ -70,8 +73,9 @@ export function ParcelTabs(props: ParcelTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const toast = useToast();
+  const confirmation = useConfirm();
   const [modal, setModal] = useState<ModalKind>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   function selectTab(key: string): void {
     const params = new URLSearchParams(searchParams.toString());
@@ -79,15 +83,32 @@ export function ParcelTabs(props: ParcelTabsProps) {
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  async function remove(endpoint: string, confirmText: string): Promise<void> {
-    if (!window.confirm(confirmText)) return;
-    setDeleting(endpoint);
-    try {
-      await apiDelete(endpoint);
-      router.refresh();
-    } finally {
-      setDeleting(null);
-    }
+  /** Demande confirmation, supprime, puis notifie — sans bloquer l'interface. */
+  function askRemove(params: {
+    endpoint: string;
+    title: string;
+    message: string;
+    detail?: string;
+    successMessage: string;
+  }): void {
+    confirmation.ask({
+      title: params.title,
+      message: params.message,
+      detail: params.detail,
+      onConfirm: async () => {
+        try {
+          await apiDelete(params.endpoint);
+          router.refresh();
+          toast.success(params.successMessage);
+        } catch (error) {
+          throw new Error(
+            error instanceof ApiRequestError
+              ? error.message
+              : 'La suppression a échoué.',
+          );
+        }
+      },
+    });
   }
 
   const tab = TABS.some((t) => t.key === activeTab) ? activeTab : 'general';
@@ -98,7 +119,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
   return (
     <div>
       {/* Onglets */}
-      <div className="mb-5 overflow-x-auto border-b border-ardoise-200 no-print">
+      <div className="mb-5 overflow-x-auto border-b border-line no-print">
         <nav className="flex min-w-max gap-1" aria-label="Sections de la parcelle">
           {TABS.map((item) => {
             const active = tab === item.key;
@@ -123,13 +144,13 @@ export function ParcelTabs(props: ParcelTabsProps) {
                 aria-current={active ? 'page' : undefined}
                 className={`-mb-px border-b-2 px-3.5 py-2.5 text-sm font-medium transition ${
                   active
-                    ? 'border-champ-600 text-champ-700'
-                    : 'border-transparent text-ardoise-500 hover:border-ardoise-300 hover:text-ardoise-800'
+                    ? 'border-champ-600 text-champ-700 dark:text-champ-400'
+                    : 'border-transparent text-ink-3 hover:border-line-strong hover:text-ink'
                 }`}
               >
                 {item.label}
                 {count !== null && count > 0 ? (
-                  <span className="ml-1.5 rounded-full bg-ardoise-100 px-1.5 py-0.5 text-[11px] text-ardoise-600">
+                  <span className="ml-1.5 rounded-full bg-surface-3 px-1.5 py-0.5 text-[11px] text-ink-2">
                     {count}
                   </span>
                 ) : null}
@@ -163,20 +184,20 @@ export function ParcelTabs(props: ParcelTabsProps) {
               ['Créée le', formatDateFr(parcel.createdAt)],
             ].map(([label, value]) => (
               <div key={label}>
-                <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+                <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                   {label}
                 </dt>
-                <dd className="mt-0.5 text-sm text-ardoise-900">{value}</dd>
+                <dd className="mt-0.5 text-sm text-ink">{value}</dd>
               </div>
             ))}
           </dl>
 
           {parcel.notes ? (
-            <div className="mt-6 border-t border-ardoise-100 pt-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+            <div className="mt-6 border-t border-line pt-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Observations
               </p>
-              <p className="mt-1 whitespace-pre-line text-sm text-ardoise-800">
+              <p className="mt-1 whitespace-pre-line text-sm text-ink">
                 {parcel.notes}
               </p>
             </div>
@@ -195,7 +216,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {cropYears.length === 0 ? (
             <EmptyState
-              icon="🌱"
+              icon={IconCrops}
               title="Aucune culture renseignée"
               description={`Indiquez la culture en place pour la campagne ${campaignYear} : elle alimentera vos registres et vos exports.`}
               action={
@@ -244,12 +265,13 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         <button
                           type="button"
                           onClick={() =>
-                            void remove(
-                              `/api/crop-years/${cy.id}`,
-                              `Retirer « ${cy.cropName} » de la campagne ${cy.campaignYear} ?`,
-                            )
+                            askRemove({
+                              endpoint: `/api/crop-years/${cy.id}`,
+                              title: 'Retirer cette culture',
+                              message: `« ${cy.cropName} » sera retirée de l'assolement ${cy.campaignYear} de cette parcelle.`,
+                              successMessage: 'Culture retirée de l’assolement',
+                            })
                           }
-                          disabled={deleting === `/api/crop-years/${cy.id}`}
                           className="text-sm text-brique-500 hover:underline"
                         >
                           Supprimer
@@ -275,7 +297,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {fertilizations.length > 0 ? (
             <Card>
-              <p className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Bilan des éléments fertilisants — cumul de tous les apports
               </p>
               <div className="mt-3 grid gap-4 sm:grid-cols-3">
@@ -284,15 +306,15 @@ export function ParcelTabs(props: ParcelTabsProps) {
                   ['Phosphore (P₂O₅)', balance.totalP, balance.perHectareP],
                   ['Potassium (K₂O)', balance.totalK, balance.perHectareK],
                 ].map(([label, total, perHa]) => (
-                  <div key={String(label)} className="rounded-lg bg-ardoise-50 p-3">
-                    <p className="text-xs text-ardoise-500">{label}</p>
-                    <p className="mt-0.5 text-lg font-semibold tabular-nums text-ardoise-900">
+                  <div key={String(label)} className="rounded-lg bg-surface-2 p-3">
+                    <p className="text-xs text-ink-3">{label}</p>
+                    <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
                       {formatNumberFr(perHa, 1)}
-                      <span className="ml-1 text-xs font-normal text-ardoise-500">
+                      <span className="ml-1 text-xs font-normal text-ink-3">
                         kg/ha
                       </span>
                     </p>
-                    <p className="text-xs tabular-nums text-ardoise-500">
+                    <p className="text-xs tabular-nums text-ink-3">
                       {formatNumberFr(total, 1)} kg au total
                     </p>
                   </div>
@@ -312,7 +334,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {fertilizations.length === 0 ? (
             <EmptyState
-              icon="💧"
+              icon={IconInputs}
               title="Aucun apport enregistré"
               description="Enregistrez vos apports organiques et minéraux : la quantité totale et le bilan NPK sont calculés automatiquement."
               action={
@@ -351,7 +373,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
                     <Td>
                       <span className="font-medium">{row.productLabel}</span>
                       {row.cropName ? (
-                        <span className="block text-xs text-ardoise-500">
+                        <span className="block text-xs text-ink-3">
                           {row.cropName}
                         </span>
                       ) : null}
@@ -377,12 +399,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         <button
                           type="button"
                           onClick={() =>
-                            void remove(
-                              `/api/fertilization/${row.id}`,
-                              `Supprimer l'apport « ${row.productLabel} » du ${formatDateFr(row.appliedOn)} ?`,
-                            )
+                            askRemove({
+                              endpoint: `/api/fertilization/${row.id}`,
+                              title: 'Supprimer cet apport',
+                              message: `L'apport « ${row.productLabel} » du ${formatDateFr(row.appliedOn)} sera supprimé.`,
+                              detail: 'Il disparaîtra du registre des apports et du bilan des éléments fertilisants.',
+                              successMessage: 'Apport supprimé',
+                            })
                           }
-                          disabled={deleting === `/api/fertilization/${row.id}`}
                           className="text-sm text-brique-500 hover:underline"
                         >
                           Supprimer
@@ -418,7 +442,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {phytoTreatments.length === 0 ? (
             <EmptyState
-              icon="🧪"
+              icon={IconPhyto}
               title="Aucun traitement enregistré"
               description="Enregistrez vos interventions phytosanitaires : elles alimentent automatiquement votre registre."
               action={
@@ -482,13 +506,13 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         <button
                           type="button"
                           onClick={() =>
-                            void remove(
-                              `/api/phytosanitary/applications/${row.id}`,
-                              `Supprimer le traitement « ${row.productName} » du ${formatDateFr(row.appliedOn)} ?`,
-                            )
-                          }
-                          disabled={
-                            deleting === `/api/phytosanitary/applications/${row.id}`
+                            askRemove({
+                              endpoint: `/api/phytosanitary/applications/${row.id}`,
+                              title: 'Supprimer ce traitement',
+                              message: `Le traitement « ${row.productName} » du ${formatDateFr(row.appliedOn)} sera supprimé.`,
+                              detail: 'Il disparaîtra de votre registre phytosanitaire et des exports correspondants.',
+                              successMessage: 'Traitement supprimé du registre',
+                            })
                           }
                           className="text-sm text-brique-500 hover:underline"
                         >
@@ -515,7 +539,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {operations.length === 0 ? (
             <EmptyState
-              icon="🚜"
+              icon={IconOperation}
               title="Aucun travail enregistré"
               description="Labour, semis, récolte, transport… gardez la trace des interventions mécaniques."
               action={
@@ -555,12 +579,13 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         <button
                           type="button"
                           onClick={() =>
-                            void remove(
-                              `/api/operations/${row.id}`,
-                              `Supprimer ce travail du ${formatDateFr(row.performedOn)} ?`,
-                            )
+                            askRemove({
+                              endpoint: `/api/operations/${row.id}`,
+                              title: 'Supprimer ce travail',
+                              message: `Le travail du ${formatDateFr(row.performedOn)} sera supprimé de l'historique de la parcelle.`,
+                              successMessage: 'Travail supprimé',
+                            })
                           }
-                          disabled={deleting === `/api/operations/${row.id}`}
                           className="text-sm text-brique-500 hover:underline"
                         >
                           Supprimer
@@ -579,18 +604,18 @@ export function ParcelTabs(props: ParcelTabsProps) {
       {tab === 'historique' ? (
         history.length === 0 ? (
           <EmptyState
-            icon="📊"
+            icon={IconHistory}
             title="Historique vide"
             description="L'historique se remplit automatiquement au fil de vos saisies : cultures, apports, traitements, travaux et documents."
           />
         ) : (
           <Card>
-            <ol className="relative space-y-5 border-l-2 border-ardoise-200 pl-5">
+            <ol className="relative space-y-5 border-l-2 border-line pl-5">
               {history.map((event) => (
                 <li key={event.id} className="relative">
                   <span className="absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-champ-500" />
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <time className="text-sm font-semibold tabular-nums text-ardoise-900">
+                    <time className="text-sm font-semibold tabular-nums text-ink">
                       {formatDateFr(event.date)}
                     </time>
                     <Badge tone={HISTORY_TONES[event.kind] ?? 'neutral'}>
@@ -607,9 +632,9 @@ export function ParcelTabs(props: ParcelTabsProps) {
                                 : 'Document'}
                     </Badge>
                   </div>
-                  <p className="mt-1 font-medium text-ardoise-800">{event.title}</p>
+                  <p className="mt-1 font-medium text-ink">{event.title}</p>
                   {event.details.length > 0 ? (
-                    <ul className="mt-1 space-y-0.5 text-sm text-ardoise-600">
+                    <ul className="mt-1 space-y-0.5 text-sm text-ink-2">
                       {event.details.map((detail) => (
                         <li key={detail}>{detail}</li>
                       ))}
@@ -633,7 +658,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
 
           {documents.length === 0 ? (
             <EmptyState
-              icon="📁"
+              icon={IconDocuments}
               title="Aucun document"
               description="Attachez vos factures, analyses de sol, photos et documents administratifs à cette parcelle."
               action={
@@ -647,37 +672,39 @@ export function ParcelTabs(props: ParcelTabsProps) {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="rounded-xl border border-ardoise-200 bg-white p-4"
+                  className="rounded-xl border border-line bg-surface p-4"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-2xl" aria-hidden>
-                      {doc.mimeType.startsWith('image/')
-                        ? '🖼️'
-                        : doc.mimeType === 'application/pdf'
-                          ? '📄'
-                          : '📎'}
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-3 text-ink-2">
+                      {doc.mimeType.startsWith('image/') ? (
+                        <IconImage size={17} aria-hidden />
+                      ) : doc.mimeType === 'application/pdf' ? (
+                        <IconFile size={17} aria-hidden />
+                      ) : (
+                        <IconAttachment size={17} aria-hidden />
+                      )}
                     </span>
                     <Badge>
                       {DOCUMENT_CATEGORY_LABELS[doc.category] ?? doc.category}
                     </Badge>
                   </div>
 
-                  <p className="mt-2 truncate font-medium text-ardoise-900" title={doc.fileName}>
+                  <p className="mt-2 truncate font-medium text-ink" title={doc.fileName}>
                     {doc.fileName}
                   </p>
                   {doc.description ? (
-                    <p className="mt-0.5 line-clamp-2 text-sm text-ardoise-500">
+                    <p className="mt-0.5 line-clamp-2 text-sm text-ink-3">
                       {doc.description}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-ardoise-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     {formatBytes(doc.sizeBytes)} · {formatDateFr(doc.createdAt)}
                   </p>
 
-                  <div className="mt-3 flex gap-3 border-t border-ardoise-100 pt-2.5 text-sm">
+                  <div className="mt-3 flex gap-3 border-t border-line pt-2.5 text-sm">
                     <a
                       href={`/api/documents/${doc.id}`}
-                      className="text-champ-700 hover:underline"
+                      className="text-champ-700 dark:text-champ-400 hover:underline"
                     >
                       Télécharger
                     </a>
@@ -685,12 +712,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                       <button
                         type="button"
                         onClick={() =>
-                          void remove(
-                            `/api/documents/${doc.id}`,
-                            `Supprimer définitivement « ${doc.fileName} » ?`,
-                          )
+                          askRemove({
+                            endpoint: `/api/documents/${doc.id}`,
+                            title: 'Supprimer ce document',
+                            message: `« ${doc.fileName} » sera supprimé définitivement.`,
+                            detail: 'Le fichier est effacé du stockage : cette action est irréversible.',
+                            successMessage: 'Document supprimé',
+                          })
                         }
-                        disabled={deleting === `/api/documents/${doc.id}`}
                         className="ml-auto text-brique-500 hover:underline"
                       >
                         Supprimer
@@ -703,6 +732,8 @@ export function ParcelTabs(props: ParcelTabsProps) {
           )}
         </div>
       ) : null}
+
+      <ConfirmDialog request={confirmation.request} onClose={confirmation.close} />
 
       {/* ------------------------------ Modales ------------------------- */}
       <Modal

@@ -4,6 +4,7 @@ import { requirePageAuth } from '@/lib/auth/page-guards';
 import { listNotifications, NOTIFICATION_LABELS, type NotificationType } from '@/lib/notifications';
 import { MarkAllRead } from '@/app/(app)/notifications/MarkAllRead';
 import { Badge, Card, EmptyState, PageHeader, formatDateFr } from '@/components/ui';
+import { IconNotification } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Notifications' };
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export default async function NotificationsPage() {
 
       {notifications.length === 0 ? (
         <EmptyState
-          icon="🔔"
+          icon={IconNotification}
           title="Aucune notification"
           description="Vous serez alerté ici des rappels d'intervention, des points de vigilance sur vos registres et des mises à jour du référentiel E-Phy."
         />
@@ -33,7 +34,7 @@ export default async function NotificationsPage() {
             const body = (
               <Card
                 className={
-                  notification.readAt === null ? 'border-champ-300 bg-champ-50/40' : undefined
+                  notification.readAt === null ? 'border-champ-300 bg-accent-soft/30' : undefined
                 }
               >
                 <div className="flex items-start justify-between gap-3">
@@ -43,15 +44,15 @@ export default async function NotificationsPage() {
                         {NOTIFICATION_LABELS[notification.type as NotificationType] ??
                           notification.type}
                       </Badge>
-                      <span className="text-xs text-ardoise-500">
+                      <span className="text-xs text-ink-3">
                         {formatDateFr(notification.createdAt)}
                       </span>
                     </div>
-                    <p className="mt-1.5 font-medium text-ardoise-900">
+                    <p className="mt-1.5 font-medium text-ink">
                       {notification.title}
                     </p>
                     {notification.body ? (
-                      <p className="mt-0.5 text-sm text-ardoise-600">{notification.body}</p>
+                      <p className="mt-0.5 text-sm text-ink-2">{notification.body}</p>
                     ) : null}
                   </div>
                   {notification.readAt === null ? (

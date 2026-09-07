@@ -55,9 +55,9 @@ export default async function ProfilePage() {
           {auth.memberships.map((membership) => (
             <li
               key={membership.farmId}
-              className="flex items-center justify-between gap-3 rounded-lg border border-ardoise-200 px-3.5 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-2.5"
             >
-              <span className="font-medium text-ardoise-900">{membership.farmName}</span>
+              <span className="font-medium text-ink">{membership.farmName}</span>
               <div className="flex items-center gap-2">
                 {membership.farmId === auth.activeFarmId ? (
                   <Badge tone="green">Active</Badge>

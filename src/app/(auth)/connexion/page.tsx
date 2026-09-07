@@ -17,7 +17,7 @@ export default async function LoginPage() {
       footer={
         <>
           Pas encore de compte ?{' '}
-          <Link href="/inscription" className="font-medium text-champ-700 hover:underline">
+          <Link href="/inscription" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
             Créer mon compte
           </Link>
         </>

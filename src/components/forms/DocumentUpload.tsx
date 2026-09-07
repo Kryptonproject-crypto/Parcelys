@@ -64,7 +64,7 @@ export function DocumentUpload({
           type="file"
           accept={ACCEPTED}
           required
-          className="w-full rounded-lg border border-ardoise-300 bg-white p-2 text-sm
+          className="w-full rounded-lg border border-line-strong bg-surface p-2 text-sm
                      file:mr-3 file:rounded-md file:border-0 file:bg-champ-600 file:px-3 file:py-1.5
                      file:text-sm file:font-medium file:text-white hover:file:bg-champ-700"
         />

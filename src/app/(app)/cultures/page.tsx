@@ -10,12 +10,14 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
+  Select,
   TableWrapper,
   Td,
   Th,
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { IconCrops } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Cultures' };
 export const dynamic = 'force-dynamic';
@@ -82,21 +84,20 @@ export default async function CropsPage({
       <Card className="mb-5">
         <form method="get" className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
               Campagne
             </label>
-            <select
+            <Select
               id="annee"
               name="annee"
               defaultValue={String(year)}
-              className="h-10 rounded-lg border border-ardoise-300 px-3 text-sm"
             >
               {years.map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <button
             type="submit"
@@ -122,13 +123,13 @@ export default async function CropsPage({
                 return (
                   <div key={name}>
                     <div className="mb-1 flex items-baseline justify-between text-sm">
-                      <span className="font-medium text-ardoise-800">{name}</span>
-                      <span className="tabular-nums text-ardoise-500">
+                      <span className="font-medium text-ink">{name}</span>
+                      <span className="tabular-nums text-ink-3">
                         {formatNumberFr(stats.areaHa, 2)} ha · {stats.parcelCount} parcelle
                         {stats.parcelCount > 1 ? 's' : ''} · {share.toFixed(0)} %
                       </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-ardoise-100">
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-3">
                       <div
                         className="h-full rounded-full bg-champ-500"
                         style={{ width: `${Math.max(share, 1)}%` }}
@@ -143,7 +144,7 @@ export default async function CropsPage({
 
       {/* Parcelles sans culture */}
       {uncovered.length > 0 ? (
-        <Card className="mb-5 border-ble-500/30 bg-amber-50/50">
+        <Card className="mb-5 border-ble-500/30 bg-ble-50/50 dark:bg-ble-700/15">
           <CardHeader
             title={`${uncovered.length} parcelle(s) sans culture renseignée`}
             description={`Campagne ${year} — renseignez-les pour compléter vos registres.`}
@@ -153,10 +154,10 @@ export default async function CropsPage({
               <li key={parcel.id}>
                 <Link
                   href={`/parcelles/${parcel.id}?onglet=culture`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-ardoise-300 bg-white px-3 py-1.5 text-sm transition hover:border-champ-400"
+                  className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm transition hover:border-champ-400"
                 >
-                  <span className="font-medium text-ardoise-800">{parcel.name}</span>
-                  <span className="tabular-nums text-ardoise-500">
+                  <span className="font-medium text-ink">{parcel.name}</span>
+                  <span className="tabular-nums text-ink-3">
                     {formatNumberFr(parcel.areaHa, 2)} ha
                   </span>
                 </Link>
@@ -169,7 +170,7 @@ export default async function CropsPage({
       {/* Détail */}
       {cropYears.length === 0 ? (
         <EmptyState
-          icon="🌱"
+          icon={IconCrops}
           title="Aucune culture renseignée pour cette campagne"
           description="La culture se renseigne depuis la fiche d'une parcelle, onglet « Culture »."
           action={
@@ -194,11 +195,11 @@ export default async function CropsPage({
           </thead>
           <tbody>
             {cropYears.map((cy) => (
-              <tr key={cy.id} className="transition hover:bg-champ-50/50">
+              <tr key={cy.id} className="transition hover:bg-accent-soft/40">
                 <Td>
                   <Link
                     href={`/parcelles/${cy.parcel.id}?onglet=culture`}
-                    className="font-medium text-champ-700 hover:underline"
+                    className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
                     {cy.parcel.internalNumber ? `${cy.parcel.internalNumber} — ` : ''}
                     {cy.parcel.name}
@@ -234,7 +235,7 @@ export default async function CropsPage({
             </Badge>
           ))}
         </div>
-        <p className="mt-3 text-sm text-ardoise-500">
+        <p className="mt-3 text-sm text-ink-3">
           Une culture personnalisée se crée depuis le formulaire « Renseigner une culture »
           d&apos;une parcelle.
         </p>

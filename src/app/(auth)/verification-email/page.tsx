@@ -17,7 +17,7 @@ export default async function VerifyEmailPage({
       title="Vérifier mon adresse e-mail"
       subtitle="Saisissez le code à 6 chiffres que nous venons de vous envoyer. Sans cette vérification, l’accès à Parcelys reste bloqué."
       footer={
-        <Link href="/connexion" className="font-medium text-champ-700 hover:underline">
+        <Link href="/connexion" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
           Retour à la connexion
         </Link>
       }

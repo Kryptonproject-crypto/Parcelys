@@ -71,23 +71,23 @@ export function EphyExplorer() {
       <EphyProductSearch selected={selected} onSelect={handleSelect} />
 
       {loading ? (
-        <p className="flex items-center gap-2 text-sm text-ardoise-500">
+        <p className="flex items-center gap-2 text-sm text-ink-3">
           <Spinner /> Chargement de la fiche produit…
         </p>
       ) : null}
 
       {detail ? (
-        <div className="space-y-4 rounded-lg border border-ardoise-200 p-4">
+        <div className="space-y-4 rounded-lg border border-line p-4">
           <div>
-            <h3 className="text-lg font-semibold text-ardoise-900">
+            <h3 className="text-lg font-semibold text-ink">
               {detail.product.name}
             </h3>
-            <p className="text-sm text-ardoise-500">
+            <p className="text-sm text-ink-3">
               AMM {detail.product.amm}
               {detail.product.holder ? ` · ${detail.product.holder}` : ''}
             </p>
             {detail.product.secondNames ? (
-              <p className="mt-0.5 text-sm text-ardoise-500">
+              <p className="mt-0.5 text-sm text-ink-3">
                 Autres noms commerciaux : {detail.product.secondNames}
               </p>
             ) : null}
@@ -108,29 +108,29 @@ export function EphyExplorer() {
               ],
             ].map(([label, value]) => (
               <div key={String(label)}>
-                <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+                <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                   {label}
                 </dt>
-                <dd className="mt-0.5 text-sm text-ardoise-900">
-                  {value ?? <span className="text-ardoise-400">Non renseigné</span>}
+                <dd className="mt-0.5 text-sm text-ink">
+                  {value ?? <span className="text-ink-3">Non renseigné</span>}
                 </dd>
               </div>
             ))}
           </dl>
 
           {detail.product.usageRestrictions ? (
-            <div className="rounded-lg border border-ble-500/30 bg-amber-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+            <div className="rounded-lg border border-ble-500/30 bg-ble-50 dark:bg-ble-700/15 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ble-700 dark:text-ble-100">
                 Restrictions d&apos;usage
               </p>
-              <p className="mt-1 text-sm text-amber-900">
+              <p className="mt-1 text-sm text-ble-700 dark:text-ble-100">
                 {detail.product.usageRestrictions}
               </p>
             </div>
           ) : null}
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-ardoise-800">
+            <h4 className="mb-2 text-sm font-semibold text-ink">
               Substances actives
             </h4>
             {detail.product.substances.length > 0 ? (
@@ -147,14 +147,14 @@ export function EphyExplorer() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-ardoise-500">
+              <p className="text-sm text-ink-3">
                 Aucune substance active renseignée dans le jeu de données importé.
               </p>
             )}
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-ardoise-800">
+            <h4 className="mb-2 text-sm font-semibold text-ink">
               Usages autorisés ({detail.product.usages.length})
             </h4>
             {detail.product.usages.length > 0 ? (
@@ -195,14 +195,14 @@ export function EphyExplorer() {
                 </TableWrapper>
               </div>
             ) : (
-              <p className="text-sm text-ardoise-500">
+              <p className="text-sm text-ink-3">
                 Aucun usage importé pour ce produit. Le fichier des usages n&apos;était
                 peut-être pas présent lors de la dernière synchronisation.
               </p>
             )}
           </div>
 
-          <p className="border-t border-ardoise-100 pt-3 text-xs text-ardoise-500">
+          <p className="border-t border-line pt-3 text-xs text-ink-3">
             {detail.source.label}
             {detail.source.lastSyncAt
               ? ` — dernière synchronisation : ${new Date(detail.source.lastSyncAt).toLocaleDateString('fr-FR')}`

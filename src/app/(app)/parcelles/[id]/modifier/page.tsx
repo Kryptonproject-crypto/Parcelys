@@ -32,7 +32,7 @@ export default async function EditParcelPage({
       <PageHeader
         title={`Modifier « ${parcel.name} »`}
         breadcrumb={
-          <Link href={`/parcelles/${id}`} className="hover:text-champ-700">
+          <Link href={`/parcelles/${id}`} className="hover:text-champ-700 dark:hover:text-champ-400">
             ← Retour à la fiche
           </Link>
         }

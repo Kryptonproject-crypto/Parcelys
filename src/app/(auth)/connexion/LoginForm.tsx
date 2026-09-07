@@ -72,7 +72,7 @@ export function LoginForm() {
       <div className="flex justify-end">
         <Link
           href="/mot-de-passe-oublie"
-          className="text-sm text-champ-700 hover:underline"
+          className="text-sm text-champ-700 dark:text-champ-400 hover:underline"
         >
           Mot de passe oublié ?
         </Link>

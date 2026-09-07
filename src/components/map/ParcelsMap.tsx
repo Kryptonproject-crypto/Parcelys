@@ -161,7 +161,7 @@ export function ParcelsMap({
   return (
     <div className="relative">
       {showLayerSwitch ? (
-        <div className="absolute right-3 top-3 z-[500] flex rounded-md border border-ardoise-200 bg-white p-0.5 shadow-sm">
+        <div className="absolute right-3 top-3 z-[500] flex rounded-md border border-line bg-surface p-0.5 shadow-sm">
           {(['plan', 'satellite'] as const).map((key) => (
             <button
               key={key}
@@ -170,7 +170,7 @@ export function ParcelsMap({
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 baseLayer === key
                   ? 'bg-champ-600 text-white'
-                  : 'text-ardoise-600 hover:bg-ardoise-100'
+                  : 'text-ink-2 hover:bg-surface-3'
               }`}
             >
               {key === 'plan' ? 'Plan' : 'Satellite'}
@@ -181,7 +181,7 @@ export function ParcelsMap({
 
       <div
         ref={containerRef}
-        className={`${heightClass} w-full overflow-hidden rounded-xl border border-ardoise-200`}
+        className={`${heightClass} w-full overflow-hidden rounded-xl border border-line`}
       />
     </div>
   );

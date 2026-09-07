@@ -1,12 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { FarmRole } from '@prisma/client';
-import { FOOTER_NAV, MAIN_NAV, isNavActive } from '@/components/layout/navigation';
+import {
+  FOOTER_NAV,
+  MAIN_NAV,
+  NAV_GROUPS,
+  isNavActive,
+} from '@/components/layout/navigation';
 import { apiPost } from '@/lib/client/api';
+import { useTheme } from '@/components/ui/Toast';
 import { cn } from '@/components/ui';
+import {
+  IconChevronDown,
+  IconClose,
+  IconFarm,
+  IconLogout,
+  IconMenu,
+  IconMoon,
+  IconNotification,
+  IconSun,
+} from '@/components/ui/icons';
 
 export type ShellUser = {
   firstName: string;
@@ -27,6 +43,10 @@ const ROLE_LABELS: Record<FarmRole, string> = {
   VIEWER: 'Lecture seule',
 };
 
+function initials(user: ShellUser): string {
+  return `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase();
+}
+
 export function AppShell({
   user,
   farms,
@@ -42,21 +62,49 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [switching, setSwitching] = useState(false);
+  const { theme, toggle } = useTheme();
 
-  // Le menu mobile se referme à chaque navigation.
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [farmMenuOpen, setFarmMenuOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const farmMenuRef = useRef<HTMLDivElement>(null);
 
   const activeFarm = farms.find((f) => f.farmId === activeFarmId) ?? farms[0] ?? null;
 
+  // Le tiroir mobile se referme à chaque navigation.
+  useEffect(() => {
+    setMobileOpen(false);
+    setFarmMenuOpen(false);
+  }, [pathname]);
+
+  // Fermeture du sélecteur d'exploitation au clic extérieur et à Échap.
+  useEffect(() => {
+    if (!farmMenuOpen) return;
+
+    const onPointerDown = (event: MouseEvent): void => {
+      if (!farmMenuRef.current?.contains(event.target as Node)) setFarmMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setFarmMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [farmMenuOpen]);
+
   async function switchFarm(farmId: string): Promise<void> {
-    if (farmId === activeFarmId) return;
+    if (farmId === activeFarmId) {
+      setFarmMenuOpen(false);
+      return;
+    }
     setSwitching(true);
     try {
       await apiPost('/api/farms/switch', { farmId });
+      setFarmMenuOpen(false);
       router.refresh();
     } finally {
       setSwitching(false);
@@ -70,119 +118,195 @@ export function AppShell({
   }
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-champ-900 text-champ-100">
-      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-5">
-        <Link href="/dashboard" className="text-lg font-bold text-white">
-          <span aria-hidden>🌾</span> Parcelys
+    <div className="flex h-full flex-col bg-champ-900 text-champ-100 dark:bg-ardoise-950 dark:border-r dark:border-line">
+      {/* Marque */}
+      <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-5">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-white"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-champ-500/25 text-base">
+            🌾
+          </span>
+          Parcelys
         </Link>
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Fermer le menu"
+          className="rounded-lg p-1.5 text-champ-200 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
+        >
+          <IconClose size={18} aria-hidden />
+        </button>
       </div>
 
       {/* Sélecteur d'exploitation */}
-      {farms.length > 0 ? (
-        <div className="border-b border-white/10 px-4 py-3">
-          <label
-            htmlFor="farm-switcher"
-            className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-champ-300"
-          >
-            Exploitation
-          </label>
-          {farms.length > 1 ? (
-            <select
-              id="farm-switcher"
-              value={activeFarm?.farmId ?? ''}
-              onChange={(e) => void switchFarm(e.target.value)}
-              disabled={switching}
-              className="w-full rounded-md border border-white/15 bg-champ-800 px-2.5 py-1.5 text-sm text-white
-                         focus:border-champ-300 focus:ring-2 focus:ring-champ-300/30"
+      {activeFarm ? (
+        <div className="px-3 pb-3" ref={farmMenuRef}>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => farms.length > 1 && setFarmMenuOpen((v) => !v)}
+              disabled={farms.length <= 1 || switching}
+              aria-expanded={farmMenuOpen}
+              aria-haspopup={farms.length > 1 ? 'listbox' : undefined}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-left transition-colors',
+                farms.length > 1 && 'hover:border-white/20 hover:bg-white/10',
+                'disabled:cursor-default',
+              )}
             >
-              {farms.map((farm) => (
-                <option key={farm.farmId} value={farm.farmId}>
-                  {farm.farmName}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="truncate text-sm font-medium text-white">
-              {activeFarm?.farmName}
-            </p>
-          )}
-          {activeFarm ? (
-            <p className="mt-1 text-[11px] text-champ-300">
-              {ROLE_LABELS[activeFarm.role]}
-            </p>
-          ) : null}
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-champ-500/25 text-champ-100">
+                <IconFarm size={15} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-white">
+                  {activeFarm.farmName}
+                </span>
+                <span className="block text-[11px] text-champ-300">
+                  {ROLE_LABELS[activeFarm.role]}
+                </span>
+              </span>
+              {farms.length > 1 ? (
+                <IconChevronDown
+                  size={15}
+                  aria-hidden
+                  className={cn(
+                    'shrink-0 text-champ-300 transition-transform',
+                    farmMenuOpen && 'rotate-180',
+                  )}
+                />
+              ) : null}
+            </button>
+
+            {farmMenuOpen ? (
+              <ul
+                role="listbox"
+                className="absolute inset-x-0 top-full z-50 mt-1.5 animate-rise overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-float"
+              >
+                {farms.map((farm) => (
+                  <li key={farm.farmId}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={farm.farmId === activeFarmId}
+                      onClick={() => void switchFarm(farm.farmId)}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-2',
+                        farm.farmId === activeFarmId
+                          ? 'font-medium text-champ-700 dark:text-champ-400'
+                          : 'text-ink-2',
+                      )}
+                    >
+                      <span className="truncate">{farm.farmName}</span>
+                      <span className="shrink-0 text-[11px] text-ink-3">
+                        {ROLE_LABELS[farm.role]}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
-        <ul className="space-y-0.5">
-          {MAIN_NAV.map((item) => {
-            const active = isNavActive(pathname, item.href);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
-                    active
-                      ? 'bg-white/15 font-semibold text-white'
-                      : 'text-champ-100/85 hover:bg-white/8 hover:text-white',
-                  )}
-                >
-                  <span className="w-5 text-center text-base" aria-hidden>
-                    {item.icon}
-                  </span>
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      {/* Navigation principale */}
+      <nav className="flex-1 overflow-y-auto px-3 pb-3" aria-label="Navigation principale">
+        {NAV_GROUPS.map((group) => {
+          const items = MAIN_NAV.filter((item) => item.group === group.key);
+          if (items.length === 0) return null;
+
+          return (
+            <div key={group.key} className="mb-4 last:mb-0">
+              <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-champ-400/80 dark:text-ink-3">
+                {group.label}
+              </p>
+              <ul className="space-y-0.5">
+                {items.map((item) => {
+                  const active = isNavActive(pathname, item.href);
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors',
+                          active
+                            ? 'bg-white/12 font-medium text-white'
+                            : 'text-champ-100/80 hover:bg-white/8 hover:text-white',
+                        )}
+                      >
+                        {active ? (
+                          <span
+                            aria-hidden
+                            className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-ble-400"
+                          />
+                        ) : null}
+                        <Icon
+                          size={17}
+                          aria-hidden
+                          className={cn(
+                            'shrink-0 transition-colors',
+                            active ? 'text-ble-400' : 'text-champ-300 group-hover:text-white',
+                          )}
+                        />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
 
-      <div className="border-t border-white/10 px-3 py-3">
-        <ul className="space-y-0.5">
+      {/* Compte */}
+      <div className="border-t border-white/10 p-3">
+        <ul className="mb-2 space-y-0.5">
           {FOOTER_NAV.map((item) => {
             const active = isNavActive(pathname, item.href);
+            const Icon = item.icon;
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors',
                     active
-                      ? 'bg-white/15 font-semibold text-white'
-                      : 'text-champ-100/85 hover:bg-white/8 hover:text-white',
+                      ? 'bg-white/12 font-medium text-white'
+                      : 'text-champ-100/80 hover:bg-white/8 hover:text-white',
                   )}
                 >
-                  <span className="w-5 text-center text-base" aria-hidden>
-                    {item.icon}
-                  </span>
+                  <Icon size={17} aria-hidden className="shrink-0 text-champ-300" />
                   {item.label}
                 </Link>
               </li>
             );
           })}
-          <li>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-champ-100/85 transition hover:bg-white/8 hover:text-white"
-            >
-              <span className="w-5 text-center text-base" aria-hidden>
-                🚪
-              </span>
-              Déconnexion
-            </button>
-          </li>
         </ul>
 
-        <div className="mt-2 border-t border-white/10 px-3 pt-3">
-          <p className="truncate text-sm font-medium text-white">
-            {user.firstName} {user.lastName}
-          </p>
-          <p className="truncate text-[11px] text-champ-300">{user.email}</p>
+        <div className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ble-400 text-[12px] font-semibold text-champ-900">
+            {initials(user)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-medium text-white">
+              {user.firstName} {user.lastName}
+            </span>
+            <span className="block truncate text-[11px] text-champ-300">{user.email}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+            className="shrink-0 rounded-md p-1.5 text-champ-300 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <IconLogout size={16} aria-hidden />
+          </button>
         </div>
       </div>
     </div>
@@ -191,8 +315,8 @@ export function AppShell({
   return (
     <div className="flex min-h-screen">
       {/* Sidebar bureau */}
-      <aside className="hidden w-64 shrink-0 lg:block">
-        <div className="fixed inset-y-0 left-0 w-64">{sidebar}</div>
+      <aside className="hidden w-[264px] shrink-0 lg:block">
+        <div className="fixed inset-y-0 left-0 w-[264px]">{sidebar}</div>
       </aside>
 
       {/* Tiroir mobile */}
@@ -202,9 +326,9 @@ export function AppShell({
             type="button"
             aria-label="Fermer le menu"
             onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 bg-ardoise-900/50"
+            className="absolute inset-0 animate-fade-in bg-ardoise-950/60 backdrop-blur-[2px]"
           />
-          <div className="absolute inset-y-0 left-0 w-72 animate-fade-in shadow-xl">
+          <div className="absolute inset-y-0 left-0 w-[280px] animate-rise shadow-float">
             {sidebar}
           </div>
         </div>
@@ -212,69 +336,75 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barre supérieure */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ardoise-200 bg-white/95 px-4 backdrop-blur no-print">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-canvas/85 px-4 backdrop-blur-md sm:px-6 no-print">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
             aria-label="Ouvrir le menu"
-            className="rounded-lg p-2 text-ardoise-700 hover:bg-ardoise-100 lg:hidden"
+            className="-ml-1 rounded-lg p-2 text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink lg:hidden"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-              <path
-                d="M3 5h14M3 10h14M3 15h14"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
+            <IconMenu size={19} aria-hidden />
           </button>
 
-          <span className="truncate font-semibold text-ardoise-800 lg:hidden">
-            🌾 Parcelys
-          </span>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 font-semibold text-ink lg:hidden"
+          >
+            <span aria-hidden>🌾</span> Parcelys
+          </Link>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'}
+              title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}
+              className="rounded-lg p-2 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
+            >
+              {theme === 'dark' ? (
+                <IconSun size={18} aria-hidden />
+              ) : (
+                <IconMoon size={18} aria-hidden />
+              )}
+            </button>
+
             <Link
               href="/notifications"
-              className="relative rounded-lg p-2 text-ardoise-600 hover:bg-ardoise-100"
-              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} non lues)` : ''}`}
+              aria-label={`Notifications${unreadCount > 0 ? ` — ${unreadCount} non lues` : ''}`}
+              className="relative rounded-lg p-2 text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
             >
-              <span aria-hidden>🔔</span>
+              <IconNotification size={18} aria-hidden />
               {unreadCount > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[10px] font-bold text-white">
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[10px] font-semibold text-white ring-2 ring-canvas">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
             </Link>
-
-            <Link
-              href="/parcelles/nouvelle"
-              className="hidden rounded-lg bg-champ-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-champ-700 sm:inline-flex"
-            >
-              + Nouvelle parcelle
-            </Link>
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:pb-6">{children}</main>
+        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:pb-8">{children}</main>
 
-        {/* Barre de navigation mobile */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-ardoise-200 bg-white lg:hidden no-print">
+        {/* Navigation mobile */}
+        <nav
+          aria-label="Navigation rapide"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden no-print"
+        >
           {MAIN_NAV.filter((item) => item.mobile).map((item) => {
             const active = isNavActive(pathname, item.href);
+            const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition',
-                  active ? 'text-champ-700' : 'text-ardoise-500',
+                  'flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-medium transition-colors',
+                  active ? 'text-champ-600 dark:text-champ-400' : 'text-ink-3',
                 )}
               >
-                <span className="text-lg" aria-hidden>
-                  {item.icon}
-                </span>
-                {item.label}
+                <Icon size={19} aria-hidden />
+                {item.shortLabel ?? item.label}
               </Link>
             );
           })}

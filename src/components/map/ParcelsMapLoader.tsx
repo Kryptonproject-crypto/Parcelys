@@ -17,8 +17,8 @@ const ParcelsMapClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-ardoise-200 bg-ardoise-50">
-        <span className="text-sm text-ardoise-500">Chargement de la carte…</span>
+      <div className="flex h-[420px] w-full items-center justify-center rounded-xl border border-line bg-surface-2">
+        <span className="text-sm text-ink-3">Chargement de la carte…</span>
       </div>
     ),
   },

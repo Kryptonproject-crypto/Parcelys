@@ -17,7 +17,7 @@ export default async function RegisterPage() {
       footer={
         <>
           Vous avez déjà un compte ?{' '}
-          <Link href="/connexion" className="font-medium text-champ-700 hover:underline">
+          <Link href="/connexion" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
             Se connecter
           </Link>
         </>

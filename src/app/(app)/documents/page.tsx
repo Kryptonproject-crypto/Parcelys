@@ -10,8 +10,10 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
+  Select,
   formatDateFr,
 } from '@/components/ui';
+import { IconAttachment, IconDocuments, IconFile, IconImage } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Documents' };
 export const dynamic = 'force-dynamic';
@@ -57,14 +59,13 @@ export default async function DocumentsPage({
       <Card className="mb-5">
         <form method="get" className="grid gap-3 sm:grid-cols-4">
           <div>
-            <label htmlFor="categorie" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="categorie" className="mb-1 block text-xs font-medium text-ink-2">
               Catégorie
             </label>
-            <select
+            <Select
               id="categorie"
               name="categorie"
               defaultValue={params.categorie ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes</option>
               {DOCUMENT_CATEGORIES.map((category) => (
@@ -72,18 +73,17 @@ export default async function DocumentsPage({
                   {DOCUMENT_CATEGORY_LABELS[category] ?? category}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="sm:col-span-2">
-            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
               Parcelle
             </label>
-            <select
+            <Select
               id="parcelle"
               name="parcelle"
               defaultValue={params.parcelle ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
@@ -92,7 +92,7 @@ export default async function DocumentsPage({
                   {parcel.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-end">
@@ -108,7 +108,7 @@ export default async function DocumentsPage({
 
       {documents.length === 0 ? (
         <EmptyState
-          icon="📁"
+          icon={IconDocuments}
           title="Aucun document"
           description="Les documents s'attachent à une parcelle depuis sa fiche, onglet « Documents » : factures, analyses de sol, photos, documents administratifs."
           action={
@@ -120,23 +120,25 @@ export default async function DocumentsPage({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {documents.map((doc) => (
-            <div key={doc.id} className="rounded-xl border border-ardoise-200 bg-white p-4">
+            <div key={doc.id} className="rounded-xl border border-line bg-surface p-4">
               <div className="flex items-start justify-between gap-2">
-                <span className="text-2xl" aria-hidden>
-                  {doc.mimeType.startsWith('image/')
-                    ? '🖼️'
-                    : doc.mimeType === 'application/pdf'
-                      ? '📄'
-                      : '📎'}
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-3 text-ink-2">
+                  {doc.mimeType.startsWith('image/') ? (
+                    <IconImage size={17} aria-hidden />
+                  ) : doc.mimeType === 'application/pdf' ? (
+                    <IconFile size={17} aria-hidden />
+                  ) : (
+                    <IconAttachment size={17} aria-hidden />
+                  )}
                 </span>
                 <Badge>{DOCUMENT_CATEGORY_LABELS[doc.category] ?? doc.category}</Badge>
               </div>
 
-              <p className="mt-2 truncate font-medium text-ardoise-900" title={doc.fileName}>
+              <p className="mt-2 truncate font-medium text-ink" title={doc.fileName}>
                 {doc.fileName}
               </p>
               {doc.description ? (
-                <p className="mt-0.5 line-clamp-2 text-sm text-ardoise-500">
+                <p className="mt-0.5 line-clamp-2 text-sm text-ink-3">
                   {doc.description}
                 </p>
               ) : null}
@@ -144,14 +146,14 @@ export default async function DocumentsPage({
               {doc.parcel ? (
                 <Link
                   href={`/parcelles/${doc.parcel.id}?onglet=documents`}
-                  className="mt-1 block truncate text-sm text-champ-700 hover:underline"
+                  className="mt-1 block truncate text-sm text-champ-700 dark:text-champ-400 hover:underline"
                 >
                   {doc.parcel.internalNumber ? `${doc.parcel.internalNumber} — ` : ''}
                   {doc.parcel.name}
                 </Link>
               ) : null}
 
-              <p className="mt-1 text-xs text-ardoise-500">
+              <p className="mt-1 text-xs text-ink-3">
                 {formatBytes(doc.sizeBytes)} · {formatDateFr(doc.createdAt)}
                 {doc.uploadedBy
                   ? ` · ${doc.uploadedBy.firstName} ${doc.uploadedBy.lastName}`
@@ -160,7 +162,7 @@ export default async function DocumentsPage({
 
               <a
                 href={`/api/documents/${doc.id}`}
-                className="mt-3 block border-t border-ardoise-100 pt-2.5 text-sm text-champ-700 hover:underline"
+                className="mt-3 block border-t border-line pt-2.5 text-sm text-champ-700 dark:text-champ-400 hover:underline"
               >
                 Télécharger
               </a>

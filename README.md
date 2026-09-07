@@ -13,6 +13,7 @@ que sur un Raspberry Pi.
 
 - [Fonctionnalités](#fonctionnalités)
 - [Pile technique](#pile-technique)
+- [Interface](#interface)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Référentiel phytosanitaire E-Phy](#référentiel-phytosanitaire-e-phy)
@@ -53,6 +54,28 @@ que sur un Raspberry Pi.
 - **Leaflet** (cartographie, sans dépendance de plugin)
 - **Zod** (validation stricte, côté serveur comme côté client)
 - **Vitest** (tests unitaires, base réelle et API HTTP)
+
+---
+
+## Interface
+
+- **Thème clair et sombre**, choisi explicitement et mémorisé. Le thème est posé
+  avant le premier rendu : pas de clignotement au chargement.
+- **Jetons sémantiques** (`surface`, `ink`, `line`, `accent`…) : une seule
+  définition par thème, aucune couleur en dur dans les pages.
+- **Typographie Inter**, auto-hébergée par Next — aucune requête vers un tiers,
+  donc rien à ouvrir dans la CSP.
+- **Icônes Lucide** dans toute l'interface de travail ; les emoji restent
+  cantonnés aux contenus éditoriaux.
+- **Graphiques** dessinés en HTML/SVG, sans bibliothèque : répartition de
+  l'assolement et interventions par mois. La palette est validée pour les deux
+  thèmes (séparation daltonisme ΔE ≥ 8), les couleurs sont attribuées dans un
+  ordre fixe et jamais recyclées, et chaque série porte toujours un libellé
+  chiffré — la couleur n'est jamais le seul porteur d'information.
+- **Confirmations et notifications** intégrées : ni `window.confirm`, ni
+  `window.alert`. Une suppression annonce précisément ce qu'elle efface.
+- **Responsive** du téléphone au grand écran, avec barre de navigation basse sur
+  mobile, et respect de `prefers-reduced-motion`.
 
 ---
 
@@ -300,7 +323,7 @@ npm run build     # requis : les tests d'API démarrent le serveur compilé
 npm test
 ```
 
-**138 tests** répartis en huit suites :
+**140 tests** répartis en huit suites :
 
 | Suite | Portée |
 | --- | --- |
@@ -311,7 +334,7 @@ npm test
 | `ephy-import` | Parsing des CSV officiels (Windows-1252, `;`), correspondance des colonnes, idempotence, colonnes manquantes, recherche, provenance. |
 | `rate-limit` | Fenêtre glissante, isolation par clé, expiration, persistance, purge. |
 | `units` | Calculs de fertilisation, aire géodésique, mots de passe, jetons, validation, campagne culturale. |
-| `pages` | Rendu serveur des 30 pages avec une session réelle, redirections d'authentification et en-têtes de sécurité. |
+| `pages` | Rendu serveur des 30 pages avec une session réelle, redirections d'authentification, en-têtes de sécurité, origines de tuiles autorisées par la CSP et application du thème sans clignotement. |
 
 Les tests d'API et de pages démarrent un vrai serveur Next et passent par la
 chaîne HTTP complète (cookies, CSRF, permissions, rendu serveur). Ils s'exécutent sur une base réelle —

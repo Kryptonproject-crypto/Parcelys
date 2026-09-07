@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiRequestError, apiDelete, apiFetch, apiPost, apiPut } from '@/lib/client/api';
 import { Modal } from '@/components/forms/Modal';
+import { ConfirmDialog, useConfirm } from '@/components/forms/ConfirmDialog';
 import {
   Alert,
   Button,
@@ -15,6 +16,7 @@ import {
   Spinner,
   formatDateFr,
 } from '@/components/ui';
+import { IconExport } from '@/components/ui/icons';
 
 type ProfileUser = {
   firstName: string;
@@ -75,6 +77,7 @@ export function ProfileForms({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const confirmation = useConfirm();
 
   function report(err: unknown): void {
     setError(err instanceof ApiRequestError ? err.message : 'Une erreur est survenue.');
@@ -166,17 +169,19 @@ export function ProfileForms({
     }
   }
 
-  async function logoutEverywhere(): Promise<void> {
-    if (!window.confirm('Fermer toutes vos sessions, y compris celle-ci ?')) return;
-    setBusy('logout-all');
-    try {
-      await apiPost('/api/auth/logout-all', {});
-      router.push('/connexion');
-      router.refresh();
-    } catch (err) {
-      report(err);
-      setBusy(null);
-    }
+  function askLogoutEverywhere(): void {
+    confirmation.ask({
+      title: 'Déconnexion de tous les appareils',
+      message:
+        'Toutes vos sessions seront fermées, y compris celle en cours sur cet appareil.',
+      detail: 'Vous devrez vous reconnecter avec votre mot de passe.',
+      confirmLabel: 'Tout déconnecter',
+      onConfirm: async () => {
+        await apiPost('/api/auth/logout-all', {});
+        router.push('/connexion');
+        router.refresh();
+      },
+    });
   }
 
   async function exportData(): Promise<void> {
@@ -293,11 +298,11 @@ export function ProfileForms({
               type="checkbox"
               name="notifyByEmail"
               defaultChecked={user.notifyByEmail}
-              className="mt-0.5 h-4 w-4 rounded border-ardoise-300 text-champ-600 focus:ring-champ-500"
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-champ-600 focus:ring-champ-500"
             />
             <span>
-              <span className="font-medium text-ardoise-800">Notifications par e-mail</span>
-              <span className="block text-xs text-ardoise-500">
+              <span className="font-medium text-ink">Notifications par e-mail</span>
+              <span className="block text-xs text-ink-3">
                 Rappels d&apos;intervention, alertes de registre et alertes de sécurité.
               </span>
             </span>
@@ -372,27 +377,25 @@ export function ProfileForms({
           action={
             <Button
               variant="outline"
-              onClick={() => void logoutEverywhere()}
-              disabled={busy === 'logout-all'}
+              onClick={askLogoutEverywhere}
             >
-              {busy === 'logout-all' ? <Spinner /> : null}
               Déconnexion de tous les appareils
             </Button>
           }
         />
-        <ul className="divide-y divide-ardoise-100">
+        <ul className="divide-y divide-line">
           {sessions.map((session) => (
             <li key={session.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
-                <p className="font-medium text-ardoise-900">
+                <p className="font-medium text-ink">
                   {describeAgent(session.userAgent)}
                   {session.current ? (
-                    <span className="ml-2 rounded-full bg-champ-100 px-2 py-0.5 text-xs font-medium text-champ-800">
+                    <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-champ-800 dark:text-champ-300">
                       Session actuelle
                     </span>
                   ) : null}
                 </p>
-                <p className="text-xs text-ardoise-500">
+                <p className="text-xs text-ink-3">
                   {session.ipAddress ?? 'IP inconnue'} · dernière activité le{' '}
                   {formatDateFr(session.lastUsedAt)}
                 </p>
@@ -420,15 +423,21 @@ export function ProfileForms({
           description="Conformément au RGPD, vous pouvez exporter ou supprimer vos données à tout moment."
         />
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => void exportData()} disabled={busy === 'export'}>
-            {busy === 'export' ? <Spinner /> : null}
-            📥 Exporter mes données (JSON)
+          <Button
+            variant="outline"
+            icon={IconExport}
+            onClick={() => void exportData()}
+            loading={busy === 'export'}
+          >
+            Exporter mes données (JSON)
           </Button>
           <Button variant="danger" onClick={() => setDeleteOpen(true)}>
             Supprimer mon compte
           </Button>
         </div>
       </Card>
+
+      <ConfirmDialog request={confirmation.request} onClose={confirmation.close} />
 
       <Modal
         open={deleteOpen}

@@ -249,7 +249,15 @@ async function seedDemoFarm(): Promise<void> {
   const year = currentCampaignYear();
   let totalArea = 0;
 
-  for (const seed of DEMO_PARCELS) {
+  /** Date située `monthsAgo` mois avant aujourd'hui — les données de
+   *  démonstration doivent être dans le passé pour alimenter les graphiques
+   *  des douze derniers mois. */
+  const monthsAgo = (months: number, day = 15): Date => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, day));
+  };
+
+  for (const [index, seed] of DEMO_PARCELS.entries()) {
     const parcel = await prisma.parcel.create({
       data: {
         farmId: farm.id,
@@ -320,8 +328,8 @@ async function seedDemoFarm(): Promise<void> {
         cropId: crop.id,
         campaignYear: year,
         variety: seed.variety || null,
-        sowingDate: new Date(Date.UTC(year - 1, 9, 12)),
-        expectedHarvestDate: new Date(Date.UTC(year, 6, 20)),
+        sowingDate: monthsAgo(11, 12),
+        expectedHarvestDate: monthsAgo(-2, 20),
       },
     });
 
@@ -333,8 +341,8 @@ async function seedDemoFarm(): Promise<void> {
           parcelId: parcel.id,
           cropId: previousCrop.id,
           campaignYear: year - 1,
-          sowingDate: new Date(Date.UTC(year - 2, 9, 5)),
-          actualHarvestDate: new Date(Date.UTC(year - 1, 6, 18)),
+          sowingDate: monthsAgo(23, 5),
+          actualHarvestDate: monthsAgo(14, 18),
           yieldValue: new Prisma.Decimal(seed.crop === 'BLE_TENDRE' ? 38 : 76),
           yieldUnit: 'q/ha',
         },
@@ -349,7 +357,7 @@ async function seedDemoFarm(): Promise<void> {
         data: {
           parcelId: parcel.id,
           cropYearId: cropYear.id,
-          appliedOn: new Date(Date.UTC(year - 1, 8, 20)),
+          appliedOn: monthsAgo(9 - (index % 3), 20),
           inputType: 'ORGANIC',
           organicInputId: fumier.id,
           productLabel: fumier.name,
@@ -377,7 +385,7 @@ async function seedDemoFarm(): Promise<void> {
         data: {
           parcelId: parcel.id,
           cropYearId: cropYear.id,
-          appliedOn: new Date(Date.UTC(year, 1, 25)),
+          appliedOn: monthsAgo(index % 2, 25),
           inputType: 'MINERAL',
           fertilizerId: ammonitrate.id,
           productLabel: ammonitrate.name,
@@ -400,7 +408,7 @@ async function seedDemoFarm(): Promise<void> {
       data: {
         parcelId: parcel.id,
         cropYearId: cropYear.id,
-        appliedOn: new Date(Date.UTC(year, 2, 15)),
+        appliedOn: monthsAgo(index % 3, 15),
         productName: 'Produit de démonstration (à remplacer par une recherche E-Phy)',
         amm: null,
         activeSubstances: null,
@@ -429,7 +437,7 @@ async function seedDemoFarm(): Promise<void> {
       data: [
         {
           parcelId: parcel.id,
-          performedOn: new Date(Date.UTC(year - 1, 8, 5)),
+          performedOn: monthsAgo(11 - (index % 3), 5),
           type: 'DECHAUMAGE' as const,
           equipment: 'Déchaumeur à disques 4 m',
           operator: 'Camille Durand',
@@ -438,7 +446,7 @@ async function seedDemoFarm(): Promise<void> {
         },
         {
           parcelId: parcel.id,
-          performedOn: new Date(Date.UTC(year - 1, 9, 12)),
+          performedOn: monthsAgo(1 + (index % 5), 12),
           type: 'SEMIS' as const,
           equipment: 'Semoir combiné 3 m',
           operator: 'Camille Durand',

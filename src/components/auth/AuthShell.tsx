@@ -14,27 +14,40 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-champ-50 to-ardoise-50">
-      <header className="px-4 py-6 sm:px-8">
+    <div className="relative flex min-h-screen flex-col bg-canvas">
+      {/* Halo discret : donne du relief sans image ni requête. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_45%_at_50%_-5%,var(--color-champ-200)_0%,transparent_60%)] opacity-70 dark:opacity-20"
+      />
+
+      <header className="relative px-4 py-6 sm:px-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-lg font-bold text-champ-700"
+          className="inline-flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-ink"
         >
-          <span aria-hidden>🌾</span> Parcelys
+          <span
+            aria-hidden
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft"
+          >
+            🌾
+          </span>
+          Parcelys
         </Link>
       </header>
 
-      <main className="flex flex-1 items-start justify-center px-4 pb-16 sm:items-center">
-        <div className="w-full max-w-md">
-          <div className="rounded-2xl border border-ardoise-200 bg-white p-6 shadow-sm sm:p-8">
-            <h1 className="text-xl font-semibold text-ardoise-900">{title}</h1>
+      <main className="relative flex flex-1 items-start justify-center px-4 pb-16 sm:items-center">
+        <div className="w-full max-w-md animate-rise">
+          <div className="rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-8">
+            <h1 className="text-[21px] font-semibold tracking-tight text-ink">{title}</h1>
             {subtitle ? (
-              <p className="mt-1.5 text-sm leading-relaxed text-ardoise-500">{subtitle}</p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-3">{subtitle}</p>
             ) : null}
-            <div className="mt-6">{children}</div>
+            <div className="mt-7">{children}</div>
           </div>
+
           {footer ? (
-            <div className="mt-4 text-center text-sm text-ardoise-500">{footer}</div>
+            <div className="mt-5 text-center text-[13.5px] text-ink-3">{footer}</div>
           ) : null}
         </div>
       </main>

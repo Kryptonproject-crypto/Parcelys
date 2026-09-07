@@ -64,14 +64,14 @@ export default async function SettingsPage() {
               title="Membres de l'exploitation"
               description={`${members.length} membre(s). Les permissions sont vérifiées côté serveur pour chaque action.`}
             />
-            <ul className="divide-y divide-ardoise-100">
+            <ul className="divide-y divide-line">
               {members.map((member) => (
                 <li key={member.id} className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-ardoise-900">
+                    <p className="font-medium text-ink">
                       {member.user.firstName} {member.user.lastName}
                     </p>
-                    <p className="truncate text-sm text-ardoise-500">{member.user.email}</p>
+                    <p className="truncate text-sm text-ink-3">{member.user.email}</p>
                   </div>
                   <Badge tone={member.role === 'OWNER' ? 'green' : 'neutral'}>
                     {ROLE_LABELS[member.role]}
@@ -80,8 +80,8 @@ export default async function SettingsPage() {
               ))}
             </ul>
 
-            <div className="mt-4 rounded-lg bg-ardoise-50 p-3.5 text-sm text-ardoise-600">
-              <p className="font-medium text-ardoise-800">Rôles disponibles</p>
+            <div className="mt-4 rounded-lg bg-surface-2 p-3.5 text-sm text-ink-2">
+              <p className="font-medium text-ink">Rôles disponibles</p>
               <ul className="mt-1.5 space-y-1">
                 <li>
                   <strong>Propriétaire</strong> — accès complet, y compris la suppression de
@@ -111,28 +111,28 @@ export default async function SettingsPage() {
 
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+              <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Produits en base
               </dt>
-              <dd className="mt-0.5 text-sm text-ardoise-900">
+              <dd className="mt-0.5 text-sm text-ink">
                 {ephySource.productsInBase.toLocaleString('fr-FR')}
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+              <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Dernière synchronisation réussie
               </dt>
-              <dd className="mt-0.5 text-sm text-ardoise-900">
+              <dd className="mt-0.5 text-sm text-ink">
                 {ephySource.lastSyncAt ? formatDateFr(ephySource.lastSyncAt) : 'Jamais'}
               </dd>
             </div>
             {lastSyncRun ? (
               <>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                     Dernière tentative
                   </dt>
-                  <dd className="mt-0.5 text-sm text-ardoise-900">
+                  <dd className="mt-0.5 text-sm text-ink">
                     {formatDateFr(lastSyncRun.startedAt)} —{' '}
                     <Badge tone={lastSyncRun.status === 'SUCCESS' ? 'green' : 'red'}>
                       {lastSyncRun.status}
@@ -140,10 +140,10 @@ export default async function SettingsPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                     Source
                   </dt>
-                  <dd className="mt-0.5 truncate text-sm text-ardoise-900">
+                  <dd className="mt-0.5 truncate text-sm text-ink">
                     {lastSyncRun.source}
                   </dd>
                 </div>
@@ -164,16 +164,16 @@ export default async function SettingsPage() {
               {ephySource.configured ? (
                 <>
                   {ephySource.label}. La synchronisation s&apos;exécute côté serveur avec{' '}
-                  <code className="rounded bg-white/60 px-1">npm run ephy:sync</code> ;
+                  <code className="rounded bg-surface/60 px-1">npm run ephy:sync</code> ;
                   planifiez-la (tâche cron) pour maintenir le catalogue à jour.
                 </>
               ) : (
                 <>
                   Aucun produit en base. Parcelys ne génère jamais de donnée réglementaire :
-                  renseignez <code className="rounded bg-white/60 px-1">EPHY_DATA_URL</code>{' '}
+                  renseignez <code className="rounded bg-surface/60 px-1">EPHY_DATA_URL</code>{' '}
                   avec l&apos;URL de l&apos;archive officielle publiée par l&apos;ANSES sur
                   data.gouv.fr, puis lancez{' '}
-                  <code className="rounded bg-white/60 px-1">npm run ephy:sync</code>.
+                  <code className="rounded bg-surface/60 px-1">npm run ephy:sync</code>.
                 </>
               )}
             </Alert>
@@ -185,17 +185,17 @@ export default async function SettingsPage() {
           <CardHeader title="Confidentialité et données" />
           <ul className="space-y-2 text-sm">
             <li>
-              <Link href="/profil" className="text-champ-700 hover:underline">
+              <Link href="/profil" className="text-champ-700 dark:text-champ-400 hover:underline">
                 Exporter ou supprimer mes données personnelles
               </Link>
             </li>
             <li>
-              <Link href="/confidentialite" className="text-champ-700 hover:underline">
+              <Link href="/confidentialite" className="text-champ-700 dark:text-champ-400 hover:underline">
                 Politique de confidentialité
               </Link>
             </li>
             <li>
-              <Link href="/cgu" className="text-champ-700 hover:underline">
+              <Link href="/cgu" className="text-champ-700 dark:text-champ-400 hover:underline">
                 Conditions générales d&apos;utilisation
               </Link>
             </li>

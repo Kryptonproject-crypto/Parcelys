@@ -15,6 +15,7 @@ import {
 import { geodesicAreaM2 } from '@/lib/geo/area';
 import type { MultiPolygonGeometry, Position } from '@/lib/geo/types';
 import { Button, Spinner } from '@/components/ui';
+import { IconCheck, IconEdit, IconUndo } from '@/components/ui/icons';
 
 type GeocodeHit = {
   label: string;
@@ -344,8 +345,8 @@ export function ParcelDrawMap({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher une commune, un lieu-dit, une adresse…"
-            className="h-10 w-full rounded-lg border border-ardoise-300 bg-white px-3 text-sm
-                       placeholder:text-ardoise-400 focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
+            className="h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm
+                       placeholder:text-ink-3/70 focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
           />
           <Button type="submit" variant="outline" disabled={searching}>
             {searching ? <Spinner /> : 'Rechercher'}
@@ -353,17 +354,17 @@ export function ParcelDrawMap({
         </form>
 
         {hits.length > 0 ? (
-          <ul className="absolute z-[1000] mt-1 max-h-64 w-full overflow-auto rounded-lg border border-ardoise-200 bg-white shadow-lg">
+          <ul className="absolute z-[1000] mt-1 max-h-64 w-full overflow-auto rounded-lg border border-line bg-surface shadow-lg">
             {hits.map((hit, index) => (
               <li key={`${hit.label}-${index}`}>
                 <button
                   type="button"
                   onClick={() => goTo(hit)}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-champ-50"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-accent-soft/60"
                 >
-                  <span className="font-medium text-ardoise-800">{hit.label}</span>
+                  <span className="font-medium text-ink">{hit.label}</span>
                   {hit.postcode ? (
-                    <span className="ml-2 text-xs text-ardoise-500">{hit.postcode}</span>
+                    <span className="ml-2 text-xs text-ink-3">{hit.postcode}</span>
                   ) : null}
                 </button>
               </li>
@@ -373,8 +374,8 @@ export function ParcelDrawMap({
       </div>
 
       {/* Barre d'outils */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ardoise-200 bg-white p-2">
-        <div className="flex rounded-md border border-ardoise-200 p-0.5">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface p-2">
+        <div className="flex rounded-md border border-line p-0.5">
           {(['plan', 'satellite'] as const).map((key) => (
             <button
               key={key}
@@ -383,7 +384,7 @@ export function ParcelDrawMap({
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 baseLayer === key
                   ? 'bg-champ-600 text-white'
-                  : 'text-ardoise-600 hover:bg-ardoise-100'
+                  : 'text-ink-2 hover:bg-surface-3'
               }`}
             >
               {key === 'plan' ? 'Plan' : 'Satellite'}
@@ -397,19 +398,21 @@ export function ParcelDrawMap({
           type="button"
           size="sm"
           variant="outline"
+          icon={IconUndo}
           onClick={undo}
           disabled={points.length === 0}
         >
-          ↶ Annuler le point
+          Annuler le point
         </Button>
         <Button
           type="button"
           size="sm"
           variant={closed ? 'secondary' : 'primary'}
+          icon={closed ? IconEdit : IconCheck}
           onClick={() => setClosed((v) => !v)}
           disabled={points.length < 3}
         >
-          {closed ? '✎ Reprendre le tracé' : '✓ Fermer le polygone'}
+          {closed ? 'Reprendre le tracé' : 'Fermer le polygone'}
         </Button>
         <Button
           type="button"
@@ -422,10 +425,10 @@ export function ParcelDrawMap({
         </Button>
 
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <span className="text-ardoise-500">{points.length} sommet(s)</span>
+          <span className="text-ink-3">{points.length} sommet(s)</span>
           <span
             className={`rounded-md px-2.5 py-1 font-semibold tabular-nums ${
-              closed ? 'bg-champ-100 text-champ-800' : 'bg-ardoise-100 text-ardoise-600'
+              closed ? 'bg-accent-soft text-champ-800 dark:text-champ-300' : 'bg-surface-3 text-ink-2'
             }`}
           >
             {areaHa.toLocaleString('fr-FR', {
@@ -439,10 +442,10 @@ export function ParcelDrawMap({
 
       <div
         ref={containerRef}
-        className={`${heightClass} w-full overflow-hidden rounded-xl border border-ardoise-200`}
+        className={`${heightClass} w-full overflow-hidden rounded-xl border border-line`}
       />
 
-      <p className="text-xs text-ardoise-500">
+      <p className="text-xs text-ink-3">
         Cliquez sur la carte pour poser les sommets, déplacez-les pour ajuster le
         contour, clic droit sur un sommet pour le supprimer. La superficie affichée
         est indicative : la valeur enregistrée est recalculée par le serveur (PostGIS)

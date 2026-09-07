@@ -11,12 +11,14 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
+  Select,
   TableWrapper,
   Td,
   Th,
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { IconInputs } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Apports' };
 export const dynamic = 'force-dynamic';
@@ -88,32 +90,30 @@ export default async function FertilizationPage({
       <Card className="mb-5">
         <form method="get" className="grid gap-3 sm:grid-cols-4">
           <div>
-            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
               Campagne
             </label>
-            <select
+            <Select
               id="annee"
               name="annee"
               defaultValue={String(year)}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               {years.map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
               Parcelle
             </label>
-            <select
+            <Select
               id="parcelle"
               name="parcelle"
               defaultValue={params.parcelle ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
@@ -122,23 +122,22 @@ export default async function FertilizationPage({
                   {parcel.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label htmlFor="type" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="type" className="mb-1 block text-xs font-medium text-ink-2">
               Type d&apos;apport
             </label>
-            <select
+            <Select
               id="type"
               name="type"
               defaultValue={params.type ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Tous</option>
               <option value="MINERAL">Minéral</option>
               <option value="ORGANIC">Organique</option>
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-end">
@@ -155,7 +154,7 @@ export default async function FertilizationPage({
       {/* Bilan */}
       {applications.length > 0 ? (
         <Card className="mb-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
             Bilan des éléments fertilisants — campagne {year}
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-4">
@@ -164,22 +163,22 @@ export default async function FertilizationPage({
               ['Phosphore (P₂O₅)', balance.totalP, balance.perHectareP],
               ['Potassium (K₂O)', balance.totalK, balance.perHectareK],
             ].map(([label, total, perHa]) => (
-              <div key={String(label)} className="rounded-lg bg-ardoise-50 p-3">
-                <p className="text-xs text-ardoise-500">{label}</p>
-                <p className="mt-0.5 text-lg font-semibold tabular-nums text-ardoise-900">
+              <div key={String(label)} className="rounded-lg bg-surface-2 p-3">
+                <p className="text-xs text-ink-3">{label}</p>
+                <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
                   {formatNumberFr(perHa, 1)}
-                  <span className="ml-1 text-xs font-normal text-ardoise-500">kg/ha</span>
+                  <span className="ml-1 text-xs font-normal text-ink-3">kg/ha</span>
                 </p>
-                <p className="text-xs tabular-nums text-ardoise-500">
+                <p className="text-xs tabular-nums text-ink-3">
                   {formatNumberFr(total, 1)} kg au total
                 </p>
               </div>
             ))}
-            <div className="rounded-lg bg-ardoise-50 p-3">
-              <p className="text-xs text-ardoise-500">Surface fertilisée cumulée</p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums text-ardoise-900">
+            <div className="rounded-lg bg-surface-2 p-3">
+              <p className="text-xs text-ink-3">Surface fertilisée cumulée</p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
                 {formatNumberFr(balance.areaHa, 2)}
-                <span className="ml-1 text-xs font-normal text-ardoise-500">ha</span>
+                <span className="ml-1 text-xs font-normal text-ink-3">ha</span>
               </p>
             </div>
           </div>
@@ -196,7 +195,7 @@ export default async function FertilizationPage({
 
       {applications.length === 0 ? (
         <EmptyState
-          icon="💧"
+          icon={IconInputs}
           title="Aucun apport sur cette campagne"
           description="Les apports s'enregistrent depuis la fiche d'une parcelle, onglet « Apports »."
           action={
@@ -224,12 +223,12 @@ export default async function FertilizationPage({
           </thead>
           <tbody>
             {applications.map((row) => (
-              <tr key={row.id} className="transition hover:bg-champ-50/50">
+              <tr key={row.id} className="transition hover:bg-accent-soft/40">
                 <Td>{formatDateFr(row.appliedOn)}</Td>
                 <Td>
                   <Link
                     href={`/parcelles/${row.parcel.id}?onglet=apports`}
-                    className="font-medium text-champ-700 hover:underline"
+                    className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
                     {row.parcel.internalNumber ? `${row.parcel.internalNumber} — ` : ''}
                     {row.parcel.name}

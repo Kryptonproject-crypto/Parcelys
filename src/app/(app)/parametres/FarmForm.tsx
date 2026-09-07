@@ -196,13 +196,13 @@ export function FarmForm({ farm, canEdit }: { farm: Farm; canEdit: boolean }) {
         </div>
 
         {canEdit ? (
-          <div className="rounded-lg bg-ardoise-50 p-3.5">
+          <div className="rounded-lg bg-surface-2 p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-ardoise-800">
+                <p className="text-sm font-medium text-ink">
                   Position du siège d&apos;exploitation
                 </p>
-                <p className="text-xs text-ardoise-500">
+                <p className="text-xs text-ink-3">
                   {coords.lat !== null && coords.lng !== null
                     ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
                     : 'Non renseignée — la météo utilisera le centre d’une parcelle.'}
@@ -221,13 +221,13 @@ export function FarmForm({ farm, canEdit }: { farm: Farm; canEdit: boolean }) {
             </div>
 
             {hits.length > 0 ? (
-              <ul className="mt-3 divide-y divide-ardoise-200 rounded-lg border border-ardoise-200 bg-white">
+              <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-surface">
                 {hits.map((hit, index) => (
                   <li key={`${hit.label}-${index}`}>
                     <button
                       type="button"
                       onClick={() => applyHit(hit)}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-champ-50"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-accent-soft/60"
                     >
                       {hit.label}
                     </button>

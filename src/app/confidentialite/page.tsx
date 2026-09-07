@@ -6,24 +6,24 @@ export const metadata: Metadata = { title: 'Politique de confidentialité' };
 export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
-      <Link href="/" className="text-sm text-champ-700 hover:underline">
+      <Link href="/" className="text-sm text-champ-700 dark:text-champ-400 hover:underline">
         ← Retour à l&apos;accueil
       </Link>
 
-      <h1 className="mt-6 text-2xl font-bold text-ardoise-900">
+      <h1 className="mt-6 text-2xl font-bold text-ink">
         Politique de confidentialité
       </h1>
 
-      <div className="mt-4 rounded-lg border border-ble-500/40 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="mt-4 rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 p-4 text-sm text-ble-700 dark:text-ble-100">
         <strong>Document à compléter.</strong> Cette trame décrit fidèlement les traitements
         réellement effectués par le logiciel. Elle doit être complétée (identité du
         responsable de traitement, hébergeur, durées retenues) et validée avant mise en
         production.
       </div>
 
-      <div className="mt-6 space-y-6 text-sm leading-relaxed text-ardoise-700">
+      <div className="mt-6 space-y-6 text-sm leading-relaxed text-ink-2">
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">
+          <h2 className="text-lg font-semibold text-ink">
             1. Responsable de traitement
           </h2>
           <p>
@@ -33,7 +33,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">2. Données collectées</h2>
+          <h2 className="text-lg font-semibold text-ink">2. Données collectées</h2>
           <ul className="list-inside list-disc space-y-1">
             <li>
               <strong>Compte</strong> : prénom, nom, adresse e-mail, téléphone (facultatif),
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">
+          <h2 className="text-lg font-semibold text-ink">
             3. Finalités et bases légales
           </h2>
           <ul className="list-inside list-disc space-y-1">
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">4. Destinataires</h2>
+          <h2 className="text-lg font-semibold text-ink">4. Destinataires</h2>
           <p>
             Les données agronomiques ne sont accessibles qu&apos;aux membres de
             l&apos;exploitation concernée. L&apos;isolation entre exploitations est appliquée
@@ -87,7 +87,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">5. Durées de conservation</h2>
+          <h2 className="text-lg font-semibold text-ink">5. Durées de conservation</h2>
           <ul className="list-inside list-disc space-y-1">
             <li>Données du compte et de l&apos;exploitation : jusqu&apos;à suppression du compte.</li>
             <li>Codes de vérification : 15 minutes ; jetons de réinitialisation : 30 minutes.</li>
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">6. Vos droits</h2>
+          <h2 className="text-lg font-semibold text-ink">6. Vos droits</h2>
           <p>
             Vous disposez d&apos;un droit d&apos;accès, de rectification, d&apos;effacement,
             de limitation, d&apos;opposition et de portabilité. Deux de ces droits
@@ -120,7 +120,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">7. Cookies</h2>
+          <h2 className="text-lg font-semibold text-ink">7. Cookies</h2>
           <p>
             Parcelys dépose un unique cookie strictement nécessaire au fonctionnement du
             service : le cookie de session, en <code>HttpOnly</code> et{' '}
@@ -131,7 +131,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-ardoise-900">8. Sécurité</h2>
+          <h2 className="text-lg font-semibold text-ink">8. Sécurité</h2>
           <p>
             Mots de passe hachés (Argon2id ou bcrypt), sessions à durée limitée et
             révocables, limitation du nombre de tentatives de connexion, verrouillage

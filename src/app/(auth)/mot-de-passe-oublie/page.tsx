@@ -11,7 +11,7 @@ export default function ForgotPasswordPage() {
       title="Mot de passe oublié"
       subtitle="Indiquez votre adresse e-mail : si un compte y est associé, vous recevrez un lien de réinitialisation valable 30 minutes."
       footer={
-        <Link href="/connexion" className="font-medium text-champ-700 hover:underline">
+        <Link href="/connexion" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
           Retour à la connexion
         </Link>
       }

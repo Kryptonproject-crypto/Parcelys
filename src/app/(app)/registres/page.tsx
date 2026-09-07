@@ -7,14 +7,17 @@ import { PrintButton } from '@/app/(app)/registres/PrintButton';
 import {
   Card,
   EmptyState,
+  Input,
   LinkButton,
   PageHeader,
+  Select,
   TableWrapper,
   Td,
   Th,
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { IconRegistry } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Registres' };
 export const dynamic = 'force-dynamic';
@@ -110,32 +113,30 @@ export default async function RegistersPage({
         <Card className="mb-5">
           <form method="get" className="grid gap-3 sm:grid-cols-5">
             <div>
-              <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ardoise-600">
+              <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
                 Campagne
               </label>
-              <select
+              <Select
                 id="annee"
                 name="annee"
                 defaultValue={String(year)}
-                className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
               >
                 {years.map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ardoise-600">
+              <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
                 Parcelle
               </label>
-              <select
+              <Select
                 id="parcelle"
                 name="parcelle"
                 defaultValue={params.parcelle ?? ''}
-                className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
               >
                 <option value="">Toutes</option>
                 {parcels.map((parcel) => (
@@ -144,33 +145,31 @@ export default async function RegistersPage({
                     {parcel.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label htmlFor="produit" className="mb-1 block text-xs font-medium text-ardoise-600">
+              <label htmlFor="produit" className="mb-1 block text-xs font-medium text-ink-2">
                 Produit
               </label>
-              <input
+              <Input
                 id="produit"
                 name="produit"
                 defaultValue={params.produit ?? ''}
-                className="h-10 w-full rounded-lg border border-ardoise-300 px-3 text-sm"
               />
             </div>
 
             <div>
               <label
                 htmlFor="substance"
-                className="mb-1 block text-xs font-medium text-ardoise-600"
+                className="mb-1 block text-xs font-medium text-ink-2"
               >
                 Substance active
               </label>
-              <input
+              <Input
                 id="substance"
                 name="substance"
                 defaultValue={params.substance ?? ''}
-                className="h-10 w-full rounded-lg border border-ardoise-300 px-3 text-sm"
               />
             </div>
 
@@ -187,44 +186,44 @@ export default async function RegistersPage({
       </div>
 
       {/* En-tête du registre (visible à l'impression) */}
-      <div className="print-full mb-5 rounded-xl border border-ardoise-200 bg-white p-5">
-        <h1 className="text-lg font-bold text-ardoise-900">
+      <div className="print-full mb-5 rounded-xl border border-line bg-surface p-5">
+        <h1 className="text-lg font-bold text-ink">
           Registre des traitements phytopharmaceutiques
         </h1>
         <dl className="mt-3 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">Exploitation :</dt>
-            <dd className="font-medium text-ardoise-900">{farm.name}</dd>
+            <dt className="text-ink-3">Exploitation :</dt>
+            <dd className="font-medium text-ink">{farm.name}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">SIRET :</dt>
-            <dd className="text-ardoise-900">{farm.siret ?? '—'}</dd>
+            <dt className="text-ink-3">SIRET :</dt>
+            <dd className="text-ink">{farm.siret ?? '—'}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">Adresse :</dt>
-            <dd className="text-ardoise-900">
+            <dt className="text-ink-3">Adresse :</dt>
+            <dd className="text-ink">
               {[farm.addressLine, farm.postalCode, farm.city].filter(Boolean).join(', ') ||
                 '—'}
             </dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">Campagne :</dt>
-            <dd className="text-ardoise-900">{year}</dd>
+            <dt className="text-ink-3">Campagne :</dt>
+            <dd className="text-ink">{year}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">Édité le :</dt>
-            <dd className="text-ardoise-900">{new Date().toLocaleDateString('fr-FR')}</dd>
+            <dt className="text-ink-3">Édité le :</dt>
+            <dd className="text-ink">{new Date().toLocaleDateString('fr-FR')}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-ardoise-500">Interventions :</dt>
-            <dd className="text-ardoise-900">{applications.length}</dd>
+            <dt className="text-ink-3">Interventions :</dt>
+            <dd className="text-ink">{applications.length}</dd>
           </div>
         </dl>
       </div>
 
       {applications.length === 0 ? (
         <EmptyState
-          icon="📋"
+          icon={IconRegistry}
           title="Aucune intervention sur cette campagne"
           description="Le registre se remplit automatiquement à partir des traitements saisis sur vos parcelles."
         />
@@ -272,7 +271,7 @@ export default async function RegistersPage({
         </TableWrapper>
       )}
 
-      <p className="mt-4 text-xs text-ardoise-500">
+      <p className="mt-4 text-xs text-ink-3">
         Registre généré par Parcelys à partir des interventions saisies. Les
         caractéristiques des produits (numéro d&apos;AMM, substances actives) proviennent du
         catalogue officiel E-Phy publié par l&apos;ANSES

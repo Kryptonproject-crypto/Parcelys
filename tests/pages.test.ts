@@ -180,6 +180,27 @@ describe('Rendu des pages', () => {
     }
   });
 
+  it('autorise les tuiles du fond de carte dans la CSP', async () => {
+    const response = await fetch(`${getBaseUrl()}/`, { redirect: 'manual' });
+    const csp = response.headers.get('content-security-policy') ?? '';
+    const imgSrc = csp.split(';').find((d) => d.trim().startsWith('img-src')) ?? '';
+
+    // Piège corrigé : `*.tile.openstreetmap.org` ne couvre pas l'hôte nu, et
+    // sans lui la carte reste vide en production.
+    expect(imgSrc).toContain('https://tile.openstreetmap.org');
+    // Fond satellite.
+    expect(imgSrc).toContain('https://server.arcgisonline.com');
+  });
+
+  it('applique le thème avant le premier rendu', async () => {
+    const { html } = await fetchPage('/connexion', false);
+
+    // Le script synchrone évite le clignotement clair → sombre au chargement.
+    expect(html).toContain("document.documentElement.setAttribute('data-theme'");
+    expect(html).toContain('parcelys-theme');
+    expect(html).toContain('prefers-color-scheme: dark');
+  });
+
   it('applique les en-têtes de sécurité', async () => {
     const response = await fetch(`${getBaseUrl()}/`, { redirect: 'manual' });
 

@@ -201,7 +201,7 @@ export function CropYearForm({
         <button
           type="button"
           onClick={() => setCreatingCustom(true)}
-          className="text-sm text-champ-700 hover:underline"
+          className="text-sm text-champ-700 dark:text-champ-400 hover:underline"
         >
           + Créer une culture personnalisée
         </button>

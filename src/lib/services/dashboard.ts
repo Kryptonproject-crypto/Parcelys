@@ -15,9 +15,12 @@ export type DashboardStats = {
   currentCrops: Array<{ cropName: string; areaHa: number; parcelCount: number }>;
 };
 
+/** Nature du point à traiter ; la page choisit l'icône correspondante. */
+export type TodoKind = 'crop' | 'phyto' | 'registry' | 'ephy' | 'weather';
+
 export type TodoItem = {
   id: string;
-  icon: string;
+  kind: TodoKind;
   label: string;
   link: string;
   severity: 'info' | 'warning';
@@ -172,7 +175,7 @@ async function buildTodoList(params: {
   if (withoutCrop.length > 0) {
     todo.push({
       id: 'no-crop',
-      icon: '🌱',
+      kind: 'crop',
       label: `${withoutCrop.length} parcelle${withoutCrop.length > 1 ? 's' : ''} sans culture renseignée pour la campagne ${params.campaignYear}`,
       link: '/parcelles?filtre=sans-culture',
       severity: 'warning',
@@ -190,7 +193,7 @@ async function buildTodoList(params: {
     if (incompletePhyto > 0) {
       todo.push({
         id: 'incomplete-phyto',
-        icon: '🧪',
+        kind: 'phyto',
         label: `${incompletePhyto} traitement${incompletePhyto > 1 ? 's' : ''} à compléter (AMM, cible ou opérateur manquant)`,
         link: '/phytosanitaire?filtre=incomplet',
         severity: 'warning',
@@ -203,7 +206,7 @@ async function buildTodoList(params: {
     if (missingWeather > 0) {
       todo.push({
         id: 'registry-weather',
-        icon: '📋',
+        kind: 'registry',
         label: `Registre phytosanitaire incomplet : ${missingWeather} intervention${missingWeather > 1 ? 's' : ''} sans conditions météo`,
         link: '/registres',
         severity: 'info',
@@ -223,7 +226,7 @@ async function buildTodoList(params: {
   if (productCount === 0) {
     todo.push({
       id: 'ephy-missing',
-      icon: '⚠️',
+      kind: 'ephy',
       label: 'Référentiel E-Phy non synchronisé : la recherche de produits est indisponible',
       link: '/phytosanitaire',
       severity: 'warning',
@@ -233,7 +236,7 @@ async function buildTodoList(params: {
     if (ageDays > 45) {
       todo.push({
         id: 'ephy-stale',
-        icon: '⚠️',
+        kind: 'ephy',
         label: `Référentiel E-Phy synchronisé il y a ${Math.round(ageDays)} jours — une mise à jour est recommandée`,
         link: '/phytosanitaire',
         severity: 'info',
@@ -259,7 +262,7 @@ async function buildTodoList(params: {
       if (tomorrow && (tomorrow.precipitationMm ?? 0) >= 2) {
         todo.push({
           id: 'weather-rain',
-          icon: '🌦️',
+          kind: 'weather',
           label: `Pluie prévue demain : ${tomorrow.precipitationMm?.toFixed(1)} mm`,
           link: '/meteo',
           severity: 'info',

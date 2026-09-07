@@ -8,7 +8,8 @@ import {
   computeNutrients,
   computeTotalQuantity,
 } from '@/lib/services/fertilization';
-import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
+import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
+import { FlaskConical as IconFlask, Wheat as IconHarvest } from 'lucide-react';
 import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
 
 /**
@@ -139,13 +140,13 @@ export function FertilizationForm({
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       {/* Type d'apport */}
-      <div className="flex rounded-lg border border-ardoise-200 p-0.5">
+      <div className="flex rounded-lg border border-line p-0.5">
         {(
           [
-            ['MINERAL', 'Minéral', '⚗️'],
-            ['ORGANIC', 'Organique', '🌾'],
+            ['MINERAL', 'Minéral', IconFlask],
+            ['ORGANIC', 'Organique', IconHarvest],
           ] as const
-        ).map(([value, label, icon]) => (
+        ).map(([value, label, Icon]) => (
           <button
             key={value}
             type="button"
@@ -154,13 +155,13 @@ export function FertilizationForm({
               setProductId('');
               setDoseUnit(value === 'MINERAL' ? 'kg/ha' : 't/ha');
             }}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition ${
+            className={`flex flex-1 items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors ${
               inputType === value
-                ? 'bg-champ-600 text-white'
-                : 'text-ardoise-600 hover:bg-ardoise-100'
+                ? 'bg-champ-600 text-white dark:bg-champ-500 dark:text-champ-950'
+                : 'text-ink-2 hover:bg-surface-3'
             }`}
           >
-            <span aria-hidden>{icon}</span>
+            <Icon size={15} aria-hidden />
             {label}
           </button>
         ))}
@@ -273,11 +274,11 @@ export function FertilizationForm({
 
       {/* Calcul en direct */}
       {preview ? (
-        <div className="rounded-lg border border-champ-200 bg-champ-50 p-3.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-champ-700">
+        <div className="rounded-lg border border-champ-200 dark:border-champ-800 bg-accent-soft p-3.5">
+          <p className="text-xs font-medium uppercase tracking-wide text-champ-700 dark:text-champ-400">
             Calcul automatique
           </p>
-          <p className="mt-1.5 text-sm text-ardoise-800">
+          <p className="mt-1.5 text-sm text-ink">
             <span className="font-semibold tabular-nums">
               {preview.totalQuantity.toLocaleString('fr-FR', {
                 maximumFractionDigits: 2,
@@ -290,7 +291,7 @@ export function FertilizationForm({
           {preview.nSupplied !== null ||
           preview.pSupplied !== null ||
           preview.kSupplied !== null ? (
-            <p className="mt-1 text-sm text-ardoise-700">
+            <p className="mt-1 text-sm text-ink-2">
               Éléments apportés :{' '}
               {[
                 preview.nSupplied !== null ? `N ${preview.nSupplied} kg/ha` : null,
@@ -310,8 +311,8 @@ export function FertilizationForm({
       ) : null}
 
       {/* Saisie manuelle des éléments */}
-      <details className="rounded-lg border border-ardoise-200 p-3">
-        <summary className="cursor-pointer text-sm font-medium text-ardoise-700">
+      <details className="rounded-lg border border-line p-3">
+        <summary className="cursor-pointer text-sm font-medium text-ink-2">
           Éléments fertilisants et traçabilité (facultatif)
         </summary>
 
@@ -343,8 +344,7 @@ export function FertilizationForm({
       </Field>
 
       <div className="flex justify-end gap-2 pt-1">
-        <Button type="submit" disabled={submitting}>
-          {submitting ? <Spinner /> : null}
+        <Button type="submit" loading={submitting}>
           {submitting ? 'Enregistrement…' : "Enregistrer l'apport"}
         </Button>
       </div>

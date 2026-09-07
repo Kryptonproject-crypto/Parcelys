@@ -21,7 +21,7 @@ export default async function NewParcelPage() {
       <PageHeader
         title="Nouvelle parcelle"
         breadcrumb={
-          <Link href="/parcelles" className="hover:text-champ-700">
+          <Link href="/parcelles" className="hover:text-champ-700 dark:hover:text-champ-400">
             ← Retour aux parcelles
           </Link>
         }

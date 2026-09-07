@@ -1,75 +1,194 @@
 @import 'tailwindcss';
 
+/* Mode sombre piloté par `data-theme` sur <html> (choix explicite, persisté). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 /* ------------------------------------------------------------------ *
- * Identité visuelle Parcelys — agricole, sobre, professionnelle.
+ * Palette brute — échelles fixes, indépendantes du mode.
  * ------------------------------------------------------------------ */
 @theme {
-  --color-terre-50: #faf8f4;
-  --color-terre-100: #f2ede3;
-  --color-terre-200: #e3dac7;
-  --color-terre-700: #6b5638;
-  --color-terre-900: #3d3020;
+  /* Vert « champ » : identité de Parcelys. */
+  --color-champ-50: #f2f9f1;
+  --color-champ-100: #e0f0dd;
+  --color-champ-200: #c2e1bd;
+  --color-champ-300: #95ca8e;
+  --color-champ-400: #61ac59;
+  --color-champ-500: #3f8f39;
+  --color-champ-600: #2d7229;
+  --color-champ-700: #255c23;
+  --color-champ-800: #1f4a1e;
+  --color-champ-900: #143312;
+  --color-champ-950: #0a1e0a;
 
-  --color-champ-50: #f3f8f1;
-  --color-champ-100: #e3efdf;
-  --color-champ-200: #c6dfbe;
-  --color-champ-300: #9dc790;
-  --color-champ-400: #6da95d;
-  --color-champ-500: #4b8b3d;
-  --color-champ-600: #2f6b34;
-  --color-champ-700: #26562b;
-  --color-champ-800: #1f4424;
-  --color-champ-900: #16301a;
+  /* Neutres chauds, légèrement verdis — évite le gris clinique. */
+  --color-ardoise-50: #f8f9f7;
+  --color-ardoise-100: #eef1ec;
+  --color-ardoise-200: #dde2d9;
+  --color-ardoise-300: #c1c9bc;
+  --color-ardoise-400: #97a291;
+  --color-ardoise-500: #717e6c;
+  --color-ardoise-600: #576352;
+  --color-ardoise-700: #444e41;
+  --color-ardoise-800: #2c342b;
+  --color-ardoise-900: #1b211a;
+  --color-ardoise-950: #10140f;
 
-  --color-ardoise-50: #f7f8f7;
-  --color-ardoise-100: #eef1ed;
-  --color-ardoise-200: #dde2da;
-  --color-ardoise-300: #c2cabd;
-  --color-ardoise-400: #96a190;
-  --color-ardoise-500: #6f7c69;
-  --color-ardoise-600: #566150;
-  --color-ardoise-700: #434c3f;
-  --color-ardoise-800: #2f362d;
-  --color-ardoise-900: #1f2a1c;
-
+  /* Blé : accent chaud, moissons et alertes douces. */
+  --color-ble-50: #fdf8ec;
+  --color-ble-100: #faedcc;
+  --color-ble-300: #f0cd6b;
   --color-ble-400: #e8b93f;
   --color-ble-500: #d9a521;
   --color-ble-600: #b4841a;
+  --color-ble-700: #8a6414;
 
-  --color-brique-100: #fdeceb;
-  --color-brique-500: #c0392b;
-  --color-brique-600: #a03024;
+  --color-terre-100: #f2ede3;
+  --color-terre-500: #a1794a;
+  --color-terre-700: #6b5638;
 
-  --color-ciel-100: #e4f0f7;
-  --color-ciel-500: #2b7ba8;
-  --color-ciel-600: #226388;
+  --color-brique-50: #fdf0ef;
+  --color-brique-100: #fbdedc;
+  --color-brique-500: #d0453a;
+  --color-brique-600: #b0342b;
+  --color-brique-700: #8d2a22;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-ciel-50: #eef6fb;
+  --color-ciel-100: #d8ebf6;
+  --color-ciel-500: #2a78d6;
+  --color-ciel-600: #1f5da8;
+  --color-ciel-700: #184a86;
+
+  /* ---------------------------------------------------------------- *
+   * Jetons sémantiques — pointent vers des variables qui basculent
+   * avec le thème (cf. blocs :root / [data-theme='dark']).
+   * ---------------------------------------------------------------- */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  /* Palette de graphiques, validée pour les deux modes (séparation
+     CVD ΔE ≥ 8, contraste ≥ 3:1 en sombre ; en clair, les libellés
+     directs assurent le relief exigé). */
+  --color-serie-1: var(--serie-1);
+  --color-serie-2: var(--serie-2);
+  --color-serie-3: var(--serie-3);
+  --color-serie-4: var(--serie-4);
+  --color-serie-5: var(--serie-5);
+  --color-serie-6: var(--serie-6);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, sans-serif;
+
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
+
+  --shadow-card: 0 1px 2px rgb(16 20 15 / 0.04), 0 1px 3px rgb(16 20 15 / 0.03);
+  --shadow-raised: 0 4px 12px rgb(16 20 15 / 0.07), 0 1px 3px rgb(16 20 15 / 0.05);
+  --shadow-float: 0 12px 32px rgb(16 20 15 / 0.12), 0 2px 8px rgb(16 20 15 / 0.06);
+
+  --animate-fade-in: parcelys-fade-in 0.2s ease-out both;
+  --animate-rise: parcelys-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-grow-x: parcelys-grow-x 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-grow-y: parcelys-grow-y 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: parcelys-shimmer 1.4s linear infinite;
 }
 
+/* ------------------------------------------------------------------ *
+ * Thème clair (défaut)
+ * ------------------------------------------------------------------ */
 :root {
   color-scheme: light;
+
+  --canvas: #f6f7f4;
+  --surface: #ffffff;
+  --surface-2: #f8f9f7;
+  --surface-3: #eef1ec;
+  --line: #e3e7df;
+  --line-strong: #c9d1c5;
+  --ink: #1b211a;
+  --ink-2: #4b5648;
+  --ink-3: #717e6c;
+  --accent: #2d7229;
+  --accent-soft: #e0f0dd;
+  --accent-ink: #1f4a1e;
+
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+  --serie-3: #1baf7a;
+  --serie-4: #eda100;
+  --serie-5: #e87ba4;
+  --serie-6: #008300;
 }
 
+/* ------------------------------------------------------------------ *
+ * Thème sombre — pas une inversion : chaque teinte est reprise pour
+ * le fond sombre (contraste et séparation revalidés).
+ * ------------------------------------------------------------------ */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #10140f;
+  --surface: #1c231b;
+  --surface-2: #222a21;
+  --surface-3: #2c342b;
+  --line: #333c31;
+  --line-strong: #47523f;
+  --ink: #eef1ec;
+  --ink-2: #b6c0b1;
+  --ink-3: #8b9686;
+  --accent: #61ac59;
+  --accent-soft: #1f4a1e;
+  --accent-ink: #c2e1bd;
+
+  --serie-1: #3987e5;
+  --serie-2: #d95926;
+  --serie-3: #199e70;
+  --serie-4: #c98500;
+  --serie-5: #d55181;
+  --serie-6: #008300;
+}
+
+/* ------------------------------------------------------------------ *
+ * Base
+ * ------------------------------------------------------------------ */
 html,
 body {
   height: 100%;
 }
 
 body {
-  background-color: var(--color-ardoise-50);
-  color: var(--color-ardoise-900);
+  background-color: var(--canvas);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-/* Anneau de focus visible, homogène sur tous les contrôles. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
 *:focus-visible {
-  outline: 2px solid var(--color-champ-500);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
-/* Barres de défilement discrètes (WebKit). */
+/* Les chiffres alignés facilitent la lecture des tableaux de doses. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -78,55 +197,72 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-ardoise-300);
+  background: var(--line-strong);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-ardoise-400);
+  background: var(--ink-3);
   background-clip: content-box;
 }
 
 /* ------------------------------------------------------------------ *
- * Leaflet — la feuille de style est importée par le composant carte,
- * ces règles ajustent son intégration au thème.
+ * Leaflet — intégration au thème.
  * ------------------------------------------------------------------ */
 .leaflet-container {
   font-family: var(--font-sans);
-  background: var(--color-ardoise-100);
+  /* `!important` assumé : leaflet.css est importé par le composant carte, donc
+     après cette feuille, et impose sinon son fond gris clair en thème sombre. */
+  background: var(--surface-3) !important;
 }
 
 .leaflet-control-attribution {
   font-size: 10px;
-  background: rgb(255 255 255 / 0.85) !important;
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  color: var(--ink-3) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--ink-2) !important;
 }
 
-.leaflet-bar a {
-  color: var(--color-ardoise-800) !important;
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+/* En mode sombre, les tuiles claires sont adoucies pour ne pas éblouir. */
+[data-theme='dark'] .leaflet-tile-pane {
+  filter: brightness(0.78) saturate(0.85) contrast(1.05);
 }
 
 .parcel-tooltip {
-  background: var(--color-ardoise-900);
-  color: #fff;
+  background: var(--ink);
+  color: var(--canvas);
   border: 0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+  border-radius: 8px;
+  box-shadow: var(--shadow-float);
   font-size: 12px;
   font-weight: 500;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  line-height: 1.45;
 }
 .parcel-tooltip::before {
-  border-top-color: var(--color-ardoise-900);
+  border-top-color: var(--ink);
 }
 
-/* Impression : registres lisibles sur papier. */
+/* ------------------------------------------------------------------ *
+ * Impression — registres lisibles sur papier.
+ * ------------------------------------------------------------------ */
 @media print {
   .no-print {
     display: none !important;
   }
   body {
     background: #fff;
+    color: #000;
   }
   .print-full {
     box-shadow: none !important;
@@ -144,10 +280,22 @@ body {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Animations
+ * ------------------------------------------------------------------ */
 @keyframes parcelys-fade-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes parcelys-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -155,6 +303,62 @@ body {
   }
 }
 
-.animate-fade-in {
-  animation: parcelys-fade-in 0.18s ease-out;
+@keyframes parcelys-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes parcelys-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes parcelys-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 25%,
+    var(--surface-2) 37%,
+    var(--surface-3) 63%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: 6px;
+}
+
+/* Décalage en cascade pour les listes et grilles animées. */
+.stagger > * {
+  animation: var(--animate-rise);
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

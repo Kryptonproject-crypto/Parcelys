@@ -1,9 +1,36 @@
 import type { NextConfig } from 'next';
 
 /**
- * En-têtes de sécurité appliqués à toutes les réponses.
- * La CSP autorise les tuiles OpenStreetMap (carte) et rien d'autre en `img-src`.
+ * Origines autorisées pour les tuiles de fond de carte.
+ *
+ * L'origine réelle est déduite de `MAP_TILE_URL` : changer de fournisseur ne
+ * demande donc pas de retoucher la CSP. Les valeurs par défaut couvrent
+ * OpenStreetMap et le fond satellite Esri.
+ *
+ * Attention au piège : `*.tile.openstreetmap.org` ne couvre PAS
+ * `tile.openstreetmap.org` — l'hôte nu doit être listé séparément.
  */
+function mapTileOrigins(): string[] {
+  const origins = new Set([
+    'https://tile.openstreetmap.org',
+    'https://*.tile.openstreetmap.org',
+    'https://*.basemaps.cartocdn.com',
+    'https://server.arcgisonline.com',
+  ]);
+
+  const configured = process.env.MAP_TILE_URL;
+  if (configured) {
+    try {
+      // Les gabarits `{z}/{x}/{y}` ne gênent pas l'analyse de l'origine.
+      origins.add(new URL(configured).origin);
+    } catch {
+      // URL invalide : la validation de `getEnv()` le signalera au démarrage.
+    }
+  }
+
+  return [...origins];
+}
+
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -21,11 +48,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // `unsafe-inline` reste nécessaire pour les styles injectés par Next/Leaflet.
+      // `unsafe-inline` reste nécessaire pour les styles injectés par Next et Leaflet.
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'" +
         (process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''),
-      "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com",
+      `img-src 'self' data: blob: ${mapTileOrigins().join(' ')}`,
       "font-src 'self' data:",
       "connect-src 'self'",
       "frame-ancestors 'none'",

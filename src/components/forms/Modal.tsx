@@ -50,22 +50,22 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative my-4 w-full animate-fade-in rounded-xl border border-ardoise-200 bg-white shadow-xl ${
+        className={`relative my-4 w-full animate-fade-in rounded-xl border border-line bg-surface shadow-xl ${
           wide ? 'max-w-3xl' : 'max-w-lg'
         }`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-ardoise-200 px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-ardoise-900">{title}</h2>
+            <h2 className="text-base font-semibold text-ink">{title}</h2>
             {description ? (
-              <p className="mt-0.5 text-sm text-ardoise-500">{description}</p>
+              <p className="mt-0.5 text-sm text-ink-3">{description}</p>
             ) : null}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="rounded-lg p-1.5 text-ardoise-500 transition hover:bg-ardoise-100 hover:text-ardoise-800"
+            className="rounded-lg p-1.5 text-ink-3 transition hover:bg-surface-3 hover:text-ink"
           >
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
               <path

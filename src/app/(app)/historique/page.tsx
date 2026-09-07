@@ -9,8 +9,10 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
+  Select,
   formatDateFr,
 } from '@/components/ui';
+import { IconHistory } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Historique' };
 export const dynamic = 'force-dynamic';
@@ -84,14 +86,13 @@ export default async function HistoryPage({
       <Card className="mb-5">
         <form method="get" className="grid gap-3 sm:grid-cols-5">
           <div className="sm:col-span-2">
-            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
               Parcelle
             </label>
-            <select
+            <Select
               id="parcelle"
               name="parcelle"
               defaultValue={params.parcelle ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes les parcelles</option>
               {parcels.map((parcel) => (
@@ -100,18 +101,17 @@ export default async function HistoryPage({
                   {parcel.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label htmlFor="nature" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="nature" className="mb-1 block text-xs font-medium text-ink-2">
               Nature
             </label>
-            <select
+            <Select
               id="nature"
               name="nature"
               defaultValue={params.nature ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes</option>
               {Object.entries(KIND_LABELS).map(([value, label]) => (
@@ -119,11 +119,11 @@ export default async function HistoryPage({
                   {label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label htmlFor="du" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="du" className="mb-1 block text-xs font-medium text-ink-2">
               Du
             </label>
             <input
@@ -131,12 +131,12 @@ export default async function HistoryPage({
               name="du"
               type="date"
               defaultValue={params.du ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
+              className="h-10 w-full rounded-lg border border-line-strong px-2 text-sm"
             />
           </div>
 
           <div>
-            <label htmlFor="au" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="au" className="mb-1 block text-xs font-medium text-ink-2">
               Au
             </label>
             <input
@@ -144,7 +144,7 @@ export default async function HistoryPage({
               name="au"
               type="date"
               defaultValue={params.au ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
+              className="h-10 w-full rounded-lg border border-line-strong px-2 text-sm"
             />
           </div>
 
@@ -161,7 +161,7 @@ export default async function HistoryPage({
 
       {events.length === 0 ? (
         <EmptyState
-          icon="📊"
+          icon={IconHistory}
           title="Aucun événement"
           description="L'historique se construit automatiquement à partir de vos saisies."
         />
@@ -169,7 +169,7 @@ export default async function HistoryPage({
         <div className="space-y-6">
           {[...grouped.entries()].map(([month, monthEvents]) => (
             <div key={month}>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ardoise-500">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-ink-3">
                 {new Date(`${month}-01T00:00:00Z`).toLocaleDateString('fr-FR', {
                   month: 'long',
                   year: 'numeric',
@@ -178,12 +178,12 @@ export default async function HistoryPage({
               </h2>
 
               <Card>
-                <ol className="relative space-y-5 border-l-2 border-ardoise-200 pl-5">
+                <ol className="relative space-y-5 border-l-2 border-line pl-5">
                   {monthEvents.map((event) => (
                     <li key={event.id} className="relative">
                       <span className="absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-champ-500" />
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <time className="text-sm font-semibold tabular-nums text-ardoise-900">
+                        <time className="text-sm font-semibold tabular-nums text-ink">
                           {formatDateFr(event.date)}
                         </time>
                         <Badge tone={KIND_TONES[event.kind]}>
@@ -191,14 +191,14 @@ export default async function HistoryPage({
                         </Badge>
                         <Link
                           href={`/parcelles/${event.parcelId}`}
-                          className="text-sm text-champ-700 hover:underline"
+                          className="text-sm text-champ-700 dark:text-champ-400 hover:underline"
                         >
                           {event.parcelName}
                         </Link>
                       </div>
-                      <p className="mt-1 font-medium text-ardoise-800">{event.title}</p>
+                      <p className="mt-1 font-medium text-ink">{event.title}</p>
                       {event.details.length > 0 ? (
-                        <ul className="mt-1 space-y-0.5 text-sm text-ardoise-600">
+                        <ul className="mt-1 space-y-0.5 text-sm text-ink-2">
                           {event.details.map((detail) => (
                             <li key={detail}>{detail}</li>
                           ))}

@@ -25,8 +25,8 @@ const ParcelDrawMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[520px] items-center justify-center rounded-xl border border-ardoise-200 bg-ardoise-50">
-        <span className="text-sm text-ardoise-500">Chargement de la carte…</span>
+      <div className="flex h-[520px] items-center justify-center rounded-xl border border-line bg-surface-2">
+        <span className="text-sm text-ink-3">Chargement de la carte…</span>
       </div>
     ),
   },
@@ -271,12 +271,12 @@ export function NewParcelWizard({ tileUrl, attribution, otherParcels, parcel }: 
         </div>
 
         {/* Récapitulatif */}
-        <div className="mt-5 flex flex-wrap items-center gap-4 rounded-lg bg-ardoise-50 p-4">
+        <div className="mt-5 flex flex-wrap items-center gap-4 rounded-lg bg-surface-2 p-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
               Superficie {areaHa !== null ? '(estimation)' : ''}
             </p>
-            <p className="text-xl font-semibold tabular-nums text-champ-700">
+            <p className="text-xl font-semibold tabular-nums text-champ-700 dark:text-champ-400">
               {areaHa !== null
                 ? `${areaHa.toLocaleString('fr-FR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ha`
                 : geometry
@@ -287,10 +287,10 @@ export function NewParcelWizard({ tileUrl, attribution, otherParcels, parcel }: 
 
           {draw ? (
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-ardoise-500">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Centre (GPS)
               </p>
-              <p className="text-sm tabular-nums text-ardoise-700">
+              <p className="text-sm tabular-nums text-ink-2">
                 {draw.centroid.lat.toFixed(5)}, {draw.centroid.lng.toFixed(5)}
               </p>
             </div>

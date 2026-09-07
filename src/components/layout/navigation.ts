@@ -1,27 +1,74 @@
+import {
+  IconDashboard,
+  IconDocuments,
+  IconCrops,
+  IconExport,
+  IconHistory,
+  IconInputs,
+  IconParcels,
+  IconPhyto,
+  IconProfile,
+  IconRegistry,
+  IconSettings,
+  IconWeather,
+  type LucideIcon,
+} from '@/components/ui/icons';
+
 export type NavItem = {
   href: string;
   label: string;
-  icon: string;
-  /** Affiché dans la barre inférieure mobile. */
+  icon: LucideIcon;
+  /** Libellé court pour la barre inférieure mobile. */
+  shortLabel?: string;
+  /** Présent dans la navigation mobile (4 emplacements). */
   mobile?: boolean;
+  group: 'exploitation' | 'suivi' | 'documents';
 };
 
 export const MAIN_NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Tableau de bord', icon: '🏠', mobile: true },
-  { href: '/parcelles', label: 'Parcelles', icon: '🗺️', mobile: true },
-  { href: '/cultures', label: 'Cultures', icon: '🌱' },
-  { href: '/apports', label: 'Apports', icon: '💧', mobile: true },
-  { href: '/phytosanitaire', label: 'Phytosanitaire', icon: '🧪', mobile: true },
-  { href: '/meteo', label: 'Météo', icon: '🌦️' },
-  { href: '/registres', label: 'Registres', icon: '📋' },
-  { href: '/historique', label: 'Historique', icon: '📊' },
-  { href: '/documents', label: 'Documents', icon: '📁' },
-  { href: '/exports', label: 'Exportations', icon: '📤' },
+  {
+    href: '/dashboard',
+    label: 'Tableau de bord',
+    shortLabel: 'Accueil',
+    icon: IconDashboard,
+    mobile: true,
+    group: 'exploitation',
+  },
+  {
+    href: '/parcelles',
+    label: 'Parcelles',
+    icon: IconParcels,
+    mobile: true,
+    group: 'exploitation',
+  },
+  { href: '/cultures', label: 'Cultures', icon: IconCrops, group: 'exploitation' },
+
+  { href: '/apports', label: 'Apports', icon: IconInputs, mobile: true, group: 'suivi' },
+  {
+    href: '/phytosanitaire',
+    label: 'Phytosanitaire',
+    shortLabel: 'Phyto',
+    icon: IconPhyto,
+    mobile: true,
+    group: 'suivi',
+  },
+  { href: '/meteo', label: 'Météo', icon: IconWeather, group: 'suivi' },
+
+  { href: '/registres', label: 'Registres', icon: IconRegistry, group: 'documents' },
+  { href: '/historique', label: 'Historique', icon: IconHistory, group: 'documents' },
+  { href: '/documents', label: 'Documents', icon: IconDocuments, group: 'documents' },
+  { href: '/exports', label: 'Exportations', icon: IconExport, group: 'documents' },
+];
+
+export const NAV_GROUPS: Array<{ key: NavItem['group']; label: string }> = [
+  { key: 'exploitation', label: 'Exploitation' },
+  { key: 'suivi', label: 'Suivi cultural' },
+  { key: 'documents', label: 'Registres & exports' },
 ];
 
 export const FOOTER_NAV: NavItem[] = [
-  { href: '/profil', label: 'Profil', icon: '👤' },
-  { href: '/parametres', label: 'Paramètres', icon: '⚙️' },
+  { href: '/profil', label: 'Profil', icon: IconProfile, group: 'exploitation' },
+  { href: '/parametres', label: 'Paramètres', icon: IconSettings, group: 'exploitation' },
 ];
 
 /** Un lien est actif pour sa route exacte et ses sous-routes. */

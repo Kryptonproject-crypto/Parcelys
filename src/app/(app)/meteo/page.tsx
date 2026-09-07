@@ -15,8 +15,10 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
+  Select,
   StatCard,
 } from '@/components/ui';
+import { IconInputs, IconRain, IconTemperature, IconWeather, IconWind } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Météo' };
 export const dynamic = 'force-dynamic';
@@ -99,7 +101,7 @@ export default async function WeatherPage({
       <div className="mx-auto max-w-4xl">
         <PageHeader title="Météo locale" />
         <EmptyState
-          icon="🌦️"
+          icon={IconWeather}
           title="Aucune localisation connue"
           description="Renseignez l'adresse de votre exploitation dans les paramètres, ou créez une première parcelle : ses coordonnées serviront de point de référence."
           action={
@@ -144,15 +146,14 @@ export default async function WeatherPage({
             <div className="min-w-56 flex-1">
               <label
                 htmlFor="parcelle"
-                className="mb-1 block text-xs font-medium text-ardoise-600"
+                className="mb-1 block text-xs font-medium text-ink-2"
               >
                 Point d&apos;observation
               </label>
-              <select
+              <Select
                 id="parcelle"
                 name="parcelle"
                 defaultValue={params.parcelle ?? ''}
-                className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
               >
                 <option value="">Siège de l&apos;exploitation</option>
                 {parcels.map((parcel) => (
@@ -161,7 +162,7 @@ export default async function WeatherPage({
                     {parcel.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <button
               type="submit"
@@ -188,7 +189,7 @@ export default async function WeatherPage({
               label="Température"
               value={num(bundle.current.temperatureC, 1)}
               unit="°C"
-              icon="🌡️"
+              icon={IconTemperature}
               hint={
                 bundle.current.apparentTemperatureC !== null
                   ? `Ressenti ${num(bundle.current.apparentTemperatureC, 1)} °C`
@@ -199,14 +200,14 @@ export default async function WeatherPage({
               label="Précipitations"
               value={num(bundle.current.precipitationMm, 1)}
               unit="mm"
-              icon="🌧️"
+              icon={IconRain}
               hint={bundle.current.summary}
             />
             <StatCard
               label="Vent"
               value={num(bundle.current.windKmh, 1)}
               unit="km/h"
-              icon="💨"
+              icon={IconWind}
               hint={
                 bundle.current.windGustKmh !== null
                   ? `Rafales ${num(bundle.current.windGustKmh, 0)} km/h`
@@ -217,7 +218,7 @@ export default async function WeatherPage({
               label="Humidité"
               value={num(bundle.current.humidity, 0)}
               unit="%"
-              icon="💧"
+              icon={IconInputs}
               hint={
                 bundle.current.pressureHpa !== null
                   ? `Pression ${num(bundle.current.pressureHpa, 0)} hPa`
@@ -266,22 +267,23 @@ export default async function WeatherPage({
                 {bundle.hourly.slice(0, 24).map((hour) => (
                   <div
                     key={hour.time}
-                    className="w-24 shrink-0 rounded-lg border border-ardoise-200 p-2.5 text-center"
+                    className="w-24 shrink-0 rounded-lg border border-line p-2.5 text-center"
                   >
-                    <p className="text-xs font-medium text-ardoise-500">
+                    <p className="text-xs font-medium text-ink-3">
                       {formatHour(hour.time)}
                     </p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums text-ardoise-900">
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-ink">
                       {num(hour.temperatureC, 0)}°
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-tight text-ardoise-500">
+                    <p className="mt-0.5 text-[11px] leading-tight text-ink-3">
                       {hour.summary}
                     </p>
                     <p className="mt-1 text-xs tabular-nums text-ciel-600">
                       {num(hour.precipitationMm, 1)} mm
                     </p>
-                    <p className="text-[11px] tabular-nums text-ardoise-500">
-                      💨 {num(hour.windKmh, 0)} km/h
+                    <p className="flex items-center justify-center gap-1 text-[11px] tabular-nums text-ink-3">
+                      <IconWind size={11} aria-hidden />
+                      {num(hour.windKmh, 0)} km/h
                     </p>
                   </div>
                 ))}
@@ -296,41 +298,43 @@ export default async function WeatherPage({
               {bundle.daily.map((day) => (
                 <div
                   key={day.date}
-                  className="rounded-lg border border-ardoise-200 p-3 text-center"
+                  className="rounded-lg border border-line p-3 text-center"
                 >
-                  <p className="text-xs font-medium capitalize text-ardoise-600">
+                  <p className="text-xs font-medium capitalize text-ink-2">
                     {formatDay(day.date)}
                   </p>
-                  <p className="mt-1.5 text-sm leading-tight text-ardoise-500">
+                  <p className="mt-1.5 text-sm leading-tight text-ink-3">
                     {day.summary}
                   </p>
                   <p className="mt-1.5 tabular-nums">
-                    <span className="text-lg font-semibold text-ardoise-900">
+                    <span className="text-lg font-semibold text-ink">
                       {num(day.temperatureMaxC, 0)}°
                     </span>
-                    <span className="ml-1.5 text-sm text-ardoise-500">
+                    <span className="ml-1.5 text-sm text-ink-3">
                       {num(day.temperatureMinC, 0)}°
                     </span>
                   </p>
-                  <p className="mt-1 text-xs tabular-nums text-ciel-600">
-                    🌧️ {num(day.precipitationMm, 1)} mm
+                  <p className="mt-1 flex items-center justify-center gap-1 text-xs tabular-nums text-ciel-600">
+                    <IconRain size={12} aria-hidden />
+                    {num(day.precipitationMm, 1)} mm
                     {day.precipitationProbability !== null
                       ? ` · ${day.precipitationProbability} %`
                       : ''}
                   </p>
-                  <p className="text-xs tabular-nums text-ardoise-500">
-                    💨 {num(day.windMaxKmh, 0)} km/h
+                  <p className="flex items-center justify-center gap-1 text-xs tabular-nums text-ink-3">
+                    <IconWind size={12} aria-hidden />
+                    {num(day.windMaxKmh, 0)} km/h
                   </p>
                 </div>
               ))}
             </div>
           </Card>
 
-          <p className="mt-4 text-xs text-ardoise-500">
+          <p className="mt-4 text-xs text-ink-3">
             Données fournies par « {bundle.provider} », relevées le{' '}
             {new Date(bundle.fetchedAt).toLocaleString('fr-FR')} (fuseau {bundle.timezone}).
             Le fournisseur météo est configurable dans{' '}
-            <Link href="/profil" className="text-champ-700 hover:underline">
+            <Link href="/profil" className="text-champ-700 dark:text-champ-400 hover:underline">
               vos préférences
             </Link>
             .

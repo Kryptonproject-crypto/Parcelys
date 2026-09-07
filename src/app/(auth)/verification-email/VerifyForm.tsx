@@ -123,7 +123,7 @@ export function VerifyForm({ initialEmail }: { initialEmail: string }) {
           type="button"
           onClick={resend}
           disabled={resending || cooldown > 0 || email.length < 3}
-          className="text-sm text-champ-700 hover:underline disabled:cursor-not-allowed disabled:text-ardoise-400 disabled:no-underline"
+          className="text-sm text-champ-700 dark:text-champ-400 hover:underline disabled:cursor-not-allowed disabled:text-ardoise-400 disabled:no-underline"
         >
           {cooldown > 0
             ? `Renvoyer un code dans ${cooldown} s`

@@ -117,7 +117,7 @@ export function PhytoForm({
       </Field>
 
       {!product ? (
-        <div className="grid gap-4 rounded-lg border border-ble-500/30 bg-amber-50/60 p-3 sm:grid-cols-2">
+        <div className="grid gap-4 rounded-lg border border-ble-500/30 bg-ble-50/60 dark:bg-ble-700/15 p-3 sm:grid-cols-2">
           <Field
             label="Nom du produit (saisie libre)"
             htmlFor="manualName"
@@ -226,13 +226,13 @@ export function PhytoForm({
       </div>
 
       {preview ? (
-        <div className="rounded-lg border border-champ-200 bg-champ-50 p-3.5 text-sm">
-          <span className="text-ardoise-600">Quantité utilisée : </span>
-          <span className="font-semibold tabular-nums text-ardoise-900">
+        <div className="rounded-lg border border-champ-200 dark:border-champ-800 bg-accent-soft p-3.5 text-sm">
+          <span className="text-ink-2">Quantité utilisée : </span>
+          <span className="font-semibold tabular-nums text-ink">
             {preview.totalQuantity.toLocaleString('fr-FR', { maximumFractionDigits: 3 })}{' '}
             {preview.totalUnit}
           </span>
-          <span className="text-ardoise-500">
+          <span className="text-ink-3">
             {' '}
             ({dose} {doseUnit} × {treatedArea} ha)
           </span>
@@ -240,20 +240,20 @@ export function PhytoForm({
       ) : null}
 
       {/* Conditions météo */}
-      <div className="rounded-lg border border-ardoise-200 p-3">
+      <div className="rounded-lg border border-line p-3">
         <label className="flex items-start gap-2.5 text-sm">
           <input
             type="checkbox"
             checked={captureWeather}
             onChange={(e) => setCaptureWeather(e.target.checked)}
             disabled={!hasLocation}
-            className="mt-0.5 h-4 w-4 rounded border-ardoise-300 text-champ-600 focus:ring-champ-500"
+            className="mt-0.5 h-4 w-4 rounded border-line-strong text-champ-600 focus:ring-champ-500"
           />
           <span>
-            <span className="font-medium text-ardoise-800">
+            <span className="font-medium text-ink">
               Relever automatiquement les conditions météo
             </span>
-            <span className="block text-xs text-ardoise-500">
+            <span className="block text-xs text-ink-3">
               {hasLocation
                 ? 'Température, vent, humidité et précipitations sont relevés sur la parcelle au moment de l’enregistrement.'
                 : 'Indisponible : la parcelle n’a pas de géométrie, donc pas de coordonnées.'}

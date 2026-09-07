@@ -11,14 +11,17 @@ import {
   Badge,
   Card,
   EmptyState,
+  Input,
   LinkButton,
   PageHeader,
+  Select,
   TableWrapper,
   Td,
   Th,
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { IconPhyto } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Phytosanitaire' };
 export const dynamic = 'force-dynamic';
@@ -138,10 +141,10 @@ export default async function PhytosanitaryPage({
 
       {/* Recherche dans le catalogue officiel */}
       <Card className="mb-5">
-        <h2 className="mb-1 text-base font-semibold text-ardoise-900">
+        <h2 className="mb-1 text-base font-semibold text-ink">
           Rechercher un produit dans le catalogue officiel
         </h2>
-        <p className="mb-3 text-sm text-ardoise-500">
+        <p className="mb-3 text-sm text-ink-3">
           Nom commercial ou numéro d&apos;AMM. Les informations affichées proviennent
           intégralement de l&apos;import E-Phy et ne remplacent pas l&apos;étiquette du
           produit.
@@ -153,46 +156,43 @@ export default async function PhytosanitaryPage({
       <Card className="mb-5">
         <form method="get" className="grid gap-3 sm:grid-cols-5">
           <div className="sm:col-span-2">
-            <label htmlFor="q" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="q" className="mb-1 block text-xs font-medium text-ink-2">
               Recherche
             </label>
-            <input
+            <Input
               id="q"
               name="q"
               type="search"
               defaultValue={params.q ?? ''}
               placeholder="Produit, AMM, cible…"
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-3 text-sm"
             />
           </div>
 
           <div>
-            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
               Campagne
             </label>
-            <select
+            <Select
               id="annee"
               name="annee"
               defaultValue={String(year)}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               {years.map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
-            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ardoise-600">
+            <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
               Parcelle
             </label>
-            <select
+            <Select
               id="parcelle"
               name="parcelle"
               defaultValue={params.parcelle ?? ''}
-              className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm"
             >
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
@@ -201,7 +201,7 @@ export default async function PhytosanitaryPage({
                   {parcel.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-end gap-2">
@@ -213,7 +213,7 @@ export default async function PhytosanitaryPage({
             </button>
             <Link
               href="/phytosanitaire?filtre=incomplet"
-              className="flex h-10 items-center whitespace-nowrap rounded-lg border border-ble-500/40 bg-amber-50 px-3 text-sm text-amber-900"
+              className="flex h-10 items-center whitespace-nowrap rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 px-3 text-sm text-ble-700 dark:text-ble-100"
             >
               À compléter
             </Link>
@@ -223,7 +223,7 @@ export default async function PhytosanitaryPage({
 
       {applications.length === 0 ? (
         <EmptyState
-          icon="🧪"
+          icon={IconPhyto}
           title="Aucune intervention phytosanitaire"
           description="Les traitements s'enregistrent depuis la fiche d'une parcelle, onglet « Phytosanitaire »."
           action={
@@ -251,12 +251,12 @@ export default async function PhytosanitaryPage({
           </thead>
           <tbody>
             {applications.map((row) => (
-              <tr key={row.id} className="transition hover:bg-champ-50/50">
+              <tr key={row.id} className="transition hover:bg-accent-soft/40">
                 <Td>{formatDateFr(row.appliedOn)}</Td>
                 <Td>
                   <Link
                     href={`/parcelles/${row.parcel.id}?onglet=phytosanitaire`}
-                    className="font-medium text-champ-700 hover:underline"
+                    className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
                     {row.parcel.internalNumber ? `${row.parcel.internalNumber} — ` : ''}
                     {row.parcel.name}

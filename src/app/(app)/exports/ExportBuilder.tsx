@@ -2,47 +2,56 @@
 
 import { useMemo, useState } from 'react';
 import { Card, CardHeader, Field, Input, Select } from '@/components/ui';
+import {
+  IconCrops,
+  IconExport,
+  IconHistory,
+  IconInputs,
+  IconOperation,
+  IconParcels,
+  IconPhyto,
+} from '@/components/ui/icons';
 
 const DATASETS = [
   {
     key: 'parcelles',
     label: 'Registre parcellaire',
-    icon: '🗺️',
+    icon: IconParcels,
     description: 'Parcelles, superficies, communes, références cadastrales et culture.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
     key: 'phytosanitaire',
     label: 'Registre phytosanitaire',
-    icon: '🧪',
+    icon: IconPhyto,
     description: 'Traitements avec AMM, substances actives, doses, surfaces et météo.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
     key: 'apports',
     label: 'Registre des apports',
-    icon: '💧',
+    icon: IconInputs,
     description: 'Apports organiques et minéraux avec éléments fertilisants N, P, K.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
     key: 'historique',
     label: 'Historique des interventions',
-    icon: '📊',
+    icon: IconHistory,
     description: 'Chronologie complète : cultures, apports, traitements, travaux.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
     key: 'cultures',
     label: 'Assolement et cultures',
-    icon: '🌱',
+    icon: IconCrops,
     description: 'Culture, variété, dates de semis et de récolte, rendements.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
     key: 'travaux',
     label: 'Registre des travaux',
-    icon: '🚜',
+    icon: IconOperation,
     description: 'Labour, semis, récolte : matériel, opérateur et durée.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
@@ -114,15 +123,15 @@ export function ExportBuilder({
               aria-pressed={dataset === item.key}
               className={`rounded-xl border p-4 text-left transition ${
                 dataset === item.key
-                  ? 'border-champ-500 bg-champ-50 ring-2 ring-champ-500/20'
-                  : 'border-ardoise-200 bg-white hover:border-champ-300'
+                  ? 'border-champ-500 bg-accent-soft ring-2 ring-champ-500/20'
+                  : 'border-line bg-surface hover:border-champ-300'
               }`}
             >
-              <span className="text-xl" aria-hidden>
-                {item.icon}
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-soft text-accent-ink">
+                <item.icon size={17} aria-hidden />
               </span>
-              <p className="mt-1.5 font-semibold text-ardoise-900">{item.label}</p>
-              <p className="mt-0.5 text-sm text-ardoise-500">{item.description}</p>
+              <p className="mt-1.5 font-semibold text-ink">{item.label}</p>
+              <p className="mt-0.5 text-sm text-ink-3">{item.description}</p>
             </button>
           ))}
         </div>
@@ -142,7 +151,7 @@ export function ExportBuilder({
               name="periodMode"
               checked={!usePeriod}
               onChange={() => setUsePeriod(false)}
-              className="h-4 w-4 border-ardoise-300 text-champ-600 focus:ring-champ-500"
+              className="h-4 w-4 border-line-strong text-champ-600 focus:ring-champ-500"
             />
             Par campagne
           </label>
@@ -152,7 +161,7 @@ export function ExportBuilder({
               name="periodMode"
               checked={usePeriod}
               onChange={() => setUsePeriod(true)}
-              className="h-4 w-4 border-ardoise-300 text-champ-600 focus:ring-champ-500"
+              className="h-4 w-4 border-line-strong text-champ-600 focus:ring-champ-500"
             />
             Par dates
           </label>
@@ -188,14 +197,14 @@ export function ExportBuilder({
         {parcels.length > 0 ? (
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-ardoise-800">
+              <p className="text-sm font-medium text-ink">
                 Parcelles ({selectedParcels.length > 0 ? selectedParcels.length : 'toutes'})
               </p>
               {selectedParcels.length > 0 ? (
                 <button
                   type="button"
                   onClick={() => setSelectedParcels([])}
-                  className="text-sm text-champ-700 hover:underline"
+                  className="text-sm text-champ-700 dark:text-champ-400 hover:underline"
                 >
                   Tout désélectionner
                 </button>
@@ -203,14 +212,14 @@ export function ExportBuilder({
                 <button
                   type="button"
                   onClick={() => setSelectedParcels(parcels.map((p) => p.id))}
-                  className="text-sm text-champ-700 hover:underline"
+                  className="text-sm text-champ-700 dark:text-champ-400 hover:underline"
                 >
                   Tout sélectionner
                 </button>
               )}
             </div>
 
-            <div className="max-h-56 overflow-y-auto rounded-lg border border-ardoise-200 p-2">
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-line p-2">
               <div className="flex flex-wrap gap-1.5">
                 {parcels.map((parcel) => {
                   const selected = selectedParcels.includes(parcel.id);
@@ -221,8 +230,8 @@ export function ExportBuilder({
                       onClick={() => toggleParcel(parcel.id)}
                       className={`rounded-full border px-3 py-1 text-sm transition ${
                         selected
-                          ? 'border-champ-500 bg-champ-100 text-champ-800'
-                          : 'border-ardoise-200 bg-white text-ardoise-600 hover:border-ardoise-300'
+                          ? 'border-champ-500 bg-accent-soft text-champ-800 dark:text-champ-300'
+                          : 'border-line bg-surface text-ink-2 hover:border-line-strong'
                       }`}
                     >
                       {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
@@ -254,14 +263,15 @@ export function ExportBuilder({
               key={format}
               href={url(format)}
               download
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-ardoise-300
-                         bg-white px-5 text-base font-medium text-ardoise-800 transition hover:bg-ardoise-50"
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-line-strong
+                         bg-surface px-5 text-base font-medium text-ink transition hover:bg-surface-2"
             >
-              📥 {FORMAT_LABELS[format] ?? format}
+              <IconExport size={17} aria-hidden />
+              {FORMAT_LABELS[format] ?? format}
             </a>
           ))}
         </div>
-        <p className="mt-3 text-sm text-ardoise-500">
+        <p className="mt-3 text-sm text-ink-3">
           Les fichiers CSV utilisent le point-virgule et un encodage UTF-8 avec BOM :
           ils s&apos;ouvrent directement dans Excel en français.
         </p>

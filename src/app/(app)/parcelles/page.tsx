@@ -17,13 +17,16 @@ import {
   Badge,
   Card,
   EmptyState,
+  Input,
   LinkButton,
   PageHeader,
+  Select,
+  TableWrapper,
   Td,
   Th,
-  TableWrapper,
   formatNumberFr,
 } from '@/components/ui';
+import { IconInputs, IconOperation, IconParcels, IconPhyto, IconSearch } from '@/components/ui/icons';
 
 export const metadata: Metadata = { title: 'Parcelles' };
 export const dynamic = 'force-dynamic';
@@ -144,7 +147,7 @@ export default async function ParcelsPage({
 
       {totalCount === 0 ? (
         <EmptyState
-          icon="🗺️"
+          icon={IconParcels}
           title="Aucune parcelle enregistrée"
           description="Dessinez votre première parcelle sur la carte. La superficie sera calculée automatiquement à partir du contour."
           action={
@@ -159,28 +162,26 @@ export default async function ParcelsPage({
           <Card className="mb-5">
             <form method="get" className="grid gap-3 md:grid-cols-5">
               <div className="md:col-span-2">
-                <label htmlFor="q" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="q" className="mb-1 block text-xs font-medium text-ink-2">
                   Recherche
                 </label>
-                <input
+                <Input
                   id="q"
                   name="q"
                   type="search"
                   defaultValue={params.q ?? ''}
                   placeholder="Nom, n° interne, commune, lieu-dit…"
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-3 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 />
               </div>
 
               <div>
-                <label htmlFor="culture" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="culture" className="mb-1 block text-xs font-medium text-ink-2">
                   Culture
                 </label>
-                <select
+                <Select
                   id="culture"
                   name="culture"
                   defaultValue={params.culture ?? ''}
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 >
                   <option value="">Toutes</option>
                   {crops.map((crop) => (
@@ -188,18 +189,17 @@ export default async function ParcelsPage({
                       {crop.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label htmlFor="statut" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="statut" className="mb-1 block text-xs font-medium text-ink-2">
                   Statut
                 </label>
-                <select
+                <Select
                   id="statut"
                   name="statut"
                   defaultValue={params.statut ?? ''}
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 >
                   <option value="">Tous</option>
                   {Object.entries(PARCEL_STATUS_LABELS).map(([value, label]) => (
@@ -207,18 +207,17 @@ export default async function ParcelsPage({
                       {label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
-                <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
                   Campagne
                 </label>
-                <select
+                <Select
                   id="annee"
                   name="annee"
                   defaultValue={String(year)}
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 >
                   {Array.from({ length: 8 }, (_, i) => currentCampaignYear() + 1 - i).map(
                     (value) => (
@@ -227,18 +226,17 @@ export default async function ParcelsPage({
                       </option>
                     ),
                   )}
-                </select>
+                </Select>
               </div>
 
               <div className="md:col-span-2">
-                <label htmlFor="type" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="type" className="mb-1 block text-xs font-medium text-ink-2">
                   Type de parcelle
                 </label>
-                <select
+                <Select
                   id="type"
                   name="type"
                   defaultValue={params.type ?? ''}
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 >
                   <option value="">Tous</option>
                   {PARCEL_TYPES.map((value) => (
@@ -246,18 +244,17 @@ export default async function ParcelsPage({
                       {value}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="md:col-span-2">
-                <label htmlFor="commune" className="mb-1 block text-xs font-medium text-ardoise-600">
+                <label htmlFor="commune" className="mb-1 block text-xs font-medium text-ink-2">
                   Commune
                 </label>
-                <select
+                <Select
                   id="commune"
                   name="commune"
                   defaultValue={params.commune ?? ''}
-                  className="h-10 w-full rounded-lg border border-ardoise-300 px-2 text-sm focus:border-champ-500 focus:ring-2 focus:ring-champ-500/20"
                 >
                   <option value="">Toutes</option>
                   {communes.map((c) =>
@@ -267,7 +264,7 @@ export default async function ParcelsPage({
                       </option>
                     ) : null,
                   )}
-                </select>
+                </Select>
               </div>
 
               <input type="hidden" name="vue" value={view} />
@@ -282,7 +279,7 @@ export default async function ParcelsPage({
                 {hasFilters ? (
                   <Link
                     href="/parcelles"
-                    className="flex h-10 items-center rounded-lg border border-ardoise-300 px-3 text-sm text-ardoise-700 transition hover:bg-ardoise-50"
+                    className="flex h-10 items-center rounded-lg border border-line-strong px-3 text-sm text-ink-2 transition hover:bg-surface-2"
                   >
                     Réinitialiser
                   </Link>
@@ -295,7 +292,7 @@ export default async function ParcelsPage({
 
           {parcels.length === 0 ? (
             <EmptyState
-              icon="🔍"
+              icon={IconSearch}
               title="Aucune parcelle ne correspond"
               description="Modifiez ou réinitialisez les filtres."
               action={
@@ -316,7 +313,7 @@ export default async function ParcelsPage({
               ) : (
                 <div className="p-8">
                   <EmptyState
-                    icon="🗺️"
+                    icon={IconParcels}
                     title="Aucune géométrie à afficher"
                     description="Les parcelles filtrées n'ont pas de contour enregistré."
                   />
@@ -340,12 +337,12 @@ export default async function ParcelsPage({
               </thead>
               <tbody>
                 {parcels.map((parcel) => (
-                  <tr key={parcel.id} className="transition hover:bg-champ-50/50">
-                    <Td className="text-ardoise-500">{parcel.internalNumber ?? '—'}</Td>
+                  <tr key={parcel.id} className="transition hover:bg-accent-soft/40">
+                    <Td className="text-ink-3">{parcel.internalNumber ?? '—'}</Td>
                     <Td>
                       <Link
                         href={`/parcelles/${parcel.id}`}
-                        className="font-medium text-champ-700 hover:underline"
+                        className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                       >
                         {parcel.name}
                       </Link>
@@ -358,14 +355,14 @@ export default async function ParcelsPage({
                         <span>
                           {parcel.cropYears[0].crop.name}
                           {parcel.cropYears[0].variety ? (
-                            <span className="text-ardoise-500">
+                            <span className="text-ink-3">
                               {' '}
                               · {parcel.cropYears[0].variety}
                             </span>
                           ) : null}
                         </span>
                       ) : (
-                        <span className="text-ardoise-400">Non renseignée</span>
+                        <span className="text-ink-3">Non renseignée</span>
                       )}
                     </Td>
                     <Td>{parcel.parcelType ?? '—'}</Td>
@@ -374,7 +371,7 @@ export default async function ParcelsPage({
                         {PARCEL_STATUS_LABELS[parcel.status] ?? parcel.status}
                       </Badge>
                     </Td>
-                    <Td align="right" className="text-ardoise-500">
+                    <Td align="right" className="text-ink-3">
                       {parcel._count.fertilizations +
                         parcel._count.phytoTreatments +
                         parcel._count.operations}
@@ -389,15 +386,15 @@ export default async function ParcelsPage({
                 <Link
                   key={parcel.id}
                   href={`/parcelles/${parcel.id}`}
-                  className="rounded-xl border border-ardoise-200 bg-white p-4 transition hover:border-champ-300 hover:shadow-md"
+                  className="rounded-xl border border-line bg-surface p-4 transition hover:border-champ-300 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="truncate font-semibold text-ardoise-900">
+                      <h3 className="truncate font-semibold text-ink">
                         {parcel.name}
                       </h3>
                       {parcel.internalNumber ? (
-                        <p className="text-xs text-ardoise-500">
+                        <p className="text-xs text-ink-3">
                           N° {parcel.internalNumber}
                         </p>
                       ) : null}
@@ -407,21 +404,21 @@ export default async function ParcelsPage({
                     </Badge>
                   </div>
 
-                  <p className="mt-3 text-2xl font-semibold tabular-nums text-champ-700">
+                  <p className="mt-3 text-2xl font-semibold tabular-nums text-champ-700 dark:text-champ-400">
                     {formatNumberFr(parcel.areaHa, 2)}
-                    <span className="ml-1 text-sm font-normal text-ardoise-500">ha</span>
+                    <span className="ml-1 text-sm font-normal text-ink-3">ha</span>
                   </p>
 
                   <dl className="mt-3 space-y-1 text-sm">
                     <div className="flex gap-2">
-                      <dt className="text-ardoise-500">Commune :</dt>
-                      <dd className="truncate text-ardoise-800">
+                      <dt className="text-ink-3">Commune :</dt>
+                      <dd className="truncate text-ink">
                         {parcel.commune ?? '—'}
                       </dd>
                     </div>
                     <div className="flex gap-2">
-                      <dt className="text-ardoise-500">Culture :</dt>
-                      <dd className="truncate text-ardoise-800">
+                      <dt className="text-ink-3">Culture :</dt>
+                      <dd className="truncate text-ink">
                         {parcel.cropYears[0]?.crop.name ?? (
                           <span className="text-ble-600">Non renseignée</span>
                         )}
@@ -429,10 +426,19 @@ export default async function ParcelsPage({
                     </div>
                   </dl>
 
-                  <div className="mt-3 flex gap-3 border-t border-ardoise-100 pt-2.5 text-xs text-ardoise-500">
-                    <span>💧 {parcel._count.fertilizations}</span>
-                    <span>🧪 {parcel._count.phytoTreatments}</span>
-                    <span>🚜 {parcel._count.operations}</span>
+                  <div className="mt-3 flex gap-4 border-t border-line pt-2.5 text-xs text-ink-3">
+                    <span className="flex items-center gap-1" title="Apports">
+                      <IconInputs size={13} aria-hidden />
+                      {parcel._count.fertilizations}
+                    </span>
+                    <span className="flex items-center gap-1" title="Traitements">
+                      <IconPhyto size={13} aria-hidden />
+                      {parcel._count.phytoTreatments}
+                    </span>
+                    <span className="flex items-center gap-1" title="Travaux">
+                      <IconOperation size={13} aria-hidden />
+                      {parcel._count.operations}
+                    </span>
                   </div>
                 </Link>
               ))}

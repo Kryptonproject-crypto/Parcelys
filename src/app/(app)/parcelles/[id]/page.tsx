@@ -125,13 +125,13 @@ export default async function ParcelPage({
       <PageHeader
         title={parcel.name}
         breadcrumb={
-          <Link href="/parcelles" className="hover:text-champ-700">
+          <Link href="/parcelles" className="hover:text-champ-700 dark:hover:text-champ-400">
             ← Retour aux parcelles
           </Link>
         }
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-medium text-champ-700">
+            <span className="font-medium text-champ-700 dark:text-champ-400">
               {formatNumberFr(parcel.areaHa, 4)} ha
             </span>
             {parcel.internalNumber ? <span>N° {parcel.internalNumber}</span> : null}
