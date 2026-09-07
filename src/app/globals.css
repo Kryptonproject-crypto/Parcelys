@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------ *
+ * Identité visuelle Parcelys — agricole, sobre, professionnelle.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-terre-50: #faf8f4;
+  --color-terre-100: #f2ede3;
+  --color-terre-200: #e3dac7;
+  --color-terre-700: #6b5638;
+  --color-terre-900: #3d3020;
+
+  --color-champ-50: #f3f8f1;
+  --color-champ-100: #e3efdf;
+  --color-champ-200: #c6dfbe;
+  --color-champ-300: #9dc790;
+  --color-champ-400: #6da95d;
+  --color-champ-500: #4b8b3d;
+  --color-champ-600: #2f6b34;
+  --color-champ-700: #26562b;
+  --color-champ-800: #1f4424;
+  --color-champ-900: #16301a;
+
+  --color-ardoise-50: #f7f8f7;
+  --color-ardoise-100: #eef1ed;
+  --color-ardoise-200: #dde2da;
+  --color-ardoise-300: #c2cabd;
+  --color-ardoise-400: #96a190;
+  --color-ardoise-500: #6f7c69;
+  --color-ardoise-600: #566150;
+  --color-ardoise-700: #434c3f;
+  --color-ardoise-800: #2f362d;
+  --color-ardoise-900: #1f2a1c;
+
+  --color-ble-400: #e8b93f;
+  --color-ble-500: #d9a521;
+  --color-ble-600: #b4841a;
+
+  --color-brique-100: #fdeceb;
+  --color-brique-500: #c0392b;
+  --color-brique-600: #a03024;
+
+  --color-ciel-100: #e4f0f7;
+  --color-ciel-500: #2b7ba8;
+  --color-ciel-600: #226388;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-ardoise-50);
+  color: var(--color-ardoise-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Anneau de focus visible, homogène sur tous les contrôles. */
+*:focus-visible {
+  outline: 2px solid var(--color-champ-500);
+  outline-offset: 2px;
+}
+
+/* Barres de défilement discrètes (WebKit). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ardoise-300);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ardoise-400);
+  background-clip: content-box;
+}
+
+/* ------------------------------------------------------------------ *
+ * Leaflet — la feuille de style est importée par le composant carte,
+ * ces règles ajustent son intégration au thème.
+ * ------------------------------------------------------------------ */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--color-ardoise-100);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: rgb(255 255 255 / 0.85) !important;
+}
+
+.leaflet-bar a {
+  color: var(--color-ardoise-800) !important;
+}
+
+.parcel-tooltip {
+  background: var(--color-ardoise-900);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.18);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+}
+.parcel-tooltip::before {
+  border-top-color: var(--color-ardoise-900);
+}
+
+/* Impression : registres lisibles sur papier. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .print-full {
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+  table {
+    font-size: 10px;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+}
+
+@keyframes parcelys-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-fade-in {
+  animation: parcelys-fade-in 0.18s ease-out;
+}

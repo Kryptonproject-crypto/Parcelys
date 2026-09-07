@@ -1,0 +1,85 @@
+import 'server-only';
+import { prisma } from '@/lib/prisma';
+
+export type AuditAction =
+  | 'auth.register'
+  | 'auth.login'
+  | 'auth.login_failed'
+  | 'auth.logout'
+  | 'auth.logout_all'
+  | 'auth.email_verified'
+  | 'auth.verification_failed'
+  | 'auth.password_reset_requested'
+  | 'auth.password_reset'
+  | 'auth.password_changed'
+  | 'auth.account_locked'
+  | 'account.deleted'
+  | 'account.data_exported'
+  | 'farm.created'
+  | 'farm.updated'
+  | 'farm.member_added'
+  | 'farm.member_removed'
+  | 'farm.member_role_changed'
+  | 'parcel.created'
+  | 'parcel.updated'
+  | 'parcel.geometry_updated'
+  | 'parcel.deleted'
+  | 'cropyear.created'
+  | 'cropyear.updated'
+  | 'cropyear.deleted'
+  | 'fertilization.created'
+  | 'fertilization.updated'
+  | 'fertilization.deleted'
+  | 'phyto.created'
+  | 'phyto.updated'
+  | 'phyto.deleted'
+  | 'operation.created'
+  | 'operation.updated'
+  | 'operation.deleted'
+  | 'document.uploaded'
+  | 'document.downloaded'
+  | 'document.deleted'
+  | 'export.generated'
+  | 'ephy.synced'
+  | 'access.denied';
+
+/**
+ * Journalisation applicative et de sécurité.
+ * Ne doit jamais faire échouer l'action métier : les erreurs sont avalées.
+ */
+export async function logAudit(params: {
+  action: AuditAction;
+  farmId?: string | null;
+  userId?: string | null;
+  entity?: string;
+  entityId?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        action: params.action,
+        farmId: params.farmId ?? null,
+        userId: params.userId ?? null,
+        entity: params.entity ?? null,
+        entityId: params.entityId ?? null,
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent?.slice(0, 300) ?? null,
+        metadata: (params.metadata ?? undefined) as never,
+      },
+    });
+  } catch (error) {
+    console.error('[audit] écriture impossible', error);
+  }
+}
+
+/** Purge conforme à la limitation de conservation (RGPD). */
+export async function purgeOldAuditLogs(retentionDays = 365): Promise<number> {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 3600 * 1000);
+  const { count } = await prisma.auditLog.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+  return count;
+}

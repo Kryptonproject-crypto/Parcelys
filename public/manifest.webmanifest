@@ -1,0 +1,21 @@
+{
+  "name": "Parcelys — gestion parcellaire agricole",
+  "short_name": "Parcelys",
+  "description": "Parcelles, cultures, apports, registre phytosanitaire, météo et exports.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f8f7",
+  "theme_color": "#2f6b34",
+  "lang": "fr",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "/icone.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

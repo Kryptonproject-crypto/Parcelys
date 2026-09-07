@@ -1,0 +1,35 @@
+# dépendances
+/node_modules
+/.pnp
+.pnp.js
+
+# build
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# tests & couverture
+/coverage
+
+# environnement
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# stockage local des documents (dev)
+/storage
+/uploads
+
+# données E-Phy téléchargées
+/data/ephy
+/tmp
+
+# divers
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-error.log*
+.vercel

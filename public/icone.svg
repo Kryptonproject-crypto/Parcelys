@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Parcelys">
+  <rect width="512" height="512" rx="96" fill="#2f6b34"/>
+  <path d="M256 96c-8 62-40 96-84 118 34 10 62 4 84-16 22 20 50 26 84 16-44-22-76-56-84-118z" fill="#e8b93f"/>
+  <path d="M256 200v216" stroke="#e8b93f" stroke-width="20" stroke-linecap="round"/>
+  <path d="M256 300c-40-8-68-30-84-58 40 2 68 20 84 58zM256 300c40-8 68-30 84-58-40 2-68 20-84 58z" fill="#9dc790"/>
+  <path d="M256 380c-40-8-68-30-84-58 40 2 68 20 84 58zM256 380c40-8 68-30 84-58-40 2-68 20-84 58z" fill="#9dc790"/>
+</svg>

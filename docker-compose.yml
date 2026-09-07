@@ -1,0 +1,59 @@
+# Parcelys — pile de développement et d'auto-hébergement.
+#
+#   docker compose up -d db        → PostgreSQL/PostGIS seul (développement local)
+#   docker compose up -d           → base + application
+#
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: parcelys-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-parcelys}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-parcelys}
+      POSTGRES_DB: ${POSTGRES_DB:-parcelys}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - parcelys-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-parcelys} -d ${POSTGRES_DB:-parcelys}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parcelys-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-parcelys}:${POSTGRES_PASSWORD:-parcelys}@db:5432/${POSTGRES_DB:-parcelys}?schema=public
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      EMAIL_FROM: ${EMAIL_FROM:-Parcelys <no-reply@parcelys.local>}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      WEATHER_PROVIDER: ${WEATHER_PROVIDER:-open-meteo}
+      WEATHER_API_KEY: ${WEATHER_API_KEY:-}
+      EPHY_DATA_URL: ${EPHY_DATA_URL:-}
+      UPLOAD_DIR: /data/documents
+      EPHY_DATA_DIR: /data/ephy
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    volumes:
+      # Documents et archives E-Phy conservés hors du conteneur.
+      - parcelys-data:/data
+
+volumes:
+  parcelys-db:
+  parcelys-data:

@@ -1,0 +1,314 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { roleHasPermission } from '@/lib/auth/rbac';
+import { requirePageParcelAccess } from '@/lib/auth/page-guards';
+import { getParcelGeometry } from '@/lib/geo/repository';
+import { getEnv } from '@/lib/env';
+import { buildHistory } from '@/lib/services/history';
+import { computeNutrientBalance } from '@/lib/services/fertilization';
+import { currentCampaignYear, PARCEL_STATUS_LABELS } from '@/lib/constants/agronomy';
+import { getEphySourceInfo } from '@/lib/ephy/search';
+import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
+import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
+import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
+import {
+  Badge,
+  Card,
+  LinkButton,
+  PageHeader,
+  formatNumberFr,
+} from '@/components/ui';
+
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const parcel = await prisma.parcel.findUnique({
+    where: { id },
+    select: { name: true },
+  });
+  return { title: parcel?.name ?? 'Parcelle' };
+}
+
+export default async function ParcelPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ onglet?: string }>;
+}) {
+  const { id } = await params;
+  const { onglet } = await searchParams;
+
+  const { ctx } = await requirePageParcelAccess(id, 'parcel:read');
+  const env = getEnv();
+  const year = currentCampaignYear();
+
+  const [
+    parcel,
+    geometry,
+    fertilizations,
+    phytoTreatments,
+    operations,
+    documents,
+    history,
+    crops,
+    fertilizers,
+    organicInputs,
+    ephySource,
+  ] = await Promise.all([
+    prisma.parcel.findUnique({
+      where: { id },
+      include: {
+        cropYears: { include: { crop: true }, orderBy: { campaignYear: 'desc' } },
+      },
+    }),
+    getParcelGeometry(id),
+    prisma.fertilizerApplication.findMany({
+      where: { parcelId: id },
+      include: { cropYear: { include: { crop: { select: { name: true } } } } },
+      orderBy: { appliedOn: 'desc' },
+    }),
+    prisma.phytosanitaryApplication.findMany({
+      where: { parcelId: id },
+      include: { product: { select: { status: true } } },
+      orderBy: { appliedOn: 'desc' },
+    }),
+    prisma.agriculturalOperation.findMany({
+      where: { parcelId: id },
+      orderBy: { performedOn: 'desc' },
+    }),
+    prisma.document.findMany({
+      where: { parcelId: id },
+      orderBy: { createdAt: 'desc' },
+    }),
+    buildHistory({ parcelIds: [id], limit: 300 }),
+    prisma.crop.findMany({
+      where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.fertilizer.findMany({
+      where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.organicInput.findMany({
+      where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    }),
+    getEphySourceInfo(),
+  ]);
+
+  if (!parcel) notFound();
+
+  const currentCrop = parcel.cropYears.find((cy) => cy.campaignYear === year) ?? null;
+  const canWrite = roleHasPermission(ctx.role, 'record:write');
+  const canEditParcel = roleHasPermission(ctx.role, 'parcel:write');
+  const canDeleteParcel = roleHasPermission(ctx.role, 'parcel:delete');
+
+  const balance = computeNutrientBalance(
+    fertilizations.map((f) => ({
+      treatedAreaHa: f.treatedAreaHa.toString(),
+      nSupplied: f.nSupplied?.toString() ?? null,
+      pSupplied: f.pSupplied?.toString() ?? null,
+      kSupplied: f.kSupplied?.toString() ?? null,
+    })),
+  );
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <PageHeader
+        title={parcel.name}
+        breadcrumb={
+          <Link href="/parcelles" className="hover:text-champ-700">
+            ← Retour aux parcelles
+          </Link>
+        }
+        description={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-medium text-champ-700">
+              {formatNumberFr(parcel.areaHa, 4)} ha
+            </span>
+            {parcel.internalNumber ? <span>N° {parcel.internalNumber}</span> : null}
+            {parcel.commune ? <span>{parcel.commune}</span> : null}
+            {parcel.lieuDit ? <span>Lieu-dit {parcel.lieuDit}</span> : null}
+            <Badge tone={parcel.status === 'ACTIVE' ? 'green' : 'neutral'}>
+              {PARCEL_STATUS_LABELS[parcel.status] ?? parcel.status}
+            </Badge>
+            {currentCrop ? (
+              <Badge tone="green">
+                {currentCrop.crop.name} — campagne {year}
+              </Badge>
+            ) : (
+              <Badge tone="amber">Culture {year} non renseignée</Badge>
+            )}
+          </span>
+        }
+        actions={
+          <>
+            {canEditParcel ? (
+              <LinkButton href={`/parcelles/${id}/modifier`} variant="outline">
+                Modifier
+              </LinkButton>
+            ) : null}
+            {canDeleteParcel ? (
+              <ParcelActions parcelId={id} parcelName={parcel.name} />
+            ) : null}
+          </>
+        }
+      />
+
+      {/* Carte de la parcelle */}
+      {geometry ? (
+        <Card className="mb-5" padded={false}>
+          <div className="p-3">
+            <ParcelsMapLoader
+              parcels={[
+                {
+                  id: parcel.id,
+                  name: parcel.name,
+                  internalNumber: parcel.internalNumber,
+                  commune: parcel.commune,
+                  areaHa: Number(parcel.areaHa),
+                  crop: currentCrop?.crop.name ?? null,
+                  geometry,
+                },
+              ]}
+              tileUrl={env.MAP_TILE_URL}
+              attribution={env.MAP_TILE_ATTRIBUTION}
+              selectedId={parcel.id}
+              readOnly
+              heightClass="h-[320px]"
+            />
+          </div>
+        </Card>
+      ) : null}
+
+      <ParcelTabs
+        activeTab={onglet ?? 'general'}
+        canWrite={canWrite}
+        parcel={{
+          id: parcel.id,
+          name: parcel.name,
+          internalNumber: parcel.internalNumber,
+          commune: parcel.commune,
+          inseeCode: parcel.inseeCode,
+          lieuDit: parcel.lieuDit,
+          cadastralRef: parcel.cadastralRef,
+          pacId: parcel.pacId,
+          parcelType: parcel.parcelType,
+          status: parcel.status,
+          notes: parcel.notes,
+          areaHa: Number(parcel.areaHa),
+          centroidLat: parcel.centroidLat,
+          centroidLng: parcel.centroidLng,
+          createdAt: parcel.createdAt.toISOString(),
+        }}
+        campaignYear={year}
+        cropYears={parcel.cropYears.map((cy) => ({
+          id: cy.id,
+          cropId: cy.cropId,
+          cropName: cy.crop.name,
+          campaignYear: cy.campaignYear,
+          variety: cy.variety,
+          sowingDate: cy.sowingDate?.toISOString() ?? null,
+          expectedHarvestDate: cy.expectedHarvestDate?.toISOString() ?? null,
+          actualHarvestDate: cy.actualHarvestDate?.toISOString() ?? null,
+          yieldValue: cy.yieldValue?.toString() ?? null,
+          yieldUnit: cy.yieldUnit,
+          notes: cy.notes,
+        }))}
+        fertilizations={fertilizations.map((f) => ({
+          id: f.id,
+          appliedOn: f.appliedOn.toISOString(),
+          inputType: f.inputType,
+          productLabel: f.productLabel,
+          dose: f.dose.toString(),
+          doseUnit: f.doseUnit,
+          treatedAreaHa: f.treatedAreaHa.toString(),
+          totalQuantity: f.totalQuantity.toString(),
+          totalUnit: f.totalUnit,
+          nSupplied: f.nSupplied?.toString() ?? null,
+          pSupplied: f.pSupplied?.toString() ?? null,
+          kSupplied: f.kSupplied?.toString() ?? null,
+          supplier: f.supplier,
+          batchNumber: f.batchNumber,
+          cropName: f.cropYear?.crop.name ?? null,
+          notes: f.notes,
+        }))}
+        balance={balance}
+        phytoTreatments={phytoTreatments.map((p) => ({
+          id: p.id,
+          appliedOn: p.appliedOn.toISOString(),
+          productName: p.productName,
+          amm: p.amm,
+          activeSubstances: p.activeSubstances,
+          targetLabel: p.targetLabel,
+          dose: p.dose.toString(),
+          doseUnit: p.doseUnit,
+          sprayVolumeLHa: p.sprayVolumeLHa?.toString() ?? null,
+          treatedAreaHa: p.treatedAreaHa.toString(),
+          quantityUsed: p.quantityUsed.toString(),
+          quantityUnit: p.quantityUnit,
+          weatherSummary: p.weatherSummary,
+          weatherTempC: p.weatherTempC?.toString() ?? null,
+          weatherWindKmh: p.weatherWindKmh?.toString() ?? null,
+          weatherHumidity: p.weatherHumidity?.toString() ?? null,
+          operator: p.operator,
+          productStatus: p.product?.status ?? null,
+          notes: p.notes,
+        }))}
+        operations={operations.map((o) => ({
+          id: o.id,
+          performedOn: o.performedOn.toISOString(),
+          type: o.type,
+          equipment: o.equipment,
+          operator: o.operator,
+          durationHours: o.durationHours?.toString() ?? null,
+          notes: o.notes,
+        }))}
+        documents={documents.map((d) => ({
+          id: d.id,
+          fileName: d.fileName,
+          sizeBytes: d.sizeBytes,
+          mimeType: d.mimeType,
+          category: d.category,
+          description: d.description,
+          createdAt: d.createdAt.toISOString(),
+        }))}
+        history={history}
+        referentials={{
+          crops: crops.map((c) => ({
+            id: c.id,
+            name: c.name,
+            category: c.category,
+          })),
+          fertilizers: fertilizers.map((f) => ({
+            id: f.id,
+            name: f.name,
+            category: f.category,
+            nPercent: f.nPercent?.toString() ?? null,
+            pPercent: f.pPercent?.toString() ?? null,
+            kPercent: f.kPercent?.toString() ?? null,
+            defaultUnit: f.defaultUnit,
+          })),
+          organicInputs: organicInputs.map((o) => ({
+            id: o.id,
+            name: o.name,
+            category: o.category,
+            nContent: o.nContent?.toString() ?? null,
+            pContent: o.pContent?.toString() ?? null,
+            kContent: o.kContent?.toString() ?? null,
+            defaultUnit: o.defaultUnit,
+          })),
+        }}
+        ephySource={ephySource}
+      />
+    </div>
+  );
+}

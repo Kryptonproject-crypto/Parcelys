@@ -1,0 +1,646 @@
+// Parcelys — schéma de données
+// PostgreSQL + PostGIS. Les géométries sont stockées dans parcel_geometries
+// via une colonne PostGIS `geometry(MultiPolygon, 4326)` (type `Unsupported`
+// côté Prisma : toutes les lectures/écritures géométriques passent par
+// src/lib/geo/repository.ts en SQL paramétré).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ---------------------------------------------------------------------------
+// Utilisateurs, exploitations, permissions
+// ---------------------------------------------------------------------------
+
+enum FarmRole {
+  OWNER
+  ADMIN
+  EMPLOYEE
+  VIEWER
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailNormalized   String    @unique @map("email_normalized")
+  emailVerifiedAt   DateTime? @map("email_verified_at")
+  passwordHash      String    @map("password_hash")
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  phone             String?
+  locale            String    @default("fr")
+  unitSystem        String    @default("metric") @map("unit_system")
+  weatherProvider   String?   @map("weather_provider")
+  notifyByEmail     Boolean   @default(true) @map("notify_by_email")
+  acceptedTermsAt   DateTime? @map("accepted_terms_at")
+  acceptedPrivacyAt DateTime? @map("accepted_privacy_at")
+  failedLoginCount  Int       @default(0) @map("failed_login_count")
+  lockedUntil       DateTime? @map("locked_until")
+  lastLoginAt       DateTime? @map("last_login_at")
+  isDemo            Boolean   @default(false) @map("is_demo")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  memberships        FarmMember[]
+  sessions           Session[]
+  verificationCodes  EmailVerificationCode[]
+  passwordResets     PasswordResetToken[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  uploadedDocuments  Document[]              @relation("DocumentUploader")
+  fertilizerEntries  FertilizerApplication[] @relation("FertilizerAuthor")
+  phytoEntries       PhytosanitaryApplication[] @relation("PhytoAuthor")
+  operationEntries   AgriculturalOperation[] @relation("OperationAuthor")
+
+  @@index([emailNormalized])
+  @@map("users")
+}
+
+model Farm {
+  id              String    @id @default(cuid())
+  name            String
+  siret           String?
+  addressLine     String?   @map("address_line")
+  postalCode      String?   @map("postal_code")
+  city            String?
+  department      String?
+  country         String    @default("FR")
+  latitude        Float?
+  longitude       Float?
+  weatherProvider String?   @map("weather_provider")
+  isDemo          Boolean   @default(false) @map("is_demo")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  members       FarmMember[]
+  parcels       Parcel[]
+  crops         Crop[]
+  fertilizers   Fertilizer[]
+  organicInputs OrganicInput[]
+  documents     Document[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  weatherRecords WeatherRecord[]
+  sessions      Session[]
+
+  @@index([isDemo])
+  @@map("farms")
+}
+
+model FarmMember {
+  id        String   @id @default(cuid())
+  farmId    String   @map("farm_id")
+  userId    String   @map("user_id")
+  role      FarmRole @default(VIEWER)
+  jobTitle  String?  @map("job_title")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([farmId, userId])
+  @@index([userId])
+  @@map("farm_members")
+}
+
+// ---------------------------------------------------------------------------
+// Sessions & jetons
+// ---------------------------------------------------------------------------
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  activeFarmId String?   @map("active_farm_id")
+  tokenHash    String    @unique @map("token_hash")
+  userAgent    String?   @map("user_agent")
+  ipAddress    String?   @map("ip_address")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  lastUsedAt   DateTime  @default(now()) @map("last_used_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farm Farm? @relation(fields: [activeFarmId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum VerificationPurpose {
+  EMAIL_VERIFICATION
+  EMAIL_CHANGE
+}
+
+model EmailVerificationCode {
+  id         String              @id @default(cuid())
+  userId     String              @map("user_id")
+  email      String
+  codeHash   String              @map("code_hash")
+  purpose    VerificationPurpose @default(EMAIL_VERIFICATION)
+  attempts   Int                 @default(0)
+  expiresAt  DateTime            @map("expires_at")
+  consumedAt DateTime?           @map("consumed_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_verification_codes")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model RateLimitCounter {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}
+
+// ---------------------------------------------------------------------------
+// Parcellaire
+// ---------------------------------------------------------------------------
+
+enum ParcelStatus {
+  ACTIVE
+  FALLOW
+  ARCHIVED
+}
+
+model Parcel {
+  id             String       @id @default(cuid())
+  farmId         String       @map("farm_id")
+  name           String
+  internalNumber String?      @map("internal_number")
+  commune        String?
+  inseeCode      String?      @map("insee_code")
+  lieuDit        String?      @map("lieu_dit")
+  cadastralRef   String?      @map("cadastral_ref")
+  pacId          String?      @map("pac_id")
+  parcelType     String?      @map("parcel_type")
+  status         ParcelStatus @default(ACTIVE)
+  areaHa         Decimal      @default(0) @map("area_ha") @db.Decimal(12, 4)
+  centroidLat    Float?       @map("centroid_lat")
+  centroidLng    Float?       @map("centroid_lng")
+  notes          String?
+  isDemo         Boolean      @default(false) @map("is_demo")
+  deletedAt      DateTime?    @map("deleted_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  geometries      ParcelGeometry[]
+  cropYears       CropYear[]
+  fertilizations  FertilizerApplication[]
+  phytoTreatments PhytosanitaryApplication[]
+  operations      AgriculturalOperation[]
+  documents       Document[]
+  weatherRecords  WeatherRecord[]
+
+  @@unique([farmId, internalNumber])
+  @@index([farmId, deletedAt])
+  @@index([farmId, status])
+  @@map("parcels")
+}
+
+/// Géométrie versionnée d'une parcelle. `geom` est une colonne PostGIS
+/// `geometry(MultiPolygon, 4326)` gérée en SQL brut (cf. src/lib/geo/repository.ts).
+model ParcelGeometry {
+  id        String                                @id @default(cuid())
+  parcelId  String                                @map("parcel_id")
+  geom      Unsupported("geometry(MultiPolygon, 4326)")
+  areaHa    Decimal                               @map("area_ha") @db.Decimal(12, 4)
+  perimeterM Decimal?                             @map("perimeter_m") @db.Decimal(12, 2)
+  source    String                                @default("manual")
+  isCurrent Boolean                               @default(true) @map("is_current")
+  createdAt DateTime                              @default(now()) @map("created_at")
+
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([parcelId, isCurrent])
+  @@map("parcel_geometries")
+}
+
+// ---------------------------------------------------------------------------
+// Cultures
+// ---------------------------------------------------------------------------
+
+model Crop {
+  id       String  @id @default(cuid())
+  farmId   String? @map("farm_id")
+  code     String
+  name     String
+  category String?
+  isCustom Boolean @default(false) @map("is_custom")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  farm      Farm?      @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  cropYears CropYear[]
+
+  @@unique([farmId, code])
+  @@index([name])
+  @@map("crops")
+}
+
+model CropYear {
+  id                  String    @id @default(cuid())
+  parcelId            String    @map("parcel_id")
+  cropId              String    @map("crop_id")
+  campaignYear        Int       @map("campaign_year")
+  variety             String?
+  sowingDate          DateTime? @map("sowing_date")
+  expectedHarvestDate DateTime? @map("expected_harvest_date")
+  actualHarvestDate   DateTime? @map("actual_harvest_date")
+  yieldValue          Decimal?  @map("yield_value") @db.Decimal(10, 2)
+  yieldUnit           String?   @map("yield_unit")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  crop   Crop   @relation(fields: [cropId], references: [id], onDelete: Restrict)
+
+  fertilizations  FertilizerApplication[]
+  phytoTreatments PhytosanitaryApplication[]
+
+  @@unique([parcelId, campaignYear, cropId])
+  @@index([parcelId, campaignYear])
+  @@map("crop_years")
+}
+
+// ---------------------------------------------------------------------------
+// Apports (fertilisation)
+// ---------------------------------------------------------------------------
+
+enum InputType {
+  ORGANIC
+  MINERAL
+}
+
+model Fertilizer {
+  id        String   @id @default(cuid())
+  farmId    String?  @map("farm_id")
+  name      String
+  category  String?
+  nPercent  Decimal? @map("n_percent") @db.Decimal(6, 2)
+  pPercent  Decimal? @map("p_percent") @db.Decimal(6, 2)
+  kPercent  Decimal? @map("k_percent") @db.Decimal(6, 2)
+  defaultUnit String @default("kg/ha") @map("default_unit")
+  isCustom  Boolean  @default(false) @map("is_custom")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  applications FertilizerApplication[]
+
+  @@unique([farmId, name])
+  @@map("fertilizers")
+}
+
+model OrganicInput {
+  id          String   @id @default(cuid())
+  farmId      String?  @map("farm_id")
+  name        String
+  category    String?
+  nContent    Decimal? @map("n_content") @db.Decimal(8, 3)
+  pContent    Decimal? @map("p_content") @db.Decimal(8, 3)
+  kContent    Decimal? @map("k_content") @db.Decimal(8, 3)
+  dryMatter   Decimal? @map("dry_matter") @db.Decimal(6, 2)
+  defaultUnit String   @default("t/ha") @map("default_unit")
+  isCustom    Boolean  @default(false) @map("is_custom")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  applications FertilizerApplication[]
+
+  @@unique([farmId, name])
+  @@map("organic_inputs")
+}
+
+model FertilizerApplication {
+  id             String    @id @default(cuid())
+  parcelId       String    @map("parcel_id")
+  cropYearId     String?   @map("crop_year_id")
+  appliedOn      DateTime  @map("applied_on")
+  inputType      InputType @map("input_type")
+  fertilizerId   String?   @map("fertilizer_id")
+  organicInputId String?   @map("organic_input_id")
+  productLabel   String    @map("product_label")
+  dose           Decimal   @db.Decimal(12, 3)
+  doseUnit       String    @map("dose_unit")
+  treatedAreaHa  Decimal   @map("treated_area_ha") @db.Decimal(12, 4)
+  totalQuantity  Decimal   @map("total_quantity") @db.Decimal(14, 3)
+  totalUnit      String    @map("total_unit")
+  nSupplied      Decimal?  @map("n_supplied") @db.Decimal(12, 2)
+  pSupplied      Decimal?  @map("p_supplied") @db.Decimal(12, 2)
+  kSupplied      Decimal?  @map("k_supplied") @db.Decimal(12, 2)
+  supplier       String?
+  batchNumber    String?   @map("batch_number")
+  operator       String?
+  notes          String?
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  parcel       Parcel        @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  cropYear     CropYear?     @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
+  fertilizer   Fertilizer?   @relation(fields: [fertilizerId], references: [id], onDelete: SetNull)
+  organicInput OrganicInput? @relation(fields: [organicInputId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("FertilizerAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([parcelId, appliedOn])
+  @@index([appliedOn])
+  @@map("fertilizer_applications")
+}
+
+// ---------------------------------------------------------------------------
+// Phytosanitaire + référentiel E-Phy
+// ---------------------------------------------------------------------------
+
+/// Substance active issue du référentiel officiel E-Phy.
+model ActiveSubstance {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  normalizedName String   @unique @map("normalized_name")
+  casNumber      String?  @map("cas_number")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  products ProductSubstance[]
+
+  @@map("active_substances")
+}
+
+/// Produit phytopharmaceutique. Alimenté exclusivement par l'import du jeu de
+/// données officiel E-Phy (aucune donnée réglementaire n'est saisie à la main).
+model PhytosanitaryProduct {
+  id             String    @id @default(cuid())
+  amm            String    @unique
+  name           String
+  normalizedName String    @map("normalized_name")
+  secondNames    String?   @map("second_names")
+  holder         String?
+  productType    String?   @map("product_type")
+  formulation    String?
+  status         String?
+  commercialType String?   @map("commercial_type")
+  authorizedMentions String? @map("authorized_mentions")
+  usageRestrictions  String? @map("usage_restrictions")
+  validUntil     DateTime? @map("valid_until")
+  withdrawnAt    DateTime? @map("withdrawn_at")
+  sourceVersion  String?   @map("source_version")
+  syncedAt       DateTime  @default(now()) @map("synced_at")
+
+  substances   ProductSubstance[]
+  usages       PhytoUsage[]
+  applications PhytosanitaryApplication[]
+
+  @@index([normalizedName])
+  @@index([status])
+  @@map("phytosanitary_products")
+}
+
+model ProductSubstance {
+  id          String  @id @default(cuid())
+  productId   String  @map("product_id")
+  substanceId String  @map("substance_id")
+  concentration String?
+  unit        String?
+
+  product   PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  substance ActiveSubstance      @relation(fields: [substanceId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, substanceId])
+  @@index([substanceId])
+  @@map("product_substances")
+}
+
+/// Usage autorisé (couple culture / cible) tel que publié par E-Phy.
+model PhytoUsage {
+  id            String    @id @default(cuid())
+  productId     String    @map("product_id")
+  ephyUsageId   String?   @map("ephy_usage_id")
+  cropLabel     String?   @map("crop_label")
+  targetLabel   String?   @map("target_label")
+  usageLabel    String?   @map("usage_label")
+  doseValue     String?   @map("dose_value")
+  doseUnit      String?   @map("dose_unit")
+  status        String?
+  conditions    String?
+  preHarvestDelay String? @map("pre_harvest_delay")
+  zntAquaticM   String?   @map("znt_aquatic_m")
+  maxApplications String? @map("max_applications")
+  decisionDate  DateTime? @map("decision_date")
+
+  product PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([cropLabel])
+  @@map("phyto_usages")
+}
+
+model EphySyncRun {
+  id             String    @id @default(cuid())
+  status         String
+  source         String
+  sourceUrl      String?   @map("source_url")
+  version        String?
+  productCount   Int       @default(0) @map("product_count")
+  substanceCount Int       @default(0) @map("substance_count")
+  usageCount     Int       @default(0) @map("usage_count")
+  errorMessage   String?   @map("error_message")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+
+  @@index([startedAt])
+  @@map("ephy_sync_runs")
+}
+
+model PhytosanitaryApplication {
+  id              String    @id @default(cuid())
+  parcelId        String    @map("parcel_id")
+  cropYearId      String?   @map("crop_year_id")
+  appliedOn       DateTime  @map("applied_on")
+  productId       String?   @map("product_id")
+  productName     String    @map("product_name")
+  amm             String?
+  activeSubstances String?  @map("active_substances")
+  cropLabel       String?   @map("crop_label")
+  targetLabel     String?   @map("target_label")
+  dose            Decimal   @db.Decimal(12, 3)
+  doseUnit        String    @map("dose_unit")
+  sprayVolumeLHa  Decimal?  @map("spray_volume_l_ha") @db.Decimal(10, 2)
+  treatedAreaHa   Decimal   @map("treated_area_ha") @db.Decimal(12, 4)
+  quantityUsed    Decimal   @map("quantity_used") @db.Decimal(14, 3)
+  quantityUnit    String    @map("quantity_unit")
+  weatherTempC    Decimal?  @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh  Decimal?  @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity Decimal?  @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm   Decimal?  @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary  String?   @map("weather_summary")
+  weatherSource   String?   @map("weather_source")
+  operator        String?
+  notes           String?
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  parcel   Parcel                @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  cropYear CropYear?             @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
+  product  PhytosanitaryProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy User?                @relation("PhytoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([parcelId, appliedOn])
+  @@index([appliedOn])
+  @@map("phytosanitary_applications")
+}
+
+// ---------------------------------------------------------------------------
+// Travaux, météo, documents, journalisation
+// ---------------------------------------------------------------------------
+
+enum OperationType {
+  LABOUR
+  DECHAUMAGE
+  SEMIS
+  ROULAGE
+  HERSAGE
+  BROYAGE
+  FAUCHE
+  RECOLTE
+  TRANSPORT
+  IRRIGATION
+  AUTRE
+}
+
+model AgriculturalOperation {
+  id            String        @id @default(cuid())
+  parcelId      String        @map("parcel_id")
+  performedOn   DateTime      @map("performed_on")
+  type          OperationType
+  equipment     String?
+  operator      String?
+  durationHours Decimal?      @map("duration_hours") @db.Decimal(6, 2)
+  notes         String?
+  createdById   String?       @map("created_by_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  parcel    Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([parcelId, performedOn])
+  @@map("agricultural_operations")
+}
+
+model WeatherRecord {
+  id              String   @id @default(cuid())
+  farmId          String?  @map("farm_id")
+  parcelId        String?  @map("parcel_id")
+  recordedAt      DateTime @map("recorded_at")
+  latitude        Float
+  longitude       Float
+  temperatureC    Decimal? @map("temperature_c") @db.Decimal(5, 1)
+  humidity        Decimal? @db.Decimal(5, 1)
+  windKmh         Decimal? @map("wind_kmh") @db.Decimal(5, 1)
+  windDirectionDeg Int?    @map("wind_direction_deg")
+  precipitationMm Decimal? @map("precipitation_mm") @db.Decimal(6, 2)
+  pressureHpa     Decimal? @map("pressure_hpa") @db.Decimal(7, 1)
+  summary         String?
+  provider        String
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  farm   Farm?   @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parcel Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([farmId, recordedAt])
+  @@index([parcelId, recordedAt])
+  @@map("weather_records")
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  farmId       String   @map("farm_id")
+  parcelId     String?  @map("parcel_id")
+  fileName     String   @map("file_name")
+  storageKey   String   @unique @map("storage_key")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  checksum     String?
+  category     String   @default("AUTRE")
+  description  String?
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  farm       Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parcel     Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([farmId])
+  @@index([parcelId])
+  @@map("documents")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  farmId    String?  @map("farm_id")
+  userId    String?  @map("user_id")
+  action    String
+  entity    String?
+  entityId  String?  @map("entity_id")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  farm Farm? @relation(fields: [farmId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([farmId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  farmId    String?   @map("farm_id")
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farm Farm? @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
