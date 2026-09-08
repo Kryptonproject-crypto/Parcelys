@@ -418,13 +418,18 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
+                // `min-w-0` : sans lui, un intitulé plus large que sa colonne
+                // déborde de la grille — la barre dépasse alors la largeur de
+                // l'écran et toute la page se met à défiler horizontalement.
                 className={cn(
-                  'flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-medium transition-colors',
+                  'flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[10.5px] font-medium transition-colors',
                   active ? 'text-champ-600 dark:text-champ-400' : 'text-ink-3',
                 )}
               >
                 <Icon size={19} aria-hidden />
-                {item.shortLabel ?? item.label}
+                <span className="max-w-full truncate">
+                  {item.shortLabel ?? item.label}
+                </span>
               </Link>
             );
           })}

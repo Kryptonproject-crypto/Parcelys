@@ -82,7 +82,11 @@ export const cleanupSchema = z.object({
 
 export const adminUserQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
-  statut: z.enum(['tous', 'actifs', 'suspendus', 'non-verifies', 'admins']).default('tous'),
+  // Doit rester aligné sur `AdminUserFilter` (src/lib/admin/shared.ts) : c'est
+  // cette liste que valident les requêtes derrière les onglets de filtrage.
+  statut: z
+    .enum(['tous', 'actifs', 'suspendus', 'non-verifies', 'experts', 'admins'])
+    .default('tous'),
 });
 
 export type InvitationCreateInput = z.infer<typeof invitationCreateSchema>;

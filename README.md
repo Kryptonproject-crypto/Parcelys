@@ -305,8 +305,11 @@ consultable dans **Paramètres → Référentiel phytosanitaire**.
 
 ## Déploiement
 
-> **Guide complet : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)** — mise en
-> ligne sur un domaine, reverse proxy, sauvegardes, mises à jour et APK.
+> **Installation sur un VPS : [`docs/VPS.md`](docs/VPS.md)** — marche à suivre
+> complète, du serveur nu à `https://parcelys.fr` en HTTPS (45 minutes).
+>
+> **Choix d'hébergement, domaine, sauvegardes, APK :**
+> [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).
 
 ### Où héberger Parcelys ?
 
@@ -339,14 +342,26 @@ Documents et archives E-Phy sont conservés dans le volume `parcelys-data`.
 
 ```bash
 npm ci
-npm run build
 npm run db:deploy       # applique les migrations
+npm run build           # compile et complète la sortie autonome
+npm run preflight       # doit afficher « Instance prête »
 npm run start
 ```
 
+`npm run build` copie aussi `.next/static` et `public/` dans la sortie
+autonome : Next ne le fait pas, et le serveur répondrait 404 sur toutes les
+feuilles de style — la page s'afficherait sans mise en forme, sans qu'aucune
+erreur ne le signale.
+
+`npm run preflight` vérifie configuration, base, PostGIS, migrations et
+dossiers avant d'ouvrir le service. Placez-le en `ExecStartPre` de l'unité
+systemd : l'instance refuse alors de démarrer plutôt que de servir une
+application qui semble saine et tombera au premier utilisateur.
+
 Placez l'application derrière un reverse proxy en HTTPS (nginx, Caddy,
 Traefik) : les cookies de session passent en `Secure` dès que
-`NODE_ENV=production`.
+`NODE_ENV=production`. `GET /api/health` renvoie `200` quand la base et
+PostGIS répondent, `503` sinon — c'est l'adresse à donner à un superviseur.
 
 ---
 

@@ -271,8 +271,10 @@ export function ExpertShell({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
+                // `min-w-0` : même raison que dans AppShell — un intitulé plus
+                // large que sa colonne ferait déborder la barre de l'écran.
                 className={cn(
-                  'relative flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-medium transition-colors',
+                  'relative flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[10.5px] font-medium transition-colors',
                   active ? 'text-ciel-600 dark:text-ciel-500' : 'text-ink-3',
                 )}
               >
@@ -280,7 +282,9 @@ export function ExpertShell({
                 {item.href === '/portefeuille/preconisations' && pendingCount > 0 ? (
                   <span className="absolute right-[22%] top-1.5 h-2 w-2 rounded-full bg-ble-500" />
                 ) : null}
-                {item.label === 'Mes préconisations' ? 'Conseils' : item.label}
+                <span className="max-w-full truncate">
+                  {item.label === 'Mes préconisations' ? 'Conseils' : item.label}
+                </span>
               </Link>
             );
           })}

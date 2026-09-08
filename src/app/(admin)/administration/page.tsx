@@ -241,12 +241,18 @@ export default async function AdminOverviewPage() {
             <ul className="divide-y divide-line text-sm">
               {recentAudit.map((entry) => (
                 <li key={entry.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <span className="min-w-0">
-                    <code className="rounded bg-surface-2 px-1.5 py-0.5 text-[12px] text-ink-2">
+                  {/* Conteneur flex, et non `span` en ligne : `truncate` repose
+                      sur `overflow: hidden`, qu'une boîte en ligne ignore. Une
+                      adresse longue élargissait donc la ligne, et la page
+                      entière se mettait à défiler horizontalement. */}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <code className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[12px] text-ink-2">
                       {entry.action}
                     </code>
                     {entry.user ? (
-                      <span className="ml-2 truncate text-ink-3">{entry.user.email}</span>
+                      <span className="min-w-0 truncate text-ink-3">
+                        {entry.user.email}
+                      </span>
                     ) : null}
                   </span>
                   <span className="shrink-0 text-[12px] text-ink-3">

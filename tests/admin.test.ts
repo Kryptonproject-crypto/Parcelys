@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  createExpert,
   createInvitationCode,
   createUserWithFarm,
+  grantAdvisoryAccess,
   prisma,
   resetDatabase,
 } from './helpers/db';
@@ -347,6 +349,55 @@ describe('Administration', () => {
 
   // -------------------------------------------------------------------------
   describe('Gestion des comptes', () => {
+    it('accepte tous les filtres proposés par l’interface', async () => {
+      const { adminClient } = await setup();
+
+      // La liste des onglets de filtrage et le schéma de la requête vivent dans
+      // deux fichiers : rien n'empêche d'en modifier un seul, et l'onglet
+      // ajouté renverrait alors une erreur de validation.
+      const { USER_FILTER_LABELS } = await import('../src/lib/admin/shared');
+
+      for (const filter of Object.keys(USER_FILTER_LABELS)) {
+        const response = await adminClient.get(`/api/admin/users?statut=${filter}`);
+        expect(
+          response.status,
+          `le filtre « ${filter} » est refusé par l'API`,
+        ).toBe(200);
+      }
+    });
+
+    it('distingue les comptes experts des comptes d’exploitation', async () => {
+      const { adminClient } = await setup();
+      const expert = await createExpert({
+        email: 'agronome@conseil.test',
+        organization: 'Chambre du Loiret',
+      });
+      const farm = await prisma.farm.findFirstOrThrow({ where: { deletedAt: null } });
+      await grantAdvisoryAccess({ farmId: farm.id, expertId: expert.id });
+
+      const response = await adminClient.get<{
+        users: Array<{
+          email: string;
+          accountType: string;
+          organization: string | null;
+          advisedFarms: Array<{ farmName: string }>;
+          memberships: unknown[];
+        }>;
+      }>('/api/admin/users?statut=experts');
+
+      expect(response.status).toBe(200);
+      expect(response.body.users).toHaveLength(1);
+
+      const row = response.body.users[0];
+      expect(row?.accountType).toBe('AGRONOMIST');
+      expect(row?.organization).toBe('Chambre du Loiret');
+      // Un expert n'appartient à aucune exploitation : ce sont ses missions de
+      // conseil qui décrivent son périmètre.
+      expect(row?.memberships).toHaveLength(0);
+      expect(row?.advisedFarms).toHaveLength(1);
+      expect(row?.advisedFarms[0]?.farmName).toBe(farm.name);
+    });
+
     it('suspend un compte, ferme ses sessions et bloque sa reconnexion', async () => {
       const { adminClient, member, memberClient } = await setup();
 

@@ -63,22 +63,31 @@ for (const path of PAGES) {
   await page.waitForTimeout(1200);
 
   const result = await page.evaluate(() => {
-    const viewport = document.documentElement.clientWidth;
-    const overflow = document.documentElement.scrollWidth - viewport;
+    const de = document.documentElement;
+    const overflow = de.scrollWidth - de.clientWidth;
     if (overflow <= 1) return { overflow: 0, culprit: null };
 
-    // L'élément fautif est le moins profond qui dépasse : les autres ne font
-    // qu'en hériter.
+    // Bissection plutôt qu'heuristique de profondeur : on masque chaque
+    // élément et on regarde si le débordement disparaît. Un élément qui
+    // dépasse à l'intérieur d'un conteneur défilant ne fait pas déborder la
+    // page — le repérer par sa position seule désignerait des innocents.
     let culprit = null;
-    let bestDepth = Infinity;
+    let deepest = -1;
     for (const el of document.querySelectorAll('body *')) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.right <= viewport + 1) continue;
+      const previous = el.style.display;
+      el.style.display = 'none';
+      const without = de.scrollWidth;
+      el.style.display = previous;
+      if (without >= de.scrollWidth) continue;
+
       let depth = 0;
       for (let node = el; node; node = node.parentElement) depth += 1;
-      if (depth < bestDepth) {
-        bestDepth = depth;
-        culprit = `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 80)}`;
+      if (depth > deepest) {
+        deepest = depth;
+        const text = (el.textContent ?? '').trim().slice(0, 30);
+        culprit = `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 70)}${
+          text ? ` — « ${text} »` : ''
+        }`;
       }
     }
     return { overflow, culprit };
@@ -93,11 +102,53 @@ for (const path of PAGES) {
   }
 }
 
+// L'espace expert a sa propre coque et sa propre barre de navigation : il doit
+// être mesuré séparément, sinon un débordement y passerait inaperçu.
+const expertEmail = await page.evaluate(async () => {
+  const response = await fetch('/api/admin/users?statut=experts');
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data.users?.[0]?.email ?? null;
+});
+
+let expertPages = 0;
+if (expertEmail) {
+  const expertContext = await browser.newContext({ ...devices['iPhone 13'] });
+  const expertPage = await expertContext.newPage();
+  await expertPage.goto(`${BASE}/connexion-expert`, { waitUntil: 'domcontentloaded' });
+  await expertPage.fill('#email', expertEmail);
+  await expertPage.fill('#password', 'MotDePasse1!');
+  await expertPage.click('button[type=submit]');
+
+  try {
+    await expertPage.waitForURL('**/portefeuille', { timeout: 20000 });
+    for (const path of ['/portefeuille', '/portefeuille/preconisations', '/profil']) {
+      await expertPage.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
+      await expertPage.waitForTimeout(1200);
+      const overflow = await expertPage.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expertPages += 1;
+      if (overflow > 1) {
+        failures += 1;
+        console.error(`✗ ${path} — déborde de ${overflow} px`);
+      } else {
+        console.log(`✓ ${path}`);
+      }
+    }
+  } catch {
+    console.log('· espace expert non mesuré (mot de passe de test différent)');
+  }
+} else {
+  console.log('· aucun compte expert en base — espace expert non mesuré');
+}
+
 await browser.close();
 
+const total = PAGES.length + expertPages;
 console.log(
   failures === 0
-    ? `\n✓ ${PAGES.length} pages tiennent dans 390 px.`
+    ? `\n✓ ${total} pages tiennent dans 390 px.`
     : `\n✗ ${failures} page(s) débordent.`,
 );
 process.exitCode = failures === 0 ? 0 : 1;

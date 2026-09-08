@@ -1,7 +1,13 @@
 # Déploiement de Parcelys
 
-Ce guide couvre la mise en ligne d'une instance sur `parcelys.fr`, la question
-de l'hébergement, la mise à jour, et la sauvegarde.
+Ce guide couvre la question de l'hébergement, le domaine, la mise à jour et la
+sauvegarde.
+
+> **Vous installez sur un VPS ?** Suivez plutôt
+> **[`VPS.md`](VPS.md)** : la marche à suivre y est complète et ordonnée, du
+> serveur nu à `https://parcelys.fr` en HTTPS, avec le durcissement SSH, le
+> pare-feu, le service systemd et les sauvegardes. Le présent document reste la
+> référence pour comprendre les choix d'hébergement.
 
 - [Où héberger Parcelys ?](#où-héberger-parcelys-)
 - [Le domaine parcelys.fr](#le-domaine-parcelysfr)
@@ -127,34 +133,36 @@ en ligne.
 
 ## Installation sur un VPS ou un Raspberry Pi
 
-Testé sur Debian 12 et Raspberry Pi OS 64 bits.
+La marche à suivre détaillée est dans **[`VPS.md`](VPS.md)** — durcissement
+SSH, pare-feu, PostgreSQL, service systemd, nginx et HTTPS, pas à pas. En
+résumé :
 
 ```bash
-# 1. PostgreSQL + PostGIS
-sudo apt update
+# PostgreSQL + PostGIS
 sudo apt install -y postgresql postgresql-postgis nginx
+sudo -u postgres psql -c "CREATE ROLE parcelys LOGIN PASSWORD 'un-mot-de-passe-solide';"
+sudo -u postgres psql -c "CREATE DATABASE parcelys OWNER parcelys;"
+sudo -u postgres psql -d parcelys -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
 
-sudo -u postgres psql <<'SQL'
-CREATE ROLE parcelys LOGIN PASSWORD 'un-mot-de-passe-solide';
-CREATE DATABASE parcelys OWNER parcelys;
-\c parcelys
-CREATE EXTENSION IF NOT EXISTS postgis;
-SQL
-
-# 2. Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# 3. Application
+# Application
 sudo git clone https://github.com/kryptonproject-crypto/parcelys.git /opt/parcelys
-sudo chown -R "$USER" /opt/parcelys
 cd /opt/parcelys
 cp .env.example .env
-$EDITOR .env          # DATABASE_URL, APP_URL, EMAIL_*, UPDATE_REPOSITORY
+$EDITOR .env              # DATABASE_URL, APP_URL, EMAIL_*, UPDATE_REPOSITORY
 npm ci
-npm run db:deploy     # applique les migrations
-npm run build
+npm run db:deploy         # applique les migrations
+npm run build             # compile ET complète la sortie autonome
+npm run preflight         # doit afficher « Instance prête »
 ```
+
+`npm run build` ne se contente pas de compiler : il copie aussi `.next/static`
+et `public/` dans la sortie autonome. Next ne le fait pas, et le serveur
+répondrait 404 sur toutes les feuilles de style — la page s'afficherait sans
+mise en forme, sans qu'aucune erreur ne le signale.
 
 ### Service systemd
 
@@ -162,24 +170,32 @@ npm run build
 # /etc/systemd/system/parcelys.service
 [Unit]
 Description=Parcelys
-After=network.target postgresql.service
+After=network-online.target postgresql.service
+Wants=network-online.target
 Requires=postgresql.service
 
 [Service]
 Type=simple
 User=parcelys
+Group=parcelys
 WorkingDirectory=/opt/parcelys
 EnvironmentFile=/opt/parcelys/.env
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+
+# Refuse de démarrer sur une instance mal configurée, plutôt que de servir une
+# application qui semble saine et tombera au premier utilisateur.
+ExecStartPre=/usr/bin/npm run preflight
 ExecStart=/usr/bin/npm run start
+
 Restart=on-failure
 RestartSec=5
 
-# L'application n'a besoin d'écrire que dans son dossier de documents.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/parcelys/storage /opt/parcelys/data
+ReadWritePaths=/var/lib/parcelys /opt/parcelys/.next
 
 [Install]
 WantedBy=multi-user.target
@@ -189,6 +205,7 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now parcelys
 sudo systemctl status parcelys
+curl -s http://127.0.0.1:3000/api/health
 ```
 
 ### Le premier compte
@@ -340,7 +357,7 @@ sudo systemctl start parcelys
 0 3 * * 1 cd /opt/parcelys && /usr/bin/npm run ephy:sync >> /var/log/parcelys-ephy.log 2>&1
 
 # Purge des sessions expirées et des compteurs de limitation, chaque nuit
-30 3 * * * cd /opt/parcelys && /usr/bin/npm run maintenance -- purger >> /var/log/parcelys.log 2>&1
+30 3 * * * cd /opt/parcelys && /usr/bin/npm run maintenance >> /var/log/parcelys.log 2>&1
 ```
 
 ---
