@@ -26,6 +26,9 @@ import {
 import { currentCampaignYear } from '../src/lib/constants/agronomy';
 import { registerSchema, passwordSchema, siretSchema } from '../src/lib/validation/auth';
 import { compareVersions } from '../src/lib/updates/releases';
+import { NextRequest } from 'next/server';
+import { clientIp } from '../src/lib/api/handler';
+import { resetEnvCache } from '../src/lib/env';
 
 // ---------------------------------------------------------------------------
 describe('Calculs de fertilisation', () => {
@@ -473,5 +476,54 @@ describe('Comparaison de versions', () => {
     // récente parce qu'elle a été étiquetée sans le correctif.
     expect(compareVersions('1.2', '1.2.0')).toBe(0);
     expect(compareVersions('1.2', '1.2.1')).toBeLessThan(0);
+  });
+});
+
+describe('Adresse du visiteur derrière un proxy', () => {
+  /** Construit une requête portant les en-têtes donnés. */
+  const requestWith = (headers: Record<string, string>) =>
+    new NextRequest('http://localhost/api/test', { headers });
+
+  it('retient l’entrée écrite par le proxy, pas celle du visiteur', () => {
+    // Chaque intermédiaire AJOUTE une entrée : un visiteur qui envoie déjà
+    // l'en-tête voit sa valeur conservée en tête. La dernière entrée est la
+    // seule que notre propre proxy ait écrite.
+    const ip = clientIp(
+      requestWith({ 'x-forwarded-for': '9.9.9.9, 203.0.113.7' }),
+    );
+    expect(ip).toBe('203.0.113.7');
+  });
+
+  it('ne se laisse pas usurper par un en-tête forgé', () => {
+    // Un visiteur qui se déclare ailleurs pour échapper à la limitation de
+    // débit : c'est bien son adresse réelle qui est retenue.
+    const forged = clientIp(
+      requestWith({ 'x-forwarded-for': '1.1.1.1, 1.1.1.2, 203.0.113.7' }),
+    );
+    expect(forged).toBe('203.0.113.7');
+  });
+
+  it('lit l’en-tête désigné par la configuration', () => {
+    // Derrière Cloudflare, `CF-Connecting-IP` est écrasé à chaque requête :
+    // il ne peut pas être forgé, contrairement à `X-Forwarded-For`.
+    process.env.CLIENT_IP_HEADER = 'cf-connecting-ip';
+    resetEnvCache();
+    try {
+      const ip = clientIp(
+        requestWith({
+          'cf-connecting-ip': '203.0.113.7',
+          'x-forwarded-for': '9.9.9.9',
+        }),
+      );
+      expect(ip).toBe('203.0.113.7');
+    } finally {
+      delete process.env.CLIENT_IP_HEADER;
+      resetEnvCache();
+    }
+  });
+
+  it('se rabat sur x-real-ip, puis renonce franchement', () => {
+    expect(clientIp(requestWith({ 'x-real-ip': '203.0.113.9' }))).toBe('203.0.113.9');
+    expect(clientIp(requestWith({}))).toBe('unknown');
   });
 });

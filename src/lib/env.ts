@@ -56,6 +56,23 @@ const schema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * En-tête où lire l'adresse du visiteur, écrit par le proxy de confiance.
+   *
+   * `x-forwarded-for` convient derrière nginx ou Caddy. Derrière Cloudflare —
+   * tunnel compris —, préférez `cf-connecting-ip` : Cloudflare l'écrase à
+   * chaque requête, un visiteur ne peut donc pas le forger, alors qu'il peut
+   * amorcer `X-Forwarded-For` avec la valeur de son choix.
+   *
+   * Cette adresse sert à la limitation de débit et au journal d'audit : une
+   * valeur que le visiteur contrôlerait permettrait de contourner l'une et de
+   * fausser l'autre.
+   */
+  CLIENT_IP_HEADER: z
+    .string()
+    .default('x-forwarded-for')
+    .transform((v) => v.trim().toLowerCase()),
+
+  /**
    * Origines autorisées à appeler l'API depuis une application native.
    *
    * Une application Capacitor ne s'exécute pas sur l'origine du serveur : la
@@ -109,6 +126,17 @@ export function getEnv(): AppEnv {
   }
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Oublie la configuration mise en cache.
+ *
+ * La configuration est lue une fois pour toutes : c'est ce qu'on veut d'un
+ * processus en production, où l'environnement ne bouge pas. Les tests qui
+ * éprouvent plusieurs réglages ont besoin de la relire.
+ */
+export function resetEnvCache(): void {
+  cached = null;
 }
 
 export const isProduction = () => getEnv().NODE_ENV === 'production';

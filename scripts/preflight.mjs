@@ -76,6 +76,17 @@ if (!APP_URL) {
   }
 }
 
+// L'adresse du visiteur alimente la limitation de débit et le journal d'audit.
+// Derrière Cloudflare, `X-Forwarded-For` peut être amorcé par le visiteur
+// lui-même : `CF-Connecting-IP`, que Cloudflare écrase, ne le peut pas.
+const ipHeader = (process.env.CLIENT_IP_HEADER ?? 'x-forwarded-for').toLowerCase();
+if (ipHeader === 'cf-connecting-ip') {
+  ok('Adresse du visiteur lue depuis CF-Connecting-IP', 'derrière Cloudflare');
+} else {
+  // Réglage attendu derrière nginx ou Caddy : rien à signaler.
+  ok(`Adresse du visiteur lue depuis ${ipHeader}`);
+}
+
 if (process.env.NODE_ENV !== 'production') {
   warn(
     `NODE_ENV vaut « ${process.env.NODE_ENV ?? 'non défini'} » : ` +

@@ -305,8 +305,13 @@ consultable dans **Paramètres → Référentiel phytosanitaire**.
 
 ## Déploiement
 
-> **Installation sur un VPS : [`docs/VPS.md`](docs/VPS.md)** — marche à suivre
-> complète, du serveur nu à `https://parcelys.fr` en HTTPS (45 minutes).
+> **Sur un VPS : [`docs/VPS.md`](docs/VPS.md)** — du serveur nu à
+> `https://parcelys.fr` en HTTPS (45 min).
+>
+> **Sur un Raspberry Pi, chez soi :
+> [`docs/RASPBERRY-PI.md`](docs/RASPBERRY-PI.md)** — avec un tunnel Cloudflare,
+> donc sans IP publique ni port ouvert. C'est la marche à suivre pour une
+> connexion Starlink, 4G ou toute autre liaison derrière un CGNAT.
 >
 > **Choix d'hébergement, domaine, sauvegardes, APK :**
 > [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).

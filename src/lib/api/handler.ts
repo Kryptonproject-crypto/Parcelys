@@ -66,10 +66,35 @@ function assertSameOrigin(request: NextRequest): void {
   }
 }
 
+/**
+ * Adresse du visiteur, telle que le proxy de confiance la rapporte.
+ *
+ * Le détail compte, parce que cette valeur alimente la limitation de débit et
+ * le journal d'audit : s'en remettre à une donnée que le visiteur contrôle
+ * permettrait de contourner l'une et de fausser l'autre.
+ *
+ * `X-Forwarded-For` est une liste, et chaque intermédiaire **ajoute** l'adresse
+ * de celui qui lui a parlé. Un visiteur qui envoie déjà l'en-tête voit donc sa
+ * valeur conservée en tête, suivie de sa vraie adresse. C'est la **dernière**
+ * entrée qui est digne de foi : elle a été écrite par notre propre proxy.
+ *
+ * Derrière Cloudflare, `CF-Connecting-IP` est plus sûr encore : Cloudflare
+ * l'écrase à chaque requête, un visiteur ne peut donc pas le forger. D'où
+ * `CLIENT_IP_HEADER=cf-connecting-ip` pour une instance derrière un tunnel.
+ */
 export function clientIp(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0]?.trim() ?? 'unknown';
-  return request.headers.get('x-real-ip') ?? 'unknown';
+  const header = getEnv().CLIENT_IP_HEADER;
+  const value = request.headers.get(header);
+
+  if (value) {
+    // Les en-têtes à valeur unique (`cf-connecting-ip`, `x-real-ip`) n'ont
+    // qu'un élément ; découper reste sans effet sur eux.
+    const hops = value.split(',');
+    const trusted = hops[hops.length - 1]?.trim();
+    if (trusted) return trusted;
+  }
+
+  return request.headers.get('x-real-ip')?.trim() ?? 'unknown';
 }
 
 /**
