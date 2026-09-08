@@ -4,7 +4,9 @@ import { requirePageAdmin } from '@/lib/auth/page-guards';
 import { getMaintenanceMode } from '@/lib/admin/settings';
 import { getEnv } from '@/lib/env';
 import { getEphySourceInfo } from '@/lib/ephy/search';
+import { getUpdateStatus } from '@/lib/updates/releases';
 import { MaintenancePanel } from '@/app/(admin)/administration/maintenance/MaintenancePanel';
+import { UpdatesPanel } from '@/app/(admin)/administration/maintenance/UpdatesPanel';
 import {
   Badge,
   Card,
@@ -58,10 +60,11 @@ export default async function AdminMaintenancePage() {
   const env = getEnv();
 
   const now = new Date();
-  const [mode, health, ephy, counts] = await Promise.all([
+  const [mode, health, ephy, updates, counts] = await Promise.all([
     getMaintenanceMode(),
     databaseHealth(),
     getEphySourceInfo(),
+    getUpdateStatus(),
     Promise.all([
       prisma.session.count({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }] } }),
       prisma.rateLimitCounter.count({ where: { expiresAt: { lt: now } } }),
@@ -88,6 +91,8 @@ export default async function AdminMaintenancePage() {
       />
 
       <div className="grid gap-5 lg:grid-cols-2">
+        <UpdatesPanel initial={updates} />
+
         <MaintenancePanel
           initialEnabled={mode.enabled}
           initialMessage={mode.message}

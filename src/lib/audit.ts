@@ -55,6 +55,7 @@ export type AuditAction =
   | 'admin.platform_role_changed'
   | 'admin.maintenance_changed'
   | 'admin.cleanup_run'
+  | 'admin.updates_checked'
   | 'advisor.access_granted'
   | 'advisor.access_revoked'
   | 'advisor.access_redeemed'

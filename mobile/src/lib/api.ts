@@ -175,6 +175,36 @@ export async function pushOperations(
   });
 }
 
+export type VersionInfo = {
+  server: string;
+  latest: {
+    version: string;
+    name: string;
+    publishedAt: string;
+    url: string;
+    apkUrl: string | null;
+  } | null;
+  checkedAt: string | null;
+};
+
+/**
+ * Dernière version publiée, telle que l'instance la connaît.
+ *
+ * C'est le serveur qui interroge GitHub, pas le téléphone : l'application ne
+ * contacte jamais d'autre hôte que l'instance de son exploitation.
+ */
+export async function fetchVersion(session: Session): Promise<VersionInfo | null> {
+  try {
+    return await request<VersionInfo>(session.serverUrl, '/api/mobile/version', {
+      token: session.token,
+    });
+  } catch {
+    // Une instance plus ancienne n'expose pas cette route, et l'absence de
+    // réseau n'est pas une erreur : dans les deux cas, on n'affiche rien.
+    return null;
+  }
+}
+
 /** Vérifie que l'adresse pointe bien vers une instance Parcelys joignable. */
 export async function ping(serverUrl: string): Promise<boolean> {
   try {

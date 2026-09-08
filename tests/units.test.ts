@@ -25,6 +25,7 @@ import {
 } from '../src/lib/ephy/schema';
 import { currentCampaignYear } from '../src/lib/constants/agronomy';
 import { registerSchema, passwordSchema, siretSchema } from '../src/lib/validation/auth';
+import { compareVersions } from '../src/lib/updates/releases';
 
 // ---------------------------------------------------------------------------
 describe('Calculs de fertilisation', () => {
@@ -445,5 +446,32 @@ describe('Import E-Phy', () => {
   it('normalise les termes de recherche sans accent ni casse', () => {
     expect(normalizeSearchTerm('Roundup')).toBe('roundup');
     expect(normalizeSearchTerm('DÉSHERBANT  Blé')).toBe('desherbant ble');
+  });
+});
+
+describe('Comparaison de versions', () => {
+  it('classe les versions sémantiques', () => {
+    expect(compareVersions('1.2.0', '1.1.9')).toBeGreaterThan(0);
+    expect(compareVersions('1.1.9', '1.2.0')).toBeLessThan(0);
+    expect(compareVersions('2.0.0', '1.99.99')).toBeGreaterThan(0);
+    expect(compareVersions('1.2.3', '1.2.3')).toBe(0);
+  });
+
+  it('ignore le « v » des étiquettes Git', () => {
+    expect(compareVersions('v1.3.0', '1.2.0')).toBeGreaterThan(0);
+    expect(compareVersions('v1.2.0', 'v1.2.0')).toBe(0);
+  });
+
+  it('place une pré-publication avant la version finale', () => {
+    expect(compareVersions('1.2.0-rc.1', '1.2.0')).toBeLessThan(0);
+    expect(compareVersions('1.2.0', '1.2.0-rc.1')).toBeGreaterThan(0);
+    expect(compareVersions('1.2.0-rc.2', '1.2.0-rc.1')).toBeGreaterThan(0);
+  });
+
+  it('compare des numéros de longueur différente', () => {
+    // « 1.2 » vaut « 1.2.0 » : une publication ne doit pas paraître plus
+    // récente parce qu'elle a été étiquetée sans le correctif.
+    expect(compareVersions('1.2', '1.2.0')).toBe(0);
+    expect(compareVersions('1.2', '1.2.1')).toBeLessThan(0);
   });
 });

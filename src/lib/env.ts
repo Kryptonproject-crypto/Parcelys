@@ -74,6 +74,22 @@ const schema = z.object({
         .filter((origin) => origin.length > 0),
     ),
 
+  /**
+   * Dépôt GitHub surveillé pour les mises à jour, sous la forme
+   * `proprietaire/depot`. Sans cette variable, aucune requête ne part et la
+   * section d'administration indique simplement que la vérification est
+   * désactivée : une instance isolée du réseau le reste.
+   *
+   * La détection n'installe jamais rien — voir `src/lib/updates/releases.ts`.
+   */
+  UPDATE_REPOSITORY: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/,
+      'UPDATE_REPOSITORY attend la forme « proprietaire/depot »',
+    )
+    .optional(),
+
   DEMO_SEED_EMAIL: z.string().default('demo@parcelys.local'),
   DEMO_SEED_PASSWORD: z.string().default('Demo1234!'),
 });

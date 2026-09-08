@@ -1,14 +1,40 @@
 apply plugin: 'com.android.application'
 
+// Version et signature injectées par la chaîne de compilation.
+//
+//   ./gradlew assembleRelease -PparcelysVersionName=1.2.0 -PparcelysVersionCode=12
+//
+// Sans ces propriétés, on retombe sur des valeurs de développement : une
+// compilation locale n'a pas à connaître le numéro de publication.
+//
+// La signature n'est active que si un magasin de clés est fourni ; sinon
+// Gradle produit un APK non signé, à signer soi-même. Aucune clé n'est
+// stockée dans le dépôt.
+def parcelysVersionName = project.findProperty('parcelysVersionName') ?: '0.1.0'
+def parcelysVersionCode = (project.findProperty('parcelysVersionCode') ?: '1') as Integer
+def parcelysKeystore = project.findProperty('parcelysKeystore')
+
 android {
     namespace "fr.parcelys.champ"
     compileSdk rootProject.ext.compileSdkVersion
+
+    if (parcelysKeystore) {
+        signingConfigs {
+            release {
+                storeFile file(parcelysKeystore)
+                storePassword project.findProperty('parcelysKeystorePassword')
+                keyAlias project.findProperty('parcelysKeyAlias')
+                keyPassword project.findProperty('parcelysKeyPassword')
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "fr.parcelys.champ"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode parcelysVersionCode
+        versionName parcelysVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +46,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (parcelysKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

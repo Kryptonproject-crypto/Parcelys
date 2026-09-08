@@ -20,6 +20,7 @@ que sur un Raspberry Pi.
 - [Référentiel phytosanitaire E-Phy](#référentiel-phytosanitaire-e-phy)
 - [Déploiement](#déploiement)
 - [Déploiement sur Raspberry Pi](#déploiement-sur-raspberry-pi)
+- [Mises à jour](#mises-à-jour)
 - [Application mobile (Android)](#application-mobile-android)
 - [Maintenance](#maintenance)
 - [Tests](#tests)
@@ -304,6 +305,24 @@ consultable dans **Paramètres → Référentiel phytosanitaire**.
 
 ## Déploiement
 
+> **Guide complet : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)** — mise en
+> ligne sur un domaine, reverse proxy, sauvegardes, mises à jour et APK.
+
+### Où héberger Parcelys ?
+
+Il faut une machine où l'on est administrateur : **VPS, serveur dédié ou
+Raspberry Pi**. Un hébergement mutualisé de type cPanel ne convient pas, et ce
+n'est pas une question de puissance — Parcelys a besoin de l'extension
+**PostGIS** dans PostgreSQL, dont l'installation demande les droits
+superutilisateur sur le serveur de base, et d'un **processus Node.js
+permanent**. Les superficies inscrites aux registres sont calculées par
+PostGIS ; s'en passer reviendrait à y porter des chiffres approximatifs.
+
+Un mutualisé reste utile pour ce qu'il fait bien : héberger la zone DNS et les
+boîtes e-mail du domaine, pendant que l'application vit sur un VPS ou sur le
+Pi. Le détail des trois options viables est dans
+[`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md#où-héberger-parcelys-).
+
 ### Docker Compose (recommandé)
 
 ```bash
@@ -383,6 +402,27 @@ Quelques points d'attention :
   [Install]
   WantedBy=multi-user.target
   ```
+
+---
+
+## Mises à jour
+
+Renseignez le dépôt à surveiller dans le `.env` :
+
+```ini
+UPDATE_REPOSITORY="kryptonproject-crypto/parcelys"
+```
+
+« Administration → Maintenance » affiche alors la version installée, la
+dernière version publiée et ses notes, avec un bouton « Vérifier maintenant ».
+L'application de terrain signale de son côté qu'un nouvel APK est disponible,
+avec son lien de téléchargement.
+
+**Rien ne s'installe automatiquement.** Une mise à jour touche la base d'un
+registre réglementaire : elle se fait à un moment choisi, sauvegarde faite, par
+`git pull && npm ci && npm run db:deploy && npm run build`. Sans
+`UPDATE_REPOSITORY`, aucune requête ne sort de l'instance — une machine isolée
+du réseau le reste.
 
 ---
 

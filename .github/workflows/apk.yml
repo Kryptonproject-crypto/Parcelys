@@ -1,0 +1,155 @@
+name: APK Android
+
+# Compile « Parcelys au champ » et publie l'APK.
+#
+# Deux déclencheurs :
+#  - une étiquette « v… » : l'APK est joint à la publication GitHub, d'où
+#    l'instance et l'application le proposent au téléchargement ;
+#  - un lancement manuel : l'APK est déposé comme artefact de la compilation,
+#    utile pour essayer une version avant de la publier.
+#
+# La signature est facultative. Avec les quatre secrets ci-dessous, l'APK est
+# signé et directement installable ; sans eux, la compilation produit un APK
+# non signé — utilisable pour un essai, mais qu'Android refusera d'installer
+# tel quel. Aucune clé ne figure dans le dépôt.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version à inscrire dans l’APK (par défaut : celle de mobile/package.json)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    name: Compiler et publier l'APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Version à publier
+        id: version
+        run: |
+          # L'étiquette fait foi ; à défaut, l'entrée manuelle ; à défaut, le
+          # package.json de l'application.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(node -p "require('./mobile/package.json').version")
+          fi
+          # versionCode doit croître à chaque publication : Android refuse une
+          # mise à jour dont le code est inférieur ou égal au précédent.
+          # `major*10000 + minor*100 + patch` reste monotone et lisible.
+          CODE=$(node -e "
+            const [a=0,b=0,c=0] = '${VERSION}'.split('-')[0].split('.').map(Number);
+            console.log(a*10000 + b*100 + c);
+          ")
+          echo "name=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "Version ${VERSION} (code ${CODE})"
+
+      - name: Aligner la version de l'application
+        working-directory: mobile
+        run: npm version "${{ steps.version.outputs.name }}" --no-git-tag-version --allow-same-version
+
+      - name: Dépendances
+        working-directory: mobile
+        run: npm ci
+
+      - name: Compiler l'interface et synchroniser Capacitor
+        working-directory: mobile
+        run: npm run sync
+
+      - name: Magasin de clés
+        id: keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/parcelys.jks"
+          echo "path=$RUNNER_TEMP/parcelys.jks" >> "$GITHUB_OUTPUT"
+
+      - name: Compiler l'APK
+        working-directory: mobile/android
+        env:
+          KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ARGS=(
+            assembleRelease
+            "-PparcelysVersionName=${{ steps.version.outputs.name }}"
+            "-PparcelysVersionCode=${{ steps.version.outputs.code }}"
+          )
+          if [ -n "$KEYSTORE_PATH" ]; then
+            ARGS+=(
+              "-PparcelysKeystore=$KEYSTORE_PATH"
+              "-PparcelysKeystorePassword=$KEYSTORE_PASSWORD"
+              "-PparcelysKeyAlias=$KEY_ALIAS"
+              "-PparcelysKeyPassword=$KEY_PASSWORD"
+            )
+          else
+            echo "::warning::Aucun magasin de clés fourni : l'APK produit ne sera pas signé."
+          fi
+          ./gradlew "${ARGS[@]}" --no-daemon
+
+      - name: Renommer l'APK
+        id: apk
+        run: |
+          SOURCE=$(find mobile/android/app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          TARGET="parcelys-au-champ-${{ steps.version.outputs.name }}.apk"
+          cp "$SOURCE" "$TARGET"
+          echo "path=$TARGET" >> "$GITHUB_OUTPUT"
+          ls -lh "$TARGET"
+
+      - name: Empreinte SHA-256
+        run: sha256sum "${{ steps.apk.outputs.path }}" | tee "${{ steps.apk.outputs.path }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parcelys-au-champ-${{ steps.version.outputs.name }}
+          path: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.path }}.sha256
+          retention-days: 30
+
+      # Sur étiquette seulement : l'APK devient un fichier de la publication.
+      # C'est lui que la section « Mises à jour » de l'administration et
+      # l'écran « Réglages » de l'application proposent au téléchargement.
+      - name: Joindre à la publication
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Parcelys ${{ steps.version.outputs.name }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.path }}.sha256
