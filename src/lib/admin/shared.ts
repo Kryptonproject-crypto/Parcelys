@@ -9,6 +9,7 @@ export type AdminUserFilter =
   | 'actifs'
   | 'suspendus'
   | 'non-verifies'
+  | 'experts'
   | 'admins';
 
 export const USER_FILTER_LABELS: Record<AdminUserFilter, string> = {
@@ -16,6 +17,7 @@ export const USER_FILTER_LABELS: Record<AdminUserFilter, string> = {
   actifs: 'Actifs',
   suspendus: 'Suspendus',
   'non-verifies': 'À vérifier',
+  experts: 'Experts agronomiques',
   admins: 'Administrateurs',
 };
 
@@ -24,6 +26,16 @@ export type AdminUserRow = {
   email: string;
   firstName: string;
   lastName: string;
+  /**
+   * Exploitant ou expert agronomique. Sans cette distinction, un compte expert
+   * — qui n'a par nature aucune exploitation — se lit comme un compte
+   * d'exploitation resté vide.
+   */
+  accountType: 'FARMER' | 'AGRONOMIST';
+  /** Structure de rattachement d'un expert (chambre, coopérative, cabinet). */
+  organization: string | null;
+  /** Exploitations suivies en conseil : le portefeuille de l'expert. */
+  advisedFarms: Array<{ farmId: string; farmName: string }>;
   isPlatformAdmin: boolean;
   emailVerified: boolean;
   suspendedAt: string | null;

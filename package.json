@@ -8,8 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
+    "build": "prisma generate && next build && node scripts/assemble-standalone.mjs",
+    "start": "node .next/standalone/server.js",
+    "preflight": "node scripts/preflight.mjs",
+    "start:next": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -24,7 +26,11 @@
     "maintenance": "tsx scripts/maintenance.ts",
     "admin": "tsx --conditions=react-server scripts/admin.ts",
     "exports:preview": "tsx --conditions=react-server scripts/preview-exports.ts",
-    "test:ci": "npm run build && vitest run"
+    "test:ci": "npm run build && vitest run",
+    "check:security": "node scripts/check-security.mjs",
+    "check:pages": "node scripts/check-pages.mjs",
+    "check:advisory": "node scripts/check-advisory-flow.mjs",
+    "check:mobile": "node scripts/check-mobile-layout.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

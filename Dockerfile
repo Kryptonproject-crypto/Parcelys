@@ -61,8 +61,11 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
 USER parcelys
 EXPOSE 3000
 
+# `/api/health` touche réellement la base et l'extension PostGIS. L'ancienne
+# sonde interrogeait `/api/auth/session`, qui répond 200 même avec une base
+# éteinte : le conteneur était déclaré sain alors que rien ne fonctionnait.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/auth/session').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 CMD ["node", "server.js"]

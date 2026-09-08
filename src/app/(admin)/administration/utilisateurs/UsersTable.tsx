@@ -22,6 +22,7 @@ import {
 } from '@/components/ui';
 import {
   IconAdmin,
+  IconAdvisor,
   IconDelete,
   IconMailCheck,
   IconRestore,
@@ -220,11 +221,30 @@ export function UsersTable({
                     <span className="block text-[12.5px] text-ink-3">{user.email}</span>
                     <span className="block text-[11.5px] text-ink-3">
                       Inscrit le {formatDateFr(user.createdAt)}
+                      {user.organization ? ` · ${user.organization}` : ''}
                     </span>
                   </Td>
 
+                  {/* Un expert n'est membre d'aucune exploitation : sans cette
+                      distinction, son compte se lirait comme un compte
+                      d'exploitation resté vide. */}
                   <Td>
-                    {user.memberships.length === 0 ? (
+                    {user.accountType === 'AGRONOMIST' ? (
+                      user.advisedFarms.length === 0 ? (
+                        <span className="text-[12.5px] text-ink-3">
+                          Aucun domaine suivi
+                        </span>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {user.advisedFarms.map((farm) => (
+                            <li key={farm.farmId} className="text-[12.5px]">
+                              <span className="text-ink">{farm.farmName}</span>{' '}
+                              <span className="text-ink-3">· conseil</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    ) : user.memberships.length === 0 ? (
                       <span className="text-ink-3">—</span>
                     ) : (
                       <ul className="space-y-0.5">
@@ -245,6 +265,11 @@ export function UsersTable({
                       {user.isPlatformAdmin ? (
                         <Badge tone="blue" icon={IconAdmin}>
                           Administrateur
+                        </Badge>
+                      ) : null}
+                      {user.accountType === 'AGRONOMIST' ? (
+                        <Badge tone="blue" icon={IconAdvisor}>
+                          Expert agronomique
                         </Badge>
                       ) : null}
                       {user.suspendedAt ? (

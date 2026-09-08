@@ -32,6 +32,7 @@ function userWhere(
   if (filter === 'actifs') where.suspendedAt = null;
   if (filter === 'suspendus') where.suspendedAt = { not: null };
   if (filter === 'non-verifies') where.emailVerifiedAt = null;
+  if (filter === 'experts') where.accountType = 'AGRONOMIST';
   if (filter === 'admins') where.isPlatformAdmin = true;
 
   const term = search.trim();
@@ -61,6 +62,13 @@ export async function listAdminUsers(params: {
         include: { farm: { select: { id: true, name: true, deletedAt: true } } },
         orderBy: { createdAt: 'asc' },
       },
+      // Le portefeuille d'un expert : ses exploitations n'apparaissent pas dans
+      // `memberships`, puisqu'il n'en est membre d'aucune.
+      engagements: {
+        where: { status: 'ACTIVE' },
+        include: { farm: { select: { id: true, name: true, deletedAt: true } } },
+        orderBy: { startedAt: 'asc' },
+      },
       _count: {
         select: { sessions: { where: { revokedAt: null, expiresAt: { gt: now } } } },
       },
@@ -72,6 +80,11 @@ export async function listAdminUsers(params: {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    accountType: user.accountType,
+    organization: user.organization,
+    advisedFarms: user.engagements
+      .filter((e) => !e.farm.deletedAt)
+      .map((e) => ({ farmId: e.farm.id, farmName: e.farm.name })),
     isPlatformAdmin: user.isPlatformAdmin,
     emailVerified: user.emailVerifiedAt !== null,
     suspendedAt: user.suspendedAt?.toISOString() ?? null,
