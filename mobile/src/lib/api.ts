@@ -1,4 +1,4 @@
-import type { Session, Snapshot, SyncResult } from './types';
+import type { AccountType, Session, Snapshot, SyncResult } from './types';
 
 /**
  * Client HTTP de l'API Parcelys.
@@ -92,7 +92,12 @@ async function request<T>(
 export type LoginResponse = {
   token: string;
   expiresAt: string;
-  user: { firstName: string; lastName: string; email: string };
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    accountType: AccountType;
+  };
 };
 
 export async function login(
@@ -113,6 +118,9 @@ export async function login(
     email: response.user.email,
     firstName: response.user.firstName,
     lastName: response.user.lastName,
+    // C'est le serveur qui tranche : le choix fait sur l'écran de connexion
+    // n'est qu'une orientation, jamais une autorisation.
+    accountType: response.user.accountType ?? 'FARMER',
   };
 }
 
@@ -124,9 +132,18 @@ export async function logout(session: Session): Promise<void> {
   }).catch(() => undefined); // la session locale est effacée dans tous les cas
 }
 
-/** Instantané complet : tout ce qui doit rester consultable hors ligne. */
-export async function fetchSnapshot(session: Session): Promise<Snapshot> {
-  return request<Snapshot>(session.serverUrl, '/api/mobile/bootstrap', {
+/**
+ * Instantané complet : tout ce qui doit rester consultable hors ligne.
+ *
+ * `farmId` désigne l'exploitation à embarquer. L'exploitant n'en a qu'une et
+ * l'omet ; l'expert agronomique choisit celle de son portefeuille qu'il visite.
+ */
+export async function fetchSnapshot(
+  session: Session,
+  farmId?: string | null,
+): Promise<Snapshot> {
+  const query = farmId ? `?farmId=${encodeURIComponent(farmId)}` : '';
+  return request<Snapshot>(session.serverUrl, `/api/mobile/bootstrap${query}`, {
     token: session.token,
   });
 }
@@ -145,6 +162,8 @@ export async function pushOperations(
     clientId: string;
     kind: string;
     parcelId?: string;
+    farmId?: string;
+    targetId?: string;
     capturedAt: string;
     payload: Record<string, unknown>;
   }>,

@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { createUserWithFarm, prisma, resetDatabase, testPolygon } from './helpers/db';
+import {
+  createExpert,
+  createUserWithFarm,
+  grantAdvisoryAccess,
+  prisma,
+  resetDatabase,
+  testPolygon,
+} from './helpers/db';
 import { getBaseUrl, startServer, stopServer, TestClient } from './helpers/server';
 
 /**
@@ -382,6 +389,236 @@ describe('Application mobile et synchronisation', () => {
         '/api/mobile/bootstrap',
       );
       expect(snapshot.body.farm.name).toBe('Ferme Voisine');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('Expert agronomique au champ', () => {
+    /** Un expert missionné sur deux exploitations, chacune avec sa parcelle. */
+    async function advisorySetup() {
+      const first = await createUserWithFarm({
+        email: 'premier@ferme.test',
+        farmName: 'GAEC Premier',
+      });
+      const second = await createUserWithFarm({
+        email: 'second@ferme.test',
+        farmName: 'EARL Second',
+      });
+      const stranger = await createUserWithFarm({
+        email: 'inconnue@ferme.test',
+        farmName: 'Ferme Inconnue',
+      });
+      const expert = await createExpert({
+        email: 'agronome@conseil.test',
+        organization: 'Chambre du Loiret',
+      });
+
+      await grantAdvisoryAccess({ farmId: first.farmId, expertId: expert.id });
+      await grantAdvisoryAccess({ farmId: second.farmId, expertId: expert.id });
+
+      const farmer = new NativeClient();
+      await farmer.login(first.email, first.password);
+      const parcel = await farmer.post<{ id: string }>('/api/parcels', {
+        name: 'Le Grand Champ',
+        geometry: testPolygon(1.88, 48.08),
+      });
+
+      const advisor = new NativeClient();
+      await advisor.login(expert.email, expert.password);
+
+      return {
+        first,
+        second,
+        stranger,
+        expert,
+        farmer,
+        advisor,
+        parcelId: parcel.body.id,
+      };
+    }
+
+    it('renvoie le portefeuille et signale l’accès en conseil', async () => {
+      const { advisor, first } = await advisorySetup();
+
+      const snapshot = await advisor.get<{
+        accountType: string;
+        advisory: boolean;
+        farm: { id: string };
+        farms: Array<{ id: string; name: string; advisory: boolean }>;
+      }>('/api/mobile/bootstrap');
+
+      expect(snapshot.status).toBe(200);
+      expect(snapshot.body.accountType).toBe('AGRONOMIST');
+      expect(snapshot.body.advisory).toBe(true);
+      expect(snapshot.body.farms).toHaveLength(2);
+      expect(snapshot.body.farms.every((farm) => farm.advisory)).toBe(true);
+      expect(snapshot.body.farm.id).toBe(first.farmId);
+    });
+
+    it('change de domaine sans se reconnecter', async () => {
+      const { advisor, second } = await advisorySetup();
+
+      const snapshot = await advisor.get<{ farm: { id: string; name: string } }>(
+        `/api/mobile/bootstrap?farmId=${second.farmId}`,
+      );
+      expect(snapshot.status).toBe(200);
+      expect(snapshot.body.farm.name).toBe('EARL Second');
+    });
+
+    it('refuse un domaine hors du portefeuille', async () => {
+      const { advisor, stranger } = await advisorySetup();
+
+      const snapshot = await advisor.get(
+        `/api/mobile/bootstrap?farmId=${stranger.farmId}`,
+      );
+      // 404 et non 403 : l'existence de l'exploitation n'est pas divulguée.
+      expect(snapshot.status).toBe(404);
+    });
+
+    it('transmet une préconisation rédigée hors ligne', async () => {
+      const { advisor, farmer, first, parcelId } = await advisorySetup();
+
+      const response = await advisor.post<{
+        applied: number;
+        results: Array<{ status: string; entityId?: string }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'recommendation.create',
+            farmId: first.farmId,
+            parcelId,
+            capturedAt: new Date().toISOString(),
+            payload: {
+              parcelId,
+              kind: 'PHYTO',
+              priority: 'HIGH',
+              title: 'Protection fongicide T1',
+              rationale:
+                'Stade 2 nœuds atteint, septoriose présente sur F3 avec 15 % de fréquence.',
+              productName: 'Produit conseillé',
+              amm: '2090123',
+              dose: 1.2,
+              doseUnit: 'L/ha',
+              send: true,
+            },
+          },
+        ],
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.applied).toBe(1);
+
+      // Transmise : l'exploitation la voit, avec la provenance du produit.
+      const received = await farmer.get<{
+        recommendations: Array<{ title: string; status: string; productSource: string }>;
+      }>('/api/recommendations');
+      expect(received.body.recommendations).toHaveLength(1);
+      expect(received.body.recommendations[0]?.status).toBe('PROPOSED');
+      expect(received.body.recommendations[0]?.productSource).toBe('saisie');
+    });
+
+    it('refuse une préconisation visant une exploitation non suivie', async () => {
+      const { advisor, stranger } = await advisorySetup();
+
+      const response = await advisor.post<{
+        rejected: number;
+        results: Array<{ httpStatus: number }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'recommendation.create',
+            farmId: stranger.farmId,
+            capturedAt: new Date().toISOString(),
+            payload: {
+              kind: 'OBSERVATION',
+              priority: 'NORMAL',
+              title: 'Tentative',
+              rationale: 'Préconisation sur une exploitation qui ne m’a pas missionné.',
+              send: true,
+            },
+          },
+        ],
+      });
+
+      expect(response.body.rejected).toBe(1);
+      expect(response.body.results[0]?.httpStatus).toBe(404);
+      expect(await prisma.recommendation.count()).toBe(0);
+    });
+
+    it('rejoue la réponse de l’exploitation faite hors ligne', async () => {
+      const { advisor, farmer, first, parcelId } = await advisorySetup();
+
+      await advisor.post('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'recommendation.create',
+            farmId: first.farmId,
+            capturedAt: new Date().toISOString(),
+            payload: {
+              parcelId,
+              kind: 'OBSERVATION',
+              priority: 'NORMAL',
+              title: 'Surveiller les limaces',
+              rationale: 'Pression observée en bordure de la parcelle voisine.',
+              send: true,
+            },
+          },
+        ],
+      });
+
+      const received = await farmer.get<{
+        recommendations: Array<{ id: string }>;
+      }>('/api/recommendations');
+      const id = received.body.recommendations[0]?.id ?? '';
+
+      const response = await farmer.post<{ applied: number }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'recommendation.respond',
+            targetId: id,
+            capturedAt: new Date().toISOString(),
+            payload: { decision: 'ACCEPTED', note: 'Passage prévu jeudi.' },
+          },
+        ],
+      });
+
+      expect(response.body.applied).toBe(1);
+      const stored = await prisma.recommendation.findUniqueOrThrow({ where: { id } });
+      expect(stored.status).toBe('ACCEPTED');
+      expect(stored.responseNote).toBe('Passage prévu jeudi.');
+    });
+
+    it('n’écrit rien dans les registres depuis la file d’attente', async () => {
+      const { advisor, parcelId } = await advisorySetup();
+
+      const response = await advisor.post<{
+        rejected: number;
+        results: Array<{ httpStatus: number }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'phyto.create',
+            parcelId,
+            capturedAt: new Date().toISOString(),
+            payload: {
+              appliedOn: '2026-04-05',
+              productName: 'Produit',
+              dose: 1,
+              doseUnit: 'L/ha',
+              captureWeather: false,
+            },
+          },
+        ],
+      });
+
+      expect(response.body.rejected).toBe(1);
+      expect(response.body.results[0]?.httpStatus).toBe(403);
+      expect(await prisma.phytosanitaryApplication.count()).toBe(0);
     });
   });
 

@@ -11,8 +11,12 @@ import { Badge, Button, Card, EmptyState, Header, Input, cn } from '../component
  * plutôt que de laisser croire qu'elle est à jour.
  */
 export function ParcelsScreen({ context }: { context: AppContext }) {
-  const { snapshot, online, pending, navigate } = context;
+  const { snapshot, online, pending, navigate, back, isExpert, readOnly } = context;
   const [search, setSearch] = useState('');
+
+  const waiting = (snapshot?.recommendations ?? []).filter(
+    (item) => item.status === 'PROPOSED',
+  ).length;
 
   const parcels = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -39,6 +43,8 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
             ? `${snapshot.parcels.length} parcelle(s) · ${formatAreaHa(totalArea)}`
             : 'Aucune donnée en cache'
         }
+        // L'expert revient à son portefeuille ; l'exploitant est déjà chez lui.
+        {...(isExpert ? { onBack: back } : {})}
         action={
           <div className="flex items-center gap-1">
             <button
@@ -89,6 +95,54 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
             <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-current" />
             Hors réseau — vos saisies partiront à la reconnexion.
           </div>
+        ) : null}
+
+        {readOnly ? (
+          <div className="rounded-xl border border-ciel-500/40 bg-ciel-500/10 px-3.5 py-2.5 text-[13.5px] leading-relaxed text-ciel-600 dark:text-ciel-500">
+            Domaine suivi en conseil : vous consultez le parcellaire et rédigez
+            des préconisations, sans écrire dans les registres.
+          </div>
+        ) : null}
+
+        {snapshot ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: 'recommendations' })}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3.5 text-left active:bg-surface-2"
+          >
+            <span className="min-w-0">
+              <span className="block font-semibold text-ink">Préconisations</span>
+              <span className="block text-[13px] text-ink-3">
+                {waiting > 0
+                  ? `${waiting} en attente de décision`
+                  : isExpert
+                    ? 'Vos conseils pour ce domaine'
+                    : 'Les conseils reçus de votre expert'}
+              </span>
+            </span>
+            {waiting > 0 ? (
+              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-ble-500 px-1.5 text-[12px] font-bold text-white">
+                {waiting}
+              </span>
+            ) : (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden
+                className="shrink-0 text-ink-3"
+              >
+                <path
+                  d="M9 5l7 7-7 7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
         ) : null}
 
         {snapshot ? (
@@ -150,17 +204,32 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
           'safe-bottom sticky bottom-0 border-t border-line bg-canvas/95 px-4 py-3 backdrop-blur',
         )}
       >
-        <Button full onClick={() => navigate({ name: 'new-parcel' })}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 5v14M5 12h14"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-          </svg>
-          Relever une parcelle
-        </Button>
+        {/* Un expert missionné ne relève pas de parcelle : il conseille. */}
+        {readOnly ? (
+          <Button full onClick={() => navigate({ name: 'new-recommendation' })}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+            Rédiger une préconisation
+          </Button>
+        ) : (
+          <Button full onClick={() => navigate({ name: 'new-parcel' })}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+            </svg>
+            Relever une parcelle
+          </Button>
+        )}
       </div>
     </div>
   );

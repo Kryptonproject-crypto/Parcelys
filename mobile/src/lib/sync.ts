@@ -45,7 +45,11 @@ function isPending(operation: QueuedOperation, resolved: Map<string, string>): b
   return operation.parcelId.includes('-') && !resolved.has(operation.parcelId);
 }
 
-export async function synchronize(session: Session): Promise<SyncReport> {
+export async function synchronize(
+  session: Session,
+  /** Exploitation dont l'instantané est rafraîchi au terme de l'envoi. */
+  farmId?: string | null,
+): Promise<SyncReport> {
   const report: SyncReport = {
     applied: 0,
     rejected: 0,
@@ -69,6 +73,8 @@ export async function synchronize(session: Session): Promise<SyncReport> {
       ...(operation.parcelId
         ? { parcelId: resolved.get(operation.parcelId) ?? operation.parcelId }
         : {}),
+      ...(operation.farmId ? { farmId: operation.farmId } : {}),
+      ...(operation.targetId ? { targetId: operation.targetId } : {}),
       capturedAt: operation.capturedAt,
       payload: operation.payload,
     }));
@@ -119,7 +125,7 @@ export async function synchronize(session: Session): Promise<SyncReport> {
   // Rafraîchit l'instantané, sauf si le réseau vient de faire défaut.
   if (!report.offline) {
     try {
-      writeSnapshot(await fetchSnapshot(session));
+      await writeSnapshot(await fetchSnapshot(session, farmId));
       report.snapshotRefreshed = true;
     } catch (error) {
       if (!(error instanceof OfflineError)) throw error;

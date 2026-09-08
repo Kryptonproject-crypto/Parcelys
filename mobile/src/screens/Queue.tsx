@@ -24,7 +24,8 @@ import {
  * réglementaire.
  */
 export function QueueScreen({ context }: { context: AppContext }) {
-  const { back, session, online, refreshPending, refreshSnapshot } = context;
+  const { back, session, online, refreshPending, refreshSnapshot, activeFarmId } =
+    context;
 
   const [operations, setOperations] = useState<QueuedOperation[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -45,7 +46,7 @@ export function QueueScreen({ context }: { context: AppContext }) {
     setError(null);
     setReport(null);
     try {
-      const result = await synchronize(session);
+      const result = await synchronize(session, activeFarmId);
       setReport(result);
       await reload();
       if (result.snapshotRefreshed) await refreshSnapshot();

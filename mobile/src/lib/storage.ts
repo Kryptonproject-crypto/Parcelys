@@ -13,6 +13,7 @@ import type { Session } from './types';
 
 const SESSION_KEY = 'parcelys.session';
 const SERVER_KEY = 'parcelys.serverUrl';
+const FARM_KEY = 'parcelys.farmId';
 
 export const isNative = (): boolean => Capacitor.isNativePlatform();
 
@@ -32,6 +33,22 @@ export async function saveSession(session: Session): Promise<void> {
 
 export async function clearSession(): Promise<void> {
   await Preferences.remove({ key: SESSION_KEY });
+}
+
+/**
+ * Exploitation ouverte la dernière fois.
+ *
+ * L'expert agronomique suit plusieurs domaines : au redémarrage, il retrouve
+ * celui qu'il visitait, y compris sans réseau.
+ */
+export async function loadActiveFarmId(): Promise<string | null> {
+  const { value } = await Preferences.get({ key: FARM_KEY });
+  return value ?? null;
+}
+
+export async function saveActiveFarmId(farmId: string | null): Promise<void> {
+  if (farmId) await Preferences.set({ key: FARM_KEY, value: farmId });
+  else await Preferences.remove({ key: FARM_KEY });
 }
 
 export async function loadServerUrl(): Promise<string> {

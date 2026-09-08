@@ -5,7 +5,8 @@ import { Banner, Button, Card, Header } from '../components/ui';
 
 /** Réglages : état de la session, du cache, et déconnexion. */
 export function SettingsScreen({ context }: { context: AppContext }) {
-  const { back, session, snapshot, online, pending, logout, refreshSnapshot } = context;
+  const { back, session, snapshot, online, pending, logout, refreshSnapshot, isExpert } =
+    context;
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -25,11 +26,27 @@ export function SettingsScreen({ context }: { context: AppContext }) {
               <dd className="truncate text-right text-ink">{session.serverUrl}</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-ink-3">Exploitation</dt>
+              <dt className="text-ink-3">Compte</dt>
+              <dd className="text-right text-ink">
+                {isExpert ? 'Expert agronomique' : 'Exploitation'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-ink-3">
+                {isExpert ? 'Domaine ouvert' : 'Exploitation'}
+              </dt>
               <dd className="truncate text-right text-ink">
                 {snapshot?.farm.name ?? '—'}
               </dd>
             </div>
+            {isExpert ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-3">Portefeuille</dt>
+                <dd className="text-right text-ink">
+                  {snapshot?.farms.length ?? 0} domaine(s)
+                </dd>
+              </div>
+            ) : null}
             <div className="flex justify-between gap-3">
               <dt className="text-ink-3">Réseau</dt>
               <dd className="text-right text-ink">

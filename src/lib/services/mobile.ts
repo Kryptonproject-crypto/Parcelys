@@ -7,6 +7,7 @@ import {
   PARCEL_TYPES,
   currentCampaignYear,
 } from '@/lib/constants/agronomy';
+import { listRecommendations } from '@/lib/services/advisory';
 import type { FarmContext } from '@/lib/auth/rbac';
 
 /**
@@ -92,6 +93,20 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
     });
   }
 
+  // Préconisations utiles au champ : celles en attente de décision et celles
+  // acceptées mais pas encore réalisées, des deux côtés. Un expert emporte
+  // aussi ses brouillons, qu'il est le seul à voir.
+  const recommendations = await listRecommendations({
+    farmId: ctx.farmId,
+    ...(ctx.accessKind === 'advisory'
+      ? { authorId: ctx.user.id }
+      : { visibleToFarmOnly: true }),
+    status:
+      ctx.accessKind === 'advisory'
+        ? ['DRAFT', 'PROPOSED', 'ACCEPTED']
+        : ['PROPOSED', 'ACCEPTED'],
+  });
+
   return {
     syncedAt: new Date().toISOString(),
     campaignYear: year,
@@ -103,7 +118,19 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       latitude: farm.latitude,
       longitude: farm.longitude,
     },
+    /** Exploitant ou expert : décide de ce que l'application propose. */
+    accountType: ctx.user.accountType,
+    /** Portefeuille : plusieurs exploitations pour un expert, une pour l'exploitant. */
+    farms: ctx.memberships.map((membership) => ({
+      id: membership.farmId,
+      name: membership.farmName,
+      role: membership.role,
+      advisory: membership.kind === 'advisory',
+    })),
     role: ctx.role,
+    /** `true` quand l'accès vient d'une mission de conseil : lecture seule. */
+    advisory: ctx.accessKind === 'advisory',
+    recommendations,
     parcels: geojson.features.map((feature) => ({
       id: feature.properties.id,
       name: feature.properties.name,

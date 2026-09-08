@@ -11,6 +11,8 @@ import { POST as createParcel } from '@/app/api/parcels/route';
 import { POST as createFertilization } from '@/app/api/parcels/[id]/fertilization/route';
 import { POST as createPhyto } from '@/app/api/parcels/[id]/phytosanitary/route';
 import { POST as createOperation } from '@/app/api/parcels/[id]/operations/route';
+import { POST as createRecommendation } from '@/app/api/recommendations/route';
+import { POST as respondToRecommendation } from '@/app/api/recommendations/[id]/response/route';
 
 /**
  * Synchronisation de l'application de terrain.
@@ -39,33 +41,59 @@ type RouteHandler = (
 
 type OperationSpec = {
   handler: RouteHandler;
-  /** `null` quand l'opération ne porte pas sur une parcelle existante. */
-  needsParcel: boolean;
-  path: (parcelId: string) => string;
+  /**
+   * Ressource que l'opération vise, et dont l'identifiant doit accompagner la
+   * saisie : la parcelle où l'on est intervenu, la préconisation à laquelle on
+   * répond. `none` pour une création qui ne dépend de rien d'existant.
+   */
+  target: 'parcel' | 'recommendation' | 'none';
+  path: (operation: SyncOperationInput) => string;
 };
+
+const targetId = (operation: SyncOperationInput): string =>
+  operation.targetId ?? operation.parcelId ?? '';
 
 /** Liste fermée : la synchronisation ne donne accès à rien d'autre. */
 const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
   'parcel.create': {
     handler: createParcel as RouteHandler,
-    needsParcel: false,
+    target: 'none',
     path: () => '/api/parcels',
   },
   'fertilization.create': {
     handler: createFertilization as RouteHandler,
-    needsParcel: true,
-    path: (id) => `/api/parcels/${id}/fertilization`,
+    target: 'parcel',
+    path: (op) => `/api/parcels/${op.parcelId}/fertilization`,
   },
   'phyto.create': {
     handler: createPhyto as RouteHandler,
-    needsParcel: true,
-    path: (id) => `/api/parcels/${id}/phytosanitary`,
+    target: 'parcel',
+    path: (op) => `/api/parcels/${op.parcelId}/phytosanitary`,
   },
   'operation.create': {
     handler: createOperation as RouteHandler,
-    needsParcel: true,
-    path: (id) => `/api/parcels/${id}/operations`,
+    target: 'parcel',
+    path: (op) => `/api/parcels/${op.parcelId}/operations`,
   },
+  // L'expert rédige au champ, sans réseau, et transmet au retour. La route
+  // appelée est la même qu'en ligne : c'est elle qui vérifie la mission de
+  // conseil, la parcelle citée et la complétude d'une préconisation phyto.
+  'recommendation.create': {
+    handler: createRecommendation as RouteHandler,
+    target: 'none',
+    path: (op) => `/api/recommendations?farmId=${encodeURIComponent(op.farmId ?? '')}`,
+  },
+  'recommendation.respond': {
+    handler: respondToRecommendation as RouteHandler,
+    target: 'recommendation',
+    path: (op) => `/api/recommendations/${targetId(op)}/response`,
+  },
+};
+
+const MISSING_TARGET: Record<OperationSpec['target'], string> = {
+  parcel: 'Parcelle non précisée pour cette opération.',
+  recommendation: 'Préconisation non précisée pour cette opération.',
+  none: '',
 };
 
 /**
@@ -129,21 +157,20 @@ export const POST = route(async (request: NextRequest) => {
   for (const operation of input.operations) {
     const spec = OPERATIONS[operation.kind];
 
-    if (spec.needsParcel && !operation.parcelId) {
+    if (spec.target !== 'none' && !targetId(operation)) {
       results.push({
         clientId: operation.clientId,
         kind: operation.kind,
         status: 'rejected',
         httpStatus: 400,
-        message: 'Parcelle non précisée pour cette opération.',
+        message: MISSING_TARGET[spec.target],
       });
       continue;
     }
 
-    const path = spec.path(operation.parcelId ?? '');
     const response = await spec.handler(
-      subRequest(request, path, operation.payload, operation.clientId),
-      { params: Promise.resolve({ id: operation.parcelId ?? '' }) },
+      subRequest(request, spec.path(operation), operation.payload, operation.clientId),
+      { params: Promise.resolve({ id: targetId(operation) }) },
     );
 
     const replayed = response.headers.get(REPLAY_HEADER) === 'true';

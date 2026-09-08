@@ -9,6 +9,10 @@ import { Badge, Card, Header } from '../components/ui';
  * Trois actions seulement, celles qui se font au champ. La consultation
  * détaillée des registres reste sur l'application web : la reproduire ici
  * alourdirait l'APK pour un usage qui se fait de toute façon au bureau.
+ *
+ * L'expert agronomique voit la même fiche, mais une seule action : rédiger une
+ * préconisation. Il ne remplit aucun registre de l'exploitation — la règle est
+ * la même ici que dans le contrôle de permissions du serveur.
  */
 export function ParcelScreen({
   context,
@@ -17,7 +21,25 @@ export function ParcelScreen({
   context: AppContext;
   parcel: CachedParcel;
 }) {
-  const { back, navigate } = context;
+  const { back, navigate, readOnly } = context;
+
+  const ADVISOR_ACTIONS = [
+    {
+      kind: 'preconisation' as const,
+      title: 'Rédiger une préconisation',
+      description:
+        'Votre conseil et ce qui le motive. L’exploitation décidera de le suivre.',
+      icon: (
+        <path
+          d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.3.2.5.6.5 1V15h6v-.1c0-.4.2-.8.5-1A6 6 0 0012 3z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ),
+    },
+  ];
 
   const actions = [
     {
@@ -102,14 +124,16 @@ export function ParcelScreen({
 
         <div>
           <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-ink-3">
-            Enregistrer une intervention
+            {readOnly ? 'Conseiller sur cette parcelle' : 'Enregistrer une intervention'}
           </h2>
           <ul className="space-y-2.5">
-            {actions.map((action) => (
+            {(readOnly ? ADVISOR_ACTIONS : actions).map((action) => (
               <li key={action.kind}>
                 <Card
                   onClick={() =>
-                    navigate({ name: 'entry', kind: action.kind, parcelId: parcel.id })
+                    action.kind === 'preconisation'
+                      ? navigate({ name: 'new-recommendation', parcelId: parcel.id })
+                      : navigate({ name: 'entry', kind: action.kind, parcelId: parcel.id })
                   }
                 >
                   <div className="flex items-center gap-3.5">

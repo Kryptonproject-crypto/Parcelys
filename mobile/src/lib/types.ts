@@ -59,6 +59,75 @@ export type Referential = {
   operationTypes: Array<{ value: string; label: string }>;
 };
 
+export type AccountType = 'FARMER' | 'AGRONOMIST';
+
+/** Une exploitation accessible : la sienne, ou une du portefeuille de l'expert. */
+export type PortfolioFarm = {
+  id: string;
+  name: string;
+  role: string;
+  /** `true` quand l'accès vient d'une mission de conseil (lecture seule). */
+  advisory: boolean;
+};
+
+export type RecommendationStatus =
+  | 'DRAFT'
+  | 'PROPOSED'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'APPLIED'
+  | 'WITHDRAWN';
+
+export const RECOMMENDATION_STATUS_LABELS: Record<RecommendationStatus, string> = {
+  DRAFT: 'Brouillon',
+  PROPOSED: 'En attente',
+  ACCEPTED: 'Acceptée',
+  DECLINED: 'Écartée',
+  APPLIED: 'Réalisée',
+  WITHDRAWN: 'Retirée',
+};
+
+export type RecommendationKind = 'PHYTO' | 'FERTILIZATION' | 'OPERATION' | 'OBSERVATION';
+
+export const RECOMMENDATION_KIND_LABELS: Record<RecommendationKind, string> = {
+  PHYTO: 'Traitement phytosanitaire',
+  FERTILIZATION: 'Fertilisation',
+  OPERATION: 'Travail',
+  OBSERVATION: 'Observation',
+};
+
+export type RecommendationPriority = 'LOW' | 'NORMAL' | 'HIGH';
+
+/**
+ * Préconisation embarquée dans l'instantané.
+ *
+ * Sous-ensemble de ce que renvoie l'API : ce qui se lit et se décide au champ.
+ * `productSource` dit d'où vient le produit cité — vérifié au catalogue E-Phy,
+ * ou saisi par l'expert. L'application ne complète jamais cette information.
+ */
+export type CachedRecommendation = {
+  id: string;
+  farmId: string;
+  parcelId: string | null;
+  parcelName: string | null;
+  kind: RecommendationKind;
+  status: RecommendationStatus;
+  priority: RecommendationPriority;
+  title: string;
+  rationale: string;
+  productName: string | null;
+  amm: string | null;
+  productSource: 'catalogue' | 'saisie' | null;
+  dose: number | null;
+  doseUnit: string | null;
+  targetLabel: string | null;
+  windowStart: string | null;
+  windowEnd: string | null;
+  author: { name: string; organization: string | null };
+  createdAt: string;
+  responseNote: string | null;
+};
+
 export type Snapshot = {
   syncedAt: string;
   campaignYear: number;
@@ -70,8 +139,13 @@ export type Snapshot = {
     latitude: number | null;
     longitude: number | null;
   };
+  accountType: AccountType;
+  farms: PortfolioFarm[];
   role: string;
+  /** `true` quand l'exploitation affichée est suivie, non détenue. */
+  advisory: boolean;
   parcels: CachedParcel[];
+  recommendations: CachedRecommendation[];
   referential: Referential;
 };
 
@@ -80,13 +154,17 @@ export type OperationKind =
   | 'parcel.create'
   | 'fertilization.create'
   | 'phyto.create'
-  | 'operation.create';
+  | 'operation.create'
+  | 'recommendation.create'
+  | 'recommendation.respond';
 
 export const OPERATION_LABELS: Record<OperationKind, string> = {
   'parcel.create': 'Nouvelle parcelle',
   'fertilization.create': 'Apport',
   'phyto.create': 'Traitement',
   'operation.create': 'Travail',
+  'recommendation.create': 'Préconisation',
+  'recommendation.respond': 'Réponse à une préconisation',
 };
 
 export type QueuedOperation = {
@@ -95,6 +173,10 @@ export type QueuedOperation = {
   kind: OperationKind;
   /** Parcelle visée ; pour une parcelle créée hors ligne, son `clientId`. */
   parcelId?: string;
+  /** Exploitation visée, quand elle ne se déduit pas de la parcelle. */
+  farmId?: string;
+  /** Ressource visée quand ce n'est pas une parcelle (une préconisation). */
+  targetId?: string;
   /** Résumé lisible, affiché dans la file d'attente. */
   label: string;
   capturedAt: string;
@@ -121,4 +203,6 @@ export type Session = {
   email: string;
   firstName: string;
   lastName: string;
+  /** Décide de l'écran d'accueil : parcellaire pour l'un, portefeuille pour l'autre. */
+  accountType: AccountType;
 };

@@ -12,6 +12,10 @@ export const SYNC_OPERATION_KINDS = [
   'fertilization.create',
   'phyto.create',
   'operation.create',
+  /** Préconisation rédigée par l'expert au champ, transmise au retour du réseau. */
+  'recommendation.create',
+  /** Réponse de l'exploitation à une préconisation reçue. */
+  'recommendation.respond',
 ] as const;
 
 export type SyncOperationKind = (typeof SYNC_OPERATION_KINDS)[number];
@@ -22,6 +26,13 @@ export const syncOperationSchema = z.object({
   kind: z.enum(SYNC_OPERATION_KINDS),
   /** Parcelle concernée — requise pour tout ce qui n'est pas sa création. */
   parcelId: z.string().trim().max(40).optional(),
+  /**
+   * Exploitation visée, quand elle ne se déduit pas de la parcelle : l'expert
+   * travaille sur plusieurs portefeuilles depuis une même session.
+   */
+  farmId: z.string().trim().max(40).optional(),
+  /** Ressource visée quand ce n'est pas une parcelle (une préconisation). */
+  targetId: z.string().trim().max(40).optional(),
   /** Horodatage de la saisie sur le terrain, à titre indicatif. */
   capturedAt: z.string().datetime().optional(),
   payload: z.record(z.unknown()),
