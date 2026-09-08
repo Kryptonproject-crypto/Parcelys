@@ -38,6 +38,7 @@ const PAGES = [
   '/administration/exploitations',
   '/administration/journal',
   '/administration/maintenance',
+  '/preconisations',
 ];
 
 const browser = await chromium.launch({

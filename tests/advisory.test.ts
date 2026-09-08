@@ -233,6 +233,43 @@ describe('Conseil agronomique', () => {
       expect(after.body.memberships[0]?.role).toBe('ADVISOR');
     });
 
+    it('accepte un code par exploitation suivie', async () => {
+      // Un expert suit plusieurs domaines : il active un code d'accès pour
+      // chacun, en plus du code d'inscription qui a créé son compte. Rien ne
+      // doit limiter un compte à un seul code au cours de sa vie.
+      const first = await createUserWithFarm({
+        email: 'ferme.a@ferme.test',
+        farmName: 'Ferme A',
+      });
+      const second = await createUserWithFarm({
+        email: 'ferme.b@ferme.test',
+        farmName: 'Ferme B',
+      });
+      const expert = await createExpert({ email: 'multi@agro.test' });
+
+      const expertClient = new TestClient();
+      await expertClient.login(expert.email, expert.password);
+
+      for (const [index, farm] of [first, second].entries()) {
+        const { code } = await createInvitationCode({
+          code: `PRCL-MULT-IFER-000${index}`,
+          createdById: farm.id,
+          farmId: farm.farmId,
+          role: 'ADVISOR',
+          purpose: 'ADVISORY_ACCESS',
+        });
+        expect((await expertClient.post('/api/portfolio/join', { code })).status).toBe(
+          200,
+        );
+      }
+
+      const session = await expertClient.get<{
+        memberships: Array<{ farmId: string }>;
+      }>('/api/auth/session');
+      expect(session.body.memberships).toHaveLength(2);
+      expect(await prisma.advisoryEngagement.count()).toBe(2);
+    });
+
     it('n’accepte un code d’accès qu’une seule fois', async () => {
       const farmer = await createUserWithFarm({
         email: 'proprio2@ferme.test',

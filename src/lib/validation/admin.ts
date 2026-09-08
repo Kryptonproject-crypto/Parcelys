@@ -16,7 +16,13 @@ export const invitationCreateSchema = z
     accountType: z.enum(['FARMER', 'AGRONOMIST']).default('FARMER'),
     /** Exploitation rejointe ; vide = la personne crée la sienne. */
     farmId: z.string().trim().max(40).optional().or(z.literal('')),
-    role: z.enum(['OWNER', 'ADMIN', 'EMPLOYEE', 'VIEWER']),
+    /**
+     * Rôle dans l'exploitation rejointe. Sans exploitation, la personne crée la
+     * sienne et en devient propriétaire ; pour un compte expert, le champ n'a
+     * pas de sens du tout — d'où la valeur par défaut plutôt qu'une obligation
+     * de renseigner un rôle qui ne servira jamais.
+     */
+    role: z.enum(['OWNER', 'ADMIN', 'EMPLOYEE', 'VIEWER']).default('OWNER'),
     grantsPlatformAdmin: z.boolean().optional().default(false),
     note: z.string().trim().max(200).optional().or(z.literal('')),
     validityDays: z.coerce
@@ -26,16 +32,18 @@ export const invitationCreateSchema = z
       .max(MAX_VALIDITY_DAYS, `${MAX_VALIDITY_DAYS} jours au maximum`)
       .default(DEFAULT_VALIDITY_DAYS),
   })
+  // Champ absent et champ vide veulent dire la même chose — « pas
+  // d'exploitation ». Les distinguer ferait dépendre la validation de la façon
+  // dont l'appelant construit son corps de requête, ce qui n'a aucun sens ici.
   .refine(
-    (data) =>
-      data.accountType === 'AGRONOMIST' || data.farmId !== '' || data.role === 'OWNER',
+    (data) => data.accountType === 'AGRONOMIST' || data.farmId || data.role === 'OWNER',
     {
       message:
         "Sans exploitation, la personne crée la sienne et en devient propriétaire",
       path: ['role'],
     },
   )
-  .refine((data) => data.accountType !== 'AGRONOMIST' || data.farmId === '', {
+  .refine((data) => data.accountType !== 'AGRONOMIST' || !data.farmId, {
     message: "Un compte expert ne se rattache pas à une exploitation à l'inscription",
     path: ['farmId'],
   });

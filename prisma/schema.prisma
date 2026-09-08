@@ -103,7 +103,7 @@ model User {
   operationEntries   AgriculturalOperation[] @relation("OperationAuthor")
   invitationsIssued  InvitationCode[]        @relation("InvitationIssuer")
   invitationsRevoked InvitationCode[]        @relation("InvitationRevoker")
-  invitationUsed     InvitationCode?         @relation("InvitationRecipient")
+  invitationsUsed    InvitationCode[]        @relation("InvitationRecipient")
   engagements        AdvisoryEngagement[]    @relation("AdvisoryExpert")
   engagementsGranted AdvisoryEngagement[]    @relation("AdvisoryGrantedBy")
   recommendations    Recommendation[]        @relation("RecommendationAuthor")
@@ -281,7 +281,12 @@ model InvitationCode {
   note      String?
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
-  usedById  String?   @unique @map("used_by_id")
+  /// Titulaire qui a consommé le code. Pas d'unicité : un expert agronomique
+  /// active un code d'accès par exploitation qu'il suit, en plus du code
+  /// d'inscription qui a créé son compte. Une contrainte unique ici
+  /// n'autoriserait qu'un seul code par personne, pour toute sa vie.
+  usedById  String?   @map("used_by_id")
+  /// Retrouver les codes consommés par une personne, sans les contraindre.
   revokedAt DateTime? @map("revoked_at")
 
   createdById String   @map("created_by_id")
@@ -295,6 +300,7 @@ model InvitationCode {
 
   @@index([createdById, createdAt])
   @@index([expiresAt])
+  @@index([usedById])
   @@map("invitation_codes")
 }
 
