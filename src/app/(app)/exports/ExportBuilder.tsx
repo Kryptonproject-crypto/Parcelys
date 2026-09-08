@@ -10,6 +10,7 @@ import {
   IconOperation,
   IconParcels,
   IconPhyto,
+  IconTrend,
 } from '@/components/ui/icons';
 
 const DATASETS = [
@@ -32,6 +33,14 @@ const DATASETS = [
     label: 'Registre des apports',
     icon: IconInputs,
     description: 'Apports organiques et minéraux avec éléments fertilisants N, P, K.',
+    formats: ['pdf', 'xlsx', 'csv'],
+  },
+  {
+    key: 'bilan-engrais',
+    label: 'Bilan de fertilisation',
+    icon: IconTrend,
+    description:
+      'Unités N, P₂O₅ et K₂O apportées par parcelle, en kg/ha et en kg, avec totaux.',
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {

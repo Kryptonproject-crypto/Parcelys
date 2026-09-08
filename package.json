@@ -23,6 +23,7 @@
     "postinstall": "prisma generate",
     "maintenance": "tsx scripts/maintenance.ts",
     "admin": "tsx --conditions=react-server scripts/admin.ts",
+    "exports:preview": "tsx --conditions=react-server scripts/preview-exports.ts",
     "test:ci": "npm run build && vitest run"
   },
   "prisma": {

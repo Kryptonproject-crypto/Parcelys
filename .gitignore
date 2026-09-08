@@ -33,3 +33,6 @@ next-env.d.ts
 npm-debug.log*
 yarn-error.log*
 .vercel
+
+# aperçus d’exports générés localement
+/.preview

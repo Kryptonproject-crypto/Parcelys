@@ -546,6 +546,104 @@ describe('Suivi agronomique', () => {
       expect(xlsx.bytes.subarray(0, 2).toString()).toBe('PK');
     });
 
+    it('établit le bilan de fertilisation avec ses unités et son total', async () => {
+      // Apport rattaché à un engrais du référentiel : la teneur est connue,
+      // 180 kg/ha d'ammonitrate à 33,5 % font 60,3 unités d'azote par hectare.
+      const ammonitrate = await prisma.fertilizer.create({
+        data: {
+          name: 'Ammonitrate 33,5 %',
+          category: 'AZOTE',
+          nPercent: '33.5',
+          defaultUnit: 'kg/ha',
+        },
+      });
+      await client.post(`/api/parcels/${parcelId}/fertilization`, {
+        appliedOn: '2026-03-05',
+        inputType: 'MINERAL',
+        fertilizerId: ammonitrate.id,
+        productLabel: ammonitrate.name,
+        dose: 180,
+        doseUnit: 'kg/ha',
+      });
+
+      const response = await client.get<string>(
+        '/api/exports?dataset=bilan-engrais&format=csv&year=2026',
+      );
+
+      expect(response.status).toBe(200);
+      const lines = String(response.body).split('\r\n');
+      const header = lines[0] ?? '';
+      for (const column of ['Parcelle', 'Surface (ha)', 'N (kg/ha)', 'N total (kg)']) {
+        expect(header).toContain(column);
+      }
+
+      const parcelLine = lines.find((line) => line.includes('Parcelle agronomique')) ?? '';
+      expect(parcelLine).toContain('60,3');
+
+      // La dernière ligne est le total de l'exploitation.
+      const totals = lines.filter(Boolean).at(-1) ?? '';
+      expect(totals).toContain('Total');
+      expect(totals).toContain('60,3');
+    });
+
+    it('ne comble jamais une teneur inconnue dans le bilan', async () => {
+      const { buildFertilizerBalanceDataset } = await import(
+        '../src/lib/exports/datasets'
+      );
+      const farm = await prisma.farm.findFirstOrThrow({ where: { deletedAt: null } });
+
+      // L'apport du `beforeEach` est saisi en produit libre, sans teneur.
+      const dataset = await buildFertilizerBalanceDataset({
+        farmId: farm.id,
+        farmName: farm.name,
+        year: 2026,
+      });
+
+      const row = dataset.rows[0];
+      expect(row?.nHa).toBe('0,0');
+      expect(row?.unknown).toBe('1');
+      expect(dataset.notices?.[0]).toContain('sans teneur');
+    });
+
+    it('annonce l’absence de catalogue E-Phy plutôt qu’une fausse vérification', async () => {
+      const { buildPhytoDataset } = await import('../src/lib/exports/datasets');
+      const farm = await prisma.farm.findFirstOrThrow({ where: { deletedAt: null } });
+
+      const dataset = await buildPhytoDataset({
+        farmId: farm.id,
+        farmName: farm.name,
+        year: 2026,
+      });
+
+      // Aucun catalogue importé dans cette base : le registre doit le dire.
+      expect(dataset.footnote).toContain('non importé');
+      expect(dataset.footnote).not.toContain('synchronisation le');
+    });
+
+    it('cite la source et la date de synchronisation quand E-Phy est importé', async () => {
+      const { buildPhytoDataset } = await import('../src/lib/exports/datasets');
+      const farm = await prisma.farm.findFirstOrThrow({ where: { deletedAt: null } });
+
+      await prisma.ephySyncRun.create({
+        data: {
+          status: 'SUCCESS',
+          source: 'Échantillon de test',
+          version: '2026-01',
+          finishedAt: new Date('2026-02-10T08:00:00Z'),
+        },
+      });
+
+      const dataset = await buildPhytoDataset({
+        farmId: farm.id,
+        farmName: farm.name,
+        year: 2026,
+      });
+
+      expect(dataset.footnote).toContain('E-Phy');
+      expect(dataset.footnote).toContain('Échantillon de test');
+      expect(dataset.footnote).toContain('10/02/2026');
+    });
+
     it('restreint l’export aux parcelles sélectionnées', async () => {
       await client.post('/api/parcels', {
         name: 'Parcelle exclue',

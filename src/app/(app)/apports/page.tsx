@@ -80,9 +80,17 @@ export default async function FertilizationPage({
         title="Registre des apports"
         description={`Campagne ${year} — ${applications.length} apport${applications.length > 1 ? 's' : ''}`}
         actions={
-          <LinkButton href={`/exports?dataset=apports&year=${year}`} variant="outline">
-            Exporter
-          </LinkButton>
+          <>
+            <LinkButton
+              href={`/api/exports?dataset=bilan-engrais&year=${year}&format=pdf`}
+              variant="outline"
+            >
+              Bilan PDF
+            </LinkButton>
+            <LinkButton href={`/exports?dataset=apports&year=${year}`} variant="outline">
+              Exporter
+            </LinkButton>
+          </>
         }
       />
 
