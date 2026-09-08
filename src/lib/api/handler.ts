@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
 import { ApiError, badRequest } from '@/lib/api/errors';
+import { isAllowedMobileOrigin } from '@/lib/api/cors';
+import {
+  idempotencyContext,
+  rememberResponse,
+  replayedResponse,
+} from '@/lib/api/idempotency';
 import { getEnv } from '@/lib/env';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 
@@ -14,6 +20,25 @@ export type ApiHandler = (
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
+ * Requête d'une application native, dépourvue de tout identifiant ambiant.
+ *
+ * La CSRF consiste à faire émettre par le navigateur d'une victime une requête
+ * qu'il assortit automatiquement de ses identifiants. Le seul identifiant
+ * ambiant de Parcelys est le cookie de session : une requête qui n'en porte pas
+ * n'a rien à détourner, et l'attaque est structurellement impossible.
+ *
+ * L'application mobile est exactement dans ce cas — sa WebView est sur une
+ * autre origine, elle n'a jamais reçu le cookie et présente son jeton dans
+ * l'en-tête `Authorization` (sauf à la connexion, où elle n'en a pas encore).
+ * L'origine doit tout de même figurer dans la liste CORS : une origine
+ * quelconque reste refusée.
+ */
+function isCredentialFreeNativeRequest(request: NextRequest): boolean {
+  if (request.cookies.has(getEnv().SESSION_COOKIE_NAME)) return false;
+  return isAllowedMobileOrigin(request.headers.get('origin'));
+}
+
+/**
  * Défense CSRF : les cookies sont `SameSite=Lax`, ce qui bloque déjà les
  * requêtes POST inter-sites. On ajoute une vérification d'origine pour couvrir
  * les navigateurs anciens et les requêtes `fetch` forgées.
@@ -23,6 +48,11 @@ function assertSameOrigin(request: NextRequest): void {
 
   const origin = request.headers.get('origin');
   if (!origin) return; // requêtes non-navigateur (curl, tâches planifiées)
+
+  // L'application native s'exécute sur l'origine de sa WebView
+  // (`http://localhost`, `capacitor://localhost`) et n'a pas de cookie :
+  // la vérification d'origine ne s'applique pas, la liste CORS fait foi.
+  if (isCredentialFreeNativeRequest(request)) return;
 
   const allowed = new Set<string>([new URL(getEnv().APP_URL).origin]);
   const host = request.headers.get('host');
@@ -42,11 +72,25 @@ export function clientIp(request: NextRequest): string {
   return request.headers.get('x-real-ip') ?? 'unknown';
 }
 
-/** Enrobe un handler : CSRF, mapping d'erreurs, réponse JSON homogène. */
+/**
+ * Enrobe un handler : CSRF, idempotence, mapping d'erreurs, réponse JSON
+ * homogène.
+ */
 export function route(handler: ApiHandler): ApiHandler {
   return async (request, context) => {
     try {
       assertSameOrigin(request);
+
+      // Rejeu d'une saisie faite hors ligne : si la réponse a déjà été
+      // produite, on la renvoie sans repasser par la base.
+      const idempotency = idempotencyContext(request);
+      if (idempotency) {
+        const replayed = await replayedResponse(idempotency);
+        if (replayed) return replayed;
+
+        return await rememberResponse(idempotency, await handler(request, context));
+      }
+
       return await handler(request, context);
     } catch (error) {
       return toErrorResponse(error);

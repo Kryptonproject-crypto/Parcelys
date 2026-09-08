@@ -1,0 +1,147 @@
+@import 'tailwindcss';
+
+/*
+ * Palette reprise de l'application web, réduite à ce dont l'écran de terrain a
+ * besoin. Le contraste est poussé volontairement : cette interface est lue en
+ * plein soleil, souvent d'une main, avec des gants.
+ */
+@theme {
+  --color-champ-50: #f2f8f3;
+  --color-champ-100: #e0efe3;
+  --color-champ-200: #c2dfc9;
+  --color-champ-300: #93c5a1;
+  --color-champ-400: #5da472;
+  --color-champ-500: #3a8752;
+  --color-champ-600: #2a6c3f;
+  --color-champ-700: #235634;
+  --color-champ-800: #1f452c;
+  --color-champ-900: #1a3d24;
+  --color-champ-950: #0d2114;
+
+  --color-ardoise-50: #f6f7f8;
+  --color-ardoise-100: #eceef0;
+  --color-ardoise-200: #d5dade;
+  --color-ardoise-300: #b1bac2;
+  --color-ardoise-400: #86939e;
+  --color-ardoise-500: #687684;
+  --color-ardoise-600: #545f6b;
+  --color-ardoise-700: #454e57;
+  --color-ardoise-800: #3b424a;
+  --color-ardoise-900: #343a40;
+  --color-ardoise-950: #1c2024;
+
+  --color-ble-400: #e0b64a;
+  --color-ble-500: #d3a12c;
+  --color-ble-600: #b98220;
+
+  --color-brique-500: #c0503a;
+  --color-brique-600: #a4402d;
+
+  --color-ciel-500: #3d7ea6;
+  --color-ciel-600: #316989;
+}
+
+:root {
+  --canvas: #f7f8f6;
+  --surface: #ffffff;
+  --surface-2: #f0f2ee;
+  --line: #dfe3dc;
+  --ink: #1c2024;
+  --ink-2: #454e57;
+  --ink-3: #687684;
+  --accent: var(--color-champ-600);
+  --accent-soft: var(--color-champ-100);
+  --accent-ink: var(--color-champ-800);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #14181b;
+    --surface: #1c2024;
+    --surface-2: #262c31;
+    --line: #343a40;
+    --ink: #eceef0;
+    --ink-2: #b1bac2;
+    --ink-3: #86939e;
+    --accent: var(--color-champ-500);
+    --accent-soft: color-mix(in srgb, var(--color-champ-500) 20%, transparent);
+    --accent-ink: var(--color-champ-300);
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  /* Empêche le zoom au double-tap et le rebond de défilement de la WebView. */
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Encoches et barre de navigation gestuelle. */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * Champs de saisie : 16 px au minimum. En dessous, la WebView Android zoome
+ * automatiquement à la mise au point et l'écran devient inutilisable.
+ */
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  font-size: 16px;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.gps-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  animation: pulse-ring 1.6s ease-out infinite;
+}

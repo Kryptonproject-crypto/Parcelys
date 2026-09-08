@@ -20,6 +20,7 @@ que sur un Raspberry Pi.
 - [Référentiel phytosanitaire E-Phy](#référentiel-phytosanitaire-e-phy)
 - [Déploiement](#déploiement)
 - [Déploiement sur Raspberry Pi](#déploiement-sur-raspberry-pi)
+- [Application mobile (Android)](#application-mobile-android)
 - [Maintenance](#maintenance)
 - [Tests](#tests)
 - [Architecture](#architecture)
@@ -44,6 +45,7 @@ que sur un Raspberry Pi.
 | **Exports** | Registre parcellaire, phytosanitaire, apports, cultures, travaux et historique, en **PDF**, **Excel** et **CSV**, filtrables par campagne et par parcelle. |
 | **Multi-exploitations** | Un utilisateur peut appartenir à plusieurs exploitations, avec quatre rôles : propriétaire, administrateur, salarié, lecture seule. |
 | **Administration** | Instance fermée : aucun compte ne peut être créé sans code d'invitation délivré par un administrateur. Onglet dédié pour les comptes, les invitations, les exploitations, le journal d'audit, le mode maintenance et les purges. |
+| **Application mobile** | APK Android (Capacitor) pour le terrain : relevé de parcelle au GPS (contour marché ou sommets posés), saisie des traitements, apports et travaux **hors réseau**, file d'attente et synchronisation idempotente. Voir [`mobile/`](mobile/README.md). |
 
 ---
 
@@ -384,6 +386,54 @@ Quelques points d'attention :
 
 ---
 
+## Application mobile (Android)
+
+Une application de terrain, empaquetée en APK avec Capacitor, complète
+l'application web : [`mobile/README.md`](mobile/README.md) détaille son
+fonctionnement et la construction de l'APK.
+
+Elle ne reprend que ce qui se fait dans un champ — relever une parcelle au GPS,
+saisir un traitement, un apport ou un travail — et le fait **sans réseau**, ce
+qui est la situation ordinaire au milieu d'une parcelle.
+
+```bash
+cd mobile
+npm install
+npm run dev     # essai dans un navigateur, le GPS fonctionne
+npm run apk     # APK de test (JDK 21 + Android SDK requis)
+```
+
+### Comment le hors ligne tient debout
+
+Chaque saisie part dans une file d'attente locale (IndexedDB), réseau ou non.
+À la synchronisation, `POST /api/sync` **rejoue les routes existantes de
+l'API** — `POST /api/parcels`, `.../phytosanitary`… — plutôt que de
+réimplémenter les règles métier : le calcul de superficie par PostGIS, le bilan
+NPK, les contrôles de surface traitée et le journal d'audit sont donc
+strictement les mêmes qu'en ligne.
+
+Chaque opération porte un identifiant produit par l'appareil, transmis en
+`Idempotency-Key`. Un lot renvoyé après une réponse perdue **ne crée aucun
+doublon** : le serveur renvoie la réponse initiale. Une opération refusée reste
+dans la file, avec son motif affiché, jusqu'à correction ou suppression — rien
+ne disparaît en silence d'un registre réglementaire.
+
+### Ce que l'application n'invente pas
+
+La superficie affichée pendant le relevé est une **estimation** calculée sur le
+téléphone ; celle qui fait foi est calculée par PostGIS à l'enregistrement, et
+l'écran le dit. Hors ligne, les produits phytosanitaires proposés sont ceux que
+l'exploitation a **réellement employés** depuis douze mois, avec leur AMM
+d'origine ; la recherche dans le catalogue officiel E-Phy reste en ligne.
+
+### Configuration côté serveur
+
+Seule `MOBILE_APP_ORIGINS` est concernée — elle contient déjà les origines des
+WebView Capacitor par défaut. L'instance doit être servie en **HTTPS** :
+Android bloque le trafic en clair.
+
+---
+
 ## Maintenance
 
 ```bash
@@ -419,13 +469,14 @@ npm run build     # requis : les tests d'API démarrent le serveur compilé
 npm test
 ```
 
-**167 tests** répartis en neuf suites :
+**191 tests** répartis en dix suites :
 
 | Suite | Portée |
 | --- | --- |
 | `security-isolation` | Un utilisateur de l'exploitation A ne peut atteindre aucune donnée de l'exploitation B — lecture, écriture, suppression, listes, exports, documents, changement d'exploitation. |
 | `auth` | Inscription (amorçage du premier compte, refus sans code), connexion, mauvais mot de passe, verrouillage anti-bruteforce, vérification d'e-mail (code incorrect, expiré, trop de tentatives, renvoi), réinitialisation, sessions, CSRF. |
 | `admin` | Administration réservée aux administrateurs d'instance, codes d'invitation (empreinte seule, usage unique, expiration, révocation, restriction d'adresse, rattachement et rôle), suspension et réactivation de comptes, protection du dernier administrateur, mode maintenance, purges. |
+| `mobile-sync` | Authentification par jeton Bearer sans cookie, CORS et pré-vol des origines Capacitor, CSRF toujours appliquée dès qu'un cookie est présent, idempotence des écritures (rejeu, clé réutilisée, échec non mémorisé, isolation entre appareils), instantané hors ligne, rejeu d'un lot de saisies, refus indépendants, respect des rôles, relève des changements. |
 | `parcels` | Création, calcul de superficie PostGIS, géométrie invalide, recouvrement, versionnement, suppression logique, permissions par rôle, filtres. |
 | `agronomy` | Cultures, apports (`dose × surface`, bilan NPK), traitements phytosanitaires, travaux, historique, exports PDF/Excel/CSV. |
 | `ephy-import` | Parsing des CSV officiels (Windows-1252, `;`), correspondance des colonnes, idempotence, colonnes manquantes, recherche, provenance. |
@@ -441,6 +492,17 @@ définissez `TEST_DATABASE_URL` pour utiliser une base dédiée :
 TEST_DATABASE_URL="postgresql://parcelys:parcelys@localhost:5432/parcelys_test" npm test
 ```
 
+### Mise en page sur téléphone
+
+Un débordement horizontal ne se voit ni sur un écran de bureau, ni dans les
+tests d'API — qui ne mesurent rien. Un contrôle dédié ouvre chaque page dans un
+navigateur à 390 px et signale l'élément fautif quand il y en a un :
+
+```bash
+npm run build && npm start          # dans un terminal
+node scripts/check-mobile-layout.mjs http://127.0.0.1:3000
+```
+
 ---
 
 ## Architecture
@@ -454,7 +516,9 @@ parcelys/
 │
 ├── scripts/
 │   ├── ephy-sync.ts            # import du catalogue officiel
-│   └── maintenance.ts          # purges périodiques
+│   ├── admin.ts                # administration en ligne de commande
+│   ├── maintenance.ts          # purges périodiques
+│   └── check-mobile-layout.mjs # contrôle de mise en page à 390 px
 │
 ├── src/
 │   ├── app/
@@ -462,7 +526,8 @@ parcelys/
 │   │   ├── (app)/              # dashboard, parcelles, cultures, apports,
 │   │   │                       # phytosanitaire, météo, registres, historique,
 │   │   │                       # documents, exports, profil, paramètres
-│   │   └── api/                # routes REST
+│   │   ├── (admin)/            # administration de l'instance
+│   │   └── api/                # routes REST, dont /api/sync et /api/admin/*
 │   │
 │   ├── components/
 │   │   ├── map/                # carte Leaflet (affichage et dessin)
@@ -478,8 +543,14 @@ parcelys/
 │       ├── weather/            # abstraction fournisseur + implémentations
 │       ├── email/              # abstraction fournisseur + gabarits
 │       ├── exports/            # jeux de données et rendus PDF/XLSX/CSV
-│       ├── services/           # historique, tableau de bord, fertilisation
+│       ├── admin/              # comptes, réglages d'instance, statistiques
+│       ├── services/           # historique, tableau de bord, fertilisation, mobile
 │       └── storage/            # documents (validation et écriture)
+│
+├── mobile/                     # application de terrain (Vite + Capacitor)
+│   ├── src/screens/            # connexion, parcelles, relevé GPS, saisies, file
+│   ├── src/lib/                # API, IndexedDB, synchronisation, géodésie, GPS
+│   └── android/                # projet Android, prêt à produire l'APK
 │
 └── tests/
 ```
@@ -516,6 +587,8 @@ parcelys/
 | Inscriptions | Fermées : un code d'invitation à usage unique, délivré par un administrateur, est exigé. Stocké **haché**, jamais réaffiché, limité en débit contre le balayage |
 | Administration | Autorité distincte des rôles d'exploitation ; vérifiée à chaque page et à chaque route `/api/admin/*`. Impossible de retirer le dernier administrateur ou de se déclasser soi-même |
 | Suspension | Un compte suspendu voit ses sessions révoquées immédiatement et sa reconnexion refusée, après vérification du mot de passe pour ne pas révéler l'existence du compte |
+| Application mobile | Jeton `Authorization: Bearer` et **aucun cookie** : la CSRF est structurellement impossible, et la vérification d'origine reste appliquée dès qu'un cookie est présent. CORS limité à une liste fermée d'origines, sans `Allow-Credentials` |
+| Rejeu des saisies | Clé d'idempotence liée à l'empreinte du jeton de session : deux appareils ne peuvent pas se lire mutuellement, et un rejeu ne duplique aucun enregistrement réglementaire |
 
 Les en-têtes de sécurité (CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`,
 `Permissions-Policy`) sont définis dans [`next.config.ts`](next.config.ts).
@@ -560,6 +633,9 @@ Aperçu :
 | `DELETE` | `/api/admin/invitations/:id` | Révoquer un code |
 | `GET/POST` | `/api/admin/maintenance` | Mode maintenance |
 | `POST` | `/api/admin/cleanup` | Purges de données périmées |
+| `GET` | `/api/mobile/bootstrap` | Instantané complet pour le cache hors ligne |
+| `POST` | `/api/sync` | Rejeu d'un lot de saisies faites hors réseau |
+| `GET` | `/api/sync?since=` | Changements depuis la dernière relève |
 | `GET` | `/api/parcels` | Liste des parcelles |
 | `POST` | `/api/parcels` | Création (géométrie GeoJSON) |
 | `GET/PUT/DELETE` | `/api/parcels/:id` | Fiche, modification, suppression |

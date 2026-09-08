@@ -1,0 +1,209 @@
+import { NextRequest } from 'next/server';
+import { requireFarmAccess } from '@/lib/auth/rbac';
+import { ok, parseBody, parseQuery, route } from '@/lib/api/handler';
+import { IDEMPOTENCY_HEADER, REPLAY_HEADER } from '@/lib/api/idempotency';
+import { syncPullSchema, syncPushSchema } from '@/lib/validation/sync';
+import type { SyncOperationInput } from '@/lib/validation/sync';
+import { getChangesSince } from '@/lib/services/mobile';
+import { badRequest } from '@/lib/api/errors';
+
+import { POST as createParcel } from '@/app/api/parcels/route';
+import { POST as createFertilization } from '@/app/api/parcels/[id]/fertilization/route';
+import { POST as createPhyto } from '@/app/api/parcels/[id]/phytosanitary/route';
+import { POST as createOperation } from '@/app/api/parcels/[id]/operations/route';
+
+/**
+ * Synchronisation de l'application de terrain.
+ *
+ * `POST` rejoue les saisies mises en file d'attente hors ligne. Plutôt que de
+ * réimplémenter les règles métier — calcul de superficie par PostGIS, bilan
+ * NPK, contrôles de surface traitée, journal d'audit —, chaque opération est
+ * passée aux **routes existantes**. Une seule implémentation, donc un seul
+ * comportement : ce qui est refusé en ligne l'est aussi à la synchronisation.
+ *
+ * Trois propriétés comptent pour un usage au champ :
+ *
+ *  - **Indépendance.** Une opération refusée n'interrompt pas le lot : les
+ *    autres passent, et le téléphone n'a à corriger que celle-là.
+ *  - **Idempotence.** Chaque opération porte l'identifiant produit par
+ *    l'appareil, transmis en `Idempotency-Key`. Un lot renvoyé après une
+ *    réponse perdue ne crée aucun doublon.
+ *  - **Ordre.** Les opérations sont traitées en séquence : une parcelle créée
+ *    hors ligne peut ainsi recevoir ses interventions dans le même lot.
+ */
+
+type RouteHandler = (
+  request: NextRequest,
+  context: { params: Promise<Record<string, string>> },
+) => Promise<Response> | Response;
+
+type OperationSpec = {
+  handler: RouteHandler;
+  /** `null` quand l'opération ne porte pas sur une parcelle existante. */
+  needsParcel: boolean;
+  path: (parcelId: string) => string;
+};
+
+/** Liste fermée : la synchronisation ne donne accès à rien d'autre. */
+const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
+  'parcel.create': {
+    handler: createParcel as RouteHandler,
+    needsParcel: false,
+    path: () => '/api/parcels',
+  },
+  'fertilization.create': {
+    handler: createFertilization as RouteHandler,
+    needsParcel: true,
+    path: (id) => `/api/parcels/${id}/fertilization`,
+  },
+  'phyto.create': {
+    handler: createPhyto as RouteHandler,
+    needsParcel: true,
+    path: (id) => `/api/parcels/${id}/phytosanitary`,
+  },
+  'operation.create': {
+    handler: createOperation as RouteHandler,
+    needsParcel: true,
+    path: (id) => `/api/parcels/${id}/operations`,
+  },
+};
+
+/**
+ * En-têtes recopiés vers la sous-requête.
+ *
+ * L'authentification, l'origine et l'adresse d'appel doivent être celles de la
+ * requête de synchronisation : les contrôles des routes appelées portent alors
+ * exactement sur le même appelant.
+ */
+const FORWARDED_HEADERS = [
+  'authorization',
+  'cookie',
+  'origin',
+  'user-agent',
+  'x-forwarded-for',
+  'x-real-ip',
+];
+
+function subRequest(
+  original: NextRequest,
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+): NextRequest {
+  const headers = new Headers({ 'content-type': 'application/json' });
+  for (const name of FORWARDED_HEADERS) {
+    const value = original.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  headers.set(IDEMPOTENCY_HEADER, idempotencyKey);
+
+  return new NextRequest(new URL(path, original.nextUrl.origin), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+type OperationResult = {
+  clientId: string;
+  kind: string;
+  status: 'applied' | 'replayed' | 'rejected';
+  entityId?: string;
+  httpStatus: number;
+  message?: string;
+  /** Erreurs par champ, pour que l'appareil sache quoi corriger. */
+  fieldErrors?: Array<{ field: string; message: string }>;
+};
+
+/** POST /api/sync — rejoue un lot de saisies faites hors ligne. */
+export const POST = route(async (request: NextRequest) => {
+  // Une seule vérification d'appartenance ici ; chaque route appelée refera la
+  // sienne, avec la permission qui lui est propre.
+  await requireFarmAccess('record:read');
+
+  const input = await parseBody(request, syncPushSchema);
+  const results: OperationResult[] = [];
+
+  // Séquentiel et non parallèle : l'ordre de saisie est significatif, et une
+  // parcelle créée en début de lot doit exister pour la suite.
+  for (const operation of input.operations) {
+    const spec = OPERATIONS[operation.kind];
+
+    if (spec.needsParcel && !operation.parcelId) {
+      results.push({
+        clientId: operation.clientId,
+        kind: operation.kind,
+        status: 'rejected',
+        httpStatus: 400,
+        message: 'Parcelle non précisée pour cette opération.',
+      });
+      continue;
+    }
+
+    const path = spec.path(operation.parcelId ?? '');
+    const response = await spec.handler(
+      subRequest(request, path, operation.payload, operation.clientId),
+      { params: Promise.resolve({ id: operation.parcelId ?? '' }) },
+    );
+
+    const replayed = response.headers.get(REPLAY_HEADER) === 'true';
+    const body = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as
+      | { id?: string; error?: { message?: string; details?: unknown } }
+      | null;
+
+    if (response.ok) {
+      results.push({
+        clientId: operation.clientId,
+        kind: operation.kind,
+        status: replayed ? 'replayed' : 'applied',
+        ...(body?.id ? { entityId: body.id } : {}),
+        httpStatus: response.status,
+      });
+      continue;
+    }
+
+    const details = Array.isArray(body?.error?.details)
+      ? (body.error.details as Array<{ field: string; message: string }>)
+      : undefined;
+
+    results.push({
+      clientId: operation.clientId,
+      kind: operation.kind,
+      status: 'rejected',
+      httpStatus: response.status,
+      message: body?.error?.message ?? `Erreur ${response.status}`,
+      ...(details ? { fieldErrors: details } : {}),
+    });
+  }
+
+  const applied = results.filter((r) => r.status !== 'rejected').length;
+
+  return ok({
+    syncedAt: new Date().toISOString(),
+    applied,
+    rejected: results.length - applied,
+    results,
+  });
+});
+
+/**
+ * GET /api/sync?since=… — changements depuis la dernière relève.
+ * Sans `since`, la réponse couvre les trente derniers jours.
+ */
+export const GET = route(async (request: NextRequest) => {
+  const ctx = await requireFarmAccess('parcel:read');
+  const query = parseQuery(request, syncPullSchema);
+
+  const since = query.since
+    ? new Date(query.since)
+    : new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+  if (Number.isNaN(since.getTime())) {
+    throw badRequest('Paramètre « since » invalide (attendu : date ISO 8601).');
+  }
+
+  return ok(await getChangesSince(ctx, since));
+});

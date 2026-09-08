@@ -55,6 +55,25 @@ const schema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
 
+  /**
+   * Origines autorisées à appeler l'API depuis une application native.
+   *
+   * Une application Capacitor ne s'exécute pas sur l'origine du serveur : la
+   * WebView sert ses fichiers depuis `http://localhost` (Android) ou
+   * `capacitor://localhost` (iOS). Ces origines sont donc autorisées en CORS,
+   * et elles seules — la valeur reste modifiable pour un `androidScheme`
+   * personnalisé.
+   */
+  MOBILE_APP_ORIGINS: z
+    .string()
+    .default('capacitor://localhost,http://localhost,https://localhost,ionic://localhost')
+    .transform((v) =>
+      v
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0),
+    ),
+
   DEMO_SEED_EMAIL: z.string().default('demo@parcelys.local'),
   DEMO_SEED_PASSWORD: z.string().default('Demo1234!'),
 });

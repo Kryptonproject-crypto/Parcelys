@@ -159,7 +159,12 @@ export function ParcelsMap({
   }, [selectedId]);
 
   return (
-    <div className="relative">
+    // `min-w-0` : Leaflet remplit son conteneur de tuiles absolues bien plus
+    // larges que l'écran. Sans cette contrainte, la largeur minimale de la
+    // carte remonte à l'élément de grille ou de flex qui la contient — dont le
+    // `min-width: auto` par défaut refuse alors de rétrécir — et toute la page
+    // déborde horizontalement sur un téléphone.
+    <div className="relative min-w-0">
       {showLayerSwitch ? (
         <div className="absolute right-3 top-3 z-[500] flex rounded-md border border-line bg-surface p-0.5 shadow-sm">
           {(['plan', 'satellite'] as const).map((key) => (

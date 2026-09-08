@@ -131,11 +131,14 @@ export const POST = route(async (request: NextRequest) => {
     data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
   });
 
-  await createSession({
+  const native = input.client === 'native';
+
+  const session = await createSession({
     userId: user.id,
     activeFarmId: user.memberships[0]?.farmId ?? null,
-    userAgent: request.headers.get('user-agent'),
+    userAgent: input.deviceName ?? request.headers.get('user-agent'),
     ipAddress: ip,
+    setCookie: !native,
   });
 
   await resetRateLimit(`login:user:${emailNormalized}`);
@@ -146,6 +149,7 @@ export const POST = route(async (request: NextRequest) => {
     farmId: user.memberships[0]?.farmId ?? null,
     ipAddress: ip,
     userAgent: request.headers.get('user-agent'),
+    metadata: { client: input.client },
   });
 
   return ok({
@@ -156,6 +160,12 @@ export const POST = route(async (request: NextRequest) => {
       lastName: user.lastName,
       email: user.email,
     },
+    // Le jeton n'est renvoyé qu'au client natif, qui n'a pas de cookie. Le
+    // navigateur, lui, garde une session `HttpOnly` inaccessible au JavaScript.
+    ...(native
+      ? { token: session.token, expiresAt: session.expiresAt.toISOString() }
+      : {}),
+    farms: user.memberships.map((m) => m.farmId),
     redirectTo: '/dashboard',
   });
 });

@@ -13,6 +13,12 @@ L'authentification repose sur un **cookie de session** (`parcelys_session`),
 `HttpOnly`, `SameSite=Lax`, et `Secure` en production. Il est posé par
 `POST /api/auth/login` ou `POST /api/auth/verify-email`.
 
+L'application mobile, dont la WebView est sur une autre origine et ne recevrait
+jamais ce cookie, présente le **même** jeton dans un en-tête
+`Authorization: Bearer` — voir
+[Application mobile et synchronisation](#application-mobile-et-synchronisation).
+Le cookie reste prioritaire quand les deux sont présents.
+
 Toutes les routes hors `/api/auth/*` exigent :
 
 1. une session valide ;
@@ -31,6 +37,11 @@ Les routes qui ne portent pas d'identifiant de parcelle s'appliquent à
 Les requêtes `POST`, `PUT`, `PATCH` et `DELETE` portant un en-tête `Origin`
 doivent provenir de `APP_URL` ou de l'hôte courant. Une origine étrangère
 renvoie `403 CSRF_BLOCKED`.
+
+Seule exception : une requête **sans cookie de session** venant d'une origine
+d'application native déclarée (`MOBILE_APP_ORIGINS`). Sans identifiant ambiant,
+il n'y a rien à détourner. Dès qu'un cookie accompagne la requête, la
+vérification s'applique de nouveau — y compris depuis ces origines.
 
 ### Format des erreurs
 
@@ -651,6 +662,124 @@ d'inclure une parcelle d'une autre exploitation. Limitation : 30 exports par
 | `DELETE /api/profile/sessions` | Révoque une session (`{ "sessionId": "..." }`) |
 | `GET /api/notifications` | Notifications + nombre de non lues |
 | `PATCH /api/notifications` | Marque comme lues (`{ "ids": [...] }` ou tout) |
+
+---
+
+## Application mobile et synchronisation
+
+L'application de terrain n'est pas servie par l'instance : elle vit dans un APK
+et appelle l'API depuis une autre origine. Deux conséquences.
+
+### Authentification par jeton
+
+`POST /api/auth/login` avec `"client": "native"` renvoie le jeton de session au
+lieu de poser un cookie :
+
+```json
+{ "email": "jean@ferme.fr", "password": "…", "client": "native", "deviceName": "Pixel 7" }
+```
+
+`200` → `{ "token": "…", "expiresAt": "…", "user": { … } }`
+
+Le jeton se présente ensuite en `Authorization: Bearer <token>` sur toutes les
+routes. C'est le même secret qu'un cookie de session — opaque, aléatoire sur
+32 octets, **stocké haché** — avec la même expiration et la même révocation.
+`deviceName` apparaît dans la liste des sessions du profil, pour reconnaître et
+révoquer un téléphone perdu.
+
+Le jeton n'est **jamais** renvoyé au client web, dont la session reste un cookie
+`HttpOnly` inaccessible au JavaScript.
+
+### CORS et CSRF
+
+Les origines des WebView Capacitor (`http://localhost`,
+`capacitor://localhost`…) sont autorisées par `MOBILE_APP_ORIGINS`, **sans**
+`Access-Control-Allow-Credentials`. Une requête sans cookie de session ne porte
+aucun identifiant ambiant : la CSRF y est impossible, et la vérification
+d'origine ne s'y applique pas. Dès qu'un cookie est présent, elle reprend —
+une écriture inter-sites accompagnée d'un cookie reste refusée.
+
+### Idempotence des écritures
+
+Toute route mutante accepte un en-tête `Idempotency-Key` (un identifiant produit
+par le client, par saisie). La première exécution mémorise la réponse ; un rejeu
+la renvoie telle quelle, avec `Idempotency-Replayed: true`, sans retoucher la
+base.
+
+La clé est associée à l'empreinte du jeton de session : deux appareils peuvent
+employer la même clé sans se percuter, et personne ne peut relire la réponse
+d'un autre. Les échecs ne sont pas mémorisés — une saisie corrigée peut repartir
+avec la même clé. Réutiliser une clé pour **une autre** route renvoie
+`409 IDEMPOTENCY_KEY_REUSED`.
+
+### `GET /api/mobile/bootstrap`
+
+Instantané complet du cache hors ligne : exploitation, parcelles **avec leur
+géométrie**, référentiels (cultures, engrais, produits organiques, unités,
+types de travaux) et produits phytosanitaires réellement employés sur les douze
+derniers mois, avec leur AMM.
+
+Aucune donnée réglementaire n'est produite : la liste hors ligne provient de
+saisies passées, la recherche au catalogue officiel E-Phy reste en ligne.
+
+### `POST /api/sync`
+
+Rejoue un lot de saisies faites hors réseau (50 au maximum).
+
+```json
+{
+  "operations": [
+    {
+      "clientId": "3f0c…",
+      "kind": "parcel.create",
+      "capturedAt": "2026-04-01T08:00:00.000Z",
+      "payload": { "name": "Les Grandes Pièces", "geometry": { "type": "Polygon", "coordinates": [[…]] } }
+    },
+    {
+      "clientId": "9ab1…",
+      "kind": "phyto.create",
+      "parcelId": "clx…",
+      "payload": { "appliedOn": "2026-04-02", "productName": "…", "dose": 1.5, "doseUnit": "L/ha", "captureWeather": false }
+    }
+  ]
+}
+```
+
+`kind` est limité à `parcel.create`, `fertilization.create`, `phyto.create` et
+`operation.create` — une liste fermée : la synchronisation n'est pas un tunnel
+vers le reste de l'API.
+
+Chaque opération est passée à la **route correspondante** de l'API. Les règles
+métier — superficie calculée par PostGIS, bilan NPK, contrôle de la surface
+traitée, permissions, journal d'audit — sont donc exactement celles de
+l'application web. `clientId` sert de clé d'idempotence.
+
+`200` →
+
+```json
+{
+  "syncedAt": "…",
+  "applied": 1,
+  "rejected": 1,
+  "results": [
+    { "clientId": "3f0c…", "kind": "parcel.create", "status": "applied", "entityId": "clx…", "httpStatus": 201 },
+    { "clientId": "9ab1…", "kind": "phyto.create", "status": "rejected", "httpStatus": 400,
+      "message": "Données invalides", "fieldErrors": [{ "field": "dose", "message": "…" }] }
+  ]
+}
+```
+
+`status` vaut `applied`, `replayed` (déjà enregistrée lors d'un envoi précédent)
+ou `rejected`. **Un refus n'interrompt pas le lot** : les autres opérations
+passent, et le client n'a à corriger que celle-là. Les opérations sont traitées
+en séquence, de sorte qu'une parcelle créée en début de lot puisse recevoir ses
+interventions dans le même envoi.
+
+### `GET /api/sync?since=`
+
+Changements depuis une date ISO 8601 (trente jours par défaut) : parcelles
+modifiées et identifiants des parcelles supprimées, pour rafraîchir le cache
+sans retélécharger l'instantané complet.
 
 ---
 

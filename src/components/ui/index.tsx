@@ -123,7 +123,13 @@ export function Card({
   return (
     <section
       className={cn(
-        'rounded-xl border border-line bg-surface shadow-card',
+        // `min-w-0` : une carte est presque toujours l'enfant d'une grille ou
+        // d'un flex, dont le `min-width: auto` par défaut interdit de descendre
+        // sous la largeur minimale du contenu. Un seul libellé un peu long —
+        // un nom de produit, une carte Leaflet — élargit alors la colonne, donc
+        // toute la page, et l'écran d'un téléphone se met à défiler
+        // horizontalement.
+        'min-w-0 rounded-xl border border-line bg-surface shadow-card',
         padded && 'p-5',
         interactive && 'transition-all hover:border-champ-300 hover:shadow-raised',
         className,

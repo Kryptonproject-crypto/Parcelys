@@ -73,6 +73,15 @@ export const registerSchema = z
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, 'Mot de passe requis').max(200),
+  /**
+   * `native` pour l'application mobile : la réponse porte alors le jeton de
+   * session, que le client conserve et renvoie en `Authorization: Bearer`.
+   * Aucun cookie n'est posé — sa WebView est sur une autre origine, il ne lui
+   * reviendrait jamais.
+   */
+  client: z.enum(['web', 'native']).default('web'),
+  /** Nom d'appareil affiché dans la liste des sessions du profil. */
+  deviceName: z.string().trim().max(80).optional(),
 });
 
 export const verifyEmailSchema = z.object({

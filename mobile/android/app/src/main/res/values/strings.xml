@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Parcelys au champ</string>
+    <string name="title_activity_main">Parcelys au champ</string>
+    <string name="package_name">fr.parcelys.champ</string>
+    <string name="custom_url_scheme">fr.parcelys.champ</string>
+</resources>

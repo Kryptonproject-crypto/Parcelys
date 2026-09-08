@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# Sorties de build Android : régénérées par « npm run sync ».
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+*.apk
+*.aab
+*.keystore

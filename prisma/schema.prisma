@@ -117,6 +117,29 @@ model InvitationCode {
   @@map("invitation_codes")
 }
 
+/// Réponse déjà produite pour une clé d'idempotence.
+///
+/// L'application mobile enregistre hors ligne puis rejoue ses requêtes une fois
+/// le réseau revenu. Un rejeu après une réponse perdue ne doit pas créer un
+/// second enregistrement : la réponse initiale est renvoyée telle quelle.
+///
+/// La clé est associée à l'empreinte du jeton de session (`owner_hash`) : deux
+/// appareils, ou deux comptes, ne peuvent pas se lire mutuellement.
+model IdempotencyRecord {
+  id           String   @id @default(cuid())
+  key          String
+  ownerHash    String   @map("owner_hash")
+  method       String
+  path         String
+  status       Int
+  responseBody Json     @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([key, ownerHash])
+  @@index([createdAt])
+  @@map("idempotency_records")
+}
+
 /// Réglages d'instance modifiables par un administrateur sans redéploiement
 /// (mode maintenance, message d'accueil…). Les secrets restent dans
 /// l'environnement.

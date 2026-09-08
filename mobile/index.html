@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <!-- `viewport-fit=cover` + les encoches : l'application occupe l'écran
+         entier, les marges de sécurité sont gérées en CSS. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#1a3d24" />
+    <!-- Icône en ligne : la WebView réclame un favicon et l'absence de fichier
+         produit une erreur 404 dans la console à chaque démarrage. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231a3d24'/%3E%3Cpath d='M16 24V11m0 13c-3.2 0-5.5-2-5.5-5 2.9 0 5.5 1.9 5.5 5zm0 0c3.2 0 5.5-2 5.5-5-2.9 0-5.5 1.9-5.5 5zm0-8c-2.6 0-4.4-1.7-4.4-4.2 2.4 0 4.4 1.6 4.4 4.2zm0 0c2.6 0 4.4-1.7 4.4-4.2-2.4 0-4.4 1.6-4.4 4.2z' stroke='%235da472' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E"
+    />
+    <title>Parcelys au champ</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { FarmRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getEnv } from '@/lib/env';
@@ -48,7 +48,13 @@ export async function createSession(params: {
   activeFarmId?: string | null;
   userAgent?: string | null;
   ipAddress?: string | null;
-}): Promise<string> {
+  /**
+   * `false` pour un client natif : il conserve lui-même le jeton et l'envoie
+   * en `Authorization: Bearer`. Poser un cookie n'aurait aucun effet utile
+   * (autre origine) et exposerait inutilement la session.
+   */
+  setCookie?: boolean;
+}): Promise<{ token: string; expiresAt: Date }> {
   const env = getEnv();
   const token = generateToken(32);
   const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 3600 * 1000);
@@ -64,28 +70,60 @@ export async function createSession(params: {
     },
   });
 
-  const jar = await cookies();
-  jar.set(
-    env.SESSION_COOKIE_NAME,
-    token,
-    cookieOptions(env.SESSION_TTL_HOURS * 3600),
-  );
-  return token;
+  if (params.setCookie !== false) {
+    const jar = await cookies();
+    jar.set(
+      env.SESSION_COOKIE_NAME,
+      token,
+      cookieOptions(env.SESSION_TTL_HOURS * 3600),
+    );
+  }
+
+  return { token, expiresAt };
 }
 
 /**
- * Lit la session depuis le cookie et charge l'utilisateur avec ses
+ * Jeton de session de la requête courante.
+ *
+ * Deux porteurs pour un même mécanisme : le cookie `HttpOnly` du navigateur, et
+ * l'en-tête `Authorization: Bearer` de l'application mobile — dont la WebView
+ * est sur une autre origine et ne recevrait donc jamais le cookie. Dans les
+ * deux cas, le jeton est le même secret opaque, et la base n'en conserve que
+ * l'empreinte.
+ *
+ * Le cookie est prioritaire : c'est le cas de figure du navigateur, où un
+ * en-tête `Authorization` forgé ne doit pas pouvoir détourner la session.
+ */
+async function resolveSessionToken(): Promise<{
+  token: string;
+  bearer: boolean;
+} | null> {
+  const env = getEnv();
+  const jar = await cookies();
+  const cookieToken = jar.get(env.SESSION_COOKIE_NAME)?.value;
+  if (cookieToken) return { token: cookieToken, bearer: false };
+
+  const authorization = (await headers()).get('authorization');
+  if (!authorization) return null;
+
+  const [scheme, value] = authorization.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !value) return null;
+
+  return { token: value.trim(), bearer: true };
+}
+
+/**
+ * Charge la session (cookie ou jeton Bearer) et l'utilisateur avec ses
  * exploitations. Renvoie `null` si la session est absente, expirée, révoquée,
- * inactive trop longtemps, ou si le compte est supprimé.
+ * inactive trop longtemps, si le compte est supprimé ou suspendu.
  */
 export async function getAuthContext(): Promise<AuthContext | null> {
   const env = getEnv();
-  const jar = await cookies();
-  const token = jar.get(env.SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
+  const resolved = await resolveSessionToken();
+  if (!resolved) return null;
 
   const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
+    where: { tokenHash: hashToken(resolved.token) },
     include: {
       user: {
         include: {
@@ -164,15 +202,18 @@ export async function setActiveFarm(
 
 export async function destroyCurrentSession(): Promise<void> {
   const env = getEnv();
-  const jar = await cookies();
-  const token = jar.get(env.SESSION_COOKIE_NAME)?.value;
-  if (token) {
+  const resolved = await resolveSessionToken();
+
+  if (resolved) {
     await prisma.session.updateMany({
-      where: { tokenHash: hashToken(token), revokedAt: null },
+      where: { tokenHash: hashToken(resolved.token), revokedAt: null },
       data: { revokedAt: new Date() },
     });
   }
-  jar.delete(env.SESSION_COOKIE_NAME);
+
+  // Le client natif n'a pas de cookie à effacer ; la suppression est sans
+  // effet dans ce cas, et évite un embranchement.
+  (await cookies()).delete(env.SESSION_COOKIE_NAME);
 }
 
 /** Déconnexion de tous les appareils. */

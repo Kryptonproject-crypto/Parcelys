@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { purgeExpiredSessions } from '@/lib/auth/session';
 import { purgeExpiredCodes } from '@/lib/auth/verification';
 import { purgeExpiredRateLimits } from '@/lib/auth/rate-limit';
+import { purgeIdempotencyRecords } from '@/lib/api/idempotency';
 import { purgeOldAuditLogs } from '@/lib/audit';
 
 const AUDIT_RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS ?? 365);
@@ -31,6 +32,9 @@ async function main(): Promise<void> {
     where: { expiresAt: { lt: new Date(Date.now() - 24 * 3600 * 1000) } },
   });
   console.info(`  jetons de réinitialisation purgés : ${resetTokens.count}`);
+
+  const idempotency = await purgeIdempotencyRecords();
+  console.info(`  clés d'idempotence purgées         : ${idempotency}`);
 
   const auditLogs = await purgeOldAuditLogs(AUDIT_RETENTION_DAYS);
   console.info(
