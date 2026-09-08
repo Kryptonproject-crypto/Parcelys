@@ -26,6 +26,8 @@ export const GET = route(async () => {
     invitations: invitations.map((invitation) => ({
       id: invitation.id,
       codeHint: invitation.codeHint,
+      purpose: invitation.purpose,
+      accountType: invitation.accountType,
       status: invitationStatus(invitation),
       email: invitation.email,
       farmName: invitation.farm?.name ?? null,
@@ -63,8 +65,11 @@ export const POST = route(async (request: NextRequest) => {
 
   const { invitation, code } = await createInvitation({
     createdById: auth.user.id,
+    accountType: input.accountType,
     email: input.email || null,
-    farmId,
+    // Un compte expert ne rejoint aucune exploitation : son portefeuille se
+    // remplit ensuite, par les codes que les exploitations lui remettent.
+    farmId: input.accountType === 'AGRONOMIST' ? null : farmId,
     role: input.role,
     grantsPlatformAdmin: input.grantsPlatformAdmin,
     note: input.note || null,
@@ -94,6 +99,7 @@ export const POST = route(async (request: NextRequest) => {
       invitation: {
         id: invitation.id,
         codeHint: invitation.codeHint,
+        accountType: invitation.accountType,
         role: invitation.role,
         email: invitation.email,
         expiresAt: invitation.expiresAt.toISOString(),

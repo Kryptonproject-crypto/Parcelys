@@ -53,8 +53,12 @@ export const registerSchema = z
     password: passwordSchema,
     passwordConfirmation: z.string(),
     /** Requis uniquement lorsque l'invitation ne rattache pas à une
-     *  exploitation existante — vérifié par la route. */
+     *  exploitation existante — vérifié par la route. Sans objet pour un
+     *  compte expert, qui n'a pas d'exploitation. */
     farmName: z.string().trim().max(150).optional().or(z.literal('')),
+    /** Structure de rattachement d'un expert (coopérative, chambre, cabinet).
+     *  Affichée à l'exploitant qui reçoit ses préconisations. */
+    organization: z.string().trim().max(150).optional().or(z.literal('')),
     siret: siretSchema.optional().or(z.literal('')),
     acceptTerms: z.literal(true, {
       errorMap: () => ({ message: 'Vous devez accepter les CGU' }),

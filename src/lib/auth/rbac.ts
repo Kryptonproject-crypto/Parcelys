@@ -9,23 +9,51 @@ import { ApiError } from '@/lib/api/errors';
  * Permissions vérifiées côté serveur. Le frontend n'est jamais l'autorité :
  * chaque route API et chaque page passe par `requireFarmAccess`.
  */
+/**
+ * Permissions vérifiées côté serveur. Le frontend n'est jamais l'autorité :
+ * chaque route API et chaque page passe par `requireFarmAccess`.
+ *
+ * `ADVISOR` est l'expert agronomique missionné. Sa liste est volontairement
+ * courte, et c'est le cœur du dispositif : il lit le parcellaire et les
+ * registres pour conseiller, il rédige des préconisations — et il n'écrit rien
+ * d'autre. Aucune saisie dans un registre réglementaire, aucune modification de
+ * parcelle, aucun accès aux membres ni aux paramètres de l'exploitation.
+ */
 export const PERMISSIONS = {
-  'farm:read': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER],
+  'farm:read': [
+    FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER, FarmRole.ADVISOR,
+  ],
   'farm:update': [FarmRole.OWNER, FarmRole.ADMIN],
   'farm:delete': [FarmRole.OWNER],
   'member:read': [FarmRole.OWNER, FarmRole.ADMIN],
   'member:manage': [FarmRole.OWNER, FarmRole.ADMIN],
-  'parcel:read': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER],
+  'advisor:manage': [FarmRole.OWNER, FarmRole.ADMIN],
+  'parcel:read': [
+    FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER, FarmRole.ADVISOR,
+  ],
   'parcel:write': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
   'parcel:delete': [FarmRole.OWNER, FarmRole.ADMIN],
-  'record:read': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER],
+  'record:read': [
+    FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER, FarmRole.ADVISOR,
+  ],
   'record:write': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
   'record:delete': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
   'document:read': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER],
   'document:write': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
   'document:delete': [FarmRole.OWNER, FarmRole.ADMIN],
-  'export:read': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER],
+  'export:read': [
+    FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER, FarmRole.ADVISOR,
+  ],
   'referential:write': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
+
+  /** Lire les préconisations de l'exploitation — les deux parties. */
+  'recommendation:read': [
+    FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE, FarmRole.VIEWER, FarmRole.ADVISOR,
+  ],
+  /** Rédiger, modifier et transmettre une préconisation : l'expert seul. */
+  'recommendation:write': [FarmRole.ADVISOR],
+  /** Accepter ou écarter une préconisation : l'exploitation seule. */
+  'recommendation:respond': [FarmRole.OWNER, FarmRole.ADMIN, FarmRole.EMPLOYEE],
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -43,7 +71,16 @@ export const ROLE_LABELS: Record<FarmRole, string> = {
   ADMIN: 'Administrateur',
   EMPLOYEE: 'Salarié',
   VIEWER: 'Lecture seule',
+  ADVISOR: 'Expert agronomique',
 };
+
+/** Rôles réellement attribuables à un membre : l'expert n'en est pas un. */
+export const MEMBER_ROLES = [
+  FarmRole.OWNER,
+  FarmRole.ADMIN,
+  FarmRole.EMPLOYEE,
+  FarmRole.VIEWER,
+] as const;
 
 /** Contexte authentifié, sinon erreur 401. */
 export async function requireAuth(): Promise<AuthContext> {
@@ -102,9 +139,50 @@ export async function requirePlatformAdmin(): Promise<AuthContext> {
   return auth;
 }
 
+/**
+ * Espace de travail par défaut d'un compte.
+ *
+ * Un exploitant ouvre son tableau de bord ; un expert ouvre son portefeuille.
+ * Ce sont deux métiers différents, et mélanger les deux écrans n'aiderait
+ * personne.
+ */
+export function homePathFor(auth: AuthContext): string {
+  return auth.user.accountType === 'AGRONOMIST' ? '/portefeuille' : '/dashboard';
+}
+
+/** Compte expert agronomique, sinon 403. */
+export async function requireAgronomist(): Promise<AuthContext> {
+  const auth = await requireVerifiedAuth();
+  await assertNotUnderMaintenance(auth);
+  if (auth.user.accountType !== 'AGRONOMIST') {
+    throw new ApiError(
+      403,
+      'Réservé aux comptes experts agronomiques',
+      'NOT_AGRONOMIST',
+    );
+  }
+  return auth;
+}
+
+/** Compte exploitant, sinon 403. */
+export async function requireFarmer(): Promise<AuthContext> {
+  const auth = await requireVerifiedAuth();
+  await assertNotUnderMaintenance(auth);
+  if (auth.user.accountType !== 'FARMER') {
+    throw new ApiError(
+      403,
+      "Réservé aux comptes d'exploitation",
+      'NOT_FARMER',
+    );
+  }
+  return auth;
+}
+
 export type FarmContext = AuthContext & {
   farmId: string;
   role: FarmRole;
+  /** `advisory` quand l'accès vient d'une mission de conseil. */
+  accessKind: 'member' | 'advisory';
 };
 
 /**
@@ -143,7 +221,7 @@ export async function requireFarmAccess(
     );
   }
 
-  return { ...auth, farmId, role: membership.role };
+  return { ...auth, farmId, role: membership.role, accessKind: membership.kind };
 }
 
 /**

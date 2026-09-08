@@ -1,6 +1,6 @@
 import 'server-only';
 import { cookies, headers } from 'next/headers';
-import type { FarmRole } from '@prisma/client';
+import type { AccountType, FarmRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getEnv } from '@/lib/env';
 import { generateToken, hashToken } from '@/lib/auth/tokens';
@@ -16,12 +16,24 @@ export type SessionUser = {
   isDemo: boolean;
   /** Administrateur de l'instance — voir `src/lib/auth/invitations.ts`. */
   isPlatformAdmin: boolean;
+  /** Exploitant ou expert agronomique : décide de l'espace de travail. */
+  accountType: AccountType;
+  organization: string | null;
 };
 
 export type SessionMembership = {
   farmId: string;
   farmName: string;
   role: FarmRole;
+  /**
+   * `member` : l'utilisateur appartient à l'exploitation.
+   * `advisory` : il la suit comme expert agronomique, sans en être membre.
+   *
+   * Les deux se présentent ici sous la même forme, à dessein : le contrôle de
+   * permissions n'a alors qu'une notion à manipuler, et c'est la matrice des
+   * rôles — où `ADVISOR` ne peut presque rien écrire — qui fait la différence.
+   */
+  kind: 'member' | 'advisory';
 };
 
 export type AuthContext = {
@@ -131,6 +143,14 @@ export async function getAuthContext(): Promise<AuthContext | null> {
             include: { farm: { select: { id: true, name: true, deletedAt: true } } },
             orderBy: { createdAt: 'asc' },
           },
+          // Portefeuille de l'expert agronomique : les exploitations qui l'ont
+          // missionné, chargées ici pour que le reste de l'application n'ait
+          // qu'une seule liste à consulter.
+          engagements: {
+            where: { status: 'ACTIVE' },
+            include: { farm: { select: { id: true, name: true, deletedAt: true } } },
+            orderBy: { startedAt: 'asc' },
+          },
         },
       },
     },
@@ -162,7 +182,26 @@ export async function getAuthContext(): Promise<AuthContext | null> {
 
   const memberships: SessionMembership[] = session.user.memberships
     .filter((m) => !m.farm.deletedAt)
-    .map((m) => ({ farmId: m.farmId, farmName: m.farm.name, role: m.role }));
+    .map((m) => ({
+      farmId: m.farmId,
+      farmName: m.farm.name,
+      role: m.role,
+      kind: 'member' as const,
+    }));
+
+  // Une mission de conseil n'écrase jamais une appartenance : si l'expert est
+  // aussi membre de l'exploitation, c'est son rôle de membre qui prime, plus
+  // étendu.
+  const memberFarmIds = new Set(memberships.map((m) => m.farmId));
+  for (const engagement of session.user.engagements) {
+    if (engagement.farm.deletedAt || memberFarmIds.has(engagement.farmId)) continue;
+    memberships.push({
+      farmId: engagement.farmId,
+      farmName: engagement.farm.name,
+      role: 'ADVISOR',
+      kind: 'advisory',
+    });
+  }
 
   let activeFarmId = session.activeFarmId;
   if (!activeFarmId || !memberships.some((m) => m.farmId === activeFarmId)) {
@@ -183,6 +222,8 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       unitSystem: session.user.unitSystem,
       isDemo: session.user.isDemo,
       isPlatformAdmin: session.user.isPlatformAdmin,
+      accountType: session.user.accountType,
+      organization: session.user.organization,
     },
     memberships,
     activeFarmId,

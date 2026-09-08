@@ -9,8 +9,8 @@ import { ok, route } from '@/lib/api/handler';
  * l'exploitation, filtrable (année, parcelle, culture, produit, substance).
  */
 export const GET = route(async (request: NextRequest) => {
-  const ctx = await requireFarmAccess('record:read');
   const params = request.nextUrl.searchParams;
+  const ctx = await requireFarmAccess('record:read', params.get('farmId'));
 
   const year = Number(params.get('year'));
   const parcelId = params.get('parcelId');

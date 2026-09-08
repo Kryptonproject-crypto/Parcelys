@@ -27,6 +27,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import {
+  IconAdvisor,
   IconArea,
   IconChevronRight,
   IconCrops,
@@ -52,6 +53,7 @@ const TODO_ICONS: Record<string, LucideIcon> = {
   registry: IconRegistry,
   ephy: IconWarning,
   weather: IconWeather,
+  advisory: IconAdvisor,
 };
 
 const HISTORY_STYLE: Record<string, { icon: LucideIcon }> = {

@@ -72,10 +72,25 @@ export const POST = route(async (request: NextRequest) => {
     }
   }
 
-  const joinsExistingFarm = invitation?.farmId != null;
+  // Un code destiné à ouvrir une mission de conseil ne crée pas de compte :
+  // il s'active depuis un compte expert déjà inscrit.
+  if (invitation && invitation.purpose !== 'ACCOUNT') {
+    throw new ApiError(
+      403,
+      "Ce code ouvre un accès conseil, il ne crée pas de compte. Connectez-vous à votre compte expert, puis activez-le depuis votre portefeuille.",
+      'INVITATION_NOT_FOR_ACCOUNT',
+    );
+  }
+
+  const accountType = invitation?.accountType ?? 'FARMER';
+  const isAgronomist = accountType === 'AGRONOMIST';
+
+  // Un expert agronomique n'a pas d'exploitation : il suit celles qui le
+  // missionnent. Lui en faire créer une n'aurait aucun sens.
+  const joinsExistingFarm = !isAgronomist && invitation?.farmId != null;
   const farmName = input.farmName?.trim() ?? '';
 
-  if (!joinsExistingFarm && farmName.length === 0) {
+  if (!isAgronomist && !joinsExistingFarm && farmName.length === 0) {
     throw new ApiError(400, 'Données invalides', 'VALIDATION_ERROR', [
       { field: 'farmName', message: "Nom de l'exploitation requis" },
     ]);
@@ -103,6 +118,8 @@ export const POST = route(async (request: NextRequest) => {
         lastName: input.lastName,
         acceptedTermsAt: now,
         acceptedPrivacyAt: now,
+        accountType,
+        organization: input.organization?.trim() || null,
         // Le tout premier compte administre l'instance ; ensuite, seul un code
         // le prévoyant explicitement confère ce pouvoir.
         isPlatformAdmin: bootstrap || (invitation?.grantsPlatformAdmin ?? false),
@@ -114,6 +131,11 @@ export const POST = route(async (request: NextRequest) => {
       // avec le même code ne peuvent pas aboutir toutes les deux.
       await consumeInvitation(tx, invitation.id, created.id);
     }
+
+    // L'expert s'arrête ici : ni exploitation, ni appartenance. Son
+    // portefeuille se remplira par les codes d'accès que les exploitations lui
+    // remettront.
+    if (isAgronomist) return created;
 
     if (joinsExistingFarm && invitation?.farmId) {
       await tx.farmMember.create({
@@ -161,9 +183,10 @@ export const POST = route(async (request: NextRequest) => {
     userAgent: request.headers.get('user-agent'),
     metadata: {
       bootstrap,
+      accountType,
       invitationId: invitation?.id ?? null,
-      farmName: joinsExistingFarm ? invitation?.farm?.name : farmName,
-      role,
+      farmName: isAgronomist ? null : joinsExistingFarm ? invitation?.farm?.name : farmName,
+      role: isAgronomist ? null : role,
     },
   });
 

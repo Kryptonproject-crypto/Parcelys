@@ -2,13 +2,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/session';
+import { homePathFor } from '@/lib/auth/rbac';
 import { AuthShell } from '@/components/auth/AuthShell';
+import { SpaceSwitch } from '@/components/auth/SpaceSwitch';
 import { LoginForm } from '@/app/(auth)/connexion/LoginForm';
 
 export const metadata: Metadata = { title: 'Connexion' };
 
 export default async function LoginPage() {
-  if (await getAuthContext()) redirect('/dashboard');
+  const auth = await getAuthContext();
+  if (auth) redirect(homePathFor(auth));
 
   return (
     <AuthShell
@@ -23,7 +26,8 @@ export default async function LoginPage() {
         </>
       }
     >
-      <LoginForm />
+      <SpaceSwitch active="farm" />
+      <LoginForm space="farm" />
     </AuthShell>
   );
 }

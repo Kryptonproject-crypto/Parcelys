@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/session';
+import { homePathFor } from '@/lib/auth/rbac';
 import { isBootstrapAllowed } from '@/lib/auth/invitations';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { RegisterForm } from '@/app/(auth)/inscription/RegisterForm';
@@ -10,7 +11,8 @@ export const metadata: Metadata = { title: 'Créer un compte' };
 export const dynamic = 'force-dynamic';
 
 export default async function RegisterPage() {
-  if (await getAuthContext()) redirect('/dashboard');
+  const auth = await getAuthContext();
+  if (auth) redirect(homePathFor(auth));
 
   // Instance vierge : le premier compte s'ouvre sans code, puisque personne ne
   // peut encore en délivrer. Dès qu'un compte existe, l'invitation est requise.

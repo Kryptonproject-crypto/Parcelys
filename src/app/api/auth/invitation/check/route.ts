@@ -40,8 +40,30 @@ export const POST = route(async (request: NextRequest) => {
     throw error;
   }
 
+  // Un code d'accès conseil ne s'active pas ici : il n'appelle pas la création
+  // d'un compte, mais l'ajout d'une exploitation au portefeuille d'un expert
+  // déjà inscrit. Le dire tout de suite évite un parcours d'inscription inutile.
+  if (invitation.purpose === 'ADVISORY_ACCESS') {
+    return ok({
+      scope: 'ADVISORY_ACCESS' as const,
+      farmName: invitation.farm?.name ?? null,
+      accountType: 'AGRONOMIST' as const,
+      role: invitation.role,
+      roleLabel: ROLE_LABELS[invitation.role],
+      email: invitation.email,
+      grantsPlatformAdmin: false,
+      expiresAt: invitation.expiresAt.toISOString(),
+    });
+  }
+
   return ok({
-    scope: invitation.farmId ? 'EXISTING_FARM' : 'NEW_FARM',
+    scope:
+      invitation.accountType === 'AGRONOMIST'
+        ? ('EXPERT_ACCOUNT' as const)
+        : invitation.farmId
+          ? ('EXISTING_FARM' as const)
+          : ('NEW_FARM' as const),
+    accountType: invitation.accountType,
     farmName: invitation.farm?.name ?? null,
     role: invitation.role,
     roleLabel: ROLE_LABELS[invitation.role],

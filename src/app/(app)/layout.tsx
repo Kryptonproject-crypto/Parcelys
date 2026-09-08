@@ -22,6 +22,11 @@ export default async function AppLayout({
     redirect(`/verification-email?email=${encodeURIComponent(auth.user.email)}`);
   }
 
+  // Un expert agronomique n'a pas d'exploitation : cet espace ne lui montrerait
+  // qu'un sélecteur vide et des écrans de saisie qu'il n'a pas le droit
+  // d'utiliser. Son espace est le portefeuille.
+  if (auth.user.accountType === 'AGRONOMIST') redirect('/portefeuille');
+
   // Mode maintenance : seuls les administrateurs de l'instance passent, pour
   // pouvoir intervenir et lever le mode.
   if (!auth.user.isPlatformAdmin) {

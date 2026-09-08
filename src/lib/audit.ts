@@ -54,7 +54,16 @@ export type AuditAction =
   | 'admin.user_sessions_revoked'
   | 'admin.platform_role_changed'
   | 'admin.maintenance_changed'
-  | 'admin.cleanup_run';
+  | 'admin.cleanup_run'
+  | 'advisor.access_granted'
+  | 'advisor.access_revoked'
+  | 'advisor.access_redeemed'
+  | 'recommendation.created'
+  | 'recommendation.updated'
+  | 'recommendation.proposed'
+  | 'recommendation.responded'
+  | 'recommendation.applied'
+  | 'recommendation.withdrawn';
 
 /**
  * Journalisation applicative et de sécurité.

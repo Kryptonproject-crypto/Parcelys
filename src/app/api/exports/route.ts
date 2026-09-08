@@ -22,10 +22,9 @@ import { badRequest } from '@/lib/api/errors';
  * en paramètre sont filtrés côté serveur.
  */
 export const GET = route(async (request: NextRequest) => {
-  const ctx = await requireFarmAccess('export:read');
-  await enforceRateLimit(`export:${ctx.user.id}`, { limit: 30, windowSeconds: 300 });
-
   const query = parseQuery(request, exportQuerySchema);
+  const ctx = await requireFarmAccess('export:read', query.farmId);
+  await enforceRateLimit(`export:${ctx.user.id}`, { limit: 30, windowSeconds: 300 });
 
   const farm = await prisma.farm.findUniqueOrThrow({
     where: { id: ctx.farmId },

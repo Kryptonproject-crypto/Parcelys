@@ -9,6 +9,11 @@ import {
 export const invitationCreateSchema = z
   .object({
     email: emailSchema.optional().or(z.literal('')),
+    /**
+     * Nature du compte créé. Un expert agronomique n'a pas d'exploitation :
+     * il suit celles qui lui remettront un code d'accès conseil.
+     */
+    accountType: z.enum(['FARMER', 'AGRONOMIST']).default('FARMER'),
     /** Exploitation rejointe ; vide = la personne crée la sienne. */
     farmId: z.string().trim().max(40).optional().or(z.literal('')),
     role: z.enum(['OWNER', 'ADMIN', 'EMPLOYEE', 'VIEWER']),
@@ -21,10 +26,18 @@ export const invitationCreateSchema = z
       .max(MAX_VALIDITY_DAYS, `${MAX_VALIDITY_DAYS} jours au maximum`)
       .default(DEFAULT_VALIDITY_DAYS),
   })
-  .refine((data) => data.farmId !== '' || data.role === 'OWNER', {
-    message:
-      "Sans exploitation, la personne crée la sienne et en devient propriétaire",
-    path: ['role'],
+  .refine(
+    (data) =>
+      data.accountType === 'AGRONOMIST' || data.farmId !== '' || data.role === 'OWNER',
+    {
+      message:
+        "Sans exploitation, la personne crée la sienne et en devient propriétaire",
+      path: ['role'],
+    },
+  )
+  .refine((data) => data.accountType !== 'AGRONOMIST' || data.farmId === '', {
+    message: "Un compte expert ne se rattache pas à une exploitation à l'inscription",
+    path: ['farmId'],
   });
 
 /**

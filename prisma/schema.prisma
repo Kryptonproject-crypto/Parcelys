@@ -24,6 +24,30 @@ enum FarmRole {
   ADMIN
   EMPLOYEE
   VIEWER
+  /// Expert agronomique missionné sur l'exploitation. Ce rôle ne figure jamais
+  /// dans `farm_members` : il décrit l'accès conféré par une mission de conseil
+  /// (`AdvisoryEngagement`), et se résout comme un rôle pour que les pages et
+  /// les routes n'aient qu'une seule notion à manipuler.
+  ADVISOR
+}
+
+/// Nature du compte.
+///
+/// Un exploitant possède ou rejoint une exploitation ; un expert agronomique
+/// n'en possède aucune et suit un portefeuille d'exploitations qui l'ont
+/// missionné. Les deux se connectent par la même mécanique de session, mais
+/// n'ouvrent pas sur le même espace de travail.
+enum AccountType {
+  FARMER
+  AGRONOMIST
+}
+
+/// À quoi sert un code d'invitation.
+enum InvitationPurpose {
+  /// Créer un compte (exploitant ou expert).
+  ACCOUNT
+  /// Donner à un expert déjà inscrit l'accès conseil à une exploitation.
+  ADVISORY_ACCESS
 }
 
 model User {
@@ -45,6 +69,16 @@ model User {
   lockedUntil       DateTime? @map("locked_until")
   lastLoginAt       DateTime? @map("last_login_at")
   isDemo            Boolean   @default(false) @map("is_demo")
+  /// Exploitant ou expert agronomique — décide de l'espace de travail ouvert
+  /// à la connexion, et de la façon dont le compte accède aux exploitations.
+  accountType       AccountType @default(FARMER) @map("account_type")
+  /// Renseignements affichés à l'exploitant qui reçoit une préconisation :
+  /// il doit savoir qui conseille son exploitation.
+  organization      String?
+  /// Numéro de certificat Certiphyto « conseil », le cas échéant. Saisi par
+  /// l'expert et affiché tel quel : Parcelys ne le vérifie pas et ne le
+  /// présente jamais comme validé.
+  advisorCertificate String?  @map("advisor_certificate")
   /// Administrateur de l'instance (gestion des comptes, invitations,
   /// maintenance). Distinct de FarmRole.ADMIN, qui ne porte que sur une
   /// exploitation.
@@ -70,10 +104,153 @@ model User {
   invitationsIssued  InvitationCode[]        @relation("InvitationIssuer")
   invitationsRevoked InvitationCode[]        @relation("InvitationRevoker")
   invitationUsed     InvitationCode?         @relation("InvitationRecipient")
+  engagements        AdvisoryEngagement[]    @relation("AdvisoryExpert")
+  engagementsGranted AdvisoryEngagement[]    @relation("AdvisoryGrantedBy")
+  recommendations    Recommendation[]        @relation("RecommendationAuthor")
+  recommendationReplies Recommendation[]     @relation("RecommendationResponder")
 
   @@index([emailNormalized])
   @@index([isPlatformAdmin])
+  @@index([accountType])
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Conseil agronomique
+// ---------------------------------------------------------------------------
+
+enum EngagementStatus {
+  ACTIVE
+  ENDED
+}
+
+/// Mission de conseil : un expert suit une exploitation.
+///
+/// Ce n'est pas une appartenance. L'expert ne compte pas parmi les membres, ne
+/// peut rien saisir dans les registres, et l'exploitation peut mettre fin à la
+/// mission à tout moment sans toucher à ses données. C'est ce lien, et lui
+/// seul, qui fait apparaître l'exploitation dans le portefeuille de l'expert.
+model AdvisoryEngagement {
+  id       String           @id @default(cuid())
+  farmId   String           @map("farm_id")
+  expertId String           @map("expert_id")
+  status   EngagementStatus @default(ACTIVE)
+
+  /// Qui a ouvert l'accès : un propriétaire ou administrateur de
+  /// l'exploitation. La traçabilité importe — c'est un accès à des données
+  /// d'exploitation.
+  grantedById String?  @map("granted_by_id")
+  note        String?
+  startedAt   DateTime @default(now()) @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  farm      Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  expert    User  @relation("AdvisoryExpert", fields: [expertId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("AdvisoryGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([farmId, expertId])
+  @@index([expertId, status])
+  @@map("advisory_engagements")
+}
+
+enum RecommendationKind {
+  PHYTO
+  FERTILIZATION
+  OPERATION
+  OBSERVATION
+}
+
+/// Cycle de vie d'une préconisation, du brouillon à sa réalisation.
+enum RecommendationStatus {
+  /// Rédigée, pas encore transmise : visible du seul expert.
+  DRAFT
+  /// Transmise et en attente de décision de l'exploitant.
+  PROPOSED
+  /// Retenue par l'exploitant, à réaliser.
+  ACCEPTED
+  /// Écartée par l'exploitant, avec son motif.
+  DECLINED
+  /// Réalisée : rattachée à l'intervention effectivement enregistrée.
+  APPLIED
+  /// Retirée par l'expert avant décision.
+  WITHDRAWN
+}
+
+enum RecommendationPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+/// Préconisation d'un expert agronomique.
+///
+/// Point réglementaire : Parcelys ne produit aucune donnée phytosanitaire. Ce
+/// que l'expert saisit reste sa parole, affichée comme telle. Lorsqu'un numéro
+/// d'AMM correspond à un produit du catalogue officiel E-Phy importé, la fiche
+/// l'indique et renvoie à la source ; sinon la préconisation est marquée comme
+/// non vérifiée au catalogue. Aucune dose n'est suggérée par l'application.
+model Recommendation {
+  id       String @id @default(cuid())
+  farmId   String @map("farm_id")
+  /// Parcelle visée ; absente pour une préconisation à l'échelle de
+  /// l'exploitation.
+  parcelId String? @map("parcel_id")
+  authorId String  @map("author_id")
+
+  kind     RecommendationKind
+  status   RecommendationStatus   @default(DRAFT)
+  priority RecommendationPriority @default(NORMAL)
+
+  title     String
+  /// Justification agronomique : c'est ce qui distingue un conseil d'une
+  /// consigne, et ce que l'exploitant doit pouvoir relire.
+  rationale String
+
+  /// Produit préconisé, tel que saisi par l'expert.
+  productName String? @map("product_name")
+  amm         String?
+  /// Renseigné à l'enregistrement si l'AMM correspond à un produit du
+  /// catalogue officiel importé. Sert à afficher « vérifié au catalogue » ou
+  /// « non vérifié », jamais à compléter la saisie.
+  ephyProductId String? @map("ephy_product_id")
+  dose        Decimal? @db.Decimal(12, 4)
+  doseUnit    String?  @map("dose_unit")
+  targetLabel String?  @map("target_label")
+
+  /// Fenêtre d'intervention conseillée.
+  windowStart DateTime? @map("window_start")
+  windowEnd   DateTime? @map("window_end")
+
+  /// Réponse de l'exploitation.
+  respondedById String?   @map("responded_by_id")
+  respondedAt   DateTime? @map("responded_at")
+  responseNote  String?   @map("response_note")
+
+  /// Intervention effectivement enregistrée, quand l'exploitant a appliqué la
+  /// préconisation. C'est le lien qui referme la boucle.
+  appliedPhytoId         String? @map("applied_phyto_id")
+  appliedFertilizationId String? @map("applied_fertilization_id")
+  appliedOperationId     String? @map("applied_operation_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  farm        Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parcel      Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  author      User    @relation("RecommendationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  respondedBy User?   @relation("RecommendationResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+  ephyProduct PhytosanitaryProduct? @relation(fields: [ephyProductId], references: [id], onDelete: SetNull)
+
+  appliedPhyto         PhytosanitaryApplication? @relation(fields: [appliedPhytoId], references: [id], onDelete: SetNull)
+  appliedFertilization FertilizerApplication?    @relation(fields: [appliedFertilizationId], references: [id], onDelete: SetNull)
+  appliedOperation     AgriculturalOperation?    @relation(fields: [appliedOperationId], references: [id], onDelete: SetNull)
+
+  @@index([farmId, status])
+  @@index([authorId, createdAt])
+  @@index([parcelId])
+  @@map("recommendations")
 }
 
 /// Code d'invitation délivré par un administrateur : sans lui, aucune
@@ -87,11 +264,15 @@ model InvitationCode {
   /// dans la liste sans en révéler la partie secrète.
   codeHint  String @map("code_hint")
 
+  purpose   InvitationPurpose @default(ACCOUNT)
+  /// Nature du compte créé — sans objet pour un accès conseil.
+  accountType AccountType @default(FARMER) @map("account_type")
+
   /// Restriction facultative à une adresse : le code ne fonctionne alors que
   /// pour cette personne.
   email     String? @map("email_normalized")
   /// Exploitation rejointe par le titulaire. `null` = il crée la sienne et en
-  /// devient propriétaire.
+  /// devient propriétaire. Toujours renseignée pour un accès conseil.
   farmId    String? @map("farm_id")
   role      FarmRole @default(OWNER)
   /// Le titulaire devient administrateur de l'instance.
@@ -171,6 +352,8 @@ model Farm {
 
   members       FarmMember[]
   invitations   InvitationCode[]
+  engagements   AdvisoryEngagement[]
+  recommendations Recommendation[]
   parcels       Parcel[]
   crops         Crop[]
   fertilizers   Fertilizer[]
@@ -306,6 +489,7 @@ model Parcel {
   farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
 
   geometries      ParcelGeometry[]
+  recommendations Recommendation[]
   cropYears       CropYear[]
   fertilizations  FertilizerApplication[]
   phytoTreatments PhytosanitaryApplication[]
@@ -463,6 +647,8 @@ model FertilizerApplication {
   organicInput OrganicInput? @relation(fields: [organicInputId], references: [id], onDelete: SetNull)
   createdBy    User?         @relation("FertilizerAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
+  recommendations Recommendation[]
+
   @@index([parcelId, appliedOn])
   @@index([appliedOn])
   @@map("fertilizer_applications")
@@ -508,6 +694,7 @@ model PhytosanitaryProduct {
   substances   ProductSubstance[]
   usages       PhytoUsage[]
   applications PhytosanitaryApplication[]
+  recommendations Recommendation[]
 
   @@index([normalizedName])
   @@index([status])
@@ -604,6 +791,8 @@ model PhytosanitaryApplication {
   product  PhytosanitaryProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
   createdBy User?                @relation("PhytoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
+  recommendations Recommendation[]
+
   @@index([parcelId, appliedOn])
   @@index([appliedOn])
   @@map("phytosanitary_applications")
@@ -642,6 +831,8 @@ model AgriculturalOperation {
 
   parcel    Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   createdBy User?  @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  recommendations Recommendation[]
 
   @@index([parcelId, performedOn])
   @@map("agricultural_operations")

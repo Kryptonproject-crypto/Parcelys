@@ -44,6 +44,7 @@ const ROLE_LABELS: Record<FarmRole, string> = {
   ADMIN: 'Administrateur',
   EMPLOYEE: 'Salarié',
   VIEWER: 'Lecture seule',
+  ADVISOR: 'Expert agronomique',
 };
 
 function initials(user: ShellUser): string {

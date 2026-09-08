@@ -9,7 +9,8 @@ export type NotificationType =
   | 'REGISTRY_CHECK'
   | 'EPHY_SYNC'
   | 'EXPIRATION'
-  | 'ACCOUNT_SECURITY';
+  | 'ACCOUNT_SECURITY'
+  | 'RECOMMENDATION';
 
 export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   WEATHER: 'Météo',
@@ -18,6 +19,7 @@ export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   EPHY_SYNC: 'Synchronisation E-Phy',
   EXPIRATION: 'Expiration',
   ACCOUNT_SECURITY: 'Sécurité du compte',
+  RECOMMENDATION: 'Préconisation',
 };
 
 export async function createNotification(params: {

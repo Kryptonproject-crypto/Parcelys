@@ -6,27 +6,56 @@ import Link from 'next/link';
 import { ApiRequestError, apiPost } from '@/lib/client/api';
 import { Alert, Button, Field, Input, Spinner } from '@/components/ui';
 
-export function LoginForm() {
+/** Porte d'entrée utilisée : exploitation ou expert agronomique. */
+export type LoginSpace = 'farm' | 'expert';
+
+type LoginResponse = {
+  redirectTo: string;
+  user: { accountType: 'FARMER' | 'AGRONOMIST' };
+};
+
+/**
+ * Connexion.
+ *
+ * Une seule mécanique d'authentification pour les deux métiers — en dupliquer
+ * une serait une faiblesse de sécurité, pas une fonctionnalité. La porte
+ * d'entrée ne sert qu'à orienter : si le compte n'est pas du type attendu, on
+ * le dit clairement et on l'emmène quand même au bon endroit, plutôt que de le
+ * laisser buter sur une redirection silencieuse.
+ */
+export function LoginForm({ space = 'farm' }: { space?: LoginSpace }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     setFieldErrors({});
 
     const form = new FormData(event.currentTarget);
     const email = String(form.get('email') ?? '');
 
     try {
-      await apiPost('/api/auth/login', {
+      const result = await apiPost<LoginResponse>('/api/auth/login', {
         email,
         password: String(form.get('password') ?? ''),
       });
-      router.push('/dashboard');
+
+      const expected = space === 'expert' ? 'AGRONOMIST' : 'FARMER';
+      if (result.user.accountType !== expected) {
+        setNotice(
+          expected === 'AGRONOMIST'
+            ? 'Ce compte est un compte d’exploitation : ouverture de votre tableau de bord.'
+            : 'Ce compte est un compte expert : ouverture de votre portefeuille.',
+        );
+      }
+
+      router.push(result.redirectTo);
       router.refresh();
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -47,6 +76,7 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       {error ? <Alert tone="danger">{error}</Alert> : null}
+      {notice ? <Alert tone="info">{notice}</Alert> : null}
 
       <Field label="Adresse e-mail" htmlFor="email" required error={fieldErrors.email}>
         <Input

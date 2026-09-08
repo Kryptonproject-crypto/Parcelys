@@ -152,6 +152,10 @@ export const POST = route(async (request: NextRequest) => {
     metadata: { client: input.client },
   });
 
+  // Deux métiers, deux espaces de travail : l'exploitant ouvre son tableau de
+  // bord, l'expert son portefeuille.
+  const home = user.accountType === 'AGRONOMIST' ? '/portefeuille' : '/dashboard';
+
   return ok({
     message: 'Connexion réussie',
     user: {
@@ -159,6 +163,7 @@ export const POST = route(async (request: NextRequest) => {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      accountType: user.accountType,
     },
     // Le jeton n'est renvoyé qu'au client natif, qui n'a pas de cookie. Le
     // navigateur, lui, garde une session `HttpOnly` inaccessible au JavaScript.
@@ -166,6 +171,6 @@ export const POST = route(async (request: NextRequest) => {
       ? { token: session.token, expiresAt: session.expiresAt.toISOString() }
       : {}),
     farms: user.memberships.map((m) => m.farmId),
-    redirectTo: '/dashboard',
+    redirectTo: home,
   });
 });

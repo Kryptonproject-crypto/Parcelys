@@ -60,7 +60,9 @@ export const POST = route(async (request: NextRequest) => {
         outcome.status === 'already_verified'
           ? 'Adresse déjà vérifiée.'
           : 'Adresse e-mail vérifiée.',
-      redirectTo: '/dashboard',
+      // L'expert n'a pas de tableau de bord d'exploitation : il ouvre
+      // directement son portefeuille.
+      redirectTo: user?.accountType === 'AGRONOMIST' ? '/portefeuille' : '/dashboard',
     });
   } catch (error) {
     await logAudit({

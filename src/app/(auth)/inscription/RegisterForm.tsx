@@ -14,7 +14,15 @@ import { IconInvitation, IconSecurity } from '@/components/ui/icons';
 type RegisterResponse = { email: string; message: string };
 
 type InvitationScope = {
-  scope: 'NEW_FARM' | 'EXISTING_FARM';
+  /**
+   * `NEW_FARM` : la personne crée son exploitation.
+   * `EXISTING_FARM` : elle en rejoint une comme membre.
+   * `EXPERT_ACCOUNT` : compte expert agronomique, sans exploitation.
+   * `ADVISORY_ACCESS` : le code n'est pas fait pour s'inscrire — il s'active
+   * depuis le portefeuille d'un compte expert existant.
+   */
+  scope: 'NEW_FARM' | 'EXISTING_FARM' | 'EXPERT_ACCOUNT' | 'ADVISORY_ACCESS';
+  accountType?: 'FARMER' | 'AGRONOMIST';
   farmName: string | null;
   role: string;
   roleLabel: string;
@@ -44,7 +52,9 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const step = bootstrap || invitation ? 'account' : 'code';
+  const isAdvisoryCode = invitation?.scope === 'ADVISORY_ACCESS';
+  const isExpertAccount = invitation?.scope === 'EXPERT_ACCOUNT';
+  const step = bootstrap || (invitation && !isAdvisoryCode) ? 'account' : 'code';
   const needsFarmName = bootstrap || invitation?.scope === 'NEW_FARM';
 
   async function checkCode(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -58,6 +68,12 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
         code,
       });
       setInvitation(result);
+      if (result.scope === 'ADVISORY_ACCESS') {
+        setError(
+          `Ce code ouvre l'accès conseil à « ${result.farmName ?? 'une exploitation'} ». ` +
+            "Il ne crée pas de compte : connectez-vous à votre compte expert, puis activez-le depuis votre portefeuille.",
+        );
+      }
     } catch (err) {
       setError(
         err instanceof ApiRequestError
@@ -84,6 +100,7 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
       password: String(form.get('password') ?? ''),
       passwordConfirmation: String(form.get('passwordConfirmation') ?? ''),
       farmName: String(form.get('farmName') ?? ''),
+      organization: String(form.get('organization') ?? ''),
       siret: String(form.get('siret') ?? ''),
       acceptTerms: form.get('acceptTerms') === 'on',
       acceptPrivacy: form.get('acceptPrivacy') === 'on',
@@ -169,7 +186,13 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
             <div className="min-w-0">
               <p className="font-medium text-ink">Code valide</p>
               <p className="mt-0.5 text-ink-2">
-                {invitation.scope === 'EXISTING_FARM' ? (
+                {invitation.scope === 'EXPERT_ACCOUNT' ? (
+                  <>
+                    Vous créerez un compte <strong>expert agronomique</strong>.
+                    Les exploitations que vous suivez vous remettront ensuite
+                    leur propre code d&apos;accès.
+                  </>
+                ) : invitation.scope === 'EXISTING_FARM' ? (
                   <>
                     Vous rejoindrez «&nbsp;{invitation.farmName}&nbsp;» comme{' '}
                     <strong>{invitation.roleLabel.toLowerCase()}</strong>.
@@ -259,6 +282,21 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
           required
         />
       </Field>
+
+      {isExpertAccount ? (
+        <Field
+          label="Structure de rattachement"
+          htmlFor="organization"
+          hint="Coopérative, chambre d'agriculture, cabinet indépendant… Affichée aux exploitations que vous conseillez."
+          error={fieldErrors.organization}
+        >
+          <Input
+            id="organization"
+            name="organization"
+            placeholder="Chambre d'agriculture du Loiret"
+          />
+        </Field>
+      ) : null}
 
       {needsFarmName ? (
         <>

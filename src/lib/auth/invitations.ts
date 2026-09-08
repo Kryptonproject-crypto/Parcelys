@@ -1,6 +1,12 @@
 import 'server-only';
 import { randomInt } from 'node:crypto';
-import type { FarmRole, InvitationCode, Prisma } from '@prisma/client';
+import type {
+  AccountType,
+  FarmRole,
+  InvitationCode,
+  InvitationPurpose,
+  Prisma,
+} from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { hashToken } from '@/lib/auth/tokens';
 import { ApiError } from '@/lib/api/errors';
@@ -52,6 +58,10 @@ export function hashInvitationCode(raw: string): string {
 
 export type CreateInvitationInput = {
   createdById: string;
+  /** `ACCOUNT` crée un compte, `ADVISORY_ACCESS` ouvre une mission de conseil. */
+  purpose?: InvitationPurpose;
+  /** Nature du compte créé — sans objet pour un accès conseil. */
+  accountType?: AccountType;
   email?: string | null;
   farmId?: string | null;
   role: FarmRole;
@@ -77,6 +87,8 @@ export async function createInvitation(
     data: {
       codeHash: hashInvitationCode(code),
       codeHint: hint,
+      purpose: input.purpose ?? 'ACCOUNT',
+      accountType: input.accountType ?? 'FARMER',
       email: input.email ? input.email.trim().toLowerCase() : null,
       farmId: input.farmId ?? null,
       role: input.role,

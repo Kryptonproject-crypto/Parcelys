@@ -40,6 +40,8 @@ export function migrateTestDatabase(): void {
  * racines.
  */
 const TABLES_IN_DELETION_ORDER = [
+  'recommendations',
+  'advisory_engagements',
   'invitation_codes',
   'app_settings',
   'audit_logs',
@@ -116,6 +118,46 @@ export async function createUserWithFarm(params: {
   return { id: user.id, email: user.email, password, farmId: farm.id };
 }
 
+/** Crée un compte expert agronomique, sans exploitation. */
+export async function createExpert(params: {
+  email: string;
+  password?: string;
+  organization?: string;
+}): Promise<{ id: string; email: string; password: string }> {
+  const password = params.password ?? 'MotDePasse1';
+  const user = await prisma.user.create({
+    data: {
+      email: params.email,
+      emailNormalized: params.email.toLowerCase(),
+      passwordHash: await bcrypt.hash(password, 4),
+      firstName: 'Expert',
+      lastName: 'Agronome',
+      emailVerifiedAt: new Date(),
+      acceptedTermsAt: new Date(),
+      acceptedPrivacyAt: new Date(),
+      accountType: 'AGRONOMIST',
+      organization: params.organization ?? 'Chambre d’agriculture',
+    },
+  });
+  return { id: user.id, email: user.email, password };
+}
+
+/** Ouvre une mission de conseil entre un expert et une exploitation. */
+export async function grantAdvisoryAccess(params: {
+  farmId: string;
+  expertId: string;
+  grantedById?: string;
+}): Promise<string> {
+  const engagement = await prisma.advisoryEngagement.create({
+    data: {
+      farmId: params.farmId,
+      expertId: params.expertId,
+      grantedById: params.grantedById ?? null,
+    },
+  });
+  return engagement.id;
+}
+
 /**
  * Insère un code d'invitation dont le test connaît la valeur en clair.
  * En base, seule l'empreinte est stockée — comme en production.
@@ -124,11 +166,14 @@ export async function createInvitationCode(params: {
   code: string;
   createdById: string;
   farmId?: string | null;
-  role?: 'OWNER' | 'ADMIN' | 'EMPLOYEE' | 'VIEWER';
+  /** `ADVISOR` n'est pas un rôle de membre : il marque un code de mission. */
+  role?: 'OWNER' | 'ADMIN' | 'EMPLOYEE' | 'VIEWER' | 'ADVISOR';
   email?: string | null;
   grantsPlatformAdmin?: boolean;
   expiresInMs?: number;
   revoked?: boolean;
+  purpose?: 'ACCOUNT' | 'ADVISORY_ACCESS';
+  accountType?: 'FARMER' | 'AGRONOMIST';
 }): Promise<{ id: string; code: string }> {
   const normalized = params.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const invitation = await prisma.invitationCode.create({
@@ -140,6 +185,8 @@ export async function createInvitationCode(params: {
       role: params.role ?? 'OWNER',
       email: params.email ? params.email.toLowerCase() : null,
       grantsPlatformAdmin: params.grantsPlatformAdmin ?? false,
+      purpose: params.purpose ?? 'ACCOUNT',
+      accountType: params.accountType ?? 'FARMER',
       expiresAt: new Date(Date.now() + (params.expiresInMs ?? 14 * 24 * 3600 * 1000)),
       revokedAt: params.revoked ? new Date() : null,
     },

@@ -2,6 +2,7 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 import { ApiError } from '@/lib/api/errors';
 import {
+  requireAgronomist,
   requireAuth,
   requireFarmAccess,
   requireParcelAccess,
@@ -55,6 +56,21 @@ export async function requirePageAdmin(): Promise<AuthContext> {
     return await requirePlatformAdmin();
   } catch (error) {
     if (error instanceof ApiError && error.code === 'FORBIDDEN') {
+      redirect('/dashboard');
+    }
+    handleAuthFailure(error);
+  }
+}
+
+/**
+ * Espace expert. Un compte d'exploitation est renvoyé vers son tableau de
+ * bord : la section existe, elle n'est simplement pas la sienne.
+ */
+export async function requirePageAgronomist(): Promise<AuthContext> {
+  try {
+    return await requireAgronomist();
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'NOT_AGRONOMIST') {
       redirect('/dashboard');
     }
     handleAuthFailure(error);

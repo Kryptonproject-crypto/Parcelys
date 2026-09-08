@@ -23,7 +23,7 @@ import { conflict } from '@/lib/api/errors';
  */
 export const GET = route(async (request: NextRequest) => {
   const query = parseQuery(request, parcelQuerySchema);
-  const ctx = await requireFarmAccess('parcel:read');
+  const ctx = await requireFarmAccess('parcel:read', query.farmId);
   const year = query.year ?? currentCampaignYear();
 
   const where: Prisma.ParcelWhereInput = {

@@ -16,7 +16,13 @@ export type DashboardStats = {
 };
 
 /** Nature du point à traiter ; la page choisit l'icône correspondante. */
-export type TodoKind = 'crop' | 'phyto' | 'registry' | 'ephy' | 'weather';
+export type TodoKind =
+  | 'crop'
+  | 'phyto'
+  | 'registry'
+  | 'ephy'
+  | 'weather'
+  | 'advisory';
 
 export type TodoItem = {
   id: string;
@@ -170,6 +176,21 @@ async function buildTodoList(params: {
   cropYearParcelIds: Set<string>;
 }): Promise<TodoItem[]> {
   const todo: TodoItem[] = [];
+
+  // Préconisations d'expert restées sans réponse : c'est un tiers qui attend,
+  // ça passe donc avant les anomalies internes.
+  const pendingAdvice = await prisma.recommendation.count({
+    where: { farmId: params.farmId, status: 'PROPOSED' },
+  });
+  if (pendingAdvice > 0) {
+    todo.push({
+      id: 'pending-advice',
+      kind: 'advisory',
+      label: `${pendingAdvice} préconisation${pendingAdvice > 1 ? 's' : ''} d'expert en attente de votre décision`,
+      link: '/preconisations?statut=attente',
+      severity: 'warning',
+    });
+  }
 
   const withoutCrop = params.parcels.filter((p) => !params.cropYearParcelIds.has(p.id));
   if (withoutCrop.length > 0) {

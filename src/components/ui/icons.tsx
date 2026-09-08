@@ -88,6 +88,10 @@ export {
   MailCheck as IconMailCheck,
   Power as IconPower,
   Eraser as IconPurge,
+
+  // Conseil agronomique
+  Lightbulb as IconAdvisor,
+  Handshake as IconEngagement,
 } from 'lucide-react';
 
 export type { LucideIcon } from 'lucide-react';

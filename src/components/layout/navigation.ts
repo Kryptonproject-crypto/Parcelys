@@ -6,6 +6,7 @@ import {
   IconInvitation,
   IconMaintenance,
   IconUsers,
+  IconAdvisor,
   IconDocuments,
   IconCrops,
   IconExport,
@@ -59,6 +60,12 @@ export const MAIN_NAV: NavItem[] = [
     group: 'suivi',
   },
   { href: '/meteo', label: 'Météo', icon: IconWeather, group: 'suivi' },
+  {
+    href: '/preconisations',
+    label: 'Préconisations',
+    icon: IconAdvisor,
+    group: 'suivi',
+  },
 
   { href: '/registres', label: 'Registres', icon: IconRegistry, group: 'documents' },
   { href: '/historique', label: 'Historique', icon: IconHistory, group: 'documents' },

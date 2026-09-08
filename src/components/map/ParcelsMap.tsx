@@ -38,6 +38,11 @@ type Props = {
    * être transmise depuis un composant serveur.
    */
   readOnly?: boolean;
+  /**
+   * Préfixe des liens de parcelle. L'espace expert ouvre les fiches sous
+   * `/portefeuille/<exploitation>/parcelles`, l'exploitant sous `/parcelles`.
+   */
+  linkBase?: string;
   heightClass?: string;
   showLayerSwitch?: boolean;
 };
@@ -50,6 +55,7 @@ export function ParcelsMap({
   selectedId,
   onSelect,
   readOnly = false,
+  linkBase = '/parcelles',
   heightClass = 'h-[420px]',
   showLayerSwitch = true,
 }: Props) {
@@ -128,7 +134,7 @@ export function ParcelsMap({
       if (!readOnly) {
         layer.on('click', () => {
           if (onSelect) onSelect(parcel.id);
-          else router.push(`/parcelles/${parcel.id}`);
+          else router.push(`${linkBase}/${parcel.id}`);
         });
       }
 
@@ -146,7 +152,7 @@ export function ParcelsMap({
       const bounds = group.getBounds();
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
     }
-  }, [parcels, selectedId, onSelect, readOnly, router]);
+  }, [parcels, selectedId, onSelect, readOnly, linkBase, router]);
 
   // Recentre sur la parcelle sélectionnée.
   useEffect(() => {

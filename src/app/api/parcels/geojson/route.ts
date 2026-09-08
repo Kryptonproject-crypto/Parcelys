@@ -6,7 +6,10 @@ import type { NextRequest } from 'next/server';
 
 /** GET /api/parcels/geojson — parcelles de l'exploitation au format GeoJSON. */
 export const GET = route(async (request: NextRequest) => {
-  const ctx = await requireFarmAccess('parcel:read');
+  const ctx = await requireFarmAccess(
+    'parcel:read',
+    request.nextUrl.searchParams.get('farmId'),
+  );
   const yearParam = request.nextUrl.searchParams.get('year');
   const year = yearParam ? Number(yearParam) : currentCampaignYear();
 

@@ -67,6 +67,12 @@ export const parcelUpdateSchema = parcelCreateSchema
   .extend({ geometry: geometrySchema.optional() });
 
 export const parcelQuerySchema = z.object({
+  /**
+   * Exploitation visée, quand elle diffère de l'exploitation active : c'est le
+   * cas de l'expert agronomique, qui consulte plusieurs portefeuilles sans
+   * jamais « basculer » de compte. Un identifiant hors périmètre renvoie 404.
+   */
+  farmId: z.string().optional(),
   search: z.string().trim().max(120).optional(),
   cropId: z.string().optional(),
   status: z.enum(['ACTIVE', 'FALLOW', 'ARCHIVED']).optional(),
@@ -189,6 +195,8 @@ export const documentMetaSchema = z.object({
 });
 
 export const exportQuerySchema = z.object({
+  /** Exploitation visée — voir `parcelQuerySchema.farmId`. */
+  farmId: z.string().optional(),
   dataset: z.enum(['parcelles', 'phytosanitaire', 'apports', 'historique', 'travaux', 'cultures']),
   format: z.enum(['csv', 'xlsx', 'pdf']),
   year: z.coerce.number().int().min(1900).max(2200).optional(),

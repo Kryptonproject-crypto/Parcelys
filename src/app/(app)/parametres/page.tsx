@@ -5,6 +5,7 @@ import { roleHasPermission, ROLE_LABELS } from '@/lib/auth/rbac';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { FarmForm } from '@/app/(app)/parametres/FarmForm';
+import { AdvisorsPanel } from '@/app/(app)/parametres/AdvisorsPanel';
 import {
   Alert,
   Badge,
@@ -101,6 +102,9 @@ export default async function SettingsPage() {
             </div>
           </Card>
         ) : null}
+
+        {/* Experts agronomiques */}
+        <AdvisorsPanel canManage={roleHasPermission(ctx.role, 'advisor:manage')} />
 
         {/* Référentiel E-Phy */}
         <Card>
