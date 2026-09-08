@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { prisma, resetDatabase, createUserWithFarm } from './helpers/db';
+import {
+  createInvitationCode,
+  createUserWithFarm,
+  prisma,
+  resetDatabase,
+} from './helpers/db';
 import { startServer, stopServer, TestClient } from './helpers/server';
 import { hashToken } from '../src/lib/auth/tokens';
 import { hashPassword, verifyPassword } from '../src/lib/auth/password';
@@ -31,7 +36,7 @@ describe('Authentification', () => {
       acceptPrivacy: true,
     };
 
-    it('crée le compte, l’exploitation et le référentiel de cultures', async () => {
+    it('crée le compte, l’exploitation et le référentiel de cultures (amorçage)', async () => {
       const client = new TestClient();
       const response = await client.post<{ email: string }>(
         '/api/auth/register',
@@ -50,6 +55,9 @@ describe('Authentification', () => {
       expect(user.emailVerifiedAt).toBeNull();
       expect(client.hasSession()).toBe(false);
 
+      // Base vide : ce premier compte administre l'instance.
+      expect(user.isPlatformAdmin).toBe(true);
+
       expect(user.memberships).toHaveLength(1);
       expect(user.memberships[0]?.role).toBe('OWNER');
       expect(user.memberships[0]?.farm.name).toBe('GAEC des Prés');
@@ -58,6 +66,23 @@ describe('Authentification', () => {
         where: { farmId: user.memberships[0]?.farmId },
       });
       expect(crops).toBeGreaterThan(20);
+    });
+
+    it('refuse toute inscription sans code dès qu’un compte existe', async () => {
+      await createUserWithFarm({
+        email: 'premier@ferme.test',
+        farmName: 'Ferme Première',
+        platformAdmin: true,
+      });
+
+      const response = await new TestClient().post<{ error: { code: string } }>(
+        '/api/auth/register',
+        validPayload,
+      );
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe('INVITATION_REQUIRED');
+      expect(await prisma.user.count({ where: { emailNormalized: validPayload.email } })).toBe(0);
     });
 
     it('ne stocke jamais le mot de passe en clair', async () => {
@@ -88,12 +113,25 @@ describe('Authentification', () => {
       const client = new TestClient();
       await client.post('/api/auth/register', validPayload);
 
+      // Le premier compte a consommé l'amorçage : le second a besoin d'un code.
+      const admin = await prisma.user.findFirstOrThrow({
+        where: { emailNormalized: validPayload.email },
+      });
+      await createInvitationCode({
+        code: 'PRCL-DUPL-CODE-0001',
+        createdById: admin.id,
+      });
+
       const second = await client.post<{ error: { code: string } }>(
         '/api/auth/register',
-        validPayload,
+        { ...validPayload, invitationCode: 'PRCL-DUPL-CODE-0001' },
       );
       expect(second.status).toBe(409);
       expect(second.body.error.code).toBe('CONFLICT');
+
+      // Le code n'a pas été consommé par une inscription qui a échoué.
+      const invitation = await prisma.invitationCode.findFirstOrThrow({});
+      expect(invitation.usedAt).toBeNull();
     });
 
     it('refuse un mot de passe trop faible et signale le champ', async () => {

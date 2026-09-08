@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireFarmAccess,
   requireParcelAccess,
+  requirePlatformAdmin,
   type FarmContext,
   type Permission,
 } from '@/lib/auth/rbac';
@@ -30,6 +31,7 @@ function handleAuthFailure(error: unknown, email?: string): never {
           : '/verification-email',
       );
     }
+    if (error.code === 'MAINTENANCE') redirect('/maintenance');
   }
   throw error;
 }
@@ -38,6 +40,23 @@ export async function requirePageAuth(): Promise<AuthContext> {
   try {
     return await requireAuth();
   } catch (error) {
+    handleAuthFailure(error);
+  }
+}
+
+/**
+ * Section d'administration. Un utilisateur authentifié mais non administrateur
+ * est renvoyé vers son tableau de bord plutôt que sur une page d'erreur :
+ * l'existence de la section n'a rien de secret, et une 403 en pleine navigation
+ * est déroutante.
+ */
+export async function requirePageAdmin(): Promise<AuthContext> {
+  try {
+    return await requirePlatformAdmin();
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'FORBIDDEN') {
+      redirect('/dashboard');
+    }
     handleAuthFailure(error);
   }
 }

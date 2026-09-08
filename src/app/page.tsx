@@ -96,7 +96,7 @@ export default async function HomePage() {
               Se connecter
             </LinkButton>
             <LinkButton href="/inscription" size="sm">
-              Créer mon compte
+              J&apos;ai un code d&apos;invitation
             </LinkButton>
           </nav>
         </div>
@@ -137,13 +137,18 @@ export default async function HomePage() {
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
-              <LinkButton href="/inscription" size="lg" icon={IconArrowRight}>
-                Créer mon compte
-              </LinkButton>
-              <LinkButton href="/connexion" variant="outline" size="lg">
+              <LinkButton href="/connexion" size="lg" icon={IconArrowRight}>
                 Se connecter
               </LinkButton>
+              <LinkButton href="/inscription" variant="outline" size="lg">
+                J&apos;ai un code d&apos;invitation
+              </LinkButton>
             </div>
+
+            <p className="mt-4 text-[13.5px] text-ink-3">
+              Instance privée : la création de compte se fait sur invitation d&apos;un
+              administrateur.
+            </p>
 
             <dl className="mt-12 grid max-w-2xl grid-cols-2 gap-x-8 gap-y-5 border-t border-line pt-8 sm:grid-cols-4">
               {[
@@ -261,15 +266,16 @@ export default async function HomePage() {
               Prêt à cartographier votre exploitation ?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-champ-100">
-              Créez votre compte, tracez votre première parcelle, et vos registres se
-              construisent au fil de vos saisies.
+              Munissez-vous du code d&apos;invitation remis par votre administrateur, tracez
+              votre première parcelle, et vos registres se construisent au fil de vos
+              saisies.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
                 href="/inscription"
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-white px-6 text-[15px] font-medium text-champ-800 shadow-raised transition-transform hover:-translate-y-0.5"
               >
-                Créer mon compte
+                Activer mon code d&apos;invitation
                 <IconArrowRight size={17} aria-hidden />
               </Link>
             </div>

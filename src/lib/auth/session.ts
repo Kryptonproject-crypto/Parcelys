@@ -14,6 +14,8 @@ export type SessionUser = {
   locale: string;
   unitSystem: string;
   isDemo: boolean;
+  /** Administrateur de l'instance — voir `src/lib/auth/invitations.ts`. */
+  isPlatformAdmin: boolean;
 };
 
 export type SessionMembership = {
@@ -99,6 +101,9 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   if (!session || session.revokedAt) return null;
   if (session.expiresAt.getTime() < Date.now()) return null;
   if (session.user.deletedAt) return null;
+  // Suspension par un administrateur : la session en cours cesse aussitôt
+  // d'être valide, sans attendre son expiration.
+  if (session.user.suspendedAt) return null;
 
   const idleLimitMs = env.SESSION_IDLE_TIMEOUT_HOURS * 3600 * 1000;
   if (Date.now() - session.lastUsedAt.getTime() > idleLimitMs) {
@@ -139,6 +144,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       locale: session.user.locale,
       unitSystem: session.user.unitSystem,
       isDemo: session.user.isDemo,
+      isPlatformAdmin: session.user.isPlatformAdmin,
     },
     memberships,
     activeFarmId,

@@ -218,6 +218,11 @@ async function seedDemoFarm(): Promise<void> {
       acceptedTermsAt: new Date(),
       acceptedPrivacyAt: new Date(),
       isDemo: true,
+      // Le compte de démonstration administre aussi l'instance : sans lui,
+      // une base fraîchement semée n'aurait personne pour délivrer les codes
+      // d'invitation, et l'inscription étant fermée, plus aucun compte ne
+      // pourrait être créé.
+      isPlatformAdmin: true,
     },
   });
 
@@ -474,6 +479,9 @@ async function seedDemoFarm(): Promise<void> {
     `  ${DEMO_PARCELS.length} parcelles, ${totalArea.toFixed(2)} ha au total (superficies calculées par PostGIS)`,
   );
   console.info(`  Compte de démonstration : ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+  console.info(
+    '  Ce compte est administrateur de l’instance : /administration pour inviter d’autres utilisateurs.',
+  );
 }
 
 async function main(): Promise<void> {

@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -39,6 +40,8 @@ export function migrateTestDatabase(): void {
  * racines.
  */
 const TABLES_IN_DELETION_ORDER = [
+  'invitation_codes',
+  'app_settings',
   'audit_logs',
   'notifications',
   'documents',
@@ -85,6 +88,8 @@ export async function createUserWithFarm(params: {
   farmName: string;
   password?: string;
   role?: 'OWNER' | 'ADMIN' | 'EMPLOYEE' | 'VIEWER';
+  /** Administrateur de l'instance (section /administration). */
+  platformAdmin?: boolean;
 }): Promise<TestUser> {
   const password = params.password ?? 'MotDePasse1';
   const user = await prisma.user.create({
@@ -97,6 +102,7 @@ export async function createUserWithFarm(params: {
       emailVerifiedAt: new Date(),
       acceptedTermsAt: new Date(),
       acceptedPrivacyAt: new Date(),
+      isPlatformAdmin: params.platformAdmin ?? false,
     },
   });
 
@@ -108,6 +114,37 @@ export async function createUserWithFarm(params: {
   });
 
   return { id: user.id, email: user.email, password, farmId: farm.id };
+}
+
+/**
+ * Insère un code d'invitation dont le test connaît la valeur en clair.
+ * En base, seule l'empreinte est stockée — comme en production.
+ */
+export async function createInvitationCode(params: {
+  code: string;
+  createdById: string;
+  farmId?: string | null;
+  role?: 'OWNER' | 'ADMIN' | 'EMPLOYEE' | 'VIEWER';
+  email?: string | null;
+  grantsPlatformAdmin?: boolean;
+  expiresInMs?: number;
+  revoked?: boolean;
+}): Promise<{ id: string; code: string }> {
+  const normalized = params.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const invitation = await prisma.invitationCode.create({
+    data: {
+      codeHash: createHash('sha256').update(normalized).digest('hex'),
+      codeHint: `PRCL-${normalized.slice(4, 8)}`,
+      createdById: params.createdById,
+      farmId: params.farmId ?? null,
+      role: params.role ?? 'OWNER',
+      email: params.email ? params.email.toLowerCase() : null,
+      grantsPlatformAdmin: params.grantsPlatformAdmin ?? false,
+      expiresAt: new Date(Date.now() + (params.expiresInMs ?? 14 * 24 * 3600 * 1000)),
+      revokedAt: params.revoked ? new Date() : null,
+    },
+  });
+  return { id: invitation.id, code: params.code };
 }
 
 /** Polygone rectangulaire fermé, en coordonnées GeoJSON [lng, lat]. */

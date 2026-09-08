@@ -4,17 +4,72 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ApiRequestError, apiPost } from '@/lib/client/api';
-import { Alert, Button, Field, Input, Spinner } from '@/components/ui';
+import {
+  CODE_PLACEHOLDER,
+  formatInvitationCode,
+} from '@/lib/auth/invitations.shared';
+import { Alert, Badge, Button, Field, Input } from '@/components/ui';
+import { IconInvitation, IconSecurity } from '@/components/ui/icons';
 
 type RegisterResponse = { email: string; message: string };
 
-export function RegisterForm() {
+type InvitationScope = {
+  scope: 'NEW_FARM' | 'EXISTING_FARM';
+  farmName: string | null;
+  role: string;
+  roleLabel: string;
+  email: string | null;
+  grantsPlatformAdmin: boolean;
+  expiresAt: string;
+};
+
+/**
+ * Inscription en deux temps.
+ *
+ * L'instance est fermée : le code d'invitation est vérifié d'abord, ce qui
+ * permet ensuite d'afficher précisément ce qu'il donne — rejoindre une
+ * exploitation existante ou en créer une — plutôt que de demander à l'aveugle
+ * un nom d'exploitation dont l'invité n'a parfois pas besoin.
+ *
+ * Le premier compte d'une instance vierge (`bootstrap`) n'a pas de code à
+ * fournir : personne ne peut encore lui en délivrer.
+ */
+export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
   const router = useRouter();
+
+  const [code, setCode] = useState('');
+  const [invitation, setInvitation] = useState<InvitationScope | null>(null);
+  const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+  const step = bootstrap || invitation ? 'account' : 'code';
+  const needsFarmName = bootstrap || invitation?.scope === 'NEW_FARM';
+
+  async function checkCode(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setChecking(true);
+    setError(null);
+    setFieldErrors({});
+
+    try {
+      const result = await apiPost<InvitationScope>('/api/auth/invitation/check', {
+        code,
+      });
+      setInvitation(result);
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'Impossible de contacter le serveur. Réessayez.',
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function register(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
@@ -22,6 +77,7 @@ export function RegisterForm() {
 
     const form = new FormData(event.currentTarget);
     const payload = {
+      invitationCode: bootstrap ? '' : code,
       firstName: String(form.get('firstName') ?? ''),
       lastName: String(form.get('lastName') ?? ''),
       email: String(form.get('email') ?? ''),
@@ -40,6 +96,8 @@ export function RegisterForm() {
       if (err instanceof ApiRequestError) {
         setError(err.message);
         setFieldErrors(err.fieldErrors);
+        // Le code a expiré ou vient d'être utilisé : on revient à l'étape 1.
+        if (err.code.startsWith('INVITATION')) setInvitation(null);
       } else {
         setError('Impossible de contacter le serveur. Réessayez.');
       }
@@ -47,9 +105,98 @@ export function RegisterForm() {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Étape 1 — le code
+  // ---------------------------------------------------------------------
+  if (step === 'code') {
+    return (
+      <form onSubmit={checkCode} className="space-y-4" noValidate>
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+
+        <Alert tone="info" icon={IconSecurity}>
+          Les inscriptions libres sont fermées sur cette instance. Un code délivré par un
+          administrateur est nécessaire pour créer un compte.
+        </Alert>
+
+        <Field
+          label="Code d'invitation"
+          htmlFor="code"
+          required
+          hint="Il vous a été transmis par l'administrateur de votre exploitation."
+        >
+          <Input
+            id="code"
+            name="code"
+            value={code}
+            onChange={(event) => setCode(formatInvitationCode(event.target.value))}
+            placeholder={CODE_PLACEHOLDER}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            required
+            className="font-mono tracking-[0.12em]"
+          />
+        </Field>
+
+        <Button
+          type="submit"
+          size="lg"
+          icon={IconInvitation}
+          className="w-full"
+          loading={checking}
+        >
+          Vérifier le code
+        </Button>
+      </form>
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Étape 2 — le compte
+  // ---------------------------------------------------------------------
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+    <form onSubmit={register} className="space-y-4" noValidate>
       {error ? <Alert tone="danger">{error}</Alert> : null}
+
+      {bootstrap ? (
+        <Alert tone="warning" icon={IconSecurity} title="Premier compte de l'instance">
+          Aucun compte n&apos;existe encore : celui-ci sera administrateur de
+          l&apos;instance et pourra ensuite inviter les autres utilisateurs.
+        </Alert>
+      ) : invitation ? (
+        <div className="rounded-lg border border-champ-500/40 bg-champ-50/70 p-3.5 text-sm dark:bg-champ-900/25">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-medium text-ink">Code valide</p>
+              <p className="mt-0.5 text-ink-2">
+                {invitation.scope === 'EXISTING_FARM' ? (
+                  <>
+                    Vous rejoindrez «&nbsp;{invitation.farmName}&nbsp;» comme{' '}
+                    <strong>{invitation.roleLabel.toLowerCase()}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Vous créerez votre propre exploitation et en serez{' '}
+                    <strong>propriétaire</strong>.
+                  </>
+                )}
+              </p>
+              {invitation.grantsPlatformAdmin ? (
+                <Badge tone="blue" icon={IconSecurity} className="mt-2">
+                  Administrateur de l&apos;instance
+                </Badge>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setInvitation(null)}
+              className="shrink-0 text-[12.5px] text-champ-700 underline dark:text-champ-400"
+            >
+              Changer
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Prénom" htmlFor="firstName" required error={fieldErrors.firstName}>
@@ -60,8 +207,26 @@ export function RegisterForm() {
         </Field>
       </div>
 
-      <Field label="Adresse e-mail" htmlFor="email" required error={fieldErrors.email}>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+      <Field
+        label="Adresse e-mail"
+        htmlFor="email"
+        required
+        error={fieldErrors.email}
+        hint={
+          invitation?.email
+            ? 'Ce code est réservé à l’adresse indiquée ci-dessous.'
+            : undefined
+        }
+      >
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          defaultValue={invitation?.email ?? ''}
+          readOnly={Boolean(invitation?.email)}
+        />
       </Field>
 
       <Field
@@ -95,25 +260,29 @@ export function RegisterForm() {
         />
       </Field>
 
-      <hr className="border-line" />
+      {needsFarmName ? (
+        <>
+          <hr className="border-line" />
 
-      <Field
-        label="Nom de l'exploitation"
-        htmlFor="farmName"
-        required
-        error={fieldErrors.farmName}
-      >
-        <Input id="farmName" name="farmName" placeholder="EARL des Trois Chênes" required />
-      </Field>
+          <Field
+            label="Nom de l'exploitation"
+            htmlFor="farmName"
+            required
+            error={fieldErrors.farmName}
+          >
+            <Input id="farmName" name="farmName" placeholder="EARL des Trois Chênes" required />
+          </Field>
 
-      <Field
-        label="SIRET / SIREN"
-        htmlFor="siret"
-        hint="Facultatif — 14 chiffres (SIRET) ou 9 chiffres (SIREN)."
-        error={fieldErrors.siret}
-      >
-        <Input id="siret" name="siret" inputMode="numeric" />
-      </Field>
+          <Field
+            label="SIRET / SIREN"
+            htmlFor="siret"
+            hint="Facultatif — 14 chiffres (SIRET) ou 9 chiffres (SIREN)."
+            error={fieldErrors.siret}
+          >
+            <Input id="siret" name="siret" inputMode="numeric" />
+          </Field>
+        </>
+      ) : null}
 
       <div className="space-y-2 rounded-lg bg-surface-2 p-3">
         <label className="flex items-start gap-2.5 text-sm text-ink-2">
@@ -153,8 +322,7 @@ export function RegisterForm() {
         ) : null}
       </div>
 
-      <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-        {submitting ? <Spinner /> : null}
+      <Button type="submit" size="lg" className="w-full" loading={submitting}>
         {submitting ? 'Création…' : 'Créer mon compte'}
       </Button>
     </form>

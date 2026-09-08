@@ -26,14 +26,35 @@ export const siretSchema = z
     'Le SIRET doit comporter 14 chiffres et le SIREN 9 chiffres',
   );
 
+/**
+ * Code d'invitation. Sa forme imprimée est `PRCL-XXXX-XXXX-XXXX`, mais on
+ * accepte toute saisie (espaces, minuscules, tirets manquants) : la
+ * normalisation est faite côté serveur.
+ */
+export const invitationCodeSchema = z
+  .string()
+  .trim()
+  .min(8, "Code d'invitation requis")
+  .max(64, "Code d'invitation invalide");
+
+export const checkInvitationSchema = z.object({
+  code: invitationCodeSchema,
+  email: emailSchema.optional().or(z.literal('')),
+});
+
 export const registerSchema = z
   .object({
+    /** Facultatif dans le schéma seulement pour l'amorçage du tout premier
+     *  compte ; la route l'exige dans tous les autres cas. */
+    invitationCode: invitationCodeSchema.optional().or(z.literal('')),
     firstName: z.string().trim().min(1, 'Prénom requis').max(80),
     lastName: z.string().trim().min(1, 'Nom requis').max(80),
     email: emailSchema,
     password: passwordSchema,
     passwordConfirmation: z.string(),
-    farmName: z.string().trim().min(1, "Nom de l'exploitation requis").max(150),
+    /** Requis uniquement lorsque l'invitation ne rattache pas à une
+     *  exploitation existante — vérifié par la route. */
+    farmName: z.string().trim().max(150).optional().or(z.literal('')),
     siret: siretSchema.optional().or(z.literal('')),
     acceptTerms: z.literal(true, {
       errorMap: () => ({ message: 'Vous devez accepter les CGU' }),

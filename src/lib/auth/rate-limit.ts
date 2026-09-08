@@ -74,6 +74,8 @@ export async function purgeExpiredRateLimits(): Promise<number> {
 export const RateLimits = {
   login: { limit: 10, windowSeconds: 15 * 60 },
   register: { limit: 5, windowSeconds: 60 * 60 },
+  /** Essais de code d'invitation : empêche de balayer l'espace des codes. */
+  invitationAttempt: { limit: 10, windowSeconds: 15 * 60 },
   passwordReset: { limit: 5, windowSeconds: 60 * 60 },
   verificationAttempt: { limit: 10, windowSeconds: 15 * 60 },
   verificationResend: { limit: 3, windowSeconds: 15 * 60 },

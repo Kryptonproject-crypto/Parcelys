@@ -15,6 +15,7 @@ que sur un Raspberry Pi.
 - [Pile technique](#pile-technique)
 - [Interface](#interface)
 - [Installation](#installation)
+- [Administration et inscriptions](#administration-et-inscriptions)
 - [Configuration](#configuration)
 - [Référentiel phytosanitaire E-Phy](#référentiel-phytosanitaire-e-phy)
 - [Déploiement](#déploiement)
@@ -42,6 +43,7 @@ que sur un Raspberry Pi.
 | **Documents** | Factures, analyses de sol, photos, documents administratifs. Validation d'extension, de type MIME et de signature binaire. |
 | **Exports** | Registre parcellaire, phytosanitaire, apports, cultures, travaux et historique, en **PDF**, **Excel** et **CSV**, filtrables par campagne et par parcelle. |
 | **Multi-exploitations** | Un utilisateur peut appartenir à plusieurs exploitations, avec quatre rôles : propriétaire, administrateur, salarié, lecture seule. |
+| **Administration** | Instance fermée : aucun compte ne peut être créé sans code d'invitation délivré par un administrateur. Onglet dédié pour les comptes, les invitations, les exploitations, le journal d'audit, le mode maintenance et les purges. |
 
 ---
 
@@ -111,11 +113,16 @@ npm run dev
 
 L'application est disponible sur <http://localhost:3000>.
 
-Le seed crée un compte de démonstration :
+Le seed crée un compte de démonstration, qui est aussi **administrateur de
+l'instance** :
 
 ```
 demo@parcelys.local / Demo1234!
 ```
+
+> L'inscription publique est fermée : c'est depuis ce compte, dans l'onglet
+> **Administration**, que se délivrent les codes d'invitation permettant de créer
+> les autres comptes. Voir [Administration et inscriptions](#administration-et-inscriptions).
 
 > Les données de démonstration sont marquées `isDemo` en base, et l'application
 > affiche un bandeau d'avertissement sur ces exploitations. Elles ne sont pas
@@ -133,6 +140,85 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
 Puis reprenez à l'étape 2.
+
+---
+
+## Administration et inscriptions
+
+**L'inscription publique est fermée.** Cliquer sur « Créer mon compte » ne suffit
+pas : il faut un **code d'invitation** délivré par un administrateur de
+l'instance. C'est le mode de fonctionnement d'un service auto-hébergé — vous
+décidez qui entre.
+
+### Deux niveaux d'autorité, à ne pas confondre
+
+| | Portée | Pouvoirs |
+| --- | --- | --- |
+| **Administrateur d'instance** | Toute l'installation | Comptes, invitations, exploitations, journal d'audit, maintenance. **Aucun accès aux parcelles et aux registres** des exploitations dont il n'est pas membre. |
+| **Administrateur d'exploitation** (`FarmRole.ADMIN`) | Une exploitation | Parcelles, saisies, membres et paramètres de cette exploitation. |
+
+### Le premier compte
+
+Sur une base vide, la première inscription se fait **sans code** : personne ne
+peut encore en délivrer. Ce compte devient automatiquement administrateur de
+l'instance. Dès qu'il existe, tout nouveau compte exige une invitation.
+
+Le seed de démonstration crée déjà un tel compte
+(`demo@parcelys.local` / `Demo1234!`) : sur une installation semée, allez
+directement dans **Administration → Invitations**.
+
+### Délivrer une invitation
+
+Depuis **Administration → Invitations**, ou en ligne de commande :
+
+```bash
+npm run admin -- lister                              # administrateurs et codes
+npm run admin -- inviter                             # crée sa propre exploitation
+npm run admin -- inviter --exploitation <id> --role EMPLOYEE
+npm run admin -- inviter --email jean@ferme.fr --jours 7
+npm run admin -- promouvoir camille@exemple.fr       # administrateur d'instance
+npm run admin -- retrograder camille@exemple.fr
+```
+
+Un code a la forme `PRCL-8F3A-KT2M-QWX7` (alphabet sans caractères ambigus, il
+se dicte au téléphone). Il porte :
+
+- l'**exploitation rejointe** — ou aucune, et son titulaire crée la sienne en
+  devenant propriétaire ;
+- le **rôle** accordé dans cette exploitation ;
+- une **adresse e-mail imposée**, facultative ;
+- une **échéance** (14 jours par défaut, 90 au maximum) ;
+- éventuellement le **rôle d'administrateur d'instance**.
+
+Il est **à usage unique** et n'est **affiché qu'une seule fois**, à sa création :
+seule son empreinte SHA-256 est stockée, comme pour les mots de passe et les
+jetons de session. Parcelys ne l'envoie pas par e-mail — transmettez-le
+vous-même.
+
+### Gérer les comptes
+
+**Administration → Utilisateurs** permet de suspendre un compte (sessions fermées
+immédiatement, connexion refusée, données intactes), de le réactiver, de lever un
+verrouillage après échecs de connexion, de valider une adresse e-mail, de fermer
+les sessions ouvertes, d'accorder ou retirer le rôle d'administrateur d'instance,
+et de supprimer un compte.
+
+Deux garde-fous sont appliqués côté serveur : on ne peut ni se suspendre ou se
+déclasser soi-même, ni retirer le **dernier** administrateur — sans quoi
+l'instance deviendrait ingérable. Si cela arrive malgré tout,
+`npm run admin -- promouvoir <email>` rattrape la situation depuis le serveur.
+
+Un compte unique propriétaire d'une exploitation ne peut pas être supprimé sans
+désigner d'abord un autre propriétaire : ses registres deviendraient
+inaccessibles.
+
+### Mode maintenance
+
+**Administration → Maintenance** coupe l'accès à l'application pour tout le monde
+sauf les administrateurs, avec un message personnalisable. Les pages redirigent
+vers `/maintenance` et les écritures API répondent `503 MAINTENANCE`. La même
+page expose l'état du système (PostgreSQL, PostGIS, taille de la base,
+référentiel E-Phy, fournisseurs configurés) et les purges de données périmées.
 
 ---
 
@@ -314,6 +400,16 @@ conservation des journaux (365 jours par défaut, `AUDIT_RETENTION_DAYS`).
 30 3 * * * cd /opt/parcelys && /usr/bin/npm run maintenance >> /var/log/parcelys-maintenance.log 2>&1
 ```
 
+Les mêmes purges sont disponibles à la demande dans **Administration →
+Maintenance**, qui expose aussi le mode maintenance et l'état du système. Pour
+les opérations sur les comptes depuis le serveur (promouvoir un administrateur,
+délivrer un code sans passer par l'interface), voir
+[Administration et inscriptions](#administration-et-inscriptions) :
+
+```bash
+npm run admin -- lister
+```
+
 ---
 
 ## Tests
@@ -323,18 +419,19 @@ npm run build     # requis : les tests d'API démarrent le serveur compilé
 npm test
 ```
 
-**140 tests** répartis en huit suites :
+**167 tests** répartis en neuf suites :
 
 | Suite | Portée |
 | --- | --- |
 | `security-isolation` | Un utilisateur de l'exploitation A ne peut atteindre aucune donnée de l'exploitation B — lecture, écriture, suppression, listes, exports, documents, changement d'exploitation. |
-| `auth` | Inscription, connexion, mauvais mot de passe, verrouillage anti-bruteforce, vérification d'e-mail (code incorrect, expiré, trop de tentatives, renvoi), réinitialisation, sessions, CSRF. |
+| `auth` | Inscription (amorçage du premier compte, refus sans code), connexion, mauvais mot de passe, verrouillage anti-bruteforce, vérification d'e-mail (code incorrect, expiré, trop de tentatives, renvoi), réinitialisation, sessions, CSRF. |
+| `admin` | Administration réservée aux administrateurs d'instance, codes d'invitation (empreinte seule, usage unique, expiration, révocation, restriction d'adresse, rattachement et rôle), suspension et réactivation de comptes, protection du dernier administrateur, mode maintenance, purges. |
 | `parcels` | Création, calcul de superficie PostGIS, géométrie invalide, recouvrement, versionnement, suppression logique, permissions par rôle, filtres. |
 | `agronomy` | Cultures, apports (`dose × surface`, bilan NPK), traitements phytosanitaires, travaux, historique, exports PDF/Excel/CSV. |
 | `ephy-import` | Parsing des CSV officiels (Windows-1252, `;`), correspondance des colonnes, idempotence, colonnes manquantes, recherche, provenance. |
 | `rate-limit` | Fenêtre glissante, isolation par clé, expiration, persistance, purge. |
 | `units` | Calculs de fertilisation, aire géodésique, mots de passe, jetons, validation, campagne culturale. |
-| `pages` | Rendu serveur des 30 pages avec une session réelle, redirections d'authentification, en-têtes de sécurité, origines de tuiles autorisées par la CSP et application du thème sans clignotement. |
+| `pages` | Rendu serveur des pages avec une session réelle, section d'administration visible des seuls administrateurs, redirections d'authentification, en-têtes de sécurité, origines de tuiles autorisées par la CSP et application du thème sans clignotement. |
 
 Les tests d'API et de pages démarrent un vrai serveur Next et passent par la
 chaîne HTTP complète (cookies, CSRF, permissions, rendu serveur). Ils s'exécutent sur une base réelle —
@@ -415,7 +512,10 @@ parcelys/
 | Permissions | Vérifiées côté serveur à chaque route, jamais seulement en interface |
 | Isolation | Chaque requête est contrainte à l'exploitation de l'utilisateur ; un identifiant étranger renvoie **404** et non 403 |
 | Fichiers | Extension, taille, type MIME **et signature binaire** ; nom de stockage aléatoire, pas de traversée de répertoire |
-| Journalisation | Journal d'audit des actions sensibles (connexion, échecs, exports, suppressions) |
+| Journalisation | Journal d'audit des actions sensibles (connexion, échecs, exports, suppressions, opérations d'administration) |
+| Inscriptions | Fermées : un code d'invitation à usage unique, délivré par un administrateur, est exigé. Stocké **haché**, jamais réaffiché, limité en débit contre le balayage |
+| Administration | Autorité distincte des rôles d'exploitation ; vérifiée à chaque page et à chaque route `/api/admin/*`. Impossible de retirer le dernier administrateur ou de se déclasser soi-même |
+| Suspension | Un compte suspendu voit ses sessions révoquées immédiatement et sa reconnexion refusée, après vérification du mot de passe pour ne pas révéler l'existence du compte |
 
 Les en-têtes de sécurité (CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`,
 `Permissions-Policy`) sont définis dans [`next.config.ts`](next.config.ts).
@@ -450,9 +550,16 @@ Aperçu :
 
 | Méthode | Route | Description |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Inscription |
+| `POST` | `/api/auth/register` | Inscription (code d'invitation exigé) |
+| `POST` | `/api/auth/invitation/check` | Vérifie un code sans le consommer |
 | `POST` | `/api/auth/login` | Connexion |
 | `POST` | `/api/auth/verify-email` | Vérification par code |
+| `GET` | `/api/admin/users` | Comptes de l'instance (administrateur) |
+| `PATCH/DELETE` | `/api/admin/users/:id` | Suspendre, réactiver, déverrouiller, supprimer |
+| `GET/POST` | `/api/admin/invitations` | Lister et délivrer des codes |
+| `DELETE` | `/api/admin/invitations/:id` | Révoquer un code |
+| `GET/POST` | `/api/admin/maintenance` | Mode maintenance |
+| `POST` | `/api/admin/cleanup` | Purges de données périmées |
 | `GET` | `/api/parcels` | Liste des parcelles |
 | `POST` | `/api/parcels` | Création (géométrie GeoJSON) |
 | `GET/PUT/DELETE` | `/api/parcels/:id` | Fiche, modification, suppression |

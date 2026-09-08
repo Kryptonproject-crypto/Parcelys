@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { FarmRole } from '@prisma/client';
 import {
+  ADMIN_NAV,
   FOOTER_NAV,
   MAIN_NAV,
   NAV_GROUPS,
@@ -28,6 +29,8 @@ export type ShellUser = {
   firstName: string;
   lastName: string;
   email: string;
+  /** Affiche l'entrée « Administration » — l'accès reste vérifié côté serveur. */
+  isPlatformAdmin: boolean;
 };
 
 export type ShellFarm = {
@@ -265,6 +268,22 @@ export function AppShell({
 
       {/* Compte */}
       <div className="border-t border-white/10 p-3">
+        {user.isPlatformAdmin ? (
+          <Link
+            href={ADMIN_NAV.href}
+            aria-current={isNavActive(pathname, ADMIN_NAV.href) ? 'page' : undefined}
+            className={cn(
+              'mb-2 flex items-center gap-3 rounded-lg border px-3 py-2 text-[13.5px] transition-colors',
+              isNavActive(pathname, ADMIN_NAV.href)
+                ? 'border-ble-400/60 bg-ble-400/15 font-medium text-white'
+                : 'border-white/10 bg-white/5 text-champ-100/80 hover:border-white/20 hover:bg-white/10 hover:text-white',
+            )}
+          >
+            <ADMIN_NAV.icon size={17} aria-hidden className="shrink-0 text-ble-400" />
+            {ADMIN_NAV.label}
+          </Link>
+        ) : null}
+
         <ul className="mb-2 space-y-0.5">
           {FOOTER_NAV.map((item) => {
             const active = isNavActive(pathname, item.href);

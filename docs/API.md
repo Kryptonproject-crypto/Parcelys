@@ -48,12 +48,14 @@ renvoie `403 CSRF_BLOCKED`.
 | --- | --- | --- |
 | 400 | `BAD_REQUEST`, `VALIDATION_ERROR` | Entrée invalide |
 | 401 | `UNAUTHENTICATED` | Session absente, expirée ou révoquée |
-| 403 | `FORBIDDEN`, `EMAIL_NOT_VERIFIED`, `CSRF_BLOCKED` | Droits insuffisants |
+| 403 | `FORBIDDEN`, `EMAIL_NOT_VERIFIED`, `CSRF_BLOCKED`, `ACCOUNT_SUSPENDED` | Droits insuffisants |
+| 403 | `INVITATION_REQUIRED`, `INVITATION_INVALID`, `INVITATION_EMAIL_MISMATCH` | Inscription fermée ou code inutilisable |
 | 404 | `NOT_FOUND` | Ressource inexistante **ou** hors de vos exploitations |
-| 409 | `CONFLICT` | Valeur déjà utilisée |
+| 409 | `CONFLICT`, `INVITATION_ALREADY_USED`, `SELF_ACTION_FORBIDDEN`, `LAST_ADMIN` | Conflit d'état |
 | 423 | `ACCOUNT_LOCKED` | Compte temporairement verrouillé |
 | 429 | `RATE_LIMITED` | Trop de requêtes (en-tête `Retry-After`) |
 | 502 | `WEATHER_UNAVAILABLE`, `GEOCODER_UNAVAILABLE` | Service tiers injoignable |
+| 503 | `MAINTENANCE` | Mode maintenance actif (les administrateurs d'instance passent) |
 
 > **Note de sécurité :** une ressource appartenant à une autre exploitation
 > renvoie **404**, jamais 403 — l'existence de la ressource n'est pas divulguée.
@@ -72,18 +74,28 @@ renvoie `403 CSRF_BLOCKED`.
 | Gérer les membres | ✅ | ✅ | ❌ | ❌ |
 | Exporter | ✅ | ✅ | ✅ | ✅ |
 
+Ces rôles valent **dans une exploitation**. L'accès aux routes `/api/admin/*`
+dépend d'une autorité distincte, l'**administrateur d'instance**, qui ne confère
+en retour aucun accès aux données agronomiques des exploitations dont il n'est
+pas membre.
+
 ---
 
 ## Authentification
 
 ### `POST /api/auth/register`
 
-Crée l'utilisateur, son exploitation (rôle propriétaire), le référentiel de
-cultures de l'exploitation, puis envoie un code de vérification.
-**Aucune session n'est ouverte** tant que l'adresse n'est pas vérifiée.
+Crée l'utilisateur, le rattache à une exploitation (existante ou nouvelle), puis
+envoie un code de vérification. **Aucune session n'est ouverte** tant que
+l'adresse n'est pas vérifiée.
+
+**Un code d'invitation est obligatoire**, sauf pour le tout premier compte d'une
+instance vierge — personne ne peut alors en délivrer, et ce compte devient
+administrateur de l'instance.
 
 ```json
 {
+  "invitationCode": "PRCL-8F3A-KT2M-QWX7",
   "firstName": "Jean",
   "lastName": "Dupont",
   "email": "jean@ferme.fr",
@@ -98,9 +110,42 @@ cultures de l'exploitation, puis envoie un code de vérification.
 
 `201` → `{ "message": "...", "email": "...", "nextStep": "verification-email" }`
 
+`farmName` n'est requis que si le code ne désigne aucune exploitation ; sinon le
+compte rejoint celle prévue par le code, avec le rôle qu'il porte. Le code est à
+usage unique et consommé dans la même transaction que la création du compte :
+deux inscriptions simultanées avec le même code ne peuvent pas aboutir toutes
+les deux. Un code invalide, expiré, révoqué ou déjà utilisé renvoie la même
+erreur `INVITATION_INVALID`, pour ne pas transformer le formulaire en oracle.
+
 Contraintes : mot de passe de 10 caractères minimum avec majuscule, minuscule et
 chiffre ; SIRET à 14 chiffres ou SIREN à 9 ; les deux consentements sont
-obligatoires. Limitation : 5 inscriptions par heure et par IP.
+obligatoires. Limitation : 5 inscriptions par heure et par IP, et 10 essais de
+code par quart d'heure et par IP.
+
+### `POST /api/auth/invitation/check`
+
+Vérifie un code **sans le consommer**, pour que le formulaire d'inscription
+puisse s'adapter. Public, fortement limité en débit.
+
+```json
+{ "code": "PRCL-8F3A-KT2M-QWX7", "email": "jean@ferme.fr" }
+```
+
+`200` →
+
+```json
+{
+  "scope": "EXISTING_FARM",
+  "farmName": "GAEC des Prés",
+  "role": "EMPLOYEE",
+  "roleLabel": "Salarié",
+  "email": null,
+  "grantsPlatformAdmin": false,
+  "expiresAt": "2026-09-22T00:00:00.000Z"
+}
+```
+
+`scope` vaut `NEW_FARM` lorsque le titulaire créera sa propre exploitation.
 
 ### `POST /api/auth/login`
 
@@ -606,6 +651,99 @@ d'inclure une parcelle d'une autre exploitation. Limitation : 30 exports par
 | `DELETE /api/profile/sessions` | Révoque une session (`{ "sessionId": "..." }`) |
 | `GET /api/notifications` | Notifications + nombre de non lues |
 | `PATCH /api/notifications` | Marque comme lues (`{ "ids": [...] }` ou tout) |
+
+---
+
+## Administration de l'instance
+
+Toutes ces routes exigent un compte **administrateur d'instance**
+(`User.isPlatformAdmin`). Pour tout autre compte elles répondent `403 FORBIDDEN`,
+et `401` sans session.
+
+### `GET /api/admin/users`
+
+Paramètres : `statut` (`tous`, `actifs`, `suspendus`, `non-verifies`, `admins`)
+et `q` (nom ou adresse).
+
+`200` → `{ "users": [...], "count": 12 }`. Chaque compte porte son état
+(administrateur, suspendu, adresse vérifiée, verrouillage, sessions actives) et
+ses appartenances avec le rôle correspondant.
+
+### `PATCH /api/admin/users/:id`
+
+Une action nommée par requête — l'API n'expose aucun champ modifiable
+directement, et ne permet ni de changer le mot de passe ni l'adresse d'un tiers.
+
+```json
+{ "action": "suspend", "reason": "Départ de l'exploitation" }
+```
+
+| `action` | Effet |
+| --- | --- |
+| `suspend` | Bloque la connexion et révoque immédiatement les sessions ouvertes |
+| `restore` | Lève la suspension |
+| `unlock` | Efface le verrouillage anti-bruteforce et le compteur d'échecs |
+| `verify-email` | Marque l'adresse comme vérifiée |
+| `revoke-sessions` | Ferme toutes les sessions du compte |
+| `set-platform-admin` | Accorde ou retire le rôle d'administrateur (`{ "value": true }`) |
+
+`409 SELF_ACTION_FORBIDDEN` si l'on tente de se suspendre ou de se déclasser
+soi-même ; `409 LAST_ADMIN` si l'opération laisserait l'instance sans
+administrateur.
+
+### `DELETE /api/admin/users/:id`
+
+Suppression logique : accès supprimé, sessions révoquées. Les enregistrements
+réglementaires saisis restent attachés à leur exploitation — l'exploitant doit
+les conserver. `409 CONFLICT` si le compte est l'unique propriétaire d'une
+exploitation.
+
+### `GET` · `POST /api/admin/invitations`
+
+`POST` délivre un code :
+
+```json
+{
+  "farmId": "clx…",
+  "role": "EMPLOYEE",
+  "email": "jean@ferme.fr",
+  "grantsPlatformAdmin": false,
+  "note": "Nouveau salarié",
+  "validityDays": 14
+}
+```
+
+`201` → `{ "code": "PRCL-8F3A-KT2M-QWX7", "invitation": { … } }`
+
+**C'est la seule réponse contenant le code en clair** : seule son empreinte
+SHA-256 est stockée, et `GET` ne renvoie qu'un indice (`codeHint`). `farmId` vide
+signifie que le titulaire créera sa propre exploitation, avec le rôle
+propriétaire.
+
+### `DELETE /api/admin/invitations/:id`
+
+Révoque un code non encore utilisé. `409 CONFLICT` s'il a déjà servi : la trace
+de son émission fait partie du journal et n'est pas effacée.
+
+### `GET` · `POST /api/admin/maintenance`
+
+```json
+{ "enabled": true, "message": "Migration de la base en cours." }
+```
+
+Mode maintenance : les pages redirigent vers `/maintenance` et les routes
+métier répondent `503 MAINTENANCE`. Les administrateurs d'instance conservent
+l'accès complet — sans quoi personne ne pourrait lever le mode.
+
+### `POST /api/admin/cleanup`
+
+```json
+{ "targets": ["sessions", "rate-limits", "invitations", "audit"], "auditRetentionDays": 365 }
+```
+
+Purges rejouables : sessions expirées ou révoquées, compteurs de limitation,
+codes caducs jamais utilisés, journal d'audit au-delà de sa durée de
+conservation. `200` → `{ "message": "...", "results": { … } }`.
 
 ---
 

@@ -13,6 +13,7 @@ import { getBaseUrl, startServer, stopServer, TestClient } from './helpers/serve
 describe('Rendu des pages', () => {
   let client: TestClient;
   let cookie: string;
+  let adminCookie: string;
   let parcelId: string;
 
   /** Récupère une page en suivant la session et renvoie son HTML. */
@@ -32,12 +33,31 @@ describe('Rendu des pages', () => {
   }
 
   /** Une page rendue sans exception serveur et contenant le texte attendu. */
-  async function expectPage(path: string, expectedText: string): Promise<void> {
-    const { status, html } = await fetchPage(path);
-    expect(status, `${path} — statut HTTP`).toBe(200);
+  async function expectPage(
+    path: string,
+    expectedText: string,
+    sessionCookie?: string,
+  ): Promise<void> {
+    const response = await fetch(`${getBaseUrl()}${path}`, {
+      headers: { Cookie: sessionCookie ?? cookie },
+      redirect: 'manual',
+    });
+    const html = await response.text();
+    expect(response.status, `${path} — statut HTTP`).toBe(200);
     // Next renvoie cette page générique en cas d'exception non gérée.
     expect(html, `${path} — exception serveur`).not.toContain('server-side exception');
     expect(html, `${path} — contenu`).toContain(expectedText);
+  }
+
+  /** Récupère le cookie de session d'un compte fraîchement connecté. */
+  async function sessionCookieFor(email: string, password: string): Promise<string> {
+    const login = await new TestClient().login(email, password);
+    return (
+      login.headers
+        .getSetCookie()
+        .find((c) => c.startsWith('parcelys_session='))
+        ?.split(';')[0] ?? ''
+    );
   }
 
   beforeAll(async () => {
@@ -48,6 +68,14 @@ describe('Rendu des pages', () => {
       email: 'pages@ferme.test',
       farmName: 'Ferme des Pages',
     });
+
+    const admin = await createUserWithFarm({
+      email: 'pages-admin@ferme.test',
+      farmName: 'Ferme Administration',
+      platformAdmin: true,
+    });
+    adminCookie = await sessionCookieFor(admin.email, admin.password);
+    expect(adminCookie).not.toBe('');
 
     client = new TestClient();
     const login = await client.login(owner.email, owner.password);
@@ -162,6 +190,44 @@ describe('Rendu des pages', () => {
     ] as const) {
       await expectPage(path, text);
     }
+  });
+
+  it('affiche la section d’administration à un administrateur d’instance', async () => {
+    // Textes sans apostrophe : React échappe `'` en `&#x27;` dans le HTML.
+    for (const [path, text] of [
+      ['/administration', 'Chiffres clés'],
+      ['/administration/utilisateurs', 'Dernière connexion'],
+      ['/administration/invitations', 'Délivrer un code'],
+      ['/administration/exploitations', 'Exploitations'],
+      ['/administration/journal', 'Journal'],
+      ['/administration/maintenance', 'Mode maintenance'],
+    ] as const) {
+      await expectPage(path, text, adminCookie);
+    }
+  });
+
+  it('renvoie un compte ordinaire hors de l’administration', async () => {
+    for (const path of [
+      '/administration',
+      '/administration/utilisateurs',
+      '/administration/invitations',
+    ]) {
+      const { status, location } = await fetchPage(path);
+      expect(status, `${path} — statut HTTP`).toBe(307);
+      expect(location, `${path} — redirection`).toContain('/dashboard');
+    }
+  });
+
+  it('n’affiche l’onglet Administration qu’aux administrateurs', async () => {
+    // Même page, deux sessions : seul l'administrateur voit le lien.
+    const adminView = await fetch(`${getBaseUrl()}/dashboard`, {
+      headers: { Cookie: adminCookie },
+      redirect: 'manual',
+    });
+    const memberView = await fetchPage('/dashboard');
+
+    expect(await adminView.text()).toContain('/administration');
+    expect(memberView.html).not.toContain('/administration');
   });
 
   it('redirige vers la connexion sans session', async () => {

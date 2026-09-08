@@ -180,6 +180,9 @@ export class TestClient {
   put<T = unknown>(path: string, body?: unknown) {
     return this.request<T>('PUT', path, body ?? {});
   }
+  patch<T = unknown>(path: string, body?: unknown) {
+    return this.request<T>('PATCH', path, body ?? {});
+  }
   delete<T = unknown>(path: string, body?: unknown) {
     return this.request<T>('DELETE', path, body);
   }

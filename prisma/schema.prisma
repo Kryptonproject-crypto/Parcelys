@@ -45,6 +45,14 @@ model User {
   lockedUntil       DateTime? @map("locked_until")
   lastLoginAt       DateTime? @map("last_login_at")
   isDemo            Boolean   @default(false) @map("is_demo")
+  /// Administrateur de l'instance (gestion des comptes, invitations,
+  /// maintenance). Distinct de FarmRole.ADMIN, qui ne porte que sur une
+  /// exploitation.
+  isPlatformAdmin   Boolean   @default(false) @map("is_platform_admin")
+  /// Compte suspendu par un administrateur : connexion refusée, sessions
+  /// existantes invalidées, données conservées.
+  suspendedAt       DateTime? @map("suspended_at")
+  suspendedReason   String?   @map("suspended_reason")
   deletedAt         DateTime? @map("deleted_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
@@ -59,9 +67,66 @@ model User {
   fertilizerEntries  FertilizerApplication[] @relation("FertilizerAuthor")
   phytoEntries       PhytosanitaryApplication[] @relation("PhytoAuthor")
   operationEntries   AgriculturalOperation[] @relation("OperationAuthor")
+  invitationsIssued  InvitationCode[]        @relation("InvitationIssuer")
+  invitationsRevoked InvitationCode[]        @relation("InvitationRevoker")
+  invitationUsed     InvitationCode?         @relation("InvitationRecipient")
 
   @@index([emailNormalized])
+  @@index([isPlatformAdmin])
   @@map("users")
+}
+
+/// Code d'invitation délivré par un administrateur : sans lui, aucune
+/// inscription n'est possible. Comme tous les secrets de l'application, seule
+/// l'empreinte SHA-256 est stockée — le code en clair n'est affiché qu'une
+/// fois, à sa création.
+model InvitationCode {
+  id        String @id @default(cuid())
+  codeHash  String @unique @map("code_hash")
+  /// Préfixe en clair (ex. « PRCL-8F3A- » ) permettant de reconnaître un code
+  /// dans la liste sans en révéler la partie secrète.
+  codeHint  String @map("code_hint")
+
+  /// Restriction facultative à une adresse : le code ne fonctionne alors que
+  /// pour cette personne.
+  email     String? @map("email_normalized")
+  /// Exploitation rejointe par le titulaire. `null` = il crée la sienne et en
+  /// devient propriétaire.
+  farmId    String? @map("farm_id")
+  role      FarmRole @default(OWNER)
+  /// Le titulaire devient administrateur de l'instance.
+  grantsPlatformAdmin Boolean @default(false) @map("grants_platform_admin")
+
+  note      String?
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  usedById  String?   @unique @map("used_by_id")
+  revokedAt DateTime? @map("revoked_at")
+
+  createdById String   @map("created_by_id")
+  revokedById String?  @map("revoked_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  farm      Farm? @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("InvitationIssuer", fields: [createdById], references: [id], onDelete: Cascade)
+  revokedBy User? @relation("InvitationRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  usedBy    User? @relation("InvitationRecipient", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([createdById, createdAt])
+  @@index([expiresAt])
+  @@map("invitation_codes")
+}
+
+/// Réglages d'instance modifiables par un administrateur sans redéploiement
+/// (mode maintenance, message d'accueil…). Les secrets restent dans
+/// l'environnement.
+model AppSetting {
+  key         String   @id
+  value       String
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }
 
 model Farm {
@@ -82,6 +147,7 @@ model Farm {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   members       FarmMember[]
+  invitations   InvitationCode[]
   parcels       Parcel[]
   crops         Crop[]
   fertilizers   Fertilizer[]

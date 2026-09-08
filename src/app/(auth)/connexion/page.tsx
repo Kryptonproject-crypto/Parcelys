@@ -16,7 +16,7 @@ export default async function LoginPage() {
       subtitle="Accédez à votre parcellaire, vos registres et vos exports."
       footer={
         <>
-          Pas encore de compte ?{' '}
+          Vous avez un code d&apos;invitation ?{' '}
           <Link href="/inscription" className="font-medium text-champ-700 dark:text-champ-400 hover:underline">
             Créer mon compte
           </Link>

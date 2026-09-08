@@ -74,6 +74,20 @@ export {
   LayoutGrid as IconGrid,
   Satellite as IconSatellite,
   ListChecks as IconTodo,
+
+  // Administration de l'instance
+  ShieldUser as IconAdmin,
+  Users as IconUsers,
+  KeyRound as IconInvitation,
+  Wrench as IconMaintenance,
+  ScrollText as IconAudit,
+  Server as IconServer,
+  Ban as IconSuspend,
+  UserCheck as IconRestore,
+  Unlock as IconUnlock,
+  MailCheck as IconMailCheck,
+  Power as IconPower,
+  Eraser as IconPurge,
 } from 'lucide-react';
 
 export type { LucideIcon } from 'lucide-react';

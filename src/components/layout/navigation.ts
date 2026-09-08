@@ -1,5 +1,11 @@
 import {
+  IconAdmin,
+  IconAudit,
   IconDashboard,
+  IconFarm,
+  IconInvitation,
+  IconMaintenance,
+  IconUsers,
   IconDocuments,
   IconCrops,
   IconExport,
@@ -69,6 +75,59 @@ export const NAV_GROUPS: Array<{ key: NavItem['group']; label: string }> = [
 export const FOOTER_NAV: NavItem[] = [
   { href: '/profil', label: 'Profil', icon: IconProfile, group: 'exploitation' },
   { href: '/parametres', label: 'Paramètres', icon: IconSettings, group: 'exploitation' },
+];
+
+/**
+ * Entrée d'administration de l'instance, affichée uniquement aux
+ * administrateurs. La visibilité du lien n'est qu'un confort : l'autorisation
+ * est vérifiée par `requirePageAdmin` sur chaque page et par
+ * `requirePlatformAdmin` sur chaque route d'API.
+ */
+export const ADMIN_NAV: NavItem = {
+  href: '/administration',
+  label: 'Administration',
+  icon: IconAdmin,
+  group: 'exploitation',
+};
+
+/** Sous-navigation de la section d'administration. */
+export const ADMIN_SECTIONS: NavItem[] = [
+  {
+    href: '/administration',
+    label: "Vue d'ensemble",
+    icon: IconAdmin,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/utilisateurs',
+    label: 'Utilisateurs',
+    icon: IconUsers,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/invitations',
+    label: 'Invitations',
+    icon: IconInvitation,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/exploitations',
+    label: 'Exploitations',
+    icon: IconFarm,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/journal',
+    label: "Journal d'audit",
+    icon: IconAudit,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/maintenance',
+    label: 'Maintenance',
+    icon: IconMaintenance,
+    group: 'exploitation',
+  },
 ];
 
 /** Un lien est actif pour sa route exacte et ses sous-routes. */

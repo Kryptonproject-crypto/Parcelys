@@ -41,7 +41,20 @@ export type AuditAction =
   | 'document.deleted'
   | 'export.generated'
   | 'ephy.synced'
-  | 'access.denied';
+  | 'access.denied'
+  | 'invitation.created'
+  | 'invitation.revoked'
+  | 'invitation.used'
+  | 'invitation.rejected'
+  | 'admin.user_suspended'
+  | 'admin.user_restored'
+  | 'admin.user_deleted'
+  | 'admin.user_unlocked'
+  | 'admin.user_email_verified'
+  | 'admin.user_sessions_revoked'
+  | 'admin.platform_role_changed'
+  | 'admin.maintenance_changed'
+  | 'admin.cleanup_run';
 
 /**
  * Journalisation applicative et de sécurité.

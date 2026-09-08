@@ -2,6 +2,7 @@ import 'server-only';
 import { FarmRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAuthContext, type AuthContext } from '@/lib/auth/session';
+import { getMaintenanceMode } from '@/lib/admin/settings';
 import { ApiError } from '@/lib/api/errors';
 
 /**
@@ -64,6 +65,43 @@ export async function requireVerifiedAuth(): Promise<AuthContext> {
   return auth;
 }
 
+/**
+ * Mode maintenance : tout le monde est arrêté ici, sauf les administrateurs de
+ * l'instance — ce sont eux qui doivent pouvoir intervenir et lever le mode.
+ * Le contrôle passe par un cache de quelques secondes, il ne coûte pas une
+ * requête par appel.
+ */
+export async function assertNotUnderMaintenance(
+  auth: AuthContext,
+): Promise<void> {
+  if (auth.user.isPlatformAdmin) return;
+  const mode = await getMaintenanceMode();
+  if (mode.enabled) {
+    throw new ApiError(503, mode.message, 'MAINTENANCE');
+  }
+}
+
+/**
+ * Administrateur de l'instance : gestion des comptes, des invitations et de la
+ * maintenance.
+ *
+ * C'est une autorité distincte de `FarmRole.ADMIN`, qui ne vaut que dans une
+ * exploitation. Un administrateur plateforme n'hérite d'aucun accès aux données
+ * agronomiques : il ne voit pas les parcelles des exploitations dont il n'est
+ * pas membre, seulement les comptes et les compteurs d'administration.
+ */
+export async function requirePlatformAdmin(): Promise<AuthContext> {
+  const auth = await requireVerifiedAuth();
+  if (!auth.user.isPlatformAdmin) {
+    throw new ApiError(
+      403,
+      "Réservé aux administrateurs de l'instance",
+      'FORBIDDEN',
+    );
+  }
+  return auth;
+}
+
 export type FarmContext = AuthContext & {
   farmId: string;
   role: FarmRole;
@@ -81,6 +119,7 @@ export async function requireFarmAccess(
   explicitFarmId?: string | null,
 ): Promise<FarmContext> {
   const auth = await requireVerifiedAuth();
+  await assertNotUnderMaintenance(auth);
   const farmId = explicitFarmId ?? auth.activeFarmId;
 
   if (!farmId) {

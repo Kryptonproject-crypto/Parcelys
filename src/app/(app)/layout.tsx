@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/session';
+import { getMaintenanceMode } from '@/lib/admin/settings';
 import { countUnread } from '@/lib/notifications';
 import { AppShell } from '@/components/layout/AppShell';
 
@@ -21,6 +22,13 @@ export default async function AppLayout({
     redirect(`/verification-email?email=${encodeURIComponent(auth.user.email)}`);
   }
 
+  // Mode maintenance : seuls les administrateurs de l'instance passent, pour
+  // pouvoir intervenir et lever le mode.
+  if (!auth.user.isPlatformAdmin) {
+    const maintenance = await getMaintenanceMode();
+    if (maintenance.enabled) redirect('/maintenance');
+  }
+
   const unreadCount = await countUnread(auth.user.id);
 
   return (
@@ -29,6 +37,7 @@ export default async function AppLayout({
         firstName: auth.user.firstName,
         lastName: auth.user.lastName,
         email: auth.user.email,
+        isPlatformAdmin: auth.user.isPlatformAdmin,
       }}
       farms={auth.memberships}
       activeFarmId={auth.activeFarmId}

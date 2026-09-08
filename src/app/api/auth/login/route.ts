@@ -98,6 +98,19 @@ export const POST = route(async (request: NextRequest) => {
     throw invalidCredentials;
   }
 
+  // Compte suspendu par un administrateur. Le contrôle vient après la
+  // vérification du mot de passe : sans lui, le formulaire dirait à un inconnu
+  // qu'une adresse correspond bien à un compte.
+  if (user.suspendedAt) {
+    throw new ApiError(
+      403,
+      user.suspendedReason
+        ? `Votre compte a été suspendu par un administrateur : ${user.suspendedReason}`
+        : 'Votre compte a été suspendu par un administrateur.',
+      'ACCOUNT_SUSPENDED',
+    );
+  }
+
   // L'adresse doit être vérifiée avant l'ouverture de session.
   if (!user.emailVerifiedAt) {
     await issueVerificationCode({
