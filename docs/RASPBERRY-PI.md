@@ -27,6 +27,7 @@ sur le Pi. Chaque commande est à taper telle quelle, dans l'ordre ; les valeurs
 13. [Créer le tunnel](#13-créer-le-tunnel)
 14. [Régler Cloudflare pour Parcelys](#14-régler-cloudflare-pour-parcelys)
 15. [Créer le premier compte](#15-créer-le-premier-compte)
+    · [15 bis. Envoyer réellement les e-mails](#15-bis-envoyer-réellement-les-e-mails)
 16. [Catalogue E-Phy](#16-catalogue-e-phy)
 17. [L'application mobile](#17-lapplication-mobile)
 18. [Sauvegardes](#18-sauvegardes)
@@ -790,6 +791,125 @@ Accès administrateur perdu ? Depuis le Pi :
 ```bash
 cd /opt/parcelys && sudo -u parcelys npm run admin -- promouvoir votre@adresse.fr
 ```
+
+---
+
+## 15 bis. Envoyer réellement les e-mails
+
+Les codes de vérification, les réinitialisations de mot de passe et les alertes
+partent par e-mail. En `EMAIL_PROVIDER=console`, rien ne part : le message est
+écrit dans les journaux. C'est parfait pour un premier essai, intenable dès
+qu'un autre que vous crée un compte.
+
+### Pourquoi vous ne pouvez pas émettre directement depuis le Pi
+
+C'est la question qui compte, et la réponse est non — pas depuis une connexion
+domestique, et encore moins derrière Starlink :
+
+- **L'adresse IP est partagée (CGNAT).** Vous ne pouvez pas obtenir
+  l'enregistrement inverse (PTR) que Gmail, Outlook et la plupart des serveurs
+  exigent avant d'accepter un message.
+- **Les plages résidentielles sont sur les listes de blocage** (Spamhaus PBL,
+  entre autres). Le refus intervient avant même que le contenu soit examiné.
+- **Le port 25 sortant est bloqué** par la quasi-totalité des fournisseurs
+  d'accès grand public.
+
+Installer Postfix et le laisser délivrer lui-même donnerait donc des codes qui
+n'arrivent jamais — ou, pire, qui arrivent en indésirable sans que rien ne le
+signale. Ce n'est pas une limite de Parcelys : c'est ainsi que la messagerie se
+protège du courrier indésirable, et posséder `parcelys.fr` n'y change rien.
+
+### Ce qui marche : Postfix en client de relais
+
+Postfix tourne bien sur le Pi, mais il ne délivre pas : il remet le message à un
+service SMTP authentifié qui, lui, a la réputation nécessaire. Deux bénéfices :
+
+1. **Les messages arrivent**, parce qu'ils partent d'une infrastructure établie.
+2. **Rien n'est perdu quand la liaison tombe.** Postfix garde le message en file
+   et réessaie pendant trois jours. Sur Starlink, où une averse coupe la
+   liaison, c'est la différence entre un code retardé et un code perdu.
+
+Choisissez un service d'envoi transactionnel — la plupart ont une offre gratuite
+qui couvre très largement des codes de vérification. Brevo, Mailjet et Scaleway
+sont français, hébergés dans l'Union européenne, ce qui simplifie la question
+des données personnelles. Créez-y un compte, ajoutez le domaine `parcelys.fr`,
+et relevez les identifiants SMTP (serveur, port 587, identifiant, clé).
+
+```bash
+cd /opt/parcelys
+sudo bash scripts/setup-mail.sh \
+  --relay smtp-relay.exemple.com:587 \
+  --user 'votre-identifiant' \
+  --password 'votre-cle-smtp' \
+  --sender 'no-reply@parcelys.fr'
+```
+
+Le script installe Postfix en client de relais, enregistre les identifiants en
+`600`, exige le chiffrement vers le relais, réécrit tous les expéditeurs en
+`no-reply@parcelys.fr` — c'est cette adresse que SPF et DKIM couvriront — et
+**vérifie que Postfix n'écoute que sur la boucle locale**. Ce dernier point
+n'est pas cosmétique : un Postfix joignable depuis l'extérieur et capable de
+relayer est un relais ouvert, qui servirait à envoyer du courrier indésirable
+en votre nom et ferait blacklister votre domaine en quelques heures.
+
+Puis pointez Parcelys vers lui, dans `/opt/parcelys/.env` :
+
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=127.0.0.1
+SMTP_PORT=25
+SMTP_SECURE=false
+EMAIL_FROM="Parcelys <no-reply@parcelys.fr>"
+```
+
+Aucun identifiant ici : Postfix tourne sur la machine, c'est lui qui
+s'authentifie auprès du relais.
+
+```bash
+sudo systemctl restart parcelys
+cd /opt/parcelys && sudo -u parcelys npm run email:test -- vous@exemple.fr
+```
+
+### Les trois enregistrements DNS, sans lesquels tout finit en indésirable
+
+Dans la zone `parcelys.fr` chez Cloudflare. Le relais vous donne les valeurs
+exactes ; la forme est celle-ci :
+
+| Type | Nom | Valeur |
+|---|---|---|
+| TXT | `@` | `v=spf1 include:<domaine du relais> ~all` |
+| TXT | `<sélecteur>._domainkey` | `v=DKIM1; k=rsa; p=…` (fourni par le relais) |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:postmaster@parcelys.fr` |
+
+- **SPF** déclare quels serveurs ont le droit d'émettre pour votre domaine.
+- **DKIM** signe chaque message ; c'est ce qui pèse le plus lourd chez Gmail.
+- **DMARC** dit quoi faire en cas d'échec. Commencez par `p=none` (observer),
+  et ne passez à `p=quarantine` qu'une fois les rapports propres.
+
+⚠️ Si votre domaine reçoit déjà du courrier ailleurs, **ne remplacez pas** un
+enregistrement SPF existant : il ne peut y en avoir qu'un, et les mécanismes se
+cumulent dans la même ligne (`v=spf1 include:a include:b ~all`).
+
+```bash
+dig +short TXT parcelys.fr | grep spf
+dig +short TXT _dmarc.parcelys.fr
+```
+
+### Quand un code n'arrive pas
+
+L'application ne fait jamais échouer une inscription parce que l'e-mail n'est
+pas parti — elle journalise et propose un renvoi. C'est le bon comportement,
+mais il rend une configuration cassée silencieuse. D'où :
+
+```bash
+cd /opt/parcelys && sudo -u parcelys npm run email:test -- vous@exemple.fr
+mailq                          # ce qui attend encore
+postqueue -f                   # forcer un nouvel essai
+journalctl -u postfix -n 40    # pourquoi un message est refusé
+```
+
+Un message accepté par le relais mais absent de la boîte de réception est
+presque toujours dans les indésirables, et presque toujours faute de DKIM.
 
 ---
 

@@ -54,10 +54,23 @@ class SmtpProvider implements EmailProvider {
       );
     });
 
+    // Un relais installé sur la machine même (Postfix, voir scripts/setup-mail.sh)
+    // se présente avec un certificat auto-signé, que la validation rejette : les
+    // e-mails ne partent pas, et l'erreur — « self-signed certificate » — ne dit
+    // pas d'où elle vient. Sur la boucle locale on renonce donc à STARTTLS : le
+    // trafic ne quitte pas la machine, il n'y a rien à y intercepter, et c'est
+    // le relais local qui chiffrera le trajet suivant.
+    //
+    // Partout ailleurs la validation reste stricte : c'est sur ce trajet-là que
+    // circule le mot de passe du relais.
+    const host = env.SMTP_HOST;
+    const surBoucleLocale = /^(127(\.\d{1,3}){3}|::1|\[::1\]|localhost)$/i.test(host);
+
     const transport = nodemailer.default.createTransport({
-      host: env.SMTP_HOST,
+      host,
       port: env.SMTP_PORT ?? 587,
       secure: env.SMTP_SECURE,
+      ignoreTLS: surBoucleLocale,
       auth:
         env.SMTP_USER && env.SMTP_PASSWORD
           ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD }
