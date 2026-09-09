@@ -1200,20 +1200,73 @@ publiée. **Rien ne s'installe tout seul** : une mise à jour touche la base d'u
 registre réglementaire.
 
 ```bash
+cd /opt/parcelys && sudo bash scripts/update-pi.sh
+```
+
+C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
+migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
+
+### Pourquoi un script, et pas la suite de commandes
+
+Enchaîner les commandes à la main a un défaut qui ne se voit pas : **si l'une
+échoue, les suivantes s'exécutent quand même**. Le cas le plus fréquent :
+
+```
+error: Your local changes to the following files would be overwritten by merge
+Aborting
+```
+
+`git pull` refuse, mais `npm ci`, les migrations, la compilation et le
+redémarrage se déroulent ensuite sans broncher — sur l'ancien code. Le site
+répond, tout semble normal, et rien n'a été mis à jour.
+
+Le script vérifie donc, dans l'ordre :
+
+- qu'aucun fichier n'a été modifié sur place (et dit lesquels, avec la commande
+  pour les rendre) ;
+- que la sauvegarde a réussi, sans quoi il s'arrête ;
+- que `npm ci` a réellement installé — npm sait échouer en renvoyant 0 ;
+- que **la compilation a produit quelque chose de neuf** : un `npm run build`
+  interrompu, faute de mémoire par exemple, laisse l'ancien `.next` en place et
+  le service redémarrerait dessus sans que rien ne le signale ;
+- que la version servie après redémarrage est bien celle attendue.
+
+Si une étape échoue, le service **n'est pas redémarré** : votre instance
+continue de tourner sur la version précédente, qui fonctionne.
+
+### Vérifier après coup
+
+```bash
+cd /opt/parcelys && sudo -u parcelys git log --oneline -1   # le code en place
+curl -s http://127.0.0.1:3000/api/mobile/version            # la version servie
+sudo journalctl -u parcelys -n 30
+```
+
+Si l'interface semble inchangée dans le navigateur alors que la version servie
+est la bonne, c'est le cache du navigateur : **Ctrl+Maj+R**.
+
+### À la main, si vous préférez
+
+```bash
 cd /opt/parcelys
 
-sudo /usr/local/bin/parcelys-backup        # d'abord la sauvegarde
-sudo systemctl stop parcelys
+sudo /usr/local/bin/parcelys-backup        # en root : la sauvegarde lit la base
+sudo -u parcelys git status                # AUCUN fichier modifié attendu
+sudo -u parcelys git pull                  # doit afficher les nouveaux commits
 
-sudo -u parcelys git pull
+sudo systemctl stop parcelys
 sudo -u parcelys npm ci
 sudo -u parcelys npm run db:deploy
 sudo -u parcelys npm run build             # 10 à 20 min sur un Pi
 sudo -u parcelys npm run preflight
-
 sudo systemctl start parcelys
-curl -s https://parcelys.fr/api/health
+
+curl -s http://127.0.0.1:3000/api/health
 ```
+
+⚠️ `parcelys-backup` se lance **en root**, pas avec `sudo -u parcelys` : il lit
+la base par le compte `postgres`, ce que l'utilisateur de service ne peut pas
+faire. Et regardez la sortie de chaque commande avant de passer à la suivante.
 
 Le tunnel n'a pas besoin d'être touché : `cloudflared` continue de tourner et
 reprend le service dès que l'application répond.
