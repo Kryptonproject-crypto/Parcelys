@@ -152,6 +152,48 @@ PARCELYS_STORE_PASSWORD=… PARCELYS_KEY_PASSWORD=… npm run apk:release
 > lui, aucune mise à jour de l'application ne pourra être installée par-dessus :
 > Android refuse une signature différente.
 
+### Construire l'APK sur GitHub
+
+Le workflow `.github/workflows/apk.yml` compile l'APK sans rien installer sur
+votre machine. Deux façons de le lancer :
+
+**Par une étiquette** — c'est la voie normale, et la seule qui publie :
+
+```bash
+git tag -a v0.3.0 -m "Parcelys 0.3.0"
+git push origin v0.3.0
+```
+
+L'APK est alors joint à une **publication GitHub** `Parcelys 0.3.0`, avec son
+empreinte SHA-256. C'est ce fichier que la section « Mises à jour » de
+l'administration et l'écran « Réglages » de l'application proposent au
+téléchargement : sans étiquette, il n'y a rien à proposer.
+
+**Par un lancement manuel** — *Actions → APK Android → Run workflow*. L'APK
+est déposé comme artefact de la compilation (30 jours), sans publication : utile
+pour essayer une version avant de l'annoncer.
+
+> **Une compilation qui reste indéfiniment « queued » sans aucun job n'attend
+> pas un runner.** C'est le signe que le fichier de workflow était invalide sur
+> la référence choisie : GitHub accepte la demande, mais ne peut construire
+> aucun job à partir d'un fichier qu'il ne sait pas lire. La compilation ne
+> démarrera jamais — annulez-la et relancez sur une référence à jour. C'est
+> `actionlint`, dans l'intégration continue, qui empêche désormais un tel
+> fichier d'être poussé.
+
+**La signature est facultative.** Avec les quatre secrets de dépôt
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` et
+`ANDROID_KEY_PASSWORD`, l'APK est signé et directement installable. Sans eux, la
+compilation aboutit mais produit un APK **non signé**, qu'Android refusera
+d'installer tel quel — la compilation le signale en avertissement. Aucune clé ne
+figure dans le dépôt.
+
+Pour fabriquer le secret à partir d'un magasin de clés existant :
+
+```bash
+base64 -w0 parcelys.keystore    # colle le résultat dans ANDROID_KEYSTORE_BASE64
+```
+
 ### Après chaque modification
 
 ```bash
