@@ -71,6 +71,16 @@ jobs:
       - name: Style
         run: npx eslint src tests scripts --max-warnings=0
 
+      # Une expression invalide dans un workflow — un contexte employé là où il
+      # n'est pas lisible, par exemple — n'échoue pas à l'exécution : GitHub
+      # refuse le fichier à l'analyse, et le workflow ne démarre pas du tout.
+      # C'est ainsi que la compilation de l'APK est restée muette. Mieux vaut
+      # l'apprendre ici.
+      - name: Workflows
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
       - name: Compilation
         run: npm run build
 

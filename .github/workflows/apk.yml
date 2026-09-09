@@ -34,6 +34,13 @@ jobs:
     name: Compiler et publier l'APK
     runs-on: ubuntu-latest
 
+    # Le contexte « secrets » n'est pas lisible depuis le « if » d'une étape :
+    # GitHub refuse l'expression à l'analyse, et c'est tout le workflow qui ne
+    # démarre pas. On recopie donc le secret dans l'environnement du travail,
+    # que « if » sait lire, pour pouvoir décider si la signature est possible.
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -87,11 +94,9 @@ jobs:
 
       - name: Magasin de clés
         id: keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/parcelys.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/parcelys.jks"
           echo "path=$RUNNER_TEMP/parcelys.jks" >> "$GITHUB_OUTPUT"
 
       - name: Compiler l'APK
