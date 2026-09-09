@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma, resetDatabase } from './helpers/db';
 import { importEphyData } from '../src/lib/ephy/import';
 import { getEphySourceInfo, searchProducts, getProductDetail } from '../src/lib/ephy/search';
+import { resolveDataFile } from '../src/lib/ephy/schema';
 
 /**
  * Import du référentiel E-Phy.
@@ -128,7 +129,12 @@ describe('Référentiel E-Phy', () => {
   });
 
   it('laisse vides les champs absents du fichier plutôt que de les deviner', async () => {
-    const minimalCsv = ['numero AMM;nom produit', '9900010;PRODUIT MINIMAL'].join('\r\n');
+    // L'état d'autorisation est le seul champ exigé (voir le test plus bas) :
+    // tous les autres peuvent manquer et restent alors vides, jamais devinés.
+    const minimalCsv = [
+      "numero AMM;nom produit;Etat d'autorisation",
+      '9900010;PRODUIT MINIMAL;AUTORISE',
+    ].join('\r\n');
 
     const report = await importEphyData(
       { products: toWindows1252(minimalCsv) },
@@ -142,8 +148,10 @@ describe('Référentiel E-Phy', () => {
       where: { amm: '9900010' },
     });
     expect(product.holder).toBeNull();
-    expect(product.status).toBeNull();
     expect(product.formulation).toBeNull();
+    expect(product.secondNames).toBeNull();
+    // Seul champ présent dans ce fichier minimal, repris tel quel.
+    expect(product.status).toBe('AUTORISE');
   });
 
   it('est idempotent : deux imports ne créent pas de doublon', async () => {
@@ -159,6 +167,61 @@ describe('Référentiel E-Phy', () => {
     expect(await prisma.phytosanitaryProduct.count()).toBe(3);
     expect(await prisma.phytoUsage.count()).toBe(3);
     expect(await prisma.productSubstance.count()).toBe(4);
+  });
+
+  /**
+   * Noms réels des CSV de l'archive officielle, relevés sur une installation en
+   * production (édition de septembre 2026). Une dizaine de fichiers aux noms
+   * voisins : c'est là que le choix du bon fichier se joue.
+   */
+  const ARCHIVE_REELLE = [
+    'mfsc_et_mixte_composition_utf8.csv',
+    'mfsc_et_mixte_usage_utf8.csv',
+    'permis_de_commerce_parallele_utf8.csv',
+    'produits_classe_et_mention_danger_utf8.csv',
+    'produits_condition_emploi_utf8.csv',
+    'produits_phrases_de_risque_utf8.csv',
+    'produits_usages_utf8.csv',
+    'produits_utf8.csv',
+    'substance_active_utf8.csv',
+    'usages_des_produits_autorises_utf8.csv',
+  ];
+
+  it('choisit le bon fichier parmi les CSV homonymes de l’archive', () => {
+    // Un motif large (/produit/, /usage/) désignait « le premier qui
+    // correspond » : le catalogue se construisait sur le fichier des mentions
+    // de danger, et les usages sur celui des matières fertilisantes.
+    expect(resolveDataFile(ARCHIVE_REELLE, 'products')).toBe('produits_utf8.csv');
+    expect(resolveDataFile(ARCHIVE_REELLE, 'usages')).toBe(
+      'usages_des_produits_autorises_utf8.csv',
+    );
+    expect(resolveDataFile(ARCHIVE_REELLE, 'substances')).toBe('substance_active_utf8.csv');
+  });
+
+  it('refuse de choisir plutôt que de deviner quand plusieurs fichiers conviennent', () => {
+    expect(() =>
+      resolveDataFile(['produits_utf8.csv', 'produits.csv'], 'products'),
+    ).toThrow(/Plusieurs fichiers/);
+  });
+
+  it('ne signale aucun fichier quand le rôle est absent, sans se rabattre au hasard', () => {
+    expect(resolveDataFile(['mfsc_et_mixte_composition_utf8.csv'], 'usages')).toBeNull();
+  });
+
+  it('refuse un catalogue dépourvu de l’état d’autorisation', async () => {
+    // Le fichier des mentions de danger porte AMM et nom, mais pas l'état
+    // d'autorisation : importé, il ferait passer un produit retiré du marché
+    // pour un produit vérifié au catalogue.
+    const sansEtat = [
+      'numero AMM;nom produit;mention danger',
+      '2010001;PRODUIT FICTIF;H302',
+    ].join('\r\n');
+
+    await expect(
+      importEphyData({ products: toWindows1252(sansEtat) }, { sourceLabel: 'mauvais fichier' }),
+    ).rejects.toThrow(/état d'autorisation/);
+
+    expect(await prisma.phytosanitaryProduct.count()).toBe(0);
   });
 
   it('échoue proprement si les colonnes obligatoires manquent', async () => {

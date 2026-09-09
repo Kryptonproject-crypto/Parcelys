@@ -4,6 +4,8 @@
  *   npm run ephy:sync                  # télécharge EPHY_DATA_URL puis importe
  *   npm run ephy:sync -- --dir ./data  # importe une archive déjà décompressée
  *   npm run ephy:sync -- --zip a.zip   # importe une archive ZIP locale
+ *   npm run ephy:sync -- --purge       # vide le catalogue avant de réimporter
+ *                                      # (le registre phytosanitaire est conservé)
  *
  * Le jeu de données officiel est publié par l'ANSES sur data.gouv.fr
  * (« Données ouvertes du catalogue E-Phy des produits phytopharmaceutiques »).
@@ -16,11 +18,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Open } from 'unzipper';
 import { importEphyData, type ImportSource } from '@/lib/ephy/import';
-import { FILE_PATTERNS } from '@/lib/ephy/schema';
+import { resolveDataFile } from '@/lib/ephy/schema';
 import { getEnv } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 
-type Args = { dir?: string; zip?: string; url?: string };
+type Args = { dir?: string; zip?: string; url?: string; purge?: boolean };
 
 function parseArgs(argv: string[]): Args {
   const args: Args = {};
@@ -30,8 +32,34 @@ function parseArgs(argv: string[]): Args {
     if (flag === '--dir' && value) { args.dir = value; i += 1; }
     else if (flag === '--zip' && value) { args.zip = value; i += 1; }
     else if (flag === '--url' && value) { args.url = value; i += 1; }
+    else if (flag === '--purge') { args.purge = true; }
   }
   return args;
+}
+
+/**
+ * Vide le catalogue avant réimport.
+ *
+ * L'import procède par mise à jour ou insertion : les produits d'une
+ * synchronisation antérieure restent en base même s'ils ne figurent plus dans
+ * le fichier. Après un import parti du mauvais fichier, cela laisse des fiches
+ * sans état d'autorisation qu'aucun réimport ne corrige.
+ *
+ * Le registre phytosanitaire n'est **pas** concerné : il conserve le nom du
+ * produit et son AMM au moment du traitement, et sa liaison au catalogue est en
+ * « mettre à nul », jamais en cascade. Un registre réglementaire ne dépend pas
+ * d'un référentiel qu'on resynchronise.
+ */
+async function purgeCatalogue(): Promise<void> {
+  console.info('→ Purge du catalogue (le registre phytosanitaire est conservé)…');
+  const usages = await prisma.phytoUsage.deleteMany();
+  const links = await prisma.productSubstance.deleteMany();
+  const products = await prisma.phytosanitaryProduct.deleteMany();
+  const substances = await prisma.activeSubstance.deleteMany();
+  console.info(
+    `  supprimés : ${products.count} produit(s), ${usages.count} usage(s), ` +
+      `${substances.count} substance(s), ${links.count} liaison(s)`,
+  );
 }
 
 async function downloadArchive(url: string, targetDir: string): Promise<string> {
@@ -64,27 +92,58 @@ async function readFromZip(zipPath: string): Promise<ImportSource> {
     throw new Error("L'archive ne contient aucun fichier CSV.");
   }
 
-  console.info(`  fichiers CSV détectés : ${entries.map((e) => path.basename(e.path)).join(', ')}`);
+  const names = entries.map((e) => path.basename(e.path));
+  console.info(`  fichiers CSV détectés : ${names.join(', ')}`);
 
-  const find = (pattern: RegExp) =>
-    entries.find((e) => pattern.test(path.basename(e.path)));
+  const byName = new Map(entries.map((e) => [path.basename(e.path), e]));
+  const chosen = chooseFiles(names);
 
-  const productsEntry = find(FILE_PATTERNS.products);
-  if (!productsEntry) {
+  const read = async (name: string | null) => {
+    if (!name) return undefined;
+    const entry = byName.get(name);
+    if (!entry) throw new Error(`Fichier « ${name} » absent de l'archive.`);
+    return entry.buffer();
+  };
+
+  const products = await read(chosen.products);
+  if (!products) throw new Error("Fichier « produits » illisible dans l'archive.");
+
+  return {
+    products,
+    usages: await read(chosen.usages),
+    substances: await read(chosen.substances),
+  };
+}
+
+/**
+ * Désigne, parmi les CSV de l'archive, celui qui tient chaque rôle — et le dit.
+ *
+ * L'archive contient une dizaine de fichiers aux noms voisins ; se tromper de
+ * fichier produit un catalogue d'apparence normale mais amputé de l'état
+ * d'autorisation ou des doses. On affiche donc le choix retenu : c'est la seule
+ * façon de s'en apercevoir sans relire la base.
+ */
+function chooseFiles(names: string[]): {
+  products: string;
+  usages: string | null;
+  substances: string | null;
+} {
+  const products = resolveDataFile(names, 'products');
+  if (!products) {
     throw new Error(
-      "Fichier « produits » introuvable dans l'archive. " +
+      "Fichier « produits » introuvable dans l'archive (attendu : produits_utf8.csv). " +
         'Vérifiez que EPHY_DATA_URL pointe bien vers le catalogue E-Phy.',
     );
   }
 
-  const usagesEntry = find(FILE_PATTERNS.usages);
-  const substancesEntry = find(FILE_PATTERNS.substances);
+  const usages = resolveDataFile(names, 'usages');
+  const substances = resolveDataFile(names, 'substances');
 
-  return {
-    products: await productsEntry.buffer(),
-    usages: usagesEntry ? await usagesEntry.buffer() : undefined,
-    substances: substancesEntry ? await substancesEntry.buffer() : undefined,
-  };
+  console.info(`  → produits   : ${products}`);
+  console.info(`  → usages     : ${usages ?? '(absent — doses et DAR non importés)'}`);
+  console.info(`  → substances : ${substances ?? '(absent)'}`);
+
+  return { products, usages, substances };
 }
 
 /** Lit les CSV d'un dossier déjà décompressé. */
@@ -94,19 +153,14 @@ async function readFromDir(dir: string): Promise<ImportSource> {
     throw new Error(`Aucun fichier CSV dans ${dir}`);
   }
 
-  const find = (pattern: RegExp) => files.find((f) => pattern.test(f));
-  const products = find(FILE_PATTERNS.products);
-  if (!products) {
-    throw new Error(`Fichier « produits » introuvable dans ${dir}`);
-  }
-
-  const usages = find(FILE_PATTERNS.usages);
-  const substances = find(FILE_PATTERNS.substances);
+  const chosen = chooseFiles(files);
 
   return {
-    products: await readFile(path.join(dir, products)),
-    usages: usages ? await readFile(path.join(dir, usages)) : undefined,
-    substances: substances ? await readFile(path.join(dir, substances)) : undefined,
+    products: await readFile(path.join(dir, chosen.products)),
+    usages: chosen.usages ? await readFile(path.join(dir, chosen.usages)) : undefined,
+    substances: chosen.substances
+      ? await readFile(path.join(dir, chosen.substances))
+      : undefined,
   };
 }
 
@@ -162,6 +216,8 @@ async function main(): Promise<void> {
     sourceUrl = url;
     sourceLabel = 'E-Phy (ANSES) — data.gouv.fr';
   }
+
+  if (args.purge) await purgeCatalogue();
 
   console.info('→ Import en base…');
   const report = await importEphyData(source, {

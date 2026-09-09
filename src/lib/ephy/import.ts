@@ -10,6 +10,7 @@ import {
 } from '@/lib/ephy/parser';
 import {
   PRODUCT_COLUMNS,
+  REQUIRED_PRODUCT_FIELDS,
   SUBSTANCE_COLUMNS,
   USAGE_COLUMNS,
   normalizeSearchTerm,
@@ -167,6 +168,20 @@ async function importProducts(
         `Colonnes détectées : ${headers.slice(0, 12).join(', ')}…`,
     );
   }
+
+  // Un catalogue sans état d'autorisation ferait passer un produit retiré du
+  // marché pour un produit vérifié : on préfère ne rien importer.
+  const missingRequired = REQUIRED_PRODUCT_FIELDS.filter((field) => !resolved[field]);
+  if (missingRequired.length) {
+    throw new Error(
+      `Le fichier produits ne contient pas l'état d'autorisation ` +
+        `(champ${missingRequired.length > 1 ? 's' : ''} : ${missingRequired.join(', ')}). ` +
+        "Importer ce fichier ferait apparaître des produits retirés du marché comme " +
+        "vérifiés au catalogue : l'import est interrompu. " +
+        `Colonnes détectées : ${headers.slice(0, 12).join(', ')}…`,
+    );
+  }
+
   if (missing.length) {
     warnings.push(
       `Champs produits non renseignés (colonnes absentes du fichier) : ${missing.join(', ')}.`,

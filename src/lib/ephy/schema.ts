@@ -127,9 +127,69 @@ export function splitUsageLabel(label: string | undefined): {
   };
 }
 
-/** Fichiers reconnus dans l'archive, par motif de nom. */
-export const FILE_PATTERNS = {
-  products: /produit/i,
-  usages: /usage/i,
-  substances: /substance/i,
-} as const;
+/**
+ * Choix des fichiers de l'archive officielle.
+ *
+ * L'archive E-Phy contient une dizaine de CSV dont les noms se ressemblent :
+ * « produits_utf8.csv » côtoie « produits_classe_et_mention_danger_utf8.csv »,
+ * « produits_condition_emploi_utf8.csv », « produits_phrases_de_risque_utf8.csv »…
+ * et « usages_des_produits_autorises_utf8.csv » côtoie
+ * « mfsc_et_mixte_usage_utf8.csv », qui ne concerne pas les produits
+ * phytopharmaceutiques.
+ *
+ * Un motif large (`/produit/`, `/usage/`) correspond donc à plusieurs fichiers,
+ * et retenir « le premier » revient à tirer au sort le référentiel réglementaire.
+ * On énumère les noms attendus du plus précis au plus général, et **on refuse de
+ * choisir** dès qu'un motif désigne plusieurs fichiers : mieux vaut une erreur
+ * explicite qu'un catalogue d'apparence complète bâti sur le mauvais fichier.
+ */
+export const DATA_FILE_PATTERNS: Record<EphyRole, RegExp[]> = {
+  products: [/^produits(?:_utf8)?\.csv$/i, /^produits?_?\d*(?:_utf8)?\.csv$/i],
+  usages: [
+    /^usages?_des_produits_autorises(?:_utf8)?\.csv$/i,
+    /^produits_usages(?:_utf8)?\.csv$/i,
+  ],
+  substances: [/^substances?_actives?(?:_utf8)?\.csv$/i],
+};
+
+export type EphyRole = 'products' | 'usages' | 'substances';
+
+const ROLE_LABELS: Record<EphyRole, string> = {
+  products: 'produits',
+  usages: 'usages autorisés',
+  substances: 'substances actives',
+};
+
+/**
+ * Désigne le fichier de l'archive tenant un rôle donné.
+ *
+ * `names` est la liste des noms de base des CSV présents. Renvoie le nom retenu,
+ * ou `null` si aucun ne convient — au contraire d'une ambiguïté, qui lève une
+ * erreur : elle signale que l'édition du jeu de données a changé de forme, et
+ * c'est à un humain de trancher, pas au programme de deviner.
+ */
+export function resolveDataFile(names: string[], role: EphyRole): string | null {
+  for (const pattern of DATA_FILE_PATTERNS[role]) {
+    const matches = names.filter((name) => pattern.test(name));
+    if (matches.length === 1) return matches[0] ?? null;
+    if (matches.length > 1) {
+      throw new Error(
+        `Plusieurs fichiers « ${ROLE_LABELS[role]} » possibles dans l'archive : ` +
+          `${matches.join(', ')}. Le catalogue officiel a probablement changé de ` +
+          `structure ; vérifiez l'édition du jeu de données avant d'importer.`,
+      );
+    }
+  }
+  return null;
+}
+
+/**
+ * Champs sans lesquels le catalogue ne doit pas être importé.
+ *
+ * `status` porte l'état d'autorisation. Sans lui, un produit retiré du marché
+ * entrerait en base indistinguable d'un produit autorisé, et l'interface le
+ * présenterait comme « vérifié au catalogue » — exactement l'inverse de ce que
+ * cette vérification est censée garantir. Un référentiel incomplet est ici plus
+ * dangereux qu'un référentiel absent, qui affiche au moins « non vérifié ».
+ */
+export const REQUIRED_PRODUCT_FIELDS: ProductField[] = ['status'];

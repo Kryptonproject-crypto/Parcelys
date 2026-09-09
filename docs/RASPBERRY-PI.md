@@ -813,6 +813,46 @@ sudo systemctl restart parcelys
 L'import prend plusieurs minutes sur un Pi. La date de synchronisation
 s'affiche ensuite sur les registres et les exports PDF.
 
+### Vérifier que le bon fichier a été lu
+
+L'archive officielle contient une dizaine de CSV aux noms voisins :
+`produits_utf8.csv` y côtoie `produits_classe_et_mention_danger_utf8.csv`,
+et `usages_des_produits_autorises_utf8.csv` côtoie `mfsc_et_mixte_usage_utf8.csv`
+(matières fertilisantes, sans rapport avec les produits phytopharmaceutiques).
+La commande affiche donc le fichier retenu pour chaque rôle :
+
+```
+  → produits   : produits_utf8.csv
+  → usages     : usages_des_produits_autorises_utf8.csv
+  → substances : substance_active_utf8.csv
+```
+
+**Ce sont les trois lignes à regarder.** Un import qui annonce des milliers de
+produits mais seulement quelques usages a lu le mauvais fichier. Si plusieurs
+fichiers conviennent, l'import s'arrête et les nomme plutôt que d'en choisir un
+au hasard : le jeu de données a changé de forme, et c'est à vous de trancher.
+
+De même, un fichier produits dépourvu de la colonne « État d'autorisation » est
+refusé. Sans elle, un produit retiré du marché entrerait en base indistinguable
+d'un produit autorisé, et l'interface l'afficherait comme « vérifié au
+catalogue » — l'inverse de ce que cette mention garantit.
+
+### Réimporter par-dessus un import douteux
+
+L'import met à jour ou insère : les produits d'une synchronisation antérieure
+restent en base même absents du nouveau fichier. Après un import parti du
+mauvais fichier, videz donc le catalogue avant de recommencer :
+
+```bash
+cd /opt/parcelys && sudo -u parcelys npm run ephy:sync -- --purge
+```
+
+`--purge` ne touche **pas** au registre phytosanitaire : chaque intervention
+conserve le nom du produit et son numéro d'AMM tels qu'enregistrés le jour du
+traitement, et sa liaison au catalogue est en « mise à nul », jamais en cascade.
+Un registre réglementaire, opposable en cas de contrôle, ne dépend pas d'un
+référentiel qu'on resynchronise.
+
 Tâches planifiées — la nuit, quand la liaison est libre :
 
 ```bash
