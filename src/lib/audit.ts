@@ -64,6 +64,11 @@ export type AuditAction =
   // fasse la différence entre un accès consenti et un accès imposé.
   | 'advisor.access_granted_by_admin'
   | 'advisor.access_revoked_by_admin'
+  // Échanges avec TéléPAC. Un import PAC réécrit le parcellaire : il doit
+  // laisser une trace, au même titre qu'un accès aux données.
+  | 'pac.imported'
+  | 'pac.exported'
+  | 'pac.snapshot_restored'
   | 'recommendation.created'
   | 'recommendation.updated'
   | 'recommendation.proposed'

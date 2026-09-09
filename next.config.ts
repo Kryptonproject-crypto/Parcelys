@@ -68,7 +68,18 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Sortie autonome : image Docker minimale, sans les dépendances de build.
   output: 'standalone',
-  serverExternalPackages: ['pdfkit', 'exceljs', 'bcryptjs', '@node-rs/argon2'],
+  // `unzipper` déclare une dépendance facultative vers @aws-sdk/client-s3, qu'il
+  // ne charge que pour ouvrir une archive depuis S3 — cas que Parcelys n'a pas.
+  // Webpack, lui, tente de la résoudre statiquement et échoue. La garder hors
+  // de l'empaquetage évite d'installer 30 Mo de SDK Amazon sur un Raspberry Pi
+  // pour une fonction dont on ne se sert pas.
+  serverExternalPackages: [
+    'pdfkit',
+    'exceljs',
+    'bcryptjs',
+    '@node-rs/argon2',
+    'unzipper',
+  ],
   eslint: { ignoreDuringBuilds: true },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

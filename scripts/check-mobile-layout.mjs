@@ -25,6 +25,7 @@ const PAGES = [
   '/apports',
   '/phytosanitaire',
   '/meteo',
+  '/pac',
   '/registres',
   '/historique',
   '/documents',

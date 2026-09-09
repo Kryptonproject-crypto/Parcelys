@@ -15,6 +15,7 @@ import {
   IconParcels,
   IconPhyto,
   IconProfile,
+  IconArea,
   IconRegistry,
   IconSettings,
   IconWeather,
@@ -67,6 +68,7 @@ export const MAIN_NAV: NavItem[] = [
     group: 'suivi',
   },
 
+  { href: '/pac', label: 'PAC / TéléPAC', icon: IconArea, group: 'documents' },
   { href: '/registres', label: 'Registres', icon: IconRegistry, group: 'documents' },
   { href: '/historique', label: 'Historique', icon: IconHistory, group: 'documents' },
   { href: '/documents', label: 'Documents', icon: IconDocuments, group: 'documents' },

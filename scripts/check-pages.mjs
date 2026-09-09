@@ -53,6 +53,7 @@ const FARMER_PAGES = [
   '/phytosanitaire',
   '/preconisations',
   '/meteo',
+  '/pac',
   '/registres',
   '/historique',
   '/documents',
