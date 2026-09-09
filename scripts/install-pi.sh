@@ -663,8 +663,20 @@ step "Pare-feu"
 
 # Avec un tunnel, aucun port n'est à ouvrir sur Internet : la connexion part du
 # Pi. On n'autorise SSH que depuis le réseau local.
-LAN=$(ip -4 -o route show to default 2>/dev/null | awk '{print $3}' | head -1 | sed 's/\.[0-9]*$/.0\/24/')
-if [ -n "$LAN" ]; then
+#
+# Tout ce qui suit est facultatif et arrive en dernier : sur un système dépourvu
+# de « ip » ou de « ufw », l'échec ferait sortir le script en erreur alors que
+# l'installation, elle, a réussi — et les instructions finales ne s'afficheraient
+# jamais. On prévient, et on continue.
+LAN=''
+if command -v ip >/dev/null 2>&1; then
+  LAN=$(ip -4 -o route show to default 2>/dev/null | awk '{print $3}' | head -1 | sed 's/\.[0-9]*$/.0\/24/' || echo '')
+fi
+
+if ! command -v ufw >/dev/null 2>&1; then
+  warn "ufw n'est pas installé : pare-feu non configuré. Ce n'est pas bloquant —
+    avec un tunnel, aucun port n'est exposé — mais réglez-le (§ 5 du guide)."
+elif [ -n "$LAN" ]; then
   run_sh "ufw --force default deny incoming >/dev/null"
   run_sh "ufw --force default allow outgoing >/dev/null"
   run_sh "ufw allow from $LAN to any port 22 comment 'SSH réseau local' >/dev/null"
