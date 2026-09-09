@@ -1,16 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Device } from '@capacitor/device';
 import { login, ApiError, OfflineError } from '../lib/api';
-import { loadServerUrl, normalizeServerUrl, saveServerUrl } from '../lib/storage';
+import { SERVER_LABEL, SERVER_URL } from '../lib/config';
 import type { AccountType, Session } from '../lib/types';
 import { Banner, Button, Field, Input, cn } from '../components/ui';
 
 /**
  * Connexion.
  *
- * Parcelys s'auto-héberge : chaque exploitation a sa propre instance, et
- * l'application ne peut donc pas connaître l'adresse du serveur à l'avance.
- * Elle est demandée une fois, puis conservée.
+ * L'adresse du serveur est fixée à la compilation et n'est plus demandée : on
+ * ne réclame pas à un agriculteur, au bord d'un champ, une adresse qu'il n'a
+ * aucune raison de connaître — et qu'une faute de frappe rend indiscernable
+ * d'une panne de réseau. L'instance visée est simplement affichée.
  *
  * Deux portes, comme sur l'application web : l'exploitation et l'expert
  * agronomique. Ce n'est qu'une orientation — la porte choisie ne donne aucun
@@ -45,7 +46,6 @@ export function LoginScreen({
   onAuthenticated: (session: Session) => Promise<void>;
 }) {
   const [space, setSpace] = useState<AccountType>('FARMER');
-  const [serverUrl, setServerUrl] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -55,22 +55,11 @@ export function LoginScreen({
 
   const current = SPACES.find((item) => item.value === space) ?? SPACES[0]!;
 
-  useEffect(() => {
-    void loadServerUrl().then(setServerUrl);
-  }, []);
-
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
-
-    const url = normalizeServerUrl(serverUrl);
-    if (!url) {
-      setFieldErrors({ serverUrl: "Indiquez l'adresse de votre serveur Parcelys." });
-      setSubmitting(false);
-      return;
-    }
 
     try {
       // Le nom d'appareil apparaît dans la liste des sessions du profil web :
@@ -80,8 +69,7 @@ export function LoginScreen({
         ? `${info.manufacturer ?? ''} ${info.model ?? ''}`.trim() || 'Téléphone'
         : 'Téléphone';
 
-      const session = await login(url, email, password, deviceName);
-      await saveServerUrl(url);
+      const session = await login(SERVER_URL, email, password, deviceName);
 
       // Le compte ne correspond pas à la porte choisie : on ouvre le bon
       // espace et on le dit, plutôt que de refuser une connexion valide.
@@ -96,8 +84,11 @@ export function LoginScreen({
       await onAuthenticated(session);
     } catch (caught) {
       if (caught instanceof OfflineError) {
+        // L'adresse n'est plus saisie : elle ne peut plus être en cause, et
+        // envoyer l'utilisateur la vérifier ne ferait que l'égarer.
         setError(
-          "Serveur injoignable. Vérifiez l'adresse et votre connexion — la première connexion nécessite du réseau.",
+          `${SERVER_LABEL} est injoignable. Vérifiez votre connexion — la première ` +
+            'connexion nécessite du réseau.',
         );
       } else if (caught instanceof ApiError) {
         setError(caught.message);
@@ -124,6 +115,15 @@ export function LoginScreen({
           </h1>
           <p className="mt-1.5 text-[14px] leading-relaxed text-ink-3">
             {current.tagline}
+          </p>
+          {/*
+            L'instance visée reste affichée : l'utilisateur doit pouvoir dire
+            à quel serveur il se connecte — c'est la première question qu'on
+            lui posera si quelque chose ne va pas.
+          */}
+          <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-[12.5px] font-medium text-ink-3">
+            <span aria-hidden>🔒</span>
+            {SERVER_LABEL}
           </p>
         </div>
 
@@ -158,24 +158,6 @@ export function LoginScreen({
         <form onSubmit={handleSubmit} className="space-y-4">
           {error ? <Banner tone="danger">{error}</Banner> : null}
           {notice ? <Banner tone="info">{notice}</Banner> : null}
-
-          <Field
-            label="Adresse du serveur"
-            required
-            hint="Celle de votre instance Parcelys, par exemple parcelys.mon-domaine.fr"
-            error={fieldErrors.serverUrl}
-          >
-            <Input
-              value={serverUrl}
-              onChange={(event) => setServerUrl(event.target.value)}
-              placeholder="parcelys.mon-domaine.fr"
-              inputMode="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-            />
-          </Field>
 
           <Field label="Adresse e-mail" required error={fieldErrors.email}>
             <Input

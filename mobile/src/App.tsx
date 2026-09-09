@@ -3,11 +3,13 @@ import { Network } from '@capacitor/network';
 import { clearCache, clearOutbox, outboxCount, readSnapshot } from './lib/db';
 import {
   clearSession,
+  forgetLegacyServerUrl,
   loadActiveFarmId,
   loadSession,
   saveActiveFarmId,
   saveSession,
 } from './lib/storage';
+import { SERVER_URL } from './lib/config';
 import { fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
 import { writeSnapshot } from './lib/db';
 import type { CachedParcel, Session, Snapshot } from './lib/types';
@@ -88,12 +90,20 @@ export function App() {
         outboxCount(),
         loadActiveFarmId(),
       ]);
-      setSession(stored);
+      // Une version antérieure laissait saisir l'adresse du serveur. Une
+      // session gardée pour une autre instance porte un jeton que celle-ci ne
+      // reconnaîtra pas : mieux vaut redemander la connexion tout de suite que
+      // laisser l'application échouer à chaque appel sans dire pourquoi.
+      const valide = stored && stored.serverUrl === SERVER_URL ? stored : null;
+      if (stored && !valide) await clearSession();
+      await forgetLegacyServerUrl();
+
+      setSession(valide);
       setSnapshot(cached);
       setPending(count);
       setActiveFarmId(farmId ?? cached?.farm.id ?? null);
       setStack([
-        stored?.accountType === 'AGRONOMIST' ? { name: 'portfolio' } : { name: 'parcels' },
+        valide?.accountType === 'AGRONOMIST' ? { name: 'portfolio' } : { name: 'parcels' },
       ]);
       setBooting(false);
     })();

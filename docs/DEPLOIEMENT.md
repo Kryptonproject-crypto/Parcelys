@@ -410,7 +410,23 @@ Le fichier `.jks` ne doit **jamais** être versionné.
 
 ### Adresse du serveur dans l'application
 
-L'APK ne contient aucune adresse en dur : à la première connexion,
-l'utilisateur saisit celle de son instance — `parcelys.fr`. Le schéma `https://`
-est ajouté automatiquement s'il est omis. C'est ce qui permet à un même APK de
-servir plusieurs exploitations auto-hébergées.
+L'adresse est **inscrite dans l'APK à la compilation**, et n'est plus demandée à
+la connexion : on ne réclame pas à un agriculteur, au bord d'un champ, une
+adresse qu'il n'a aucune raison de connaître — et qu'une faute de frappe rend
+indiscernable d'une panne de réseau. L'écran de connexion l'affiche simplement,
+pour que chacun sache à quelle instance il se connecte.
+
+Par défaut `https://parcelys.fr` (`mobile/src/lib/config.ts`). Pour une autre
+instance, la variable de dépôt **`PARCELYS_SERVER`** (Settings → Secrets and
+variables → Actions → Variables) est reprise par le workflow. En local :
+
+```bash
+VITE_PARCELYS_SERVER=https://parcelys.mon-domaine.fr npm run sync
+```
+
+Un APK par instance, donc. C'est le prix de la simplicité côté utilisateur, et
+il est faible : la compilation est automatisée.
+
+> **Migration.** Une session enregistrée par une version antérieure, qui
+> pointait vers une autre adresse, est effacée au démarrage : son jeton ne
+> serait pas reconnu par cette instance. L'utilisateur se reconnecte une fois.

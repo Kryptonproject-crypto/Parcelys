@@ -51,25 +51,14 @@ export async function saveActiveFarmId(farmId: string | null): Promise<void> {
   else await Preferences.remove({ key: FARM_KEY });
 }
 
-export async function loadServerUrl(): Promise<string> {
-  const { value } = await Preferences.get({ key: SERVER_KEY });
-  return value ?? '';
-}
-
-export async function saveServerUrl(url: string): Promise<void> {
-  await Preferences.set({ key: SERVER_KEY, value: url });
-}
-
 /**
- * Normalise l'adresse saisie par l'utilisateur.
+ * Efface l'adresse de serveur conservée par les versions antérieures.
  *
- * Sur un Raspberry Pi, on tape souvent « 192.168.1.42:3000 » ou
- * « parcelys.local » : on complète le schéma et on retire la barre finale, qui
- * produirait sinon des URL à double barre.
+ * Elle était saisie à la connexion ; elle est désormais fixée à la compilation
+ * (`lib/config.ts`). La valeur restée en mémoire ne sert plus à rien, et
+ * laisser traîner l'adresse d'une instance dans le stockage d'un téléphone
+ * n'aurait aucune raison d'être.
  */
-export function normalizeServerUrl(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return '';
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return withScheme.replace(/\/+$/, '');
+export async function forgetLegacyServerUrl(): Promise<void> {
+  await Preferences.remove({ key: SERVER_KEY });
 }

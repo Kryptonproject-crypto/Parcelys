@@ -88,9 +88,17 @@ jobs:
         working-directory: mobile
         run: npm ci
 
+      # L'adresse du serveur est inscrite dans l'APK à la compilation : elle
+      # n'est plus demandée à la connexion. La variable de dépôt
+      # PARCELYS_SERVER permet d'en produire un pour une autre instance sans
+      # toucher au code ; à défaut, c'est le défaut de mobile/src/lib/config.ts.
       - name: Compiler l'interface et synchroniser Capacitor
         working-directory: mobile
-        run: npm run sync
+        env:
+          VITE_PARCELYS_SERVER: ${{ vars.PARCELYS_SERVER || 'https://parcelys.fr' }}
+        run: |
+          echo "Serveur inscrit dans l'APK : $VITE_PARCELYS_SERVER"
+          npm run sync
 
       - name: Magasin de clés
         id: keystore
