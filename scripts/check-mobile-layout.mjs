@@ -36,6 +36,7 @@ const PAGES = [
   '/administration/utilisateurs',
   '/administration/invitations',
   '/administration/exploitations',
+  '/administration/experts',
   '/administration/journal',
   '/administration/maintenance',
   '/preconisations',

@@ -89,5 +89,25 @@ export const adminUserQuerySchema = z.object({
     .default('tous'),
 });
 
+/**
+ * Rattachement d'un expert à une exploitation, décidé depuis l'administration.
+ *
+ * Le chemin ordinaire reste celui de l'exploitation, qui délivre elle-même un
+ * code d'accès conseil : c'est elle qui décide qui lit ses données. Ce
+ * rattachement direct est la voie de l'administrateur d'instance, pour les cas
+ * où il gère lui-même les deux côtés. Il est journalisé, et l'exploitation en
+ * est avertie — un accès à des données d'exploitation ne s'ouvre pas en silence.
+ */
+export const advisoryGrantSchema = z.object({
+  expertId: z.string().trim().min(1).max(40),
+  farmId: z.string().trim().min(1).max(40),
+  note: z.string().trim().max(200).optional().or(z.literal('')),
+});
+
+export const advisoryRevokeSchema = z.object({
+  engagementId: z.string().trim().min(1).max(40),
+});
+
 export type InvitationCreateInput = z.infer<typeof invitationCreateSchema>;
 export type UserActionInput = z.infer<typeof userActionSchema>;
+export type AdvisoryGrantInput = z.infer<typeof advisoryGrantSchema>;

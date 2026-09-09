@@ -186,7 +186,7 @@ export function EphyProductSearch({
                 ) : null}
                 {product.status ? (
                   <span
-                    className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                    className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[12.5px] sm:text-[11px] font-medium ${
                       /autoris/i.test(product.status)
                         ? 'bg-accent-soft text-champ-800 dark:text-champ-300'
                         : 'bg-brique-100 text-brique-600'

@@ -106,7 +106,7 @@ export function RecommendationList({
               </>
             ) : null}
 
-            <p className="mt-2 text-[11.5px] text-ink-3">
+            <p className="mt-2 text-[12.5px] sm:text-[11.5px] text-ink-3">
               {item.windowStart || item.windowEnd
                 ? `Fenêtre : ${item.windowStart ? formatDateFr(item.windowStart) : '…'} → ${
                     item.windowEnd ? formatDateFr(item.windowEnd) : '…'

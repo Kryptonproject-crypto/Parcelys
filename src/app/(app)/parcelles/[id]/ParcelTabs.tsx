@@ -150,7 +150,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
               >
                 {item.label}
                 {count !== null && count > 0 ? (
-                  <span className="ml-1.5 rounded-full bg-surface-3 px-1.5 py-0.5 text-[11px] text-ink-2">
+                  <span className="ml-1.5 rounded-full bg-surface-3 px-1.5 py-0.5 text-[12.5px] sm:text-[11px] text-ink-2">
                     {count}
                   </span>
                 ) : null}

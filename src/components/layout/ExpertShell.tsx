@@ -100,13 +100,13 @@ export function ExpertShell({
 
       <div className="px-3 pb-3">
         <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ciel-500">
+          <p className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.08em] text-ciel-500">
             Expert agronomique
           </p>
           <p className="mt-0.5 truncate text-[13px] font-medium text-white">
             {user.organization ?? 'Indépendant'}
           </p>
-          <p className="text-[11.5px] text-ardoise-300">
+          <p className="text-[12.5px] sm:text-[11.5px] text-ardoise-300">
             {portfolioCount} exploitation(s) suivie(s)
           </p>
         </div>
@@ -145,7 +145,7 @@ export function ExpertShell({
                   />
                   <span className="flex-1">{item.label}</span>
                   {item.href === '/portefeuille/preconisations' && pendingCount > 0 ? (
-                    <span className="rounded-full bg-ble-500 px-1.5 text-[10.5px] font-bold text-champ-950">
+                    <span className="rounded-full bg-ble-500 px-1.5 text-[12px] sm:text-[10.5px] font-bold text-champ-950">
                       {pendingCount}
                     </span>
                   ) : null}
@@ -175,7 +175,7 @@ export function ExpertShell({
             <span className="block truncate text-[13px] font-medium text-white">
               {user.firstName} {user.lastName}
             </span>
-            <span className="block truncate text-[11px] text-ardoise-300">
+            <span className="block truncate text-[12.5px] sm:text-[11px] text-ardoise-300">
               {user.email}
             </span>
           </span>
@@ -248,7 +248,7 @@ export function ExpertShell({
             >
               <IconNotification size={18} aria-hidden />
               {unreadCount > 0 ? (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[10px] font-semibold text-white ring-2 ring-canvas">
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[12px] sm:text-[10px] font-semibold text-white ring-2 ring-canvas">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
@@ -274,7 +274,7 @@ export function ExpertShell({
                 // `min-w-0` : même raison que dans AppShell — un intitulé plus
                 // large que sa colonne ferait déborder la barre de l'écran.
                 className={cn(
-                  'relative flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[10.5px] font-medium transition-colors',
+                  'relative flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[12px] sm:text-[10.5px] font-medium transition-colors',
                   active ? 'text-ciel-600 dark:text-ciel-500' : 'text-ink-3',
                 )}
               >

@@ -298,7 +298,7 @@ export function ProfileForms({
               type="checkbox"
               name="notifyByEmail"
               defaultChecked={user.notifyByEmail}
-              className="mt-0.5 h-4 w-4 rounded border-line-strong text-champ-600 focus:ring-champ-500"
+              className="mt-0.5 h-5 w-5 rounded border-line-strong text-champ-600 focus:ring-champ-500 sm:h-4 sm:w-4"
             />
             <span>
               <span className="font-medium text-ink">Notifications par e-mail</span>
@@ -406,7 +406,7 @@ export function ProfileForms({
                   type="button"
                   onClick={() => void revokeSession(session.id)}
                   disabled={busy === session.id}
-                  className="shrink-0 text-sm text-brique-500 hover:underline"
+                  className="-my-2 shrink-0 px-2 py-2 text-sm text-brique-500 hover:underline min-h-11 sm:min-h-0 sm:px-0"
                 >
                   Révoquer
                 </button>

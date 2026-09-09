@@ -124,6 +124,12 @@ export const ADMIN_SECTIONS: NavItem[] = [
     group: 'exploitation',
   },
   {
+    href: '/administration/experts',
+    label: 'Experts',
+    icon: IconUsers,
+    group: 'exploitation',
+  },
+  {
     href: '/administration/journal',
     label: "Journal d'audit",
     icon: IconAudit,

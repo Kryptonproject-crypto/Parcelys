@@ -194,7 +194,7 @@ export function StatCard({
   const content = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+        <p className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
           {label}
         </p>
         {Icon ? (
@@ -265,7 +265,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-medium ring-1 ring-inset',
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] sm:text-[11.5px] font-medium ring-1 ring-inset',
         BADGE_TONES[tone],
         className,
       )}
@@ -454,7 +454,7 @@ export function Checkbox({
     <input
       type="checkbox"
       className={cn(
-        'h-4 w-4 rounded border-line-strong bg-surface text-champ-600 transition-colors',
+        'h-5 w-5 sm:h-4 sm:w-4 rounded border-line-strong bg-surface text-champ-600 transition-colors',
         'focus:ring-2 focus:ring-champ-500/25 focus:ring-offset-0',
         className,
       )}
@@ -499,7 +499,7 @@ export function Th({
     <th
       className={cn(
         'sticky top-0 z-10 border-b border-line bg-surface-2 px-3 py-2.5',
-        'text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3',
+        'text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
         align === 'left' && 'text-left',

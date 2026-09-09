@@ -71,7 +71,7 @@ export function ShareBar({
             >
               {/* Libellé direct dès que le segment est assez large. */}
               {percent > 14 ? (
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 text-[11px] font-semibold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 text-[12.5px] sm:text-[11px] font-semibold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
                   {percent.toFixed(0)} %
                 </span>
               ) : null}

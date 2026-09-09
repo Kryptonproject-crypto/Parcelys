@@ -64,6 +64,7 @@ const FARMER_PAGES = [
   '/administration/utilisateurs',
   '/administration/invitations',
   '/administration/exploitations',
+  '/administration/experts',
   '/administration/journal',
   '/administration/maintenance',
 ];

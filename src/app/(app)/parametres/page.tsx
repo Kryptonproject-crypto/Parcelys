@@ -189,17 +189,17 @@ export default async function SettingsPage() {
           <CardHeader title="Confidentialité et données" />
           <ul className="space-y-2 text-sm">
             <li>
-              <Link href="/profil" className="text-champ-700 dark:text-champ-400 hover:underline">
+              <Link href="/profil" className="inline-block py-1.5 text-champ-700 dark:text-champ-400 hover:underline">
                 Exporter ou supprimer mes données personnelles
               </Link>
             </li>
             <li>
-              <Link href="/confidentialite" className="text-champ-700 dark:text-champ-400 hover:underline">
+              <Link href="/confidentialite" className="inline-block py-1.5 text-champ-700 dark:text-champ-400 hover:underline">
                 Politique de confidentialité
               </Link>
             </li>
             <li>
-              <Link href="/cgu" className="text-champ-700 dark:text-champ-400 hover:underline">
+              <Link href="/cgu" className="inline-block py-1.5 text-champ-700 dark:text-champ-400 hover:underline">
                 Conditions générales d&apos;utilisation
               </Link>
             </li>

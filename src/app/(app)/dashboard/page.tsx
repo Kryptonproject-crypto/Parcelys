@@ -308,7 +308,7 @@ export default async function DashboardPage() {
                                 <span className="truncate text-[13.5px] font-medium text-ink">
                                   {event.parcelName}
                                 </span>
-                                <span className="shrink-0 text-[11.5px] tabular-nums text-ink-3">
+                                <span className="shrink-0 text-[12.5px] sm:text-[11.5px] tabular-nums text-ink-3">
                                   {formatDateFr(event.date)}
                                 </span>
                               </span>
@@ -399,7 +399,7 @@ export default async function DashboardPage() {
                         <p className="text-[13.5px] tabular-nums text-ink-2">
                           {formatCompactFr(item.dose)} {item.doseUnit}
                         </p>
-                        <p className="text-[11.5px] tabular-nums text-ink-3">
+                        <p className="text-[12.5px] sm:text-[11.5px] tabular-nums text-ink-3">
                           {formatDateFr(item.appliedOn)}
                         </p>
                       </div>
@@ -440,7 +440,7 @@ export default async function DashboardPage() {
                         <p className="text-[13.5px] tabular-nums text-ink-2">
                           {formatCompactFr(item.dose)} {item.doseUnit}
                         </p>
-                        <p className="text-[11.5px] tabular-nums text-ink-3">
+                        <p className="text-[12.5px] sm:text-[11.5px] tabular-nums text-ink-3">
                           {formatDateFr(item.appliedOn)}
                         </p>
                       </div>

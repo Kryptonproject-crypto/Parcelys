@@ -534,6 +534,117 @@ describe('Administration', () => {
   });
 
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  describe('Experts agronomiques', () => {
+    /** Un administrateur, une exploitation ordinaire, et un compte expert. */
+    async function setupExpert() {
+      const base = await setup();
+      const expert = await createExpert({
+        email: 'expert.rattachement@conseil.test',
+        organization: 'Cabinet Agro',
+      });
+      return { ...base, expert };
+    }
+
+    it('confie une exploitation à un expert, et l’exploitation en est avertie', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+
+      const response = await adminClient.post('/api/admin/experts', {
+        expertId: expert.id,
+        farmId: member.farmId,
+      });
+      expect(response.status).toBe(201);
+
+      const engagement = await prisma.advisoryEngagement.findUniqueOrThrow({
+        where: { farmId_expertId: { farmId: member.farmId, expertId: expert.id } },
+      });
+      expect(engagement.status).toBe('ACTIVE');
+
+      // Un accès aux données d'une exploitation ne s'ouvre pas en silence.
+      const notification = await prisma.notification.findFirst({
+        where: { userId: member.id, farmId: member.farmId },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(notification?.title).toContain('expert');
+
+      // Le journal distingue un accès décidé par l'administration d'un accès
+      // consenti par l'exploitation : ce n'est pas le même fait.
+      const audit = await prisma.auditLog.findFirst({
+        where: { action: 'advisor.access_granted_by_admin' },
+      });
+      expect(audit).not.toBeNull();
+    });
+
+    it('donne réellement accès aux parcelles de l’exploitation confiée', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+
+      const expertClient = new TestClient();
+      await expertClient.login(expert.email, expert.password);
+
+      // Avant rattachement : l'exploitation n'existe pas pour cet expert.
+      const avant = await expertClient.get(`/api/parcels?farmId=${member.farmId}`);
+      expect(avant.status).toBe(404);
+
+      await adminClient.post('/api/admin/experts', {
+        expertId: expert.id,
+        farmId: member.farmId,
+      });
+
+      const apres = await expertClient.get(`/api/parcels?farmId=${member.farmId}`);
+      expect(apres.status).toBe(200);
+    });
+
+    it('refuse un second rattachement à la même exploitation', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+      const payload = { expertId: expert.id, farmId: member.farmId };
+
+      expect((await adminClient.post('/api/admin/experts', payload)).status).toBe(201);
+      expect((await adminClient.post('/api/admin/experts', payload)).status).toBe(409);
+    });
+
+    it('refuse de confier une exploitation à un compte qui n’est pas expert', async () => {
+      const { adminClient, member } = await setupExpert();
+
+      const response = await adminClient.post('/api/admin/experts', {
+        expertId: member.id,
+        farmId: member.farmId,
+      });
+      // 404 et non 403 : l'existence d'un compte tiers ne se déduit pas du code.
+      expect(response.status).toBe(404);
+    });
+
+    it('retire l’accès, et l’expert le perd immédiatement', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+
+      const created = await adminClient.post('/api/admin/experts', {
+        expertId: expert.id,
+        farmId: member.farmId,
+      });
+      const engagementId = (created.body as { id: string }).id;
+
+      const expertClient = new TestClient();
+      await expertClient.login(expert.email, expert.password);
+      expect((await expertClient.get(`/api/parcels?farmId=${member.farmId}`)).status).toBe(200);
+
+      const revoked = await adminClient.delete('/api/admin/experts', { engagementId });
+      expect(revoked.status).toBe(200);
+
+      expect((await expertClient.get(`/api/parcels?farmId=${member.farmId}`)).status).toBe(404);
+    });
+
+    it('reste fermé à un compte ordinaire', async () => {
+      const { memberClient, member, expert } = await setupExpert();
+
+      expect((await memberClient.get('/api/admin/experts')).status).toBe(403);
+      expect(
+        (await memberClient.post('/api/admin/experts', {
+          expertId: expert.id,
+          farmId: member.farmId,
+        })).status,
+      ).toBe(403);
+    });
+  });
+
   describe('Maintenance', () => {
     it('bloque les comptes ordinaires et laisse passer les administrateurs', async () => {
       const { adminClient, memberClient } = await setup();

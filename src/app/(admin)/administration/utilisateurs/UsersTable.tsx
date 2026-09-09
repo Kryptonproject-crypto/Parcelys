@@ -213,13 +213,13 @@ export function UsersTable({
                     <span className="block font-medium text-ink">
                       {user.firstName} {user.lastName}
                       {isSelf ? (
-                        <span className="ml-1.5 text-[11px] font-normal text-ink-3">
+                        <span className="ml-1.5 text-[12.5px] sm:text-[11px] font-normal text-ink-3">
                           (vous)
                         </span>
                       ) : null}
                     </span>
                     <span className="block text-[12.5px] text-ink-3">{user.email}</span>
-                    <span className="block text-[11.5px] text-ink-3">
+                    <span className="block text-[12.5px] sm:text-[11.5px] text-ink-3">
                       Inscrit le {formatDateFr(user.createdAt)}
                       {user.organization ? ` · ${user.organization}` : ''}
                     </span>
@@ -291,7 +291,7 @@ export function UsersTable({
                       ) : null}
                     </div>
                     {user.suspendedReason ? (
-                      <p className="mt-1 text-[11.5px] text-ink-3">
+                      <p className="mt-1 text-[12.5px] sm:text-[11.5px] text-ink-3">
                         Motif : {user.suspendedReason}
                       </p>
                     ) : null}

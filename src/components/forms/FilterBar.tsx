@@ -55,7 +55,7 @@ export function FilterField({
     <div className={cn('min-w-40 flex-1', className)}>
       <label
         htmlFor={htmlFor}
-        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3"
+        className="mb-1.5 block text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3"
       >
         {label}
       </label>

@@ -127,7 +127,7 @@ export function AppShell({
       <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-5">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-white"
+          className="-my-2 flex items-center gap-2.5 py-2 text-[17px] font-semibold tracking-tight text-white"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-champ-500/25 text-base">
             🌾
@@ -167,7 +167,7 @@ export function AppShell({
                 <span className="block truncate text-[13px] font-medium text-white">
                   {activeFarm.farmName}
                 </span>
-                <span className="block text-[11px] text-champ-300">
+                <span className="block text-[12.5px] sm:text-[11px] text-champ-300">
                   {ROLE_LABELS[activeFarm.role]}
                 </span>
               </span>
@@ -203,7 +203,7 @@ export function AppShell({
                       )}
                     >
                       <span className="truncate">{farm.farmName}</span>
-                      <span className="shrink-0 text-[11px] text-ink-3">
+                      <span className="shrink-0 text-[12.5px] sm:text-[11px] text-ink-3">
                         {ROLE_LABELS[farm.role]}
                       </span>
                     </button>
@@ -223,7 +223,7 @@ export function AppShell({
 
           return (
             <div key={group.key} className="mb-4 last:mb-0">
-              <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-champ-400/80 dark:text-ink-3">
+              <p className="mb-1.5 px-3 text-[12px] sm:text-[10.5px] font-semibold uppercase tracking-[0.1em] text-champ-400/80 dark:text-ink-3">
                 {group.label}
               </p>
               <ul className="space-y-0.5">
@@ -316,7 +316,7 @@ export function AppShell({
             <span className="block truncate text-[13px] font-medium text-white">
               {user.firstName} {user.lastName}
             </span>
-            <span className="block truncate text-[11px] text-champ-300">{user.email}</span>
+            <span className="block truncate text-[12.5px] sm:text-[11px] text-champ-300">{user.email}</span>
           </span>
           <button
             type="button"
@@ -368,7 +368,7 @@ export function AppShell({
 
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 font-semibold text-ink lg:hidden"
+            className="-my-2 flex min-h-11 items-center gap-2 py-2 font-semibold text-ink lg:hidden"
           >
             <span aria-hidden>🌾</span> Parcelys
           </Link>
@@ -395,7 +395,7 @@ export function AppShell({
             >
               <IconNotification size={18} aria-hidden />
               {unreadCount > 0 ? (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[10px] font-semibold text-white ring-2 ring-canvas">
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brique-500 px-1 text-[12px] sm:text-[10px] font-semibold text-white ring-2 ring-canvas">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
@@ -422,7 +422,7 @@ export function AppShell({
                 // déborde de la grille — la barre dépasse alors la largeur de
                 // l'écran et toute la page se met à défiler horizontalement.
                 className={cn(
-                  'flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[10.5px] font-medium transition-colors',
+                  'flex min-w-0 flex-col items-center gap-1 px-1 py-2.5 text-[12px] sm:text-[10.5px] font-medium transition-colors',
                   active ? 'text-champ-600 dark:text-champ-400' : 'text-ink-3',
                 )}
               >

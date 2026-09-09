@@ -319,11 +319,11 @@ export function InvitationsPanel({
                   <code className="font-mono text-[13px] text-ink">
                     {invitation.codeHint}-••••-••••
                   </code>
-                  <span className="block text-[11.5px] text-ink-3">
+                  <span className="block text-[12.5px] sm:text-[11.5px] text-ink-3">
                     Créé par {invitation.createdBy} le {formatDateFr(invitation.createdAt)}
                   </span>
                   {invitation.note ? (
-                    <span className="block text-[11.5px] text-ink-3">{invitation.note}</span>
+                    <span className="block text-[12.5px] sm:text-[11.5px] text-ink-3">{invitation.note}</span>
                   ) : null}
                 </Td>
 
@@ -347,7 +347,7 @@ export function InvitationsPanel({
                     {INVITATION_STATUS_LABELS[invitation.status]}
                   </Badge>
                   {invitation.usedByEmail ? (
-                    <span className="mt-1 block text-[11.5px] text-ink-3">
+                    <span className="mt-1 block text-[12.5px] sm:text-[11.5px] text-ink-3">
                       par {invitation.usedByEmail}
                     </span>
                   ) : null}

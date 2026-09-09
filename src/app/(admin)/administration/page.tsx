@@ -150,7 +150,7 @@ export default async function AdminOverviewPage() {
               { label: 'Codes révoqués', value: stats.invitations.revoked },
             ].map((row) => (
               <div key={row.label} className="rounded-lg bg-surface-2 px-3 py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
                   {row.label}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-ink">
@@ -188,7 +188,7 @@ export default async function AdminOverviewPage() {
               { label: 'Documents', value: stats.records.documents },
             ].map((row) => (
               <div key={row.label} className="rounded-lg bg-surface-2 px-3 py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3">
                   {row.label}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-ink">

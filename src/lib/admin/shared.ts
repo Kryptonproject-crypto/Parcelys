@@ -79,3 +79,26 @@ export type AdminFarmRow = {
   areaHa: number;
   owners: string[];
 };
+
+/** Un compte expert et les exploitations qu'il suit, pour l'écran d'administration. */
+export type AdminExpertEngagement = {
+  id: string;
+  farmId: string;
+  farmName: string;
+  status: 'ACTIVE' | 'ENDED';
+  startedAt: string;
+  endedAt: string | null;
+};
+
+export type AdminExpertRow = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  organization: string | null;
+  advisorCertificate: string | null;
+  suspended: boolean;
+  emailVerified: boolean;
+  createdAt: string;
+  engagements: AdminExpertEngagement[];
+};

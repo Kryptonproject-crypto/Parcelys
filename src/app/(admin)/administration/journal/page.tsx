@@ -166,7 +166,7 @@ export default async function AdminAuditPage({
                       {entry.action}
                     </code>
                     {entry.entity ? (
-                      <span className="ml-2 text-[11.5px] text-ink-3">{entry.entity}</span>
+                      <span className="ml-2 text-[12.5px] sm:text-[11.5px] text-ink-3">{entry.entity}</span>
                     ) : null}
                   </Td>
                   <Td>

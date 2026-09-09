@@ -121,7 +121,7 @@ export function ActivityChart({
         {data.map((month, index) => (
           <span
             key={month.month}
-            className="flex-1 text-center text-[10px] uppercase tracking-wide text-ink-3"
+            className="flex-1 text-center text-[12px] sm:text-[10px] uppercase tracking-wide text-ink-3"
           >
             {index % 2 === 0 ? month.label.slice(0, 3) : ''}
           </span>

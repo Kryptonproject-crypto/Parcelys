@@ -59,6 +59,11 @@ export type AuditAction =
   | 'advisor.access_granted'
   | 'advisor.access_revoked'
   | 'advisor.access_redeemed'
+  // Rattachement décidé depuis l'administration d'instance, et non par
+  // l'exploitation elle-même : distingué pour qu'un contrôle du journal
+  // fasse la différence entre un accès consenti et un accès imposé.
+  | 'advisor.access_granted_by_admin'
+  | 'advisor.access_revoked_by_admin'
   | 'recommendation.created'
   | 'recommendation.updated'
   | 'recommendation.proposed'

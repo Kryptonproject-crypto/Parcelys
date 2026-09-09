@@ -275,13 +275,13 @@ export default async function WeatherPage({
                     <p className="mt-1 text-lg font-semibold tabular-nums text-ink">
                       {num(hour.temperatureC, 0)}°
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-tight text-ink-3">
+                    <p className="mt-0.5 text-[12.5px] sm:text-[11px] leading-tight text-ink-3">
                       {hour.summary}
                     </p>
                     <p className="mt-1 text-xs tabular-nums text-ciel-600">
                       {num(hour.precipitationMm, 1)} mm
                     </p>
-                    <p className="flex items-center justify-center gap-1 text-[11px] tabular-nums text-ink-3">
+                    <p className="flex items-center justify-center gap-1 text-[12.5px] sm:text-[11px] tabular-nums text-ink-3">
                       <IconWind size={11} aria-hidden />
                       {num(hour.windKmh, 0)} km/h
                     </p>

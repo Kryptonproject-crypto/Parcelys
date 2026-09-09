@@ -91,7 +91,7 @@ export function RecommendationDetail({
 
         <dl className="mt-4 grid gap-x-6 gap-y-3 border-t border-line pt-4 sm:grid-cols-2">
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+            <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
               Expert
             </dt>
             <dd className="mt-0.5 text-sm text-ink">
@@ -104,13 +104,13 @@ export function RecommendationDetail({
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+            <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
               Exploitation
             </dt>
             <dd className="mt-0.5 text-sm text-ink">{item.farmName}</dd>
           </div>
           <div>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+            <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
               {item.status === 'DRAFT' ? 'Créée le' : 'Transmise le'}
             </dt>
             <dd className="mt-0.5 text-sm text-ink">
@@ -119,7 +119,7 @@ export function RecommendationDetail({
           </div>
           {item.windowStart || item.windowEnd ? (
             <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+              <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                 Fenêtre d&apos;intervention
               </dt>
               <dd className="mt-0.5 text-sm text-ink">
@@ -140,14 +140,14 @@ export function RecommendationDetail({
 
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+              <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                 Produit
               </dt>
               <dd className="mt-0.5 text-sm font-medium text-ink">{item.productName}</dd>
             </div>
             {item.dose !== null ? (
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                   Dose conseillée
                 </dt>
                 <dd className="mt-0.5 text-sm tabular-nums text-ink">
@@ -157,7 +157,7 @@ export function RecommendationDetail({
             ) : null}
             {item.targetLabel ? (
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                   Cible
                 </dt>
                 <dd className="mt-0.5 text-sm text-ink">{item.targetLabel}</dd>
@@ -165,7 +165,7 @@ export function RecommendationDetail({
             ) : null}
             {item.amm ? (
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                <dt className="text-[12.5px] sm:text-[11px] font-semibold uppercase tracking-wide text-ink-3">
                   Numéro d&apos;AMM
                 </dt>
                 <dd className="mt-0.5 text-sm tabular-nums text-ink">{item.amm}</dd>
