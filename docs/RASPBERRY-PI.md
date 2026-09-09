@@ -293,6 +293,17 @@ curl -fsSL https://raw.githubusercontent.com/kryptonproject-crypto/parcelys/main
   | sudo bash
 ```
 
+> **Tant que la branche de développement n'est pas fusionnée dans `main`**,
+> installez-la explicitement — `main` porte encore des versions de Next.js
+> visées par des avis de sécurité critiques, et n'a ni les sauvegardes
+> vérifiées ni la compilation hors-ligne :
+>
+> ```bash
+> BR=claude/parcelys-saas-agricole-7iqlgw
+> curl -fsSL "https://raw.githubusercontent.com/kryptonproject-crypto/parcelys/$BR/scripts/install-pi.sh" \
+>   | sudo bash -s -- --branch "$BR"
+> ```
+
 Le script est **idempotent** : on peut le relancer sans rien casser. Il
 n'écrase jamais un `.env` existant, ne recrée pas une base déjà là, engendre un
 mot de passe de base solide, et **vérifie le résultat de chaque étape** plutôt
