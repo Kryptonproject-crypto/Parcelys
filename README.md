@@ -649,9 +649,25 @@ parcelys/
 | Suspension | Un compte suspendu voit ses sessions révoquées immédiatement et sa reconnexion refusée, après vérification du mot de passe pour ne pas révéler l'existence du compte |
 | Application mobile | Jeton `Authorization: Bearer` et **aucun cookie** : la CSRF est structurellement impossible, et la vérification d'origine reste appliquée dès qu'un cookie est présent. CORS limité à une liste fermée d'origines, sans `Allow-Credentials` |
 | Rejeu des saisies | Clé d'idempotence liée à l'empreinte du jeton de session : deux appareils ne peuvent pas se lire mutuellement, et un rejeu ne duplique aucun enregistrement réglementaire |
+| Adresse du visiteur | Lue dans l'en-tête écrit par le proxy de confiance, **dernière entrée** de `X-Forwarded-For` — celle qu'un visiteur ne peut pas amorcer. `CLIENT_IP_HEADER=cf-connecting-ip` derrière Cloudflare |
 
 Les en-têtes de sécurité (CSP, HSTS, `X-Frame-Options`, `Referrer-Policy`,
 `Permissions-Policy`) sont définis dans [`next.config.ts`](next.config.ts).
+
+### Dépendances
+
+`npm audit --omit=dev` tourne à chaque intégration continue. Trois avis
+subsistent aujourd'hui, tous **hors du chemin d'exécution servi** — ils sont
+listés ici plutôt que passés sous silence :
+
+| Paquet | Par | Pourquoi ce n'est pas une surface d'attaque ici |
+| --- | --- | --- |
+| `deepmerge-ts` | `prisma` → `@prisma/config` | Outil en ligne de commande. Ne s'exécute que pendant `db:deploy` et `prisma generate`, sur des fichiers de configuration que vous maîtrisez. |
+| `postcss` | copie interne de `next` | Compilation des feuilles de style. Ne s'exécute pas au service d'une requête. |
+| `uuid` | `exceljs` | La faille exige de passer un `buf` à `uuid` v3/v5/v6. Parcelys n'appelle jamais `uuid` directement. |
+
+Cette liste est à revérifier à chaque mise à jour : un avis peut passer de
+l'outillage au code servi.
 
 ---
 

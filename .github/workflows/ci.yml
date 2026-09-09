@@ -53,8 +53,20 @@ jobs:
       - name: Migrations
         run: npx prisma migrate deploy
 
+      # Les avis de sécurité sortent au fil de l'eau : mieux vaut l'apprendre
+      # ici qu'au moment de déployer. Non bloquant, car un avis sur un outil de
+      # compilation n'a pas à empêcher une correction urgente de partir — mais
+      # visible dans le résumé de l'exécution.
+      - name: Avis de sécurité (dépendances servies)
+        run: npm audit --omit=dev || true
+
       - name: Types
         run: npm run typecheck
+
+      # Un dépôt fraîchement cloné n'a pas de `mobile/node_modules` : cette
+      # vérification garantit que la compilation du serveur n'en dépend pas.
+      - name: Le serveur compile sans les dépendances du mobile
+        run: test ! -d mobile/node_modules
 
       - name: Style
         run: npx eslint src tests scripts --max-warnings=0

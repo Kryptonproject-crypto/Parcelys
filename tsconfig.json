@@ -28,5 +28,14 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "//": [
+    "`mobile` est un projet séparé : ses propres dépendances, sa propre",
+    "configuration TypeScript, son propre cycle de compilation. L'inclure ici",
+    "faisait échouer la compilation du serveur sur un dépôt fraîchement cloné,",
+    "où `mobile/node_modules` n'existe pas encore — panne invisible tant qu'on",
+    "développe les deux côte à côte. Il est vérifié par `cd mobile && tsc`.",
+    "`.preview` contient les exports engendrés pour relecture, `.next` la",
+    "sortie de compilation : ni l'un ni l'autre n'est du code source."
+  ],
+  "exclude": ["node_modules", "mobile", ".next", ".preview"]
 }

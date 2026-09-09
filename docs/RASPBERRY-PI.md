@@ -170,6 +170,38 @@ free -h                           # ~2 Go de swap
 
 ---
 
+## 4 bis. Raccourci : le script d'installation
+
+Les étapes 5 à 11 — paquets, PostgreSQL, PostGIS, compte de service, code,
+configuration, compilation, service systemd — tiennent en une commande :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kryptonproject-crypto/parcelys/main/scripts/install-pi.sh \
+  | sudo bash
+```
+
+Le script est **idempotent** : on peut le relancer sans rien casser. Il
+n'écrase jamais un `.env` existant, ne recrée pas une base déjà là, engendre un
+mot de passe de base solide, et **vérifie le résultat de chaque étape** plutôt
+que son code de retour — `npm` sait échouer en renvoyant 0.
+
+Pour voir ce qu'il ferait sans rien modifier :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kryptonproject-crypto/parcelys/main/scripts/install-pi.sh \
+  | sudo bash -s -- --dry-run
+```
+
+Il ne s'occupe **pas** du tunnel Cloudflare : celui-ci demande une autorisation
+dans un navigateur, qu'aucun script ne peut donner à votre place. Reprenez au
+§ 12 une fois l'application en route.
+
+Si vous préférez comprendre chaque étape — ce qui n'est jamais du temps perdu
+sur une machine qui gardera vos registres —, poursuivez la lecture : les
+sections suivantes font exactement ce que le script automatise.
+
+---
+
 ## 5. Durcissement et pare-feu
 
 ```bash
@@ -334,6 +366,10 @@ cd /opt/parcelys
 sudo -u parcelys npm run db:deploy
 sudo -u parcelys npm run build
 ```
+
+> La compilation télécharge une fois la police Inter chez Google, puis la sert
+> depuis votre instance. Lancez-la quand la liaison est stable ; en cas
+> d'échec, relancez simplement.
 
 **Comptez 10 à 20 minutes** sur un Pi 4, 5 à 8 sur un Pi 5. Si la compilation
 est tuée en cours de route, c'est la mémoire : vérifiez le swap du § 4, puis
@@ -871,6 +907,12 @@ cd /opt/parcelys && sudo -u parcelys npm run build && sudo systemctl restart par
 
 **La compilation est tuée.** Mémoire insuffisante : vérifiez le swap (§ 4),
 puis `NODE_OPTIONS="--max-old-space-size=2048" npm run build`.
+
+**« Failed to fetch Inter from Google Fonts ».** La compilation télécharge la
+police une fois, chez Google — ensuite elle est servie par votre instance, sans
+requête vers un tiers. Sur une liaison satellite intermittente, l'appel peut
+échouer. Attendez que la liaison soit stable et relancez : le résultat est mis
+en cache dans `.next/cache`, les compilations suivantes n'y reviendront pas.
 
 **Tout est lent.** Regardez d'abord si le Pi ne bride pas sa fréquence
 (alimentation insuffisante ou chaleur) :
