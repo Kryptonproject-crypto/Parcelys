@@ -27,6 +27,7 @@ SERVICE=${PARCELYS_SERVICE:-parcelys}
 PORT=${PARCELYS_PORT:-3000}
 BRANCH=''
 SKIP_BACKUP=0
+FORCE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
     --port)        PORT="$2"; shift 2 ;;
     --branch)      BRANCH="$2"; shift 2 ;;
     --no-backup)   SKIP_BACKUP=1; shift ;;
+    --force)       FORCE=1; shift ;;
     -h|--help)     sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Option inconnue : $1" >&2; exit 2 ;;
   esac
@@ -119,17 +121,44 @@ as_service git merge --ff-only "origin/$BRANCH" --quiet \
 
 APRES=$(as_service git rev-parse HEAD)
 
-if [ "$AVANT" = "$APRES" ]; then
-  ok "Déjà à jour ($(as_service git log -1 --format=%s))"
-  printf '\n  %sRien de nouveau à installer.%s\n\n' "$AMBER" "$OFF"
-  exit 0
+if [ "$AVANT" != "$APRES" ]; then
+  ok "$(as_service git rev-list --count "$AVANT..$APRES") nouveau(x) commit(s)"
+  as_service git log --oneline "$AVANT..$APRES" | sed 's/^/    /'
+else
+  ok "Code déjà à jour ($(as_service git log -1 --format=%s))"
 fi
-
-ok "$(as_service git rev-list --count "$AVANT..$APRES") nouveau(x) commit(s)"
-as_service git log --oneline "$AVANT..$APRES" | sed 's/^/    /'
 
 VERSION_ATTENDUE=$(node -p "require('$APP_DIR/package.json').version")
 ok "Version attendue : $VERSION_ATTENDUE"
+
+# Ne rien avoir tiré ne veut pas dire qu'il n'y a rien à faire : le code peut
+# être arrivé par un « git pull » lancé à la main juste avant, sans que les
+# dépendances, les migrations et la compilation aient suivi. La bonne question
+# n'est pas « ai-je récupéré du code ? » mais « ce qui tourne correspond-il au
+# code présent sur le disque ? ».
+#
+# On note donc, à chaque compilation réussie, le commit sur lequel elle a porté.
+# Comparer ce témoin à HEAD répond exactement à la question — là où comparer des
+# dates se tromperait dès qu'un commit ancien est récupéré tardivement.
+TEMOIN="$APP_DIR/.next/.parcelys-commit"
+COMMIT_COMPILE=''
+[ -f "$TEMOIN" ] && COMMIT_COMPILE=$(cat "$TEMOIN" 2>/dev/null || echo '')
+
+if [ "$COMMIT_COMPILE" = "$APRES" ] && [ -f "$APP_DIR/.next/standalone/server.js" ] && [ "$FORCE" -eq 0 ]; then
+  ok "Application déjà compilée sur ce code"
+  printf '\n  %sRien à faire — tout est à jour.%s\n' "$AMBER" "$OFF"
+  printf '  Pour recompiler malgré tout : %s--force%s\n\n' "$BOLD" "$OFF"
+  exit 0
+fi
+
+if [ "$AVANT" = "$APRES" ]; then
+  if [ "$FORCE" -eq 1 ]; then
+    warn "Recompilation demandée (--force)."
+  else
+    warn "Le code est à jour mais l'application compilée est plus ancienne :
+    les dépendances, les migrations et la compilation restent à faire."
+  fi
+fi
 
 # --- 3. Dépendances ---------------------------------------------------------
 
@@ -190,6 +219,10 @@ APRES_BUILD=$(stat -c %Y "$APP_DIR/.next/standalone/server.js")
 [ "$APRES_BUILD" -gt "$AVANT_BUILD" ] \
   || die "La compilation n'a rien produit de neuf : le serveur autonome date
         d'avant. Voir /tmp/parcelys-update-build.log"
+
+# On note sur quel commit porte cette compilation : c'est ce témoin qui, la
+# prochaine fois, dira si l'application servie correspond au code présent.
+as_service sh -c "printf '%s' '$APRES' > '$TEMOIN'"
 
 ok "Application compilée"
 
