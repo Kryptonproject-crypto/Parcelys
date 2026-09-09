@@ -14,6 +14,8 @@ sur le Pi. Chaque commande est à taper telle quelle, dans l'ordre ; les valeurs
 2. [Ce qu'il vous faut](#2-ce-quil-vous-faut)
 3. [Préparer la carte et le premier démarrage](#3-préparer-la-carte-et-le-premier-démarrage)
 4. [Démarrer sur le SSD](#4-démarrer-sur-le-ssd)
+   · [4 bis. Vous n'avez pas de SSD](#4-bis-vous-navez-pas-de-ssd)
+   · [4 ter. Raccourci : le script d'installation](#4-ter-raccourci--le-script-dinstallation)
 5. [Durcissement et pare-feu](#5-durcissement-et-pare-feu)
 6. [PostgreSQL et PostGIS](#6-postgresql-et-postgis)
 7. [Node.js et l'utilisateur de service](#7-nodejs-et-lutilisateur-de-service)
@@ -142,6 +144,11 @@ sudo reboot
 
 ## 4. Démarrer sur le SSD
 
+> Pas de SSD sous la main ? Passez au **§ 4 bis** : l'installation fonctionne
+> très bien sur la carte microSD seule, à condition de savoir où mettre les
+> sauvegardes. Une clé USB n'est pas un substitut de SSD, et le § 4 bis explique
+> pourquoi.
+
 Branchez le SSD sur un port **USB 3.0** (les bleus). Copiez-y le système :
 
 ```bash
@@ -170,7 +177,113 @@ free -h                           # ~2 Go de swap
 
 ---
 
-## 4 bis. Raccourci : le script d'installation
+## 4 bis. Vous n'avez pas de SSD
+
+Une clé USB **ne remplace pas** un SSD, et le plus souvent ne vaut pas mieux
+qu'une bonne carte microSD. Le contrôleur d'une clé grand public est rudimentaire,
+il n'a pas de mémoire cache, et il encaisse mal les écritures aléatoires
+courtes — c'est-à-dire exactement ce que fait PostgreSQL toute la journée. Y
+déplacer la base ne prolongerait pas la vie de l'installation ; il arrive même
+qu'elle raccourcisse, et les blocages d'entrées-sorties d'une clé lente se
+voient immédiatement à l'usage.
+
+**Le bon emploi d'une clé de 30 Go est donc ailleurs : comme destination de
+sauvegarde.** Une sauvegarde, c'est une grosse écriture séquentielle par jour —
+le seul régime où une clé USB se comporte honnêtement. Et c'est ce qui vous
+sauvera réellement le jour où la carte lâchera.
+
+Donc, en attendant un vrai SSD :
+
+- **système et base sur la carte microSD**, avec les réglages ménageants que le
+  script applique tout seul (voir plus bas) ;
+- **clé USB comme cible de sauvegarde**, montée à demeure ;
+- **une copie hors de la maison** malgré tout (§ 18) : la clé est branchée sur le
+  Pi, elle partirait avec lui en cas de vol, d'orage ou de dégât des eaux.
+
+### Monter la clé à demeure
+
+Un montage par UUID plutôt que par `/dev/sda1` : l'ordre des périphériques
+change d'un démarrage à l'autre, le UUID non.
+
+```bash
+lsblk -o NAME,SIZE,FSTYPE,TRAN,MOUNTPOINT      # repérez la clé (TRAN=usb)
+sudo blkid /dev/sda1                            # relevez UUID="…"
+```
+
+Si elle est encore en FAT32 ou exFAT, reformatez-la en ext4 — un `tar` de
+documents avec ses droits Unix n'y survivrait pas autrement. **Ceci efface la
+clé :**
+
+```bash
+sudo mkfs.ext4 -L PARCELYS-SAUV /dev/sda1
+sudo blkid /dev/sda1                            # le UUID a changé, relevez-le
+```
+
+```bash
+sudo mkdir -p /media/sauvegardes
+sudo nano /etc/fstab
+```
+
+```fstab
+# nofail : si la clé est débranchée, le Pi démarre quand même au lieu de
+# s'arrêter sur une invite de réparation à laquelle personne ne répondra.
+UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /media/sauvegardes  ext4  defaults,nofail,noatime  0  2
+```
+
+```bash
+sudo mount -a
+findmnt /media/sauvegardes                      # doit afficher /dev/sda1
+```
+
+Puis indiquez cette destination à l'installateur :
+
+```bash
+sudo bash scripts/install-pi.sh --backup-dir /media/sauvegardes/parcelys
+```
+
+Le script vérifie alors que la destination est bien sur un **autre support** que
+le système, et inscrit `PARCELYS_BACKUP_REQUIRE_MOUNT=1` dans sa configuration :
+si la clé est débranchée le jour venu, la sauvegarde **échoue bruyamment** au
+lieu d'écrire sur la carte SD en faisant croire que tout va bien.
+
+### Ce que le script adapte de lui-même sur mémoire flash
+
+Détecté automatiquement (carte microSD, ou disque USB non rotatif) :
+
+- **zram au lieu d'un fichier d'échange.** Un fichier d'échange sur mémoire
+  flash est le meilleur moyen de l'user : c'est l'usage le plus intensif en
+  écriture qui soit. zram comprime en mémoire vive et n'écrit rien sur le
+  support.
+- **Points de reprise PostgreSQL espacés** (`checkpoint_timeout=30min`,
+  `max_wal_size=2GB`, `wal_compression=on`) : moins d'écritures, plus grosses.
+- **Journal des requêtes lentes désactivé.**
+
+Ce qui n'est **pas** touché, volontairement : `synchronous_commit` reste à `on`.
+Le passer à `off` réduirait encore l'usure, au prix de perdre les dernières
+transactions en cas de coupure. Pour un registre phytosanitaire — un document
+réglementaire, opposable en cas de contrôle — c'est un prix qu'on ne paie pas.
+
+### Et si vous voulez quand même essayer la clé comme disque système
+
+C'est votre droit, mais mesurez d'abord, sur la clé montée, plutôt que de vous
+fier à l'emballage :
+
+```bash
+# Écriture aléatoire 4K : c'est ce chiffre qui compte pour une base,
+# pas le débit séquentiel annoncé sur la boîte.
+sudo apt install -y fio
+sudo fio --name=alea --directory=/media/sauvegardes --size=512M \
+         --rw=randwrite --bs=4k --iodepth=1 --numjobs=1 --runtime=30 \
+         --time_based --end_fsync=1
+sudo rm -f /media/sauvegardes/alea.0.0
+```
+
+En dessous de quelques centaines d'IOPS en écriture aléatoire, la clé sera plus
+lente que la carte microSD. Comparez les deux avant de déplacer quoi que ce soit.
+
+---
+
+## 4 ter. Raccourci : le script d'installation
 
 Les étapes 5 à 11 — paquets, PostgreSQL, PostGIS, compte de service, code,
 configuration, compilation, service systemd — tiennent en une commande :
@@ -730,34 +843,57 @@ Sur un Pi chez soi, la sauvegarde n'est pas une précaution : c'est la seule
 chose qui vous sépare d'une perte définitive. Un SSD meurt, un orage grille une
 alimentation, une fausse manœuvre efface une base.
 
-```bash
-sudo nano /usr/local/bin/parcelys-backup
-```
+Le script d'installation (§ 4 ter) met tout cela en place : il installe
+`scripts/backup.sh` sous `/usr/local/bin/parcelys-backup`, écrit ses réglages
+dans `/etc/default/parcelys-backup`, planifie une exécution quotidienne à 02h30,
+et **en lance une immédiatement** — pour que l'échec éventuel se produise devant
+vous plutôt qu'un an plus tard.
 
 ```bash
-#!/bin/bash
-# Sauvegarde quotidienne de Parcelys.
-set -euo pipefail
+sudo parcelys-backup                    # sauvegarde immédiate
+ls -lh /var/backups/parcelys            # ou votre --backup-dir
+systemctl list-timers parcelys-backup   # prochaine exécution
+```
 
-DEST=/var/backups/parcelys
-STAMP=$(date +%F)
-mkdir -p "$DEST"
+Pour l'installer à la main, ou pour changer de destination :
 
-sudo -u postgres pg_dump parcelys | gzip > "$DEST/base-$STAMP.sql.gz"
-tar czf "$DEST/documents-$STAMP.tar.gz" -C /var/lib/parcelys documents
-
-# Deux semaines sur place ; le vrai filet est la copie hors machine.
-find "$DEST" -name '*.gz' -mtime +14 -delete
+```bash
+sudo install -m 755 /opt/parcelys/scripts/backup.sh /usr/local/bin/parcelys-backup
+sudo nano /etc/default/parcelys-backup
 ```
 
 ```bash
-sudo chmod +x /usr/local/bin/parcelys-backup
-sudo crontab -e
+: "${PARCELYS_DB:=parcelys}"
+: "${PARCELYS_DATA_DIR:=/var/lib/parcelys}"
+: "${PARCELYS_BACKUP_DIR:=/media/sauvegardes/parcelys}"
+: "${PARCELYS_BACKUP_KEEP_DAYS:=14}"
+# Refuse la sauvegarde si le support externe est absent (voir plus bas).
+: "${PARCELYS_BACKUP_REQUIRE_MOUNT:=1}"
 ```
 
-```cron
-15 2 * * * /usr/local/bin/parcelys-backup >> /var/log/parcelys-backup.log 2>&1
-```
+### Ce que ce script fait de plus qu'un `pg_dump` en cron
+
+Chacun de ces points vient d'un scénario où l'on croit avoir des sauvegardes
+sans en avoir :
+
+- **Il relit ce qu'il vient d'écrire.** `gunzip` recalcule la somme de contrôle,
+  et le script exige en plus la ligne `PostgreSQL database dump complete` que
+  `pg_dump` n'écrit qu'une fois terminé. C'est le contrôle qui compte : un dump
+  interrompu en cours de route produit une archive gzip **parfaitement valide**
+  au contenu tronqué. `gzip -t` la déclare bonne ; la restauration, elle, ne le
+  fera pas.
+- **Il efface les archives partielles.** Une base injoignable produisait sans
+  cela un fichier `base-….sql.gz` de 20 octets — nom crédible, extension
+  crédible, contenu vide — qui prenait sa place dans la liste et vous laissait
+  croire à une sauvegarde.
+- **Il refuse d'écrire sur le mauvais support.** Avec
+  `PARCELYS_BACKUP_REQUIRE_MOUNT=1`, si la clé USB est débranchée, son point de
+  montage est un simple dossier vide de la carte SD : la sauvegarde y
+  atterrirait sans un mot, et disparaîtrait avec la carte. Le script s'arrête
+  plutôt que de faire semblant.
+- **Il vérifie la place disponible avant de commencer**, et ne supprime les
+  anciennes archives qu'**après** avoir écrit et vérifié la nouvelle — une
+  sauvegarde ratée ne doit jamais emporter les précédentes.
 
 **Une sauvegarde qui reste sur le Pi ne protège de rien.** Recopiez-la ailleurs.
 Le plus simple, et gratuit jusqu'à 10 Go : Cloudflare R2, que vous avez déjà.
@@ -771,18 +907,67 @@ rclone config          # « s3 » → fournisseur « Cloudflare R2 »
 15 3 * * * rclone sync /var/backups/parcelys r2:parcelys-sauvegardes
 ```
 
-**Essayez la restauration une fois.** Une sauvegarde jamais restaurée n'est pas
-une sauvegarde :
+### Essayez la restauration une fois
+
+Une sauvegarde jamais restaurée n'est pas une sauvegarde, c'est une supposition.
+Faites l'essai **à côté**, dans une base jetable : vous vérifiez la sauvegarde
+sans risquer celle qui est en service.
+
+```bash
+ARCHIVE=/var/backups/parcelys/base-2027-03-01.sql.gz   # adaptez la date
+
+sudo -u postgres dropdb --if-exists parcelys_essai
+sudo -u postgres createdb parcelys_essai
+gunzip -c "$ARCHIVE" | sudo -u postgres psql -q parcelys_essai
+```
+
+Comparez ensuite la copie à l'original — c'est là qu'on apprend si l'archive
+vaut quelque chose. Les géométries sont le point sensible : ce sont elles qui
+portent les superficies, et donc les déclarations.
+
+```bash
+# Nombre de lignes de chaque table, dans les deux bases : doit être identique.
+for db in parcelys parcelys_essai; do
+  echo -n "$db : "
+  sudo -u postgres psql -tA -d "$db" -c "
+    SELECT string_agg(t || '=' || n, ' ' ORDER BY t) FROM (
+      SELECT c.relname AS t,
+             (xpath('/row/c/text()', query_to_xml(
+                format('SELECT count(*) AS c FROM public.%I', c.relname),
+                false, true, '')))[1]::text::bigint AS n
+      FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
+      WHERE ns.nspname = 'public' AND c.relkind = 'r'
+        AND c.relname <> 'spatial_ref_sys') s;"
+done
+
+# Empreinte des contours parcellaires : doit donner deux fois la même somme.
+for db in parcelys parcelys_essai; do
+  echo -n "$db : "
+  sudo -u postgres psql -tA -d "$db" \
+    -c "SELECT md5(string_agg(ST_AsText(geom), '|' ORDER BY id)) FROM parcel_geometries;"
+done
+```
+
+Deux lignes identiques à chaque fois : l'archive est bonne. Nettoyez :
+
+```bash
+sudo -u postgres dropdb parcelys_essai
+```
+
+Pour une **vraie** restauration, après un incident :
 
 ```bash
 sudo systemctl stop parcelys
 sudo -u postgres dropdb parcelys
 sudo -u postgres createdb -O parcelys parcelys
-sudo -u postgres psql -d parcelys -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
-gunzip -c /var/backups/parcelys/base-2027-03-01.sql.gz | sudo -u postgres psql -d parcelys
+gunzip -c "$ARCHIVE" | sudo -u postgres psql -q parcelys
 sudo tar xzf /var/backups/parcelys/documents-2027-03-01.tar.gz -C /var/lib/parcelys
 sudo systemctl start parcelys
+curl -s http://127.0.0.1:3000/api/health
 ```
+
+L'extension PostGIS est comprise dans le dump : inutile de la recréer à la main
+avant de restaurer.
 
 ---
 

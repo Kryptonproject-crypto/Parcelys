@@ -25,6 +25,7 @@
 #   --domain <domaine>  domaine public              (défaut : parcelys.fr)
 #   --port <port>       port d'écoute local         (défaut : 3000)
 #   --branch <branche>  branche à installer         (défaut : main)
+#   --backup-dir <chem> destination des sauvegardes (défaut : /var/backups/parcelys)
 #   --no-service        n'installe pas l'unité systemd
 #   --dry-run           montre les actions sans rien exécuter
 
@@ -39,6 +40,7 @@ SERVICE_USER=parcelys
 DOMAIN=parcelys.fr
 PORT=3000
 BRANCH=main
+BACKUP_DIR=/var/backups/parcelys
 INSTALL_SERVICE=1
 DRY_RUN=0
 REPO_URL=https://github.com/kryptonproject-crypto/parcelys.git
@@ -53,10 +55,11 @@ while [ $# -gt 0 ]; do
     --domain)     DOMAIN="$2"; shift 2 ;;
     --port)       PORT="$2"; shift 2 ;;
     --branch)     BRANCH="$2"; shift 2 ;;
+    --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
     --repo)       REPO_URL="$2"; shift 2 ;;
     --no-service) INSTALL_SERVICE=0; shift ;;
     --dry-run)    DRY_RUN=1; shift ;;
-    -h|--help)    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)    sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Option inconnue : $1" >&2; exit 2 ;;
   esac
 done
@@ -155,14 +158,32 @@ if [ "${FREE_GB:-0}" -lt 8 ]; then
 fi
 ok "Espace disque : ${FREE_GB} Go libres"
 
-# Un SSD n'est pas obligatoire, mais une carte SD tuée par PostgreSQL fait
-# perdre bien plus de temps que cet avertissement n'en coûte.
+# Support de la racine. Une mémoire flash grand public — carte microSD comme
+# clé USB — encaisse mal les écritures aléatoires incessantes de PostgreSQL.
+# On ne refuse pas d'installer : on adapte les réglages et on insiste sur les
+# sauvegardes, qui sont alors la seule protection réelle.
 ROOT_SRC=$(findmnt -n -o SOURCE / 2>/dev/null || echo '')
+ROOT_DISK=$(lsblk -no PKNAME "$ROOT_SRC" 2>/dev/null | head -1 || echo '')
+ON_FLASH=0
+
 case "$ROOT_SRC" in
   /dev/mmcblk*)
-    warn "La racine est sur une carte microSD. PostgreSQL écrit sans cesse et
-    l'usera en quelques mois. Un SSD USB est très vivement conseillé." ;;
-  *) [ -n "$ROOT_SRC" ] && ok "Racine sur $ROOT_SRC" ;;
+    ON_FLASH=1
+    warn "Racine sur carte microSD ($ROOT_SRC). PostgreSQL écrit sans cesse et
+    l'usera. Les réglages seront adaptés, mais sauvegardez ailleurs, tous les
+    jours — c'est ce qui vous sauvera le jour où la carte lâchera." ;;
+  *)
+    # `rota=0` et un transport USB : très probablement une clé, pas un SSD.
+    if [ -n "$ROOT_DISK" ] && [ "$(cat "/sys/block/$ROOT_DISK/queue/rotational" 2>/dev/null || echo 1)" = "0" ] &&
+       [ "$(lsblk -no TRAN "/dev/$ROOT_DISK" 2>/dev/null | head -1)" = "usb" ]; then
+      ON_FLASH=1
+      ok "Racine sur $ROOT_SRC (USB)"
+      warn "S'il s'agit d'une clé USB et non d'un SSD, son endurance en écriture
+    est faible : les réglages seront adaptés, et les sauvegardes quotidiennes
+    hors machine deviennent indispensables."
+    else
+      [ -n "$ROOT_SRC" ] && ok "Racine sur $ROOT_SRC"
+    fi ;;
 esac
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -173,7 +194,27 @@ fi
 
 if [ "$NEED_SWAP" -eq 1 ]; then
   step "Mémoire d'échange"
-  if [ -f /etc/dphys-swapfile ]; then
+
+  # Sur mémoire flash, un fichier d'échange est le meilleur moyen d'user le
+  # support : c'est l'usage le plus intensif en écriture qui soit. zram
+  # comprime en mémoire vive et n'écrit rien sur le disque. On y gagne moins
+  # de place qu'avec un fichier, mais assez pour compiler.
+  if [ "$ON_FLASH" -eq 1 ]; then
+    run_sh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zram-tools >>'/var/log/parcelys-install.log' 2>&1 || true"
+    if [ -f /etc/default/zramswap ] || [ -d /etc/default ]; then
+      if [ "$DRY_RUN" -eq 0 ]; then
+        # La moitié de la mémoire vive, comprimée : compte double en pratique.
+        printf 'ALGO=zstd\nPERCENT=60\nPRIORITY=100\n' > /etc/default/zramswap
+      fi
+      if service_do restart zramswap || service_do start zramswap; then
+        ok "Échange compressé en mémoire (zram) — aucune écriture disque"
+      else
+        warn "zram n'a pas pu démarrer ; la compilation risque de manquer de
+    mémoire. Relancez-la au besoin avec :
+    NODE_OPTIONS=--max-old-space-size=2048 npm run build"
+      fi
+    fi
+  elif [ -f /etc/dphys-swapfile ]; then
     run_sh "dphys-swapfile swapoff || true"
     run_sh "sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile"
     run_sh "dphys-swapfile setup >/dev/null && dphys-swapfile swapon"
@@ -273,11 +314,27 @@ else
   printf '  · création du rôle, de la base, puis activation de PostGIS\n'
 fi
 
-# Réglages adaptés à une petite machine sur SSD.
+# Réglages adaptés à une petite machine.
 if [ "$DRY_RUN" -eq 0 ]; then
   su postgres -c "psql -qc \"ALTER SYSTEM SET shared_buffers = '256MB'\"" >/dev/null
   su postgres -c "psql -qc \"ALTER SYSTEM SET work_mem = '16MB'\"" >/dev/null
   su postgres -c "psql -qc \"ALTER SYSTEM SET random_page_cost = 1.1\"" >/dev/null
+
+  # Sur mémoire flash, on espace les écritures plutôt que d'en réduire la
+  # sûreté. Des points de reprise plus rares et étalés, un journal comprimé :
+  # la base reste aussi fiable, elle écrit simplement moins souvent.
+  # `synchronous_commit` n'est PAS touché — le désactiver ferait perdre les
+  # dernières transactions en cas de coupure, ce qu'un registre réglementaire
+  # ne peut pas se permettre.
+  if [ "$ON_FLASH" -eq 1 ]; then
+    su postgres -c "psql -qc \"ALTER SYSTEM SET checkpoint_timeout = '30min'\"" >/dev/null
+    su postgres -c "psql -qc \"ALTER SYSTEM SET checkpoint_completion_target = 0.9\"" >/dev/null
+    su postgres -c "psql -qc \"ALTER SYSTEM SET max_wal_size = '2GB'\"" >/dev/null
+    su postgres -c "psql -qc \"ALTER SYSTEM SET wal_compression = on\"" >/dev/null
+    su postgres -c "psql -qc \"ALTER SYSTEM SET bgwriter_lru_maxpages = 100\"" >/dev/null
+    su postgres -c "psql -qc \"ALTER SYSTEM SET log_min_duration_statement = -1\"" >/dev/null
+    ok "Écritures espacées pour ménager la mémoire flash"
+  fi
   if service_do restart postgresql; then
     ok "PostgreSQL réglé pour une petite machine"
   else
@@ -492,6 +549,114 @@ UNIT
   fi
 fi
 
+# --- Sauvegardes ------------------------------------------------------------
+
+step "Sauvegardes"
+
+# Sur mémoire flash, la question n'est pas de savoir *si* le support lâchera
+# mais quand. Les sauvegardes ne sont donc pas une option qu'on ajoutera plus
+# tard : elles sont la seule chose qui distingue une panne d'un désastre.
+
+BACKUP_BIN=/usr/local/bin/parcelys-backup
+BACKUP_CONF=/etc/default/parcelys-backup
+
+if [ -f "$APP_DIR/scripts/backup.sh" ] || [ "$DRY_RUN" -eq 1 ]; then
+  run install -m 755 "$APP_DIR/scripts/backup.sh" "$BACKUP_BIN"
+  run mkdir -p "$BACKUP_DIR"
+  # Un dump contient tout : comptes, registres, empreintes de mots de passe.
+  run chmod 700 "$BACKUP_DIR"
+
+  # Une clé USB débranchée laisse son point de montage vide et l'écriture
+  # retombe silencieusement sur la carte SD : la sauvegarde ne protégerait
+  # alors plus de rien. Si la destination est sur un autre support, on demande
+  # au script d'exiger qu'il soit bien monté.
+  BACKUP_SRC=$(findmnt -n -o SOURCE --target "$BACKUP_DIR" 2>/dev/null || echo '')
+  REQUIRE_MOUNT=''
+  if [ -n "$BACKUP_SRC" ] && [ "$BACKUP_SRC" != "$ROOT_SRC" ]; then
+    REQUIRE_MOUNT=1
+    ok "Destination $BACKUP_DIR sur $BACKUP_SRC — support distinct du système"
+  else
+    warn "Les sauvegardes iront sur le même support que le système.
+    Elles disparaîtront avec lui. Branchez une clé USB ou un disque, montez-le,
+    puis relancez avec « --backup-dir /media/… » (§ 4 bis du guide)."
+  fi
+
+  if [ "$DRY_RUN" -eq 0 ]; then
+    cat > "$BACKUP_CONF" <<CONF
+# Réglages de la sauvegarde de Parcelys, lus par $BACKUP_BIN.
+# La forme « : "\${VAR:=valeur}" » n'écrase pas une variable déjà définie.
+: "\${PARCELYS_DB:=$DB_NAME}"
+: "\${PARCELYS_DATA_DIR:=$DATA_DIR}"
+: "\${PARCELYS_BACKUP_DIR:=$BACKUP_DIR}"
+: "\${PARCELYS_BACKUP_KEEP_DAYS:=14}"
+CONF
+    # Ajouté à part : le corps varie, et la ligne doit arriver telle quelle dans
+    # le fichier — c'est le script de sauvegarde qui l'interprétera, pas nous.
+    # shellcheck disable=SC2016  # la ligne doit rester littérale dans le fichier
+    if [ -n "$REQUIRE_MOUNT" ]; then
+      printf '\n# Refuse la sauvegarde si le support externe est absent.\n' >> "$BACKUP_CONF"
+      printf ': "${PARCELYS_BACKUP_REQUIRE_MOUNT:=1}"\n' >> "$BACKUP_CONF"
+    else
+      printf '\n# À décommenter une fois la destination sur un support externe :\n' >> "$BACKUP_CONF"
+      printf '# : "${PARCELYS_BACKUP_REQUIRE_MOUNT:=1}"\n' >> "$BACKUP_CONF"
+    fi
+    chmod 644 "$BACKUP_CONF"
+  fi
+  ok "Réglages dans $BACKUP_CONF"
+
+  # Planification quotidienne. `Persistent=true` rattrape l'exécution manquée
+  # si le Pi était éteint à l'heure dite — sur une machine domestique, c'est
+  # la différence entre une sauvegarde et une intention.
+  if [ "$HAS_SYSTEMD" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
+    cat > /etc/systemd/system/parcelys-backup.service <<UNIT
+[Unit]
+Description=Sauvegarde de Parcelys
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=$BACKUP_BIN
+UNIT
+    cat > /etc/systemd/system/parcelys-backup.timer <<UNIT
+[Unit]
+Description=Sauvegarde quotidienne de Parcelys
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl daemon-reload
+    systemctl enable --quiet --now parcelys-backup.timer
+    ok "Sauvegarde quotidienne à 02h30 (systemctl list-timers parcelys-backup)"
+  elif [ "$DRY_RUN" -eq 0 ]; then
+    printf '30 2 * * * root %s >> /var/log/parcelys-backup.log 2>&1\n' "$BACKUP_BIN" \
+      > /etc/cron.d/parcelys-backup
+    chmod 644 /etc/cron.d/parcelys-backup
+    ok "Sauvegarde quotidienne à 02h30 (cron)"
+  else
+    ok "Sauvegarde quotidienne à 02h30"
+  fi
+
+  # Une sauvegarde jamais exécutée n'est qu'une hypothèse : on la lance une
+  # fois, tout de suite, pour que l'échec éventuel se produise devant vous.
+  if [ "$DRY_RUN" -eq 0 ]; then
+    if "$BACKUP_BIN" >/tmp/parcelys-backup-test.log 2>&1; then
+      ok "Première sauvegarde effectuée et relue : $(find "$BACKUP_DIR" -maxdepth 1 -name 'base-*.sql.gz' | wc -l) archive(s)"
+    else
+      warn "La première sauvegarde a échoué. Détail :"
+      sed 's/^/    /' /tmp/parcelys-backup-test.log | tail -8
+    fi
+    rm -f /tmp/parcelys-backup-test.log
+  fi
+else
+  warn "scripts/backup.sh introuvable : sauvegardes non installées."
+fi
+
 # --- Pare-feu ---------------------------------------------------------------
 
 step "Pare-feu"
@@ -570,5 +735,8 @@ ${BOLD}Aide-mémoire${OFF}
   sudo journalctl -u parcelys -f
   cd $APP_DIR && sudo -u $SERVICE_USER npm run preflight
   curl -s http://127.0.0.1:$PORT/api/health
+
+  sudo parcelys-backup                 # sauvegarde immédiate
+  ls -lh $BACKUP_DIR                   # ce qui est réellement sauvegardé
 
 FIN
