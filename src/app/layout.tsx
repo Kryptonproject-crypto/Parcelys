@@ -36,7 +36,13 @@ export const metadata: Metadata = {
     'et registre phytosanitaire, météo locale et exports réglementaires.',
   applicationName: 'Parcelys',
   manifest: '/manifest.webmanifest',
-  icons: { icon: [{ url: '/icone.svg', type: 'image/svg+xml' }] },
+  icons: {
+    icon: [
+      { url: '/icone.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
   robots: { index: true, follow: true },
 };
 

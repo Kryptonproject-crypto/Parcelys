@@ -151,13 +151,50 @@ export default async function PortfolioFarmPage({
           </div>
           <div className="p-5 pt-4">
             {parcels.length > 0 ? (
-              <ParcelsMapLoader
-                parcels={parcels}
-                tileUrl={env.MAP_TILE_URL}
-                attribution={env.MAP_TILE_ATTRIBUTION}
-                heightClass="h-[380px]"
-                linkBase={`/portefeuille/${farm.id}/parcelles`}
-              />
+              <>
+                <ParcelsMapLoader
+                  parcels={parcels}
+                  tileUrl={env.MAP_TILE_URL}
+                  attribution={env.MAP_TILE_ATTRIBUTION}
+                  heightClass="h-[380px]"
+                  linkBase={`/portefeuille/${farm.id}/parcelles`}
+                />
+
+                {/*
+                  Les parcelles nommées, sous la carte. Un polygone ne se
+                  cherche pas au doigt sur un téléphone, et rien ne disait
+                  jusqu'ici comment s'appellent les parcelles de cette
+                  exploitation — il fallait les deviner en tâtonnant.
+                */}
+                <ul className="mt-4 grid gap-1.5 sm:grid-cols-2">
+                  {parcels.map((parcel) => (
+                    <li key={parcel.id}>
+                      <Link
+                        href={`/portefeuille/${farm.id}/parcelles/${parcel.id}`}
+                        className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 transition-colors hover:border-champ-500/50 hover:bg-surface-2 sm:min-h-0"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13.5px] font-medium text-ink">
+                            {parcel.name}
+                          </span>
+                          <span className="block truncate text-[12.5px] text-ink-3">
+                            {[
+                              parcel.internalNumber,
+                              parcel.crop ?? 'sans culture déclarée',
+                              parcel.commune,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-ink-2">
+                          {formatNumberFr(parcel.areaHa, 2)} ha
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
               <EmptyState
                 icon={IconParcels}

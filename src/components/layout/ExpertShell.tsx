@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { apiPost } from '@/lib/client/api';
@@ -83,9 +84,14 @@ export function ExpertShell({
           href="/portefeuille"
           className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-white"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ciel-500/25 text-base">
-            🌾
-          </span>
+          <Image
+            src="/icone.svg"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-lg bg-ciel-500/20 p-1"
+            priority
+          />
           Parcelys
         </Link>
         <button
@@ -199,8 +205,12 @@ export function ExpertShell({
         <div className="fixed inset-y-0 left-0 w-[264px]">{sidebar}</div>
       </aside>
 
+      {/* Tiroir mobile — z-[1200] : au-dessus de tout ce que le contenu peut
+          atteindre. Une carte, un menu de recherche ou une info-bulle montent
+          volontiers jusqu'à 1000 ; le tiroir doit les dominer sans discussion,
+          sinon il s'ouvre « derrière » la page et paraît cassé. */}
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-[1200] lg:hidden">
           <button
             type="button"
             aria-label="Fermer le menu"
@@ -228,7 +238,7 @@ export function ExpertShell({
             href="/portefeuille"
             className="flex items-center gap-2 font-semibold text-ink lg:hidden"
           >
-            <span aria-hidden>🌾</span> Parcelys
+            <Image src="/icone.svg" alt="" width={20} height={20} className="h-5 w-5" /> Parcelys
           </Link>
 
           <div className="ml-auto flex items-center gap-1">

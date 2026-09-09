@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { AccountType, FarmRole } from '@prisma/client';
@@ -172,9 +173,14 @@ export function AppShell({
           href="/dashboard"
           className="-my-2 flex items-center gap-2.5 py-2 text-[17px] font-semibold tracking-tight text-white"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-champ-500/25 text-base">
-            🌾
-          </span>
+          <Image
+            src="/icone.svg"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-lg bg-champ-500/20 p-1"
+            priority
+          />
           Parcelys
         </Link>
         <button
@@ -338,8 +344,15 @@ export function AppShell({
           </Link>
         ) : null}
 
+        {/*
+          « Paramètres » règle l'exploitation : nom, SIRET, experts qu'elle
+          missionne. Un compte qui n'en a pas n'y trouverait rien. Le profil,
+          lui, appartient au compte et reste ouvert à tous.
+        */}
         <ul className="mb-2 space-y-0.5">
-          {FOOTER_NAV.map((item) => {
+          {FOOTER_NAV.filter(
+            (item) => item.href === '/profil' || hasFarmSpace(user.accountType),
+          ).map((item) => {
             const active = isNavActive(pathname, item.href);
             const Icon = item.icon;
             return (
@@ -392,9 +405,12 @@ export function AppShell({
         <div className="fixed inset-y-0 left-0 w-[264px]">{sidebar}</div>
       </aside>
 
-      {/* Tiroir mobile */}
+      {/* Tiroir mobile — z-[1200] : au-dessus de tout ce que le contenu peut
+          atteindre. Une carte, un menu de recherche ou une info-bulle montent
+          volontiers jusqu'à 1000 ; le tiroir doit les dominer sans discussion,
+          sinon il s'ouvre « derrière » la page et paraît cassé. */}
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-[1200] lg:hidden">
           <button
             type="button"
             aria-label="Fermer le menu"
@@ -423,7 +439,7 @@ export function AppShell({
             href="/dashboard"
             className="-my-2 flex min-h-11 items-center gap-2 py-2 font-semibold text-ink lg:hidden"
           >
-            <span aria-hidden>🌾</span> Parcelys
+            <Image src="/icone.svg" alt="" width={20} height={20} className="h-5 w-5" /> Parcelys
           </Link>
 
           <div className="ml-auto flex items-center gap-1">

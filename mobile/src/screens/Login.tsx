@@ -104,12 +104,12 @@ export function LoginScreen({
     <div className="safe-top safe-bottom flex min-h-full flex-col justify-center bg-canvas px-5 py-10">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 text-center">
-          <span
+          <img
+            src="/marque.svg"
+            alt=""
             aria-hidden
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-soft text-3xl"
-          >
-            🌾
-          </span>
+            className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-accent-soft p-2"
+          />
           <h1 className="text-[24px] font-bold tracking-tight text-ink">
             Parcelys au champ
           </h1>

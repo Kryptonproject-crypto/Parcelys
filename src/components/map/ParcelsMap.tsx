@@ -170,7 +170,12 @@ export function ParcelsMap({
     // carte remonte à l'élément de grille ou de flex qui la contient — dont le
     // `min-width: auto` par défaut refuse alors de rétrécir — et toute la page
     // déborde horizontalement sur un téléphone.
-    <div className="relative min-w-0">
+    // `isolate` : le sélecteur de fond ci-dessous vit HORS du conteneur
+    // Leaflet, donc hors de son contexte d'empilement. Son `z-[500]` entrait
+    // en concurrence avec celui de la page, et il flottait au-dessus du menu
+    // ouvert. Le contexte est donc posé ici, sur l'enveloppe, pour couvrir la
+    // carte ET ses commandes.
+    <div className="relative isolate min-w-0">
       {showLayerSwitch ? (
         <div className="absolute right-3 top-3 z-[500] flex rounded-md border border-line bg-surface p-0.5 shadow-sm">
           {(['plan', 'satellite'] as const).map((key) => (

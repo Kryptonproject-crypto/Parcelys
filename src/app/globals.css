@@ -215,6 +215,17 @@ body {
   /* `!important` assumé : leaflet.css est importé par le composant carte, donc
      après cette feuille, et impose sinon son fond gris clair en thème sombre. */
   background: var(--surface-3) !important;
+
+  /* La carte reste chez elle.
+     Leaflet empile ses calques et ses commandes jusqu'à z-index 1000, sur des
+     éléments positionnés. Sans contexte d'empilement propre, ces valeurs
+     entrent en concurrence avec celles de la page : le tiroir de navigation
+     (z-50) et l'en-tête passaient derrière la carte, qui surgissait au premier
+     plan par-dessus le menu ouvert. `isolation` enferme toute cette échelle à
+     l'intérieur du conteneur, qui ne pèse plus que son propre rang. */
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
 }
 
 .leaflet-control-attribution {

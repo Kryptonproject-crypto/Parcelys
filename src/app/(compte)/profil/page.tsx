@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
 import { requirePageAuth } from '@/lib/auth/page-guards';
-import { ProfileForms } from '@/app/(app)/profil/ProfileForms';
+import { ProfileForms } from '@/app/(compte)/profil/ProfileForms';
 import { Badge, Card, CardHeader, PageHeader } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Profil' };
