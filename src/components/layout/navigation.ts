@@ -145,8 +145,39 @@ export const ADMIN_SECTIONS: NavItem[] = [
   },
 ];
 
+/**
+ * Routes d'accueil d'une section : elles ne s'allument que sur elles-mêmes.
+ *
+ * Sans cette exception, `/administration` s'allumerait aussi sur
+ * `/administration/utilisateurs` — et deux entrées de la barre paraîtraient
+ * actives en même temps.
+ */
+const ACCUEILS_DE_SECTION = new Set(['/dashboard', '/administration']);
+
 /** Un lien est actif pour sa route exacte et ses sous-routes. */
 export function isNavActive(pathname: string, href: string): boolean {
-  if (href === '/dashboard') return pathname === '/dashboard';
+  if (ACCUEILS_DE_SECTION.has(href)) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/**
+ * Les quatre raccourcis d'administration sur téléphone.
+ *
+ * Choisis, et non pris dans l'ordre : ce sont les écrans où l'on se rend
+ * réellement depuis un téléphone. La grille en compte quatre, et les intitulés
+ * sont raccourcis — « Vue d'ensemble » ne tient pas dans une colonne.
+ */
+export const ADMIN_MOBILE_NAV: NavItem[] = (
+  [
+    ['/administration', 'Accueil'],
+    ['/administration/utilisateurs', 'Comptes'],
+    ['/administration/exploitations', 'Fermes'],
+    ['/administration/experts', 'Experts'],
+  ] as const
+).map(([href, shortLabel]) => {
+  // Désignées par leur route, pas par leur rang : réordonner ADMIN_SECTIONS ne
+  // doit pas changer la barre du téléphone à notre insu.
+  const section = ADMIN_SECTIONS.find((item) => item.href === href);
+  if (!section) throw new Error(`Section d'administration inconnue : ${href}`);
+  return { ...section, shortLabel };
+});

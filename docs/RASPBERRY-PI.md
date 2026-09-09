@@ -829,6 +829,47 @@ service SMTP authentifié qui, lui, a la réputation nécessaire. Deux bénéfic
    et réessaie pendant trois jours. Sur Starlink, où une averse coupe la
    liaison, c'est la différence entre un code retardé et un code perdu.
 
+### Le plus simple : la boîte mail du registrar
+
+Si le domaine est chez un hébergeur qui fournit des boîtes mail — Hostinger,
+OVH, Gandi — la plus courte route est d'en créer une et de l'utiliser
+directement, **sans Postfix ni service tiers**. SPF et DKIM sont déjà posés par
+l'hébergeur sur son propre domaine de messagerie : il n'y a aucun DNS à écrire.
+
+Créez la boîte (`no-reply@parcelys.fr`), puis dans `/opt/parcelys/.env` :
+
+```bash
+EMAIL_PROVIDER=smtp
+EMAIL_FROM="Parcelys <no-reply@parcelys.fr>"
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=no-reply@parcelys.fr
+SMTP_PASSWORD=le-mot-de-passe-de-la-boîte
+```
+
+`SMTP_USER` est l'**adresse complète**, pas seulement `no-reply` — c'est
+l'erreur la plus fréquente, et elle se solde par un `535` à l'authentification.
+
+Port **465** avec `SMTP_SECURE=true` : la connexion est chiffrée d'emblée. Si ce
+port est filtré par le fournisseur d'accès, repliez-vous sur `587` avec
+`SMTP_SECURE=false` (STARTTLS) — le chiffrement est alors négocié après coup,
+et Parcelys l'exige quand même : la validation du certificat n'est relâchée que
+pour un serveur sur la boucle locale.
+
+```bash
+sudo systemctl restart parcelys
+cd /opt/parcelys && sudo -u parcelys npm run email:test -- vous@exemple.fr
+```
+
+> **Ce que cette voie n'a pas.** Sans Postfix, rien ne met les messages en file
+> d'attente : si la liaison Starlink est coupée au moment précis où un code doit
+> partir, l'envoi échoue et l'utilisateur doit demander un renvoi. Pour des codes
+> de vérification, c'est acceptable. La voie Postfix ci-dessous, elle, réessaie
+> pendant trois jours.
+
+### La voie robuste : Postfix en client de relais
+
 Choisissez un service d'envoi transactionnel — la plupart ont une offre gratuite
 qui couvre très largement des codes de vérification. Brevo, Mailjet et Scaleway
 sont français, hébergés dans l'Union européenne, ce qui simplifie la question

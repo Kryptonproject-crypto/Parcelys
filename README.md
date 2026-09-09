@@ -216,6 +216,30 @@ Supprimer un compte qui est **l'unique propriétaire** d'une exploitation demand
 un second geste : l'écran nomme les exploitations concernées et propose soit de
 désigner un autre propriétaire, soit de les supprimer avec le compte.
 
+### Monter la version
+
+La version vit à **quatre endroits** — `package.json`, `package-lock.json`,
+`mobile/package.json` et `mobile/android/app/build.gradle`. Une seule oubliée se
+voit tout de suite : le site annonce une version, l'APK une autre, et l'écran
+« Mises à jour » compare les deux. Une commande les tient ensemble :
+
+```bash
+npm run version:bump             # 0.3.1 -> 0.3.2  (correctif, par défaut)
+npm run version:bump mineure     # 0.3.2 -> 0.4.0
+npm run version:bump majeure     # 0.4.0 -> 1.0.0
+```
+
+Elle refuse d'écrire si les quatre ne partaient pas du même point : mieux vaut
+s'arrêter que creuser l'écart. Elle affiche aussi le `versionCode` Android
+calculé — `majeur × 10000 + mineur × 100 + correctif` — le même que celui du
+workflow, et qui doit toujours croître, sans quoi Android refuse la mise à jour.
+
+Puis, sur le Pi :
+
+```bash
+cd /opt/parcelys && sudo bash scripts/update-pi.sh
+```
+
 ### Repartir d'une instance vide
 
 Pour effacer les données d'essai sans perdre les référentiels :

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { AccountType, FarmRole } from '@prisma/client';
 import {
+  ADMIN_MOBILE_NAV,
   ADMIN_NAV,
   ADMIN_SECTIONS,
   FOOTER_NAV,
@@ -144,6 +145,23 @@ export function AppShell({
       }))
     : user.isPlatformAdmin
       ? [{ key: 'administration', label: 'Administration', items: ADMIN_SECTIONS }]
+      : [];
+
+  /**
+   * La barre du bas, sur téléphone.
+   *
+   * Elle doit mener là où le compte a quelque chose à faire. « Parcelles »,
+   * « Apports », « Phyto » n'ont aucun sens pour un compte d'administration,
+   * qui n'a pas d'exploitation : les proposer, c'est offrir quatre raccourcis
+   * vers des écrans vides. Elle suit donc la même règle que la barre latérale.
+   *
+   * Quatre entrées au maximum : c'est la largeur de la grille, et au-delà les
+   * intitulés deviennent illisibles sur un écran de téléphone.
+   */
+  const mobileNav = hasFarmSpace(user.accountType)
+    ? MAIN_NAV.filter((item) => item.mobile)
+    : user.isPlatformAdmin
+      ? ADMIN_MOBILE_NAV
       : [];
 
   const sidebar = (
@@ -438,14 +456,26 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-24 sm:px-6 lg:pb-8">{children}</main>
+        {/*
+          La réserve du bas ne se justifie que sous la barre : sans elle, un
+          compte qui n'en a pas garderait un blanc de 6 rem en pied de page.
+        */}
+        <main
+          className={cn(
+            'flex-1 px-4 py-6 sm:px-6 lg:pb-8',
+            mobileNav.length > 0 ? 'pb-24' : 'pb-8',
+          )}
+        >
+          {children}
+        </main>
 
         {/* Navigation mobile */}
+        {mobileNav.length > 0 ? (
         <nav
           aria-label="Navigation rapide"
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden no-print"
         >
-          {MAIN_NAV.filter((item) => item.mobile).map((item) => {
+          {mobileNav.map((item) => {
             const active = isNavActive(pathname, item.href);
             const Icon = item.icon;
             return (
@@ -469,6 +499,7 @@ export function AppShell({
             );
           })}
         </nav>
+        ) : null}
       </div>
     </div>
   );
