@@ -15,7 +15,7 @@ l'administration restent sur l'application web, où ils se font au bureau.
 
 | Écran | Rôle |
 | --- | --- |
-| **Connexion** | Adresse de votre instance + identifiants. Le jeton de session est conservé par l'appareil (stockage natif), jamais dans un cookie. |
+| **Connexion** | Adresse e-mail et mot de passe — rien d'autre. L'application se connecte à **parcelys.fr**, adresse inscrite à la compilation. Le jeton de session est conservé par l'appareil (stockage natif), jamais dans un cookie. |
 | **Parcelles** | Liste et recherche, servies par le cache local : disponibles hors réseau. |
 | **Relever une parcelle** | Contour au GPS, en **marchant la limite** (un point tous les 10 m) ou en **posant un sommet** à chaque angle. Surface et périmètre calculés en direct. |
 | **Fiche parcelle** | Trois saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé. |
@@ -77,8 +77,15 @@ npm run dev          # http://127.0.0.1:5174
 ```
 
 Le GPS fonctionne dans le navigateur (Capacitor retombe sur
-`navigator.geolocation`). Renseignez l'adresse de votre instance Parcelys à la
-connexion, par exemple `http://127.0.0.1:3000`.
+`navigator.geolocation`).
+
+L'écran de connexion ne demande plus d'adresse : elle est inscrite à la
+compilation. Pour développer contre un serveur local plutôt que contre
+parcelys.fr :
+
+```bash
+VITE_PARCELYS_SERVER=http://127.0.0.1:3000 npm run dev
+```
 
 **Côté serveur**, l'origine de l'application doit être autorisée :
 

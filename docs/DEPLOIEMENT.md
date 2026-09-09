@@ -416,16 +416,19 @@ adresse qu'il n'a aucune raison de connaître — et qu'une faute de frappe rend
 indiscernable d'une panne de réseau. L'écran de connexion l'affiche simplement,
 pour que chacun sache à quelle instance il se connecte.
 
-Par défaut `https://parcelys.fr` (`mobile/src/lib/config.ts`). Pour une autre
-instance, la variable de dépôt **`PARCELYS_SERVER`** (Settings → Secrets and
-variables → Actions → Variables) est reprise par le workflow. En local :
+Le serveur est **parcelys.fr** (`mobile/src/lib/config.ts`), et il n'y en a
+qu'un : tout APK distribué vise cette adresse.
+
+`VITE_PARCELYS_SERVER` sert au **développement**, pour pointer une instance
+locale sans toucher au code :
 
 ```bash
-VITE_PARCELYS_SERVER=https://parcelys.mon-domaine.fr npm run sync
+VITE_PARCELYS_SERVER=http://127.0.0.1:3000 npm run dev
 ```
 
-Un APK par instance, donc. C'est le prix de la simplicité côté utilisateur, et
-il est faible : la compilation est automatisée.
+Le workflow accepte la variable de dépôt `PARCELYS_SERVER` (Settings → Secrets
+and variables → Actions → Variables) pour compiler un APK de recette contre un
+serveur d'essai. Non renseignée — le cas normal — c'est parcelys.fr.
 
 > **Migration.** Une session enregistrée par une version antérieure, qui
 > pointait vers une autre adresse, est effacée au démarrage : son jeton ne
