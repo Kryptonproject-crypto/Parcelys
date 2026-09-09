@@ -38,8 +38,20 @@ enum FarmRole {
 /// missionné. Les deux se connectent par la même mécanique de session, mais
 /// n'ouvrent pas sur le même espace de travail.
 enum AccountType {
+  /// Exploitant : possède ou rejoint une exploitation.
   FARMER
+  /// Expert agronomique : n'a pas d'exploitation, il suit celles qui lui
+  /// ouvrent l'accès.
   AGRONOMIST
+  /// Administrateur d'instance : ni exploitation, ni portefeuille de conseil.
+  /// Ce compte administre le site — comptes, exploitations, experts, données —
+  /// et rien d'autre.
+  ///
+  /// Le droit d'administrer reste porté par `isPlatformAdmin`, pas par ce type :
+  /// un exploitant peut être administrateur de son instance sans cesser d'être
+  /// exploitant, ce qui est le cas des instances installées par leur
+  /// propriétaire. `ADMIN` désigne un compte créé *pour* l'administration.
+  ADMIN
 }
 
 /// À quoi sert un code d'invitation.

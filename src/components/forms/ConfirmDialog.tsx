@@ -26,7 +26,7 @@ export function ConfirmDialog({
   onClose,
 }: {
   request: ConfirmRequest | null;
-  onClose: () => void;
+  onClose: (seulement?: ConfirmRequest) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,11 @@ export function ConfirmDialog({
     setError(null);
     try {
       await request.onConfirm();
-      onClose();
+      // On ne ferme que *cette* confirmation-ci. Une action peut en ouvrir une
+      // seconde — « ce compte possède des exploitations, faut-il les supprimer
+      // aussi ? » — et fermer aveuglément effacerait la question à peine posée,
+      // laissant l'utilisateur devant un bouton qui ne fait rien.
+      onClose(request);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La suppression a échoué.');
     } finally {
@@ -63,7 +67,7 @@ export function ConfirmDialog({
         ) : null}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" onClick={onClose} disabled={submitting}>
+          <Button variant="ghost" onClick={() => onClose()} disabled={submitting}>
             Annuler
           </Button>
           <Button variant="danger" onClick={() => void confirm()} loading={submitting}>
@@ -81,6 +85,11 @@ export function useConfirm() {
   return {
     request,
     ask: setRequest,
-    close: () => setRequest(null),
+    /**
+     * Ferme la confirmation. Avec `seulement`, ne ferme que celle-là : si une
+     * autre a pris sa place entre-temps, elle reste affichée.
+     */
+    close: (seulement?: ConfirmRequest) =>
+      setRequest((courante) => (seulement && courante !== seulement ? courante : null)),
   };
 }

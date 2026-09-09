@@ -6,6 +6,7 @@ import { createSession } from '@/lib/auth/session';
 import { clientIp, enforceRateLimit, ok, parseBody, route } from '@/lib/api/handler';
 import { RateLimits } from '@/lib/auth/rate-limit';
 import { logAudit } from '@/lib/audit';
+import { homePathFor } from '@/lib/auth/accounts';
 
 /**
  * POST /api/auth/verify-email
@@ -60,9 +61,10 @@ export const POST = route(async (request: NextRequest) => {
         outcome.status === 'already_verified'
           ? 'Adresse déjà vérifiée.'
           : 'Adresse e-mail vérifiée.',
-      // L'expert n'a pas de tableau de bord d'exploitation : il ouvre
-      // directement son portefeuille.
-      redirectTo: user?.accountType === 'AGRONOMIST' ? '/portefeuille' : '/dashboard',
+      // Ni l'expert ni l'administrateur n'ont de tableau de bord
+      // d'exploitation : le premier ouvre son portefeuille, le second ses
+      // écrans de gestion.
+      redirectTo: homePathFor(user?.accountType ?? 'FARMER'),
     });
   } catch (error) {
     await logAudit({

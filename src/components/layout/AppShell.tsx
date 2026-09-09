@@ -3,15 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import type { FarmRole } from '@prisma/client';
+import type { AccountType, FarmRole } from '@prisma/client';
 import {
   ADMIN_NAV,
+  ADMIN_SECTIONS,
   FOOTER_NAV,
   MAIN_NAV,
   NAV_GROUPS,
   isNavActive,
 } from '@/components/layout/navigation';
 import { apiPost } from '@/lib/client/api';
+import { hasFarmSpace } from '@/lib/auth/accounts';
 import { useTheme } from '@/components/ui/Toast';
 import { cn } from '@/components/ui';
 import {
@@ -31,6 +33,12 @@ export type ShellUser = {
   email: string;
   /** Affiche l'entrée « Administration » — l'accès reste vérifié côté serveur. */
   isPlatformAdmin: boolean;
+  /**
+   * Décide si la navigation d'exploitation a lieu d'être. Un compte
+   * d'administration n'a ni parcelles ni registres : lui présenter « Parcelles »
+   * ou « Phytosanitaire » ne mènerait qu'à des écrans vides.
+   */
+  accountType: AccountType;
 };
 
 export type ShellFarm = {
@@ -120,6 +128,23 @@ export function AppShell({
     router.push('/connexion');
     router.refresh();
   }
+
+  /**
+   * Ce que la barre latérale propose, selon la nature du compte.
+   *
+   * Un exploitant y trouve son exploitation ; un compte d'administration n'en a
+   * pas, et y trouve donc les écrans de gestion — sans quoi la barre resterait
+   * vide, ce qui ne lui dirait rien de ce qu'il est venu faire.
+   */
+  const navSections = hasFarmSpace(user.accountType)
+    ? NAV_GROUPS.map((group) => ({
+        key: group.key,
+        label: group.label,
+        items: MAIN_NAV.filter((item) => item.group === group.key),
+      }))
+    : user.isPlatformAdmin
+      ? [{ key: 'administration', label: 'Administration', items: ADMIN_SECTIONS }]
+      : [];
 
   const sidebar = (
     <div className="flex h-full flex-col bg-champ-900 text-champ-100 dark:bg-ardoise-950 dark:border-r dark:border-line">
@@ -217,8 +242,13 @@ export function AppShell({
 
       {/* Navigation principale */}
       <nav className="flex-1 overflow-y-auto px-3 pb-3" aria-label="Navigation principale">
-        {NAV_GROUPS.map((group) => {
-          const items = MAIN_NAV.filter((item) => item.group === group.key);
+        {/*
+          Un compte d'administration n'a pas de navigation d'exploitation. Lui
+          laisser une barre vide ne lui dirait rien de ce qu'il peut faire : on
+          y déplie donc les sections de gestion, qui sont tout son travail.
+        */}
+        {navSections.map((group) => {
+          const items = group.items;
           if (items.length === 0) return null;
 
           return (
@@ -269,7 +299,12 @@ export function AppShell({
 
       {/* Compte */}
       <div className="border-t border-white/10 p-3">
-        {user.isPlatformAdmin ? (
+        {/*
+          Le raccourci vers l'administration sert à l'exploitant qui administre
+          aussi son instance. Pour un compte d'administration, les sections sont
+          déjà dépliées au-dessus : le répéter ici ferait doublon.
+        */}
+        {user.isPlatformAdmin && hasFarmSpace(user.accountType) ? (
           <Link
             href={ADMIN_NAV.href}
             aria-current={isNavActive(pathname, ADMIN_NAV.href) ? 'page' : undefined}

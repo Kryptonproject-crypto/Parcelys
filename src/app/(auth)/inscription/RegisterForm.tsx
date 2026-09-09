@@ -18,11 +18,17 @@ type InvitationScope = {
    * `NEW_FARM` : la personne crée son exploitation.
    * `EXISTING_FARM` : elle en rejoint une comme membre.
    * `EXPERT_ACCOUNT` : compte expert agronomique, sans exploitation.
+   * `ADMIN_ACCOUNT` : compte d'administration, sans exploitation non plus.
    * `ADVISORY_ACCESS` : le code n'est pas fait pour s'inscrire — il s'active
    * depuis le portefeuille d'un compte expert existant.
    */
-  scope: 'NEW_FARM' | 'EXISTING_FARM' | 'EXPERT_ACCOUNT' | 'ADVISORY_ACCESS';
-  accountType?: 'FARMER' | 'AGRONOMIST';
+  scope:
+    | 'NEW_FARM'
+    | 'EXISTING_FARM'
+    | 'EXPERT_ACCOUNT'
+    | 'ADMIN_ACCOUNT'
+    | 'ADVISORY_ACCESS';
+  accountType?: 'FARMER' | 'AGRONOMIST' | 'ADMIN';
   farmName: string | null;
   role: string;
   roleLabel: string;
@@ -191,6 +197,12 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
                     Vous créerez un compte <strong>expert agronomique</strong>.
                     Les exploitations que vous suivez vous remettront ensuite
                     leur propre code d&apos;accès.
+                  </>
+                ) : invitation.scope === 'ADMIN_ACCOUNT' ? (
+                  <>
+                    Vous créerez un compte d&apos;<strong>administration</strong>.
+                    Il gère l&apos;instance — comptes, experts, données de
+                    référence — et ne suit aucune exploitation.
                   </>
                 ) : invitation.scope === 'EXISTING_FARM' ? (
                   <>

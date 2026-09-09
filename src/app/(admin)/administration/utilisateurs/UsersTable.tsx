@@ -114,22 +114,62 @@ export function UsersTable({
     });
   }
 
-  function askDelete(user: AdminUserRow): void {
+  /**
+   * Supprime le compte, et propose le second geste plutôt qu'une impasse.
+   *
+   * Un compte unique propriétaire d'une exploitation ne pouvait pas être
+   * supprimé : il fallait d'abord désigner un autre propriétaire, donc créer un
+   * compte dont on ne voulait pas. Le serveur renvoie maintenant la liste des
+   * exploitations concernées ; on la présente, et on laisse décider.
+   */
+  function askDelete(user: AdminUserRow, avecExploitations = false): void {
     confirm.ask({
-      title: 'Supprimer ce compte ?',
+      title: avecExploitations
+        ? 'Supprimer le compte et ses exploitations ?'
+        : 'Supprimer ce compte ?',
       message: `Le compte de ${user.firstName} ${user.lastName} (${user.email}) sera supprimé et ses accès révoqués.`,
       detail:
         "Les enregistrements réglementaires qu'il a saisis restent attachés à leur exploitation : ce sont des documents que l'exploitant doit conserver.",
-      confirmLabel: 'Supprimer le compte',
+      confirmLabel: avecExploitations ? 'Tout supprimer' : 'Supprimer le compte',
       onConfirm: async () => {
         setPendingId(user.id);
         try {
           const result = await apiDelete<{ message: string }>(
-            `/api/admin/users/${user.id}`,
+            `/api/admin/users/${user.id}${avecExploitations ? '?avecExploitations=1' : ''}`,
           );
           toast.success(result.message);
           router.refresh();
         } catch (error) {
+          const fermes =
+            error instanceof ApiRequestError
+              ? ((error.details as { orphanedFarms?: Array<{ name: string }> } | undefined)
+                  ?.orphanedFarms ?? [])
+              : [];
+
+          if (fermes.length > 0 && !avecExploitations) {
+            // On ne supprime rien en douce : on rouvre une confirmation qui
+            // nomme les exploitations concernées.
+            confirm.ask({
+              title: 'Ce compte possède des exploitations',
+              message: `${user.firstName} ${user.lastName} est l'unique propriétaire de : ${fermes
+                .map((f) => f.name)
+                .join(', ')}.`,
+              detail:
+                'Vous pouvez désigner un autre propriétaire depuis l’exploitation, ou ' +
+                'supprimer le compte et ces exploitations ensemble. La suppression ' +
+                'd’une exploitation est réversible : ses registres sont conservés.',
+              confirmLabel: 'Supprimer le compte et ses exploitations',
+              onConfirm: async () => {
+                const result = await apiDelete<{ message: string }>(
+                  `/api/admin/users/${user.id}?avecExploitations=1`,
+                );
+                toast.success(result.message);
+                router.refresh();
+              },
+            });
+            return;
+          }
+
           toast.error(
             error instanceof ApiRequestError ? error.message : 'Suppression impossible.',
           );

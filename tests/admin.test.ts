@@ -531,6 +531,145 @@ describe('Administration', () => {
       });
       expect(entry.entityId).toBe(member.id);
     });
+
+    it('supprime le compte et ses exploitations lorsque c’est demandé', async () => {
+      const { adminClient, member } = await setup();
+
+      // Sans le second geste, on refuse — mais on dit désormais lesquelles,
+      // pour que l'interface puisse proposer la suite sans relire le message.
+      const refus = await adminClient.delete<{
+        error: { details?: { orphanedFarms?: Array<{ id: string; name: string }> } };
+      }>(`/api/admin/users/${member.id}`);
+      expect(refus.status).toBe(409);
+      expect(refus.body.error.details?.orphanedFarms).toEqual([
+        { id: member.farmId, name: 'GAEC Ordinaire' },
+      ]);
+
+      const accepte = await adminClient.delete(
+        `/api/admin/users/${member.id}?avecExploitations=1`,
+      );
+      expect(accepte.status).toBe(200);
+
+      const compte = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+      expect(compte.deletedAt).not.toBeNull();
+      const ferme = await prisma.farm.findUniqueOrThrow({ where: { id: member.farmId } });
+      expect(ferme.deletedAt).not.toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('Comptes d’administration', () => {
+    /**
+     * Un compte d'administration n'est ni une exploitation ni un expert : il
+     * gère l'instance. Lui faire créer une exploitation à l'inscription lui
+     * donnerait des parcelles fictives à suivre et fausserait les décomptes.
+     */
+    it('crée un compte sans exploitation, et qui administre l’instance', async () => {
+      const { admin } = await setup();
+      await createInvitationCode({
+        code: 'PRCLADMIN001',
+        createdById: admin.id,
+        accountType: 'ADMIN',
+      });
+
+      const client = new TestClient();
+      const response = await client.post('/api/auth/register', {
+        ...REGISTRATION,
+        email: 'gestion@parcelys.test',
+        invitationCode: 'PRCLADMIN001',
+        // Aucun nom d'exploitation : ce compte n'en a pas, et ne doit pas en
+        // exiger un.
+      });
+      expect(response.status).toBe(201);
+
+      const cree = await prisma.user.findUniqueOrThrow({
+        where: { emailNormalized: 'gestion@parcelys.test' },
+        include: { memberships: true },
+      });
+      expect(cree.accountType).toBe('ADMIN');
+      expect(cree.memberships).toHaveLength(0);
+      // Le type implique le droit : sans lui, ce compte ne pourrait rien faire.
+      expect(cree.isPlatformAdmin).toBe(true);
+    });
+
+    it('refuse de rattacher un compte d’administration à une exploitation', async () => {
+      const { adminClient, member } = await setup();
+
+      const response = await adminClient.post('/api/admin/invitations', {
+        accountType: 'ADMIN',
+        farmId: member.farmId,
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('Exploitations', () => {
+    it('supprime une exploitation sans effacer ses registres, et la rétablit', async () => {
+      const { adminClient, member } = await setup();
+
+      const supprime = await adminClient.post('/api/admin/farms', {
+        action: 'delete',
+        farmId: member.farmId,
+      });
+      expect(supprime.status).toBe(200);
+
+      // Suppression **logique** : l'exploitation porte des registres
+      // phytosanitaires que l'exploitant doit conserver.
+      const apres = await prisma.farm.findUniqueOrThrow({ where: { id: member.farmId } });
+      expect(apres.deletedAt).not.toBeNull();
+
+      // Et l'exploitant n'y accède plus.
+      const memberClient = new TestClient();
+      await memberClient.login(member.email, member.password);
+      expect((await memberClient.get(`/api/parcels?farmId=${member.farmId}`)).status).toBe(404);
+
+      const retabli = await adminClient.post('/api/admin/farms', {
+        action: 'restore',
+        farmId: member.farmId,
+      });
+      expect(retabli.status).toBe(200);
+      const rendue = await prisma.farm.findUniqueOrThrow({ where: { id: member.farmId } });
+      expect(rendue.deletedAt).toBeNull();
+    });
+
+    it('ferme les missions de conseil en cours quand l’exploitation disparaît', async () => {
+      const { adminClient, member } = await setup();
+      const expert = await createExpert({ email: 'expert.ferme@conseil.test' });
+      await grantAdvisoryAccess({ farmId: member.farmId, expertId: expert.id });
+
+      await adminClient.post('/api/admin/farms', { action: 'delete', farmId: member.farmId });
+
+      const engagement = await prisma.advisoryEngagement.findUniqueOrThrow({
+        where: { farmId_expertId: { farmId: member.farmId, expertId: expert.id } },
+      });
+      expect(engagement.status).toBe('ENDED');
+      expect(engagement.endedAt).not.toBeNull();
+    });
+
+    it('liste les exploitations supprimées avec le poids de leurs registres', async () => {
+      const { adminClient, member } = await setup();
+      await adminClient.post('/api/admin/farms', { action: 'delete', farmId: member.farmId });
+
+      const response = await adminClient.get<{
+        farms: Array<{ id: string; deleted: boolean; phytoRecordCount: number }>;
+      }>('/api/admin/farms');
+      expect(response.status).toBe(200);
+      const ferme = response.body.farms.find((f) => f.id === member.farmId);
+      expect(ferme?.deleted).toBe(true);
+      expect(ferme?.phytoRecordCount).toBe(0);
+    });
+
+    it('reste fermé à un compte ordinaire', async () => {
+      const { memberClient, member } = await setup();
+      expect((await memberClient.get('/api/admin/farms')).status).toBe(403);
+      expect(
+        (await memberClient.post('/api/admin/farms', {
+          action: 'delete',
+          farmId: member.farmId,
+        })).status,
+      ).toBe(403);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -592,6 +731,77 @@ describe('Administration', () => {
 
       const apres = await expertClient.get(`/api/parcels?farmId=${member.farmId}`);
       expect(apres.status).toBe(200);
+    });
+
+    it('confie plusieurs exploitations au même expert', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+      const seconde = await createUserWithFarm({
+        email: 'second.exploitant@ferme.test',
+        farmName: 'EARL des Coteaux',
+      });
+
+      for (const farmId of [member.farmId, seconde.farmId]) {
+        expect(
+          (await adminClient.post('/api/admin/experts', { expertId: expert.id, farmId }))
+            .status,
+        ).toBe(201);
+      }
+
+      const expertClient = new TestClient();
+      await expertClient.login(expert.email, expert.password);
+
+      // Le portefeuille de l'expert porte bien les deux, et rien d'autre.
+      const session = await expertClient.get<{
+        memberships: Array<{ farmId: string; role: string }>;
+      }>('/api/auth/session');
+      expect(session.body.memberships.map((m) => m.farmId).sort()).toEqual(
+        [member.farmId, seconde.farmId].sort(),
+      );
+      expect(session.body.memberships.every((m) => m.role === 'ADVISOR')).toBe(true);
+
+      // Et il accède réellement aux parcelles des deux.
+      for (const farmId of [member.farmId, seconde.farmId]) {
+        expect((await expertClient.get(`/api/parcels?farmId=${farmId}`)).status).toBe(200);
+      }
+    });
+
+    it('crée un compte expert depuis l’administration', async () => {
+      const { adminClient } = await setup();
+
+      const invitation = await adminClient.post<{ code: string }>('/api/admin/invitations', {
+        accountType: 'AGRONOMIST',
+        email: 'nouvel.expert@conseil.test',
+      });
+      expect(invitation.status).toBe(201);
+
+      const client = new TestClient();
+      const response = await client.post('/api/auth/register', {
+        ...REGISTRATION,
+        email: 'nouvel.expert@conseil.test',
+        invitationCode: invitation.body.code,
+      });
+      expect(response.status).toBe(201);
+
+      const cree = await prisma.user.findUniqueOrThrow({
+        where: { emailNormalized: 'nouvel.expert@conseil.test' },
+        include: { memberships: true },
+      });
+      expect(cree.accountType).toBe('AGRONOMIST');
+      // Un expert n'a pas d'exploitation à lui : son portefeuille se remplit
+      // des missions qu'on lui confie.
+      expect(cree.memberships).toHaveLength(0);
+      expect(cree.isPlatformAdmin).toBe(false);
+    });
+
+    it('refuse de confier une exploitation supprimée', async () => {
+      const { adminClient, member, expert } = await setupExpert();
+      await adminClient.post('/api/admin/farms', { action: 'delete', farmId: member.farmId });
+
+      const response = await adminClient.post('/api/admin/experts', {
+        expertId: expert.id,
+        farmId: member.farmId,
+      });
+      expect(response.status).toBe(404);
     });
 
     it('refuse un second rattachement à la même exploitation', async () => {

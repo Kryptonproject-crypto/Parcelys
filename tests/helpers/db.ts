@@ -173,7 +173,7 @@ export async function createInvitationCode(params: {
   expiresInMs?: number;
   revoked?: boolean;
   purpose?: 'ACCOUNT' | 'ADVISORY_ACCESS';
-  accountType?: 'FARMER' | 'AGRONOMIST';
+  accountType?: 'FARMER' | 'AGRONOMIST' | 'ADMIN';
 }): Promise<{ id: string; code: string }> {
   const normalized = params.code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const invitation = await prisma.invitationCode.create({

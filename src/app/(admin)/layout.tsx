@@ -33,6 +33,7 @@ export default async function AdminAreaLayout({
         lastName: auth.user.lastName,
         email: auth.user.email,
         isPlatformAdmin: auth.user.isPlatformAdmin,
+        accountType: auth.user.accountType,
       }}
       farms={auth.memberships}
       activeFarmId={auth.activeFarmId}

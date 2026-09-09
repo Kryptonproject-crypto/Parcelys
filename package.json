@@ -1,6 +1,6 @@
 {
   "name": "parcelys",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Parcelys — logiciel de gestion parcellaire agricole (SaaS)",
   "engines": {
@@ -31,6 +31,7 @@
     "check:pages": "node scripts/check-pages.mjs",
     "check:advisory": "node scripts/check-advisory-flow.mjs",
     "check:mobile": "node scripts/check-mobile-layout.mjs",
+    "check:admin": "node scripts/check-admin-v3.mjs",
     "email:test": "tsx --conditions=react-server scripts/email-test.ts"
   },
   "prisma": {

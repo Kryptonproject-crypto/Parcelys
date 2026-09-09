@@ -18,8 +18,13 @@ export const badRequest = (message: string, details?: unknown) =>
 export const notFound = (message = 'Ressource introuvable') =>
   new ApiError(404, message, 'NOT_FOUND');
 
-export const conflict = (message: string) =>
-  new ApiError(409, message, 'CONFLICT');
+/**
+ * Conflit d'état. `details` permet au client de proposer la suite plutôt que de
+ * réanalyser le message — par exemple la liste des exploitations qui empêchent
+ * une suppression, pour offrir de les supprimer aussi.
+ */
+export const conflict = (message: string, details?: unknown) =>
+  new ApiError(409, message, 'CONFLICT', details);
 
 export const tooManyRequests = (message: string, retryAfterSeconds: number) =>
   new ApiError(429, message, 'RATE_LIMITED', { retryAfterSeconds });

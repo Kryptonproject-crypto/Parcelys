@@ -10,12 +10,22 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fieldErrors: Record<string, string>;
+  /**
+   * Détail brut renvoyé par le serveur, tel quel.
+   *
+   * `fieldErrors` couvre le cas courant — les erreurs de validation par champ.
+   * Mais un conflit peut aussi porter de quoi proposer la suite : la liste des
+   * exploitations qui empêchent une suppression, par exemple. Les réanalyser
+   * depuis le message serait fragile.
+   */
+  readonly details: unknown;
 
   constructor(status: number, payload: ApiErrorPayload) {
     super(payload.message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.code = payload.code;
+    this.details = payload.details;
     this.fieldErrors = {};
 
     if (Array.isArray(payload.details)) {

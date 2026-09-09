@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import type { FarmRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { createsFarmOnRegistration, impliesPlatformAdmin } from '@/lib/auth/accounts';
 import { registerSchema } from '@/lib/validation/auth';
 import { hashPassword } from '@/lib/auth/password';
 import { issueVerificationCode } from '@/lib/auth/verification';
@@ -83,14 +84,16 @@ export const POST = route(async (request: NextRequest) => {
   }
 
   const accountType = invitation?.accountType ?? 'FARMER';
-  const isAgronomist = accountType === 'AGRONOMIST';
+  // Ni l'expert ni l'administrateur n'ont d'exploitation à eux : le premier
+  // suit celles qui le missionnent, le second n'en gère aucune. Leur en faire
+  // créer une leur donnerait des parcelles fictives et fausserait les
+  // décomptes de l'instance.
+  const creeUneExploitation = createsFarmOnRegistration(accountType);
 
-  // Un expert agronomique n'a pas d'exploitation : il suit celles qui le
-  // missionnent. Lui en faire créer une n'aurait aucun sens.
-  const joinsExistingFarm = !isAgronomist && invitation?.farmId != null;
+  const joinsExistingFarm = creeUneExploitation && invitation?.farmId != null;
   const farmName = input.farmName?.trim() ?? '';
 
-  if (!isAgronomist && !joinsExistingFarm && farmName.length === 0) {
+  if (creeUneExploitation && !joinsExistingFarm && farmName.length === 0) {
     throw new ApiError(400, 'Données invalides', 'VALIDATION_ERROR', [
       { field: 'farmName', message: "Nom de l'exploitation requis" },
     ]);
@@ -121,8 +124,13 @@ export const POST = route(async (request: NextRequest) => {
         accountType,
         organization: input.organization?.trim() || null,
         // Le tout premier compte administre l'instance ; ensuite, seul un code
-        // le prévoyant explicitement confère ce pouvoir.
-        isPlatformAdmin: bootstrap || (invitation?.grantsPlatformAdmin ?? false),
+        // le prévoyant explicitement confère ce pouvoir. Un compte
+        // d'administration l'obtient de son type : sans ce droit il n'aurait
+        // ni exploitation, ni portefeuille, ni écran de gestion — rien.
+        isPlatformAdmin:
+          bootstrap ||
+          (invitation?.grantsPlatformAdmin ?? false) ||
+          impliesPlatformAdmin(accountType),
       },
     });
 
@@ -135,7 +143,7 @@ export const POST = route(async (request: NextRequest) => {
     // L'expert s'arrête ici : ni exploitation, ni appartenance. Son
     // portefeuille se remplira par les codes d'accès que les exploitations lui
     // remettront.
-    if (isAgronomist) return created;
+    if (!creeUneExploitation) return created;
 
     if (joinsExistingFarm && invitation?.farmId) {
       await tx.farmMember.create({
@@ -185,8 +193,8 @@ export const POST = route(async (request: NextRequest) => {
       bootstrap,
       accountType,
       invitationId: invitation?.id ?? null,
-      farmName: isAgronomist ? null : joinsExistingFarm ? invitation?.farm?.name : farmName,
-      role: isAgronomist ? null : role,
+      farmName: !creeUneExploitation ? null : joinsExistingFarm ? invitation?.farm?.name : farmName,
+      role: creeUneExploitation ? role : null,
     },
   });
 

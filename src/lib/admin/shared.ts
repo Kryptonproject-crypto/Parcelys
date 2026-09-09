@@ -31,7 +31,7 @@ export type AdminUserRow = {
    * — qui n'a par nature aucune exploitation — se lit comme un compte
    * d'exploitation resté vide.
    */
-  accountType: 'FARMER' | 'AGRONOMIST';
+  accountType: 'FARMER' | 'AGRONOMIST' | 'ADMIN';
   /** Structure de rattachement d'un expert (chambre, coopérative, cabinet). */
   organization: string | null;
   /** Exploitations suivies en conseil : le portefeuille de l'expert. */
@@ -70,6 +70,8 @@ export type AdminFarmOption = { id: string; name: string };
 export type AdminFarmRow = {
   id: string;
   name: string;
+  /** Supprimée logiquement : elle reste listée, pour pouvoir la rétablir. */
+  deleted: boolean;
   city: string | null;
   department: string | null;
   isDemo: boolean;

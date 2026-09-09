@@ -186,6 +186,7 @@ npm run admin -- retrograder camille@exemple.fr
 Un code a la forme `PRCL-8F3A-KT2M-QWX7` (alphabet sans caractères ambigus, il
 se dicte au téléphone). Il porte :
 
+- la **nature du compte** : exploitation, expert agronomique, ou administration ;
 - l'**exploitation rejointe** — ou aucune, et son titulaire crée la sienne en
   devenant propriétaire ;
 - le **rôle** accordé dans cette exploitation ;
@@ -211,9 +212,46 @@ déclasser soi-même, ni retirer le **dernier** administrateur — sans quoi
 l'instance deviendrait ingérable. Si cela arrive malgré tout,
 `npm run admin -- promouvoir <email>` rattrape la situation depuis le serveur.
 
-Un compte unique propriétaire d'une exploitation ne peut pas être supprimé sans
-désigner d'abord un autre propriétaire : ses registres deviendraient
-inaccessibles.
+Supprimer un compte qui est **l'unique propriétaire** d'une exploitation demande
+un second geste : l'écran nomme les exploitations concernées et propose soit de
+désigner un autre propriétaire, soit de les supprimer avec le compte.
+
+### Les trois natures de compte
+
+| Nature | Espace | Ce qu'elle voit |
+| --- | --- | --- |
+| **Exploitation** | Une exploitation à elle | Parcelles, cultures, registres, exports |
+| **Expert agronomique** | Un portefeuille | Les exploitations qui l'ont missionné, en lecture, plus ses préconisations |
+| **Administration** | Aucun des deux | Comptes, invitations, exploitations, experts, journal d'audit, maintenance |
+
+Un compte d'**administration** n'est ni une exploitation ni un expert : il gère
+l'instance. Il ne crée pas d'exploitation à l'inscription, n'apparaît dans aucun
+décompte de surface, et n'a accès à aucune donnée agronomique — administrer
+l'instance n'est pas administrer les données des exploitations.
+
+À distinguer du **rôle d'administrateur d'instance**, qui est un droit et non une
+nature : un exploitant peut l'avoir sans cesser d'exploiter, ce qui est le cas de
+quiconque installe Parcelys chez lui et du premier compte créé.
+
+### Supprimer une exploitation
+
+**Administration → Exploitations** supprime et rétablit une exploitation. La
+suppression est **logique** : `deleted_at` est renseigné, rien n'est effacé. Une
+exploitation porte des registres phytosanitaires et des bilans de fertilisation,
+que l'exploitant doit conserver et qu'un clic ne doit pas pouvoir détruire. Les
+exploitations supprimées restent listées — sans quoi le geste ne pourrait pas se
+défaire — et les experts qui les suivaient en perdent l'accès immédiatement.
+
+### Confier des exploitations à un expert
+
+**Administration → Experts** délivre un code d'inscription à un expert, puis lui
+confie une ou **plusieurs** exploitations en une fois : un expert en suit autant
+qu'on lui en donne. Chaque exploitation concernée en est avertie et peut mettre
+fin à la mission elle-même ; l'opération est journalisée, et le journal distingue
+un accès décidé par l'administration d'un accès consenti par l'exploitation.
+
+La voie ordinaire reste que l'exploitation délivre son propre code depuis
+**Paramètres → Experts agronomiques** : c'est elle qui décide qui lit ses données.
 
 ### Mode maintenance
 

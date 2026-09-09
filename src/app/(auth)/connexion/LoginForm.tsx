@@ -11,7 +11,7 @@ export type LoginSpace = 'farm' | 'expert';
 
 type LoginResponse = {
   redirectTo: string;
-  user: { accountType: 'FARMER' | 'AGRONOMIST' };
+  user: { accountType: 'FARMER' | 'AGRONOMIST' | 'ADMIN' };
 };
 
 /**
@@ -46,12 +46,16 @@ export function LoginForm({ space = 'farm' }: { space?: LoginSpace }) {
         password: String(form.get('password') ?? ''),
       });
 
+      // Se tromper d'entrée n'est pas une erreur : on ouvre le bon espace en
+      // le disant, plutôt que de renvoyer la personne d'où elle vient.
       const expected = space === 'expert' ? 'AGRONOMIST' : 'FARMER';
       if (result.user.accountType !== expected) {
         setNotice(
-          expected === 'AGRONOMIST'
-            ? 'Ce compte est un compte d’exploitation : ouverture de votre tableau de bord.'
-            : 'Ce compte est un compte expert : ouverture de votre portefeuille.',
+          {
+            FARMER: 'Ce compte est un compte d’exploitation : ouverture de votre tableau de bord.',
+            AGRONOMIST: 'Ce compte est un compte expert : ouverture de votre portefeuille.',
+            ADMIN: 'Ce compte est un compte d’administration : ouverture de l’espace de gestion.',
+          }[result.user.accountType],
         );
       }
 

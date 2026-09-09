@@ -57,12 +57,18 @@ export const POST = route(async (request: NextRequest) => {
   }
 
   return ok({
+    // Le type de compte prime sur la présence d'une exploitation : ni l'expert
+    // ni l'administrateur n'en ont, et les faire tomber dans « NEW_FARM » leur
+    // promettrait une exploitation qu'ils ne créeront pas, tout en leur
+    // réclamant un nom dont personne ne ferait rien.
     scope:
       invitation.accountType === 'AGRONOMIST'
         ? ('EXPERT_ACCOUNT' as const)
-        : invitation.farmId
-          ? ('EXISTING_FARM' as const)
-          : ('NEW_FARM' as const),
+        : invitation.accountType === 'ADMIN'
+          ? ('ADMIN_ACCOUNT' as const)
+          : invitation.farmId
+            ? ('EXISTING_FARM' as const)
+            : ('NEW_FARM' as const),
     accountType: invitation.accountType,
     farmName: invitation.farm?.name ?? null,
     role: invitation.role,

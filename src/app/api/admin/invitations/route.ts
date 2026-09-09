@@ -4,6 +4,7 @@ import { requirePlatformAdmin } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { invitationCreateSchema } from '@/lib/validation/admin';
 import { createInvitation } from '@/lib/auth/invitations';
+import { impliesPlatformAdmin } from '@/lib/auth/accounts';
 import { invitationStatus } from '@/lib/auth/invitations.shared';
 import { logAudit } from '@/lib/audit';
 import { notFound } from '@/lib/api/errors';
@@ -63,15 +64,22 @@ export const POST = route(async (request: NextRequest) => {
     if (!farm) throw notFound('Exploitation introuvable');
   }
 
+  // Un compte d'administration sans le droit d'administrer ne pourrait rien
+  // faire : ni parcelles, ni portefeuille, ni écrans de gestion. Le type
+  // implique donc le droit, sans qu'on ait à y penser en créant le code.
+  const grantsPlatformAdmin =
+    input.grantsPlatformAdmin || impliesPlatformAdmin(input.accountType);
+
   const { invitation, code } = await createInvitation({
     createdById: auth.user.id,
     accountType: input.accountType,
     email: input.email || null,
-    // Un compte expert ne rejoint aucune exploitation : son portefeuille se
-    // remplit ensuite, par les codes que les exploitations lui remettent.
-    farmId: input.accountType === 'AGRONOMIST' ? null : farmId,
+    // Ni l'expert ni l'administrateur ne rejoignent une exploitation : le
+    // portefeuille du premier se remplit ensuite, par les codes que les
+    // exploitations lui remettent ; le second n'en gère aucune.
+    farmId: input.accountType === 'FARMER' ? farmId : null,
     role: input.role,
-    grantsPlatformAdmin: input.grantsPlatformAdmin,
+    grantsPlatformAdmin,
     note: input.note || null,
     validityDays: input.validityDays,
   });
@@ -87,7 +95,7 @@ export const POST = route(async (request: NextRequest) => {
     metadata: {
       role: input.role,
       restrictedTo: input.email || null,
-      grantsPlatformAdmin: input.grantsPlatformAdmin,
+      grantsPlatformAdmin,
       expiresAt: invitation.expiresAt.toISOString(),
     },
   });

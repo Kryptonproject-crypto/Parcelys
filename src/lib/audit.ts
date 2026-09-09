@@ -20,6 +20,11 @@ export type AuditAction =
   | 'farm.member_added'
   | 'farm.member_removed'
   | 'farm.member_role_changed'
+  // Suppression et rétablissement d'une exploitation par un administrateur.
+  // Une exploitation porte des registres réglementaires : ces deux gestes
+  // laissent une trace, même si la suppression reste logique.
+  | 'farm.deleted_by_admin'
+  | 'farm.restored_by_admin'
   | 'parcel.created'
   | 'parcel.updated'
   | 'parcel.geometry_updated'

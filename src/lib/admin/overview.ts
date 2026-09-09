@@ -191,8 +191,9 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 export async function listAdminFarms(): Promise<AdminFarmRow[]> {
   const farms = await prisma.farm.findMany({
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'asc' },
+    // Les exploitations supprimées restent listées : une suppression logique
+    // qu'on ne verrait plus ne pourrait pas être défaite.
+    orderBy: [{ deletedAt: 'asc' }, { createdAt: 'asc' }],
     include: {
       _count: { select: { members: true } },
       members: {
@@ -206,6 +207,7 @@ export async function listAdminFarms(): Promise<AdminFarmRow[]> {
   return farms.map((farm) => ({
     id: farm.id,
     name: farm.name,
+    deleted: farm.deletedAt !== null,
     city: farm.city,
     department: farm.department,
     isDemo: farm.isDemo,

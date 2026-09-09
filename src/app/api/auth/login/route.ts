@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { homePathFor } from '@/lib/auth/accounts';
 import { loginSchema } from '@/lib/validation/auth';
 import { fakeVerify, verifyPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
@@ -153,8 +154,8 @@ export const POST = route(async (request: NextRequest) => {
   });
 
   // Deux métiers, deux espaces de travail : l'exploitant ouvre son tableau de
-  // bord, l'expert son portefeuille.
-  const home = user.accountType === 'AGRONOMIST' ? '/portefeuille' : '/dashboard';
+  // bord, l'expert son portefeuille, l'administrateur son espace de gestion.
+  const home = homePathFor(user.accountType);
 
   return ok({
     message: 'Connexion réussie',

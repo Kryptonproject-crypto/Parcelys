@@ -3,6 +3,7 @@ import { getAuthContext } from '@/lib/auth/session';
 import { getMaintenanceMode } from '@/lib/admin/settings';
 import { countUnread } from '@/lib/notifications';
 import { AppShell } from '@/components/layout/AppShell';
+import { hasFarmSpace, homePathFor } from '@/lib/auth/accounts';
 
 /**
  * Coque des pages authentifiées.
@@ -22,10 +23,12 @@ export default async function AppLayout({
     redirect(`/verification-email?email=${encodeURIComponent(auth.user.email)}`);
   }
 
-  // Un expert agronomique n'a pas d'exploitation : cet espace ne lui montrerait
-  // qu'un sélecteur vide et des écrans de saisie qu'il n'a pas le droit
-  // d'utiliser. Son espace est le portefeuille.
-  if (auth.user.accountType === 'AGRONOMIST') redirect('/portefeuille');
+  // Un compte sans exploitation ne verrait ici qu'un sélecteur vide et des
+  // écrans de saisie sans objet : l'expert a son portefeuille, l'administrateur
+  // son espace de gestion.
+  if (!hasFarmSpace(auth.user.accountType)) {
+    redirect(homePathFor(auth.user.accountType));
+  }
 
   // Mode maintenance : seuls les administrateurs de l'instance passent, pour
   // pouvoir intervenir et lever le mode.
@@ -43,6 +46,7 @@ export default async function AppLayout({
         lastName: auth.user.lastName,
         email: auth.user.email,
         isPlatformAdmin: auth.user.isPlatformAdmin,
+        accountType: auth.user.accountType,
       }}
       farms={auth.memberships}
       activeFarmId={auth.activeFarmId}

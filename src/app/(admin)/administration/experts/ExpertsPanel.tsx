@@ -12,13 +12,14 @@ import {
   Button,
   Card,
   CardHeader,
+  Checkbox,
   EmptyState,
   Field,
   Input,
   Select,
   formatDateFr,
 } from '@/components/ui';
-import { IconDelete, IconPlus, IconUsers } from '@/components/ui/icons';
+import { IconCheck, IconDelete, IconPlus, IconUsers } from '@/components/ui/icons';
 
 /**
  * Rattachement des experts agronomiques aux exploitations.
@@ -45,10 +46,16 @@ export function ExpertsPanel({
   const confirm = useConfirm();
 
   const [expertId, setExpertId] = useState('');
-  const [farmId, setFarmId] = useState('');
+  const [farmIds, setFarmIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteNote, setInviteNote] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteErreur, setInviteErreur] = useState<string | null>(null);
+  const [codeDelivre, setCodeDelivre] = useState<string | null>(null);
 
   const selectable = useMemo(
     () => experts.filter((expert) => !expert.suspended),
@@ -70,29 +77,43 @@ export function ExpertsPanel({
     event.preventDefault();
     setError(null);
 
-    if (!expertId || !farmId) {
-      setError('Choisissez un expert et une exploitation.');
+    if (!expertId || farmIds.length === 0) {
+      setError('Choisissez un expert et au moins une exploitation.');
       return;
     }
 
     setBusy(true);
-    try {
-      const response = await apiPost<{ message: string }>('/api/admin/experts', {
-        expertId,
-        farmId,
-        note,
-      });
-      toast.success(response.message);
-      setFarmId('');
+    // Une ouverture par exploitation : chacune est un accès distinct, notifiée
+    // à son exploitant et inscrite au journal. Un échec sur l'une ne doit pas
+    // annuler les autres — on rapporte donc ce qui a réussi et ce qui a échoué.
+    const echecs: string[] = [];
+    let ouvertes = 0;
+    for (const id of farmIds) {
+      try {
+        await apiPost<{ message: string }>('/api/admin/experts', {
+          expertId,
+          farmId: id,
+          note,
+        });
+        ouvertes += 1;
+      } catch (cause) {
+        const nom = farms.find((f) => f.id === id)?.name ?? id;
+        echecs.push(
+          `${nom} : ${cause instanceof ApiRequestError ? cause.message : 'échec'}`,
+        );
+      }
+    }
+    setBusy(false);
+
+    if (ouvertes > 0) {
+      toast.success(
+        `${ouvertes} exploitation(s) confiée(s). L'exploitant en est averti.`,
+      );
+      setFarmIds([]);
       setNote('');
       router.refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof ApiRequestError ? cause.message : "L'accès n'a pas pu être ouvert.",
-      );
-    } finally {
-      setBusy(false);
     }
+    if (echecs.length > 0) setError(echecs.join(' — '));
   }
 
   function askRevoke(engagementId: string, expertName: string, farmName: string): void {
@@ -113,8 +134,99 @@ export function ExpertsPanel({
     });
   }
 
+  async function inviterExpert(event: FormEvent) {
+    event.preventDefault();
+    setInviteErreur(null);
+    setInviteBusy(true);
+    try {
+      const reponse = await apiPost<{ code: string; expiresAt: string }>(
+        '/api/admin/invitations',
+        {
+          accountType: 'AGRONOMIST',
+          email: inviteEmail,
+          note: inviteNote,
+          validityDays: 14,
+        },
+      );
+      // Le code n'existe qu'une fois : la base n'en garde que l'empreinte.
+      setCodeDelivre(reponse.code);
+      setInviteEmail('');
+      setInviteNote('');
+      router.refresh();
+    } catch (cause) {
+      setInviteErreur(
+        cause instanceof ApiRequestError ? cause.message : "Le code n'a pas pu être créé.",
+      );
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Code fraîchement délivré */}
+      {codeDelivre ? (
+        <Card className="border-champ-500/40 bg-champ-50/60 dark:bg-champ-900/25">
+          <CardHeader
+            icon={IconCheck}
+            title="Code d’inscription expert — notez-le maintenant"
+            description="Il n’est affiché qu’une fois : seule son empreinte est conservée."
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <code className="select-all rounded-lg border border-line bg-surface px-4 py-2.5 font-mono text-[17px] font-semibold tracking-[0.12em] text-ink">
+              {codeDelivre}
+            </code>
+            <Button variant="ghost" onClick={() => setCodeDelivre(null)}>
+              J&apos;ai noté le code
+            </Button>
+          </div>
+          <p className="mt-3 text-sm text-ink-2">
+            Transmettez-le par un canal sûr. L’expert crée son compte sur
+            <strong> /inscription</strong>, puis vous lui confiez des exploitations
+            ci-dessous.
+          </p>
+        </Card>
+      ) : null}
+
+      {/* Inviter un expert */}
+      <Card>
+        <CardHeader
+          icon={IconPlus}
+          title="Inviter un expert agronomique"
+          description="Délivre un code d’inscription. Le compte créé n’aura aucune exploitation : c’est vous qui les lui confierez."
+        />
+        <form onSubmit={inviterExpert} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Adresse e-mail"
+              htmlFor="invite-email"
+              hint="Facultatif. Renseignée, le code ne pourra servir qu’à cette adresse."
+            >
+              <Input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="expert@cabinet-agro.fr"
+              />
+            </Field>
+            <Field label="Note interne" htmlFor="invite-note">
+              <Input
+                id="invite-note"
+                value={inviteNote}
+                onChange={(event) => setInviteNote(event.target.value)}
+                maxLength={200}
+                placeholder="Cabinet Agro — suivi céréales"
+              />
+            </Field>
+          </div>
+          {inviteErreur ? <Alert tone="danger">{inviteErreur}</Alert> : null}
+          <Button type="submit" loading={inviteBusy} disabled={inviteBusy}>
+            Délivrer un code d’inscription
+          </Button>
+        </form>
+      </Card>
+
       <Card>
         <CardHeader
           icon={IconPlus}
@@ -129,34 +241,58 @@ export function ExpertsPanel({
                 value={expertId}
                 onChange={(event) => {
                   setExpertId(event.target.value);
-                  setFarmId('');
+                  setFarmIds([]);
                 }}
               >
                 <option value="">Choisir un expert…</option>
+                {/*
+                  L'adresse figure toujours : deux experts peuvent porter le
+                  même nom, et la structure de rattachement n'est pas
+                  obligatoire. Sans elle, le choix se ferait à l'aveugle.
+                */}
                 {selectable.map((expert) => (
                   <option key={expert.id} value={expert.id}>
                     {expert.lastName} {expert.firstName}
                     {expert.organization ? ` — ${expert.organization}` : ''}
+                    {` (${expert.email})`}
                   </option>
                 ))}
               </Select>
             </Field>
 
-            <Field label="Exploitation suivie" required>
-              <Select
-                value={farmId}
-                onChange={(event) => setFarmId(event.target.value)}
-                disabled={!expertId}
-              >
-                <option value="">
-                  {expertId ? 'Choisir une exploitation…' : "Choisissez d'abord un expert"}
-                </option>
-                {assignableFarms.map((farm) => (
-                  <option key={farm.id} value={farm.id}>
-                    {farm.name}
-                  </option>
-                ))}
-              </Select>
+            <Field
+              label="Exploitations suivies"
+              hint="Un expert peut en suivre plusieurs : cochez-les toutes."
+            >
+              {!expertId ? (
+                <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-3">
+                  Choisissez d&apos;abord un expert.
+                </p>
+              ) : assignableFarms.length === 0 ? (
+                <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-3">
+                  Cet expert suit déjà toutes les exploitations de l&apos;instance.
+                </p>
+              ) : (
+                <ul className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-line p-2">
+                  {assignableFarms.map((farm) => (
+                    <li key={farm.id}>
+                      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-surface-2 sm:min-h-0">
+                        <Checkbox
+                          checked={farmIds.includes(farm.id)}
+                          onChange={(event) =>
+                            setFarmIds((actuels) =>
+                              event.target.checked
+                                ? [...actuels, farm.id]
+                                : actuels.filter((id) => id !== farm.id),
+                            )
+                          }
+                        />
+                        <span>{farm.name}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Field>
           </div>
 
@@ -178,7 +314,11 @@ export function ExpertsPanel({
           </Alert>
 
           <Button type="submit" disabled={busy || selectable.length === 0}>
-            {busy ? 'Ouverture…' : "Ouvrir l'accès"}
+            {busy
+              ? 'Ouverture…'
+              : farmIds.length > 1
+                ? `Confier ${farmIds.length} exploitations`
+                : "Confier l'exploitation"}
           </Button>
         </form>
       </Card>

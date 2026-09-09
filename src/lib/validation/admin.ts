@@ -10,10 +10,13 @@ export const invitationCreateSchema = z
   .object({
     email: emailSchema.optional().or(z.literal('')),
     /**
-     * Nature du compte créé. Un expert agronomique n'a pas d'exploitation :
-     * il suit celles qui lui remettront un code d'accès conseil.
+     * Nature du compte créé.
+     *
+     *   FARMER      possède ou rejoint une exploitation ;
+     *   AGRONOMIST  n'en a pas — il suit celles qui lui remettent un code ;
+     *   ADMIN       n'en a pas non plus — il administre l'instance.
      */
-    accountType: z.enum(['FARMER', 'AGRONOMIST']).default('FARMER'),
+    accountType: z.enum(['FARMER', 'AGRONOMIST', 'ADMIN']).default('FARMER'),
     /** Exploitation rejointe ; vide = la personne crée la sienne. */
     farmId: z.string().trim().max(40).optional().or(z.literal('')),
     /**
@@ -36,15 +39,17 @@ export const invitationCreateSchema = z
   // d'exploitation ». Les distinguer ferait dépendre la validation de la façon
   // dont l'appelant construit son corps de requête, ce qui n'a aucun sens ici.
   .refine(
-    (data) => data.accountType === 'AGRONOMIST' || data.farmId || data.role === 'OWNER',
+    (data) => data.accountType !== 'FARMER' || data.farmId || data.role === 'OWNER',
     {
       message:
         "Sans exploitation, la personne crée la sienne et en devient propriétaire",
       path: ['role'],
     },
   )
-  .refine((data) => data.accountType !== 'AGRONOMIST' || !data.farmId, {
-    message: "Un compte expert ne se rattache pas à une exploitation à l'inscription",
+  .refine((data) => data.accountType === 'FARMER' || !data.farmId, {
+    message:
+      "Ce type de compte ne se rattache pas à une exploitation : l'expert suit " +
+      "celles qui l'y invitent, l'administrateur n'en gère aucune",
     path: ['farmId'],
   });
 

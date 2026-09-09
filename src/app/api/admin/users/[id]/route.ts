@@ -177,13 +177,21 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
   );
 
   // Une exploitation dont ce compte est l'unique propriétaire deviendrait
-  // inaccessible : on refuse plutôt que de laisser des données orphelines.
+  // inaccessible. Refuser sèchement mettait l'administrateur dans une impasse :
+  // pour supprimer le compte il fallait désigner un autre propriétaire, donc
+  // créer un compte dont on ne voulait pas. On propose désormais le second
+  // geste — supprimer aussi ces exploitations — mais il doit être demandé
+  // explicitement : une exploitation porte des registres réglementaires.
+  const supprimerExploitations =
+    new URL(request.url).searchParams.get('avecExploitations') === '1';
+
   const ownedFarms = await prisma.farm.findMany({
     where: {
       deletedAt: null,
       members: { some: { userId: target.id, role: 'OWNER' } },
     },
     select: {
+      id: true,
       name: true,
       _count: { select: { members: true } },
       members: { where: { role: 'OWNER', userId: { not: target.id } }, select: { id: true } },
@@ -191,16 +199,30 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
   });
 
   const orphaned = ownedFarms.filter((farm) => farm.members.length === 0);
-  if (orphaned.length > 0) {
+  if (orphaned.length > 0 && !supprimerExploitations) {
     throw conflict(
       `Ce compte est l'unique propriétaire de : ${orphaned
         .map((f) => f.name)
-        .join(', ')}. Désignez d'abord un autre propriétaire.`,
+        .join(', ')}. Désignez un autre propriétaire, ou supprimez aussi ` +
+        `ces exploitations.`,
+      // Le client a besoin de la liste pour proposer le second geste sans
+      // avoir à relire le message.
+      { orphanedFarms: orphaned.map((f) => ({ id: f.id, name: f.name })) },
     );
   }
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    if (supprimerExploitations && orphaned.length > 0) {
+      const ids = orphaned.map((f) => f.id);
+      await tx.farm.updateMany({ where: { id: { in: ids } }, data: { deletedAt: now } });
+      // Les experts qui les suivaient perdent l'accès du même coup.
+      await tx.advisoryEngagement.updateMany({
+        where: { farmId: { in: ids }, status: 'ACTIVE' },
+        data: { status: 'ENDED', endedAt: now },
+      });
+    }
+
     await tx.user.update({
       where: { id: target.id },
       data: {
