@@ -7,6 +7,8 @@
  * temporaires expirées et applique la durée de conservation des journaux,
  * conformément au principe de minimisation du RGPD.
  */
+// En premier : c'est lui qui charge `.env` pour un script hors de Next.
+import './load-env';
 import { prisma } from '@/lib/prisma';
 import { purgeExpiredSessions } from '@/lib/auth/session';
 import { purgeExpiredCodes } from '@/lib/auth/verification';

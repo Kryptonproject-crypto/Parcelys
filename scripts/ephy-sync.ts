@@ -13,6 +13,8 @@
  * de l'édition retenue. Sans cette variable, la commande s'arrête sans rien
  * importer — Parcelys n'invente jamais de donnée réglementaire.
  */
+// En premier : c'est lui qui charge `.env` pour un script hors de Next.
+import './load-env';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';

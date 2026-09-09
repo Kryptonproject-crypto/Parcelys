@@ -10,6 +10,8 @@
  * Comme `scripts/admin.ts`, il est lancé avec `--conditions=react-server`
  * pour que les modules marqués `server-only` se résolvent.
  */
+// En premier : c'est lui qui charge `.env` pour un script hors de Next.
+import './load-env';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '@/lib/prisma';

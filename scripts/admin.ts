@@ -17,6 +17,8 @@
  * lève une erreur. Cette condition résout le marqueur vers son module vide,
  * comme le fait Next lors du rendu serveur.
  */
+// En premier : c'est lui qui charge `.env` pour un script hors de Next.
+import './load-env';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { createInvitation } from '@/lib/auth/invitations';

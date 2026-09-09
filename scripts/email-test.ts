@@ -8,6 +8,9 @@
  * il rend une configuration cassée invisible — les codes ne partent pas, et
  * rien ne le dit. Cette commande, elle, va au bout et rapporte l'erreur exacte.
  */
+// En premier : sans lui, rien ne lit `.env` ici — ce script n'importe pas
+// Prisma, qui le chargeait incidemment pour les autres.
+import './load-env';
 import { getEnv } from '@/lib/env';
 import { getEmailProvider } from '@/lib/email';
 import { verificationEmail } from '@/lib/email/templates';

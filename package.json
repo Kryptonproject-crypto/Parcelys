@@ -1,6 +1,6 @@
 {
   "name": "parcelys",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Parcelys — logiciel de gestion parcellaire agricole (SaaS)",
   "engines": {

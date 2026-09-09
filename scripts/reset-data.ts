@@ -25,6 +25,8 @@
  * Lancé avec `--conditions=react-server`, comme les autres scripts qui
  * importent des modules marqués `server-only`.
  */
+// En premier : c'est lui qui charge `.env` pour un script hors de Next.
+import './load-env';
 import { prisma } from '@/lib/prisma';
 
 /**
