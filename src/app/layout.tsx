@@ -1,14 +1,27 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
 /**
- * Inter, auto-hébergée par Next : aucune requête vers un tiers, donc rien à
- * ouvrir dans la CSP et pas de décalage de mise en page au chargement.
+ * Inter, servie depuis le dépôt.
+ *
+ * `next/font/google` aurait fait l'affaire — il auto-héberge lui aussi le
+ * résultat —, mais il télécharge la police *pendant la compilation*. Sur le
+ * Raspberry Pi de production, relié par Starlink, une averse au mauvais moment
+ * suffisait à faire échouer « npm run build » sur « Failed to fetch Inter from
+ * Google Fonts », message qui ne dit ni que c'est le réseau, ni qu'il suffit
+ * de recommencer. Le fichier est donc versionné : la compilation ne dépend
+ * plus d'un tiers, et elle est reproductible.
+ *
+ * Un seul sous-ensemble, « latin » : il couvre tout le français — lettres
+ * accentuées, ç, œ et Œ (U+0152-0153), € (U+20AC) et la ponctuation
+ * typographique. Les glyphes absents retombent sur la police système, caractère
+ * par caractère, sans casser la page.
  */
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: '../fonts/inter-latin.woff2',
+  weight: '100 900', // fichier variable : toutes les graisses en une seule requête
   display: 'swap',
   variable: '--font-inter',
 });
