@@ -51,63 +51,66 @@ enum InvitationPurpose {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  emailNormalized   String    @unique @map("email_normalized")
-  emailVerifiedAt   DateTime? @map("email_verified_at")
-  passwordHash      String    @map("password_hash")
-  firstName         String    @map("first_name")
-  lastName          String    @map("last_name")
-  phone             String?
-  locale            String    @default("fr")
-  unitSystem        String    @default("metric") @map("unit_system")
-  weatherProvider   String?   @map("weather_provider")
-  notifyByEmail     Boolean   @default(true) @map("notify_by_email")
-  acceptedTermsAt   DateTime? @map("accepted_terms_at")
-  acceptedPrivacyAt DateTime? @map("accepted_privacy_at")
-  failedLoginCount  Int       @default(0) @map("failed_login_count")
-  lockedUntil       DateTime? @map("locked_until")
-  lastLoginAt       DateTime? @map("last_login_at")
-  isDemo            Boolean   @default(false) @map("is_demo")
+  id                 String      @id @default(cuid())
+  email              String      @unique
+  emailNormalized    String      @unique @map("email_normalized")
+  emailVerifiedAt    DateTime?   @map("email_verified_at")
+  passwordHash       String      @map("password_hash")
+  firstName          String      @map("first_name")
+  lastName           String      @map("last_name")
+  phone              String?
+  locale             String      @default("fr")
+  unitSystem         String      @default("metric") @map("unit_system")
+  weatherProvider    String?     @map("weather_provider")
+  notifyByEmail      Boolean     @default(true) @map("notify_by_email")
+  acceptedTermsAt    DateTime?   @map("accepted_terms_at")
+  acceptedPrivacyAt  DateTime?   @map("accepted_privacy_at")
+  failedLoginCount   Int         @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?   @map("locked_until")
+  lastLoginAt        DateTime?   @map("last_login_at")
+  isDemo             Boolean     @default(false) @map("is_demo")
   /// Exploitant ou expert agronomique — décide de l'espace de travail ouvert
   /// à la connexion, et de la façon dont le compte accède aux exploitations.
-  accountType       AccountType @default(FARMER) @map("account_type")
+  accountType        AccountType @default(FARMER) @map("account_type")
   /// Renseignements affichés à l'exploitant qui reçoit une préconisation :
   /// il doit savoir qui conseille son exploitation.
-  organization      String?
+  organization       String?
   /// Numéro de certificat Certiphyto « conseil », le cas échéant. Saisi par
   /// l'expert et affiché tel quel : Parcelys ne le vérifie pas et ne le
   /// présente jamais comme validé.
-  advisorCertificate String?  @map("advisor_certificate")
+  advisorCertificate String?     @map("advisor_certificate")
   /// Administrateur de l'instance (gestion des comptes, invitations,
   /// maintenance). Distinct de FarmRole.ADMIN, qui ne porte que sur une
   /// exploitation.
-  isPlatformAdmin   Boolean   @default(false) @map("is_platform_admin")
+  isPlatformAdmin    Boolean     @default(false) @map("is_platform_admin")
   /// Compte suspendu par un administrateur : connexion refusée, sessions
   /// existantes invalidées, données conservées.
-  suspendedAt       DateTime? @map("suspended_at")
-  suspendedReason   String?   @map("suspended_reason")
-  deletedAt         DateTime? @map("deleted_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  suspendedAt        DateTime?   @map("suspended_at")
+  suspendedReason    String?     @map("suspended_reason")
+  deletedAt          DateTime?   @map("deleted_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
 
-  memberships        FarmMember[]
-  sessions           Session[]
-  verificationCodes  EmailVerificationCode[]
-  passwordResets     PasswordResetToken[]
-  auditLogs          AuditLog[]
-  notifications      Notification[]
-  uploadedDocuments  Document[]              @relation("DocumentUploader")
-  fertilizerEntries  FertilizerApplication[] @relation("FertilizerAuthor")
-  phytoEntries       PhytosanitaryApplication[] @relation("PhytoAuthor")
-  operationEntries   AgriculturalOperation[] @relation("OperationAuthor")
-  invitationsIssued  InvitationCode[]        @relation("InvitationIssuer")
-  invitationsRevoked InvitationCode[]        @relation("InvitationRevoker")
-  invitationsUsed    InvitationCode[]        @relation("InvitationRecipient")
-  engagements        AdvisoryEngagement[]    @relation("AdvisoryExpert")
-  engagementsGranted AdvisoryEngagement[]    @relation("AdvisoryGrantedBy")
-  recommendations    Recommendation[]        @relation("RecommendationAuthor")
-  recommendationReplies Recommendation[]     @relation("RecommendationResponder")
+  memberships           FarmMember[]
+  sessions              Session[]
+  verificationCodes     EmailVerificationCode[]
+  passwordResets        PasswordResetToken[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  uploadedDocuments     Document[]                 @relation("DocumentUploader")
+  fertilizerEntries     FertilizerApplication[]    @relation("FertilizerAuthor")
+  phytoEntries          PhytosanitaryApplication[] @relation("PhytoAuthor")
+  operationEntries      AgriculturalOperation[]    @relation("OperationAuthor")
+  invitationsIssued     InvitationCode[]           @relation("InvitationIssuer")
+  invitationsRevoked    InvitationCode[]           @relation("InvitationRevoker")
+  invitationsUsed       InvitationCode[]           @relation("InvitationRecipient")
+  engagements           AdvisoryEngagement[]       @relation("AdvisoryExpert")
+  engagementsGranted    AdvisoryEngagement[]       @relation("AdvisoryGrantedBy")
+  recommendations       Recommendation[]           @relation("RecommendationAuthor")
+  recommendationReplies Recommendation[]           @relation("RecommendationResponder")
+  pacImports            PacImport[]
+  pacSnapshots          PacSnapshot[]
+  pacChanges            PacChange[]
 
   @@index([emailNormalized])
   @@index([isPlatformAdmin])
@@ -139,12 +142,12 @@ model AdvisoryEngagement {
   /// Qui a ouvert l'accès : un propriétaire ou administrateur de
   /// l'exploitation. La traçabilité importe — c'est un accès à des données
   /// d'exploitation.
-  grantedById String?  @map("granted_by_id")
+  grantedById String?   @map("granted_by_id")
   note        String?
-  startedAt   DateTime @default(now()) @map("started_at")
+  startedAt   DateTime  @default(now()) @map("started_at")
   endedAt     DateTime? @map("ended_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   farm      Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
   expert    User  @relation("AdvisoryExpert", fields: [expertId], references: [id], onDelete: Cascade)
@@ -192,8 +195,8 @@ enum RecommendationPriority {
 /// l'indique et renvoie à la source ; sinon la préconisation est marquée comme
 /// non vérifiée au catalogue. Aucune dose n'est suggérée par l'application.
 model Recommendation {
-  id       String @id @default(cuid())
-  farmId   String @map("farm_id")
+  id       String  @id @default(cuid())
+  farmId   String  @map("farm_id")
   /// Parcelle visée ; absente pour une préconisation à l'échelle de
   /// l'exploitation.
   parcelId String? @map("parcel_id")
@@ -209,15 +212,15 @@ model Recommendation {
   rationale String
 
   /// Produit préconisé, tel que saisi par l'expert.
-  productName String? @map("product_name")
-  amm         String?
+  productName   String?  @map("product_name")
+  amm           String?
   /// Renseigné à l'enregistrement si l'AMM correspond à un produit du
   /// catalogue officiel importé. Sert à afficher « vérifié au catalogue » ou
   /// « non vérifié », jamais à compléter la saisie.
-  ephyProductId String? @map("ephy_product_id")
-  dose        Decimal? @db.Decimal(12, 4)
-  doseUnit    String?  @map("dose_unit")
-  targetLabel String?  @map("target_label")
+  ephyProductId String?  @map("ephy_product_id")
+  dose          Decimal? @db.Decimal(12, 4)
+  doseUnit      String?  @map("dose_unit")
+  targetLabel   String?  @map("target_label")
 
   /// Fenêtre d'intervention conseillée.
   windowStart DateTime? @map("window_start")
@@ -237,10 +240,10 @@ model Recommendation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  farm        Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  parcel      Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  author      User    @relation("RecommendationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  respondedBy User?   @relation("RecommendationResponder", fields: [respondedById], references: [id], onDelete: SetNull)
+  farm        Farm                  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parcel      Parcel?               @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  author      User                  @relation("RecommendationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  respondedBy User?                 @relation("RecommendationResponder", fields: [respondedById], references: [id], onDelete: SetNull)
   ephyProduct PhytosanitaryProduct? @relation(fields: [ephyProductId], references: [id], onDelete: SetNull)
 
   appliedPhyto         PhytosanitaryApplication? @relation(fields: [appliedPhytoId], references: [id], onDelete: SetNull)
@@ -258,25 +261,25 @@ model Recommendation {
 /// l'empreinte SHA-256 est stockée — le code en clair n'est affiché qu'une
 /// fois, à sa création.
 model InvitationCode {
-  id        String @id @default(cuid())
-  codeHash  String @unique @map("code_hash")
+  id       String @id @default(cuid())
+  codeHash String @unique @map("code_hash")
   /// Préfixe en clair (ex. « PRCL-8F3A- » ) permettant de reconnaître un code
   /// dans la liste sans en révéler la partie secrète.
-  codeHint  String @map("code_hint")
+  codeHint String @map("code_hint")
 
-  purpose   InvitationPurpose @default(ACCOUNT)
+  purpose     InvitationPurpose @default(ACCOUNT)
   /// Nature du compte créé — sans objet pour un accès conseil.
-  accountType AccountType @default(FARMER) @map("account_type")
+  accountType AccountType       @default(FARMER) @map("account_type")
 
   /// Restriction facultative à une adresse : le code ne fonctionne alors que
   /// pour cette personne.
-  email     String? @map("email_normalized")
+  email               String?  @map("email_normalized")
   /// Exploitation rejointe par le titulaire. `null` = il crée la sienne et en
   /// devient propriétaire. Toujours renseignée pour un accès conseil.
-  farmId    String? @map("farm_id")
-  role      FarmRole @default(OWNER)
+  farmId              String?  @map("farm_id")
+  role                FarmRole @default(OWNER)
   /// Le titulaire devient administrateur de l'instance.
-  grantsPlatformAdmin Boolean @default(false) @map("grants_platform_admin")
+  grantsPlatformAdmin Boolean  @default(false) @map("grants_platform_admin")
 
   note      String?
   expiresAt DateTime  @map("expires_at")
@@ -356,19 +359,20 @@ model Farm {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  members       FarmMember[]
-  invitations   InvitationCode[]
-  engagements   AdvisoryEngagement[]
+  members         FarmMember[]
+  invitations     InvitationCode[]
+  engagements     AdvisoryEngagement[]
   recommendations Recommendation[]
-  parcels       Parcel[]
-  crops         Crop[]
-  fertilizers   Fertilizer[]
-  organicInputs OrganicInput[]
-  documents     Document[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
-  weatherRecords WeatherRecord[]
-  sessions      Session[]
+  parcels         Parcel[]
+  crops           Crop[]
+  fertilizers     Fertilizer[]
+  organicInputs   OrganicInput[]
+  documents       Document[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  weatherRecords  WeatherRecord[]
+  sessions        Session[]
+  pacCampaigns    PacCampaign[]
 
   @@index([isDemo])
   @@map("farms")
@@ -502,6 +506,8 @@ model Parcel {
   operations      AgriculturalOperation[]
   documents       Document[]
   weatherRecords  WeatherRecord[]
+  pacFeatures     PacFeature[]
+  pacChanges      PacChange[]
 
   @@unique([farmId, internalNumber])
   @@index([farmId, deletedAt])
@@ -512,14 +518,14 @@ model Parcel {
 /// Géométrie versionnée d'une parcelle. `geom` est une colonne PostGIS
 /// `geometry(MultiPolygon, 4326)` gérée en SQL brut (cf. src/lib/geo/repository.ts).
 model ParcelGeometry {
-  id        String                                @id @default(cuid())
-  parcelId  String                                @map("parcel_id")
-  geom      Unsupported("geometry(MultiPolygon, 4326)")
-  areaHa    Decimal                               @map("area_ha") @db.Decimal(12, 4)
-  perimeterM Decimal?                             @map("perimeter_m") @db.Decimal(12, 2)
-  source    String                                @default("manual")
-  isCurrent Boolean                               @default(true) @map("is_current")
-  createdAt DateTime                              @default(now()) @map("created_at")
+  id         String                                      @id @default(cuid())
+  parcelId   String                                      @map("parcel_id")
+  geom       Unsupported("geometry(MultiPolygon, 4326)")
+  areaHa     Decimal                                     @map("area_ha") @db.Decimal(12, 4)
+  perimeterM Decimal?                                    @map("perimeter_m") @db.Decimal(12, 2)
+  source     String                                      @default("manual")
+  isCurrent  Boolean                                     @default(true) @map("is_current")
+  createdAt  DateTime                                    @default(now()) @map("created_at")
 
   parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
 
@@ -532,12 +538,12 @@ model ParcelGeometry {
 // ---------------------------------------------------------------------------
 
 model Crop {
-  id       String  @id @default(cuid())
-  farmId   String? @map("farm_id")
-  code     String
-  name     String
-  category String?
-  isCustom Boolean @default(false) @map("is_custom")
+  id        String   @id @default(cuid())
+  farmId    String?  @map("farm_id")
+  code      String
+  name      String
+  category  String?
+  isCustom  Boolean  @default(false) @map("is_custom")
   createdAt DateTime @default(now()) @map("created_at")
 
   farm      Farm?      @relation(fields: [farmId], references: [id], onDelete: Cascade)
@@ -584,16 +590,16 @@ enum InputType {
 }
 
 model Fertilizer {
-  id        String   @id @default(cuid())
-  farmId    String?  @map("farm_id")
-  name      String
-  category  String?
-  nPercent  Decimal? @map("n_percent") @db.Decimal(6, 2)
-  pPercent  Decimal? @map("p_percent") @db.Decimal(6, 2)
-  kPercent  Decimal? @map("k_percent") @db.Decimal(6, 2)
-  defaultUnit String @default("kg/ha") @map("default_unit")
-  isCustom  Boolean  @default(false) @map("is_custom")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  farmId      String?  @map("farm_id")
+  name        String
+  category    String?
+  nPercent    Decimal? @map("n_percent") @db.Decimal(6, 2)
+  pPercent    Decimal? @map("p_percent") @db.Decimal(6, 2)
+  kPercent    Decimal? @map("k_percent") @db.Decimal(6, 2)
+  defaultUnit String   @default("kg/ha") @map("default_unit")
+  isCustom    Boolean  @default(false) @map("is_custom")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
   applications FertilizerApplication[]
@@ -680,26 +686,26 @@ model ActiveSubstance {
 /// Produit phytopharmaceutique. Alimenté exclusivement par l'import du jeu de
 /// données officiel E-Phy (aucune donnée réglementaire n'est saisie à la main).
 model PhytosanitaryProduct {
-  id             String    @id @default(cuid())
-  amm            String    @unique
-  name           String
-  normalizedName String    @map("normalized_name")
-  secondNames    String?   @map("second_names")
-  holder         String?
-  productType    String?   @map("product_type")
-  formulation    String?
-  status         String?
-  commercialType String?   @map("commercial_type")
-  authorizedMentions String? @map("authorized_mentions")
-  usageRestrictions  String? @map("usage_restrictions")
-  validUntil     DateTime? @map("valid_until")
-  withdrawnAt    DateTime? @map("withdrawn_at")
-  sourceVersion  String?   @map("source_version")
-  syncedAt       DateTime  @default(now()) @map("synced_at")
+  id                 String    @id @default(cuid())
+  amm                String    @unique
+  name               String
+  normalizedName     String    @map("normalized_name")
+  secondNames        String?   @map("second_names")
+  holder             String?
+  productType        String?   @map("product_type")
+  formulation        String?
+  status             String?
+  commercialType     String?   @map("commercial_type")
+  authorizedMentions String?   @map("authorized_mentions")
+  usageRestrictions  String?   @map("usage_restrictions")
+  validUntil         DateTime? @map("valid_until")
+  withdrawnAt        DateTime? @map("withdrawn_at")
+  sourceVersion      String?   @map("source_version")
+  syncedAt           DateTime  @default(now()) @map("synced_at")
 
-  substances   ProductSubstance[]
-  usages       PhytoUsage[]
-  applications PhytosanitaryApplication[]
+  substances      ProductSubstance[]
+  usages          PhytoUsage[]
+  applications    PhytosanitaryApplication[]
   recommendations Recommendation[]
 
   @@index([normalizedName])
@@ -708,11 +714,11 @@ model PhytosanitaryProduct {
 }
 
 model ProductSubstance {
-  id          String  @id @default(cuid())
-  productId   String  @map("product_id")
-  substanceId String  @map("substance_id")
+  id            String  @id @default(cuid())
+  productId     String  @map("product_id")
+  substanceId   String  @map("substance_id")
   concentration String?
-  unit        String?
+  unit          String?
 
   product   PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
   substance ActiveSubstance      @relation(fields: [substanceId], references: [id], onDelete: Cascade)
@@ -724,20 +730,20 @@ model ProductSubstance {
 
 /// Usage autorisé (couple culture / cible) tel que publié par E-Phy.
 model PhytoUsage {
-  id            String    @id @default(cuid())
-  productId     String    @map("product_id")
-  ephyUsageId   String?   @map("ephy_usage_id")
-  cropLabel     String?   @map("crop_label")
-  targetLabel   String?   @map("target_label")
-  usageLabel    String?   @map("usage_label")
-  doseValue     String?   @map("dose_value")
-  doseUnit      String?   @map("dose_unit")
-  status        String?
-  conditions    String?
-  preHarvestDelay String? @map("pre_harvest_delay")
-  zntAquaticM   String?   @map("znt_aquatic_m")
-  maxApplications String? @map("max_applications")
-  decisionDate  DateTime? @map("decision_date")
+  id              String    @id @default(cuid())
+  productId       String    @map("product_id")
+  ephyUsageId     String?   @map("ephy_usage_id")
+  cropLabel       String?   @map("crop_label")
+  targetLabel     String?   @map("target_label")
+  usageLabel      String?   @map("usage_label")
+  doseValue       String?   @map("dose_value")
+  doseUnit        String?   @map("dose_unit")
+  status          String?
+  conditions      String?
+  preHarvestDelay String?   @map("pre_harvest_delay")
+  zntAquaticM     String?   @map("znt_aquatic_m")
+  maxApplications String?   @map("max_applications")
+  decisionDate    DateTime? @map("decision_date")
 
   product PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -764,38 +770,38 @@ model EphySyncRun {
 }
 
 model PhytosanitaryApplication {
-  id              String    @id @default(cuid())
-  parcelId        String    @map("parcel_id")
-  cropYearId      String?   @map("crop_year_id")
-  appliedOn       DateTime  @map("applied_on")
-  productId       String?   @map("product_id")
-  productName     String    @map("product_name")
-  amm             String?
+  id               String   @id @default(cuid())
+  parcelId         String   @map("parcel_id")
+  cropYearId       String?  @map("crop_year_id")
+  appliedOn        DateTime @map("applied_on")
+  productId        String?  @map("product_id")
+  productName      String   @map("product_name")
+  amm              String?
   activeSubstances String?  @map("active_substances")
-  cropLabel       String?   @map("crop_label")
-  targetLabel     String?   @map("target_label")
-  dose            Decimal   @db.Decimal(12, 3)
-  doseUnit        String    @map("dose_unit")
-  sprayVolumeLHa  Decimal?  @map("spray_volume_l_ha") @db.Decimal(10, 2)
-  treatedAreaHa   Decimal   @map("treated_area_ha") @db.Decimal(12, 4)
-  quantityUsed    Decimal   @map("quantity_used") @db.Decimal(14, 3)
-  quantityUnit    String    @map("quantity_unit")
-  weatherTempC    Decimal?  @map("weather_temp_c") @db.Decimal(5, 1)
-  weatherWindKmh  Decimal?  @map("weather_wind_kmh") @db.Decimal(5, 1)
-  weatherHumidity Decimal?  @map("weather_humidity") @db.Decimal(5, 1)
-  weatherRainMm   Decimal?  @map("weather_rain_mm") @db.Decimal(6, 2)
-  weatherSummary  String?   @map("weather_summary")
-  weatherSource   String?   @map("weather_source")
-  operator        String?
-  notes           String?
-  createdById     String?   @map("created_by_id")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  cropLabel        String?  @map("crop_label")
+  targetLabel      String?  @map("target_label")
+  dose             Decimal  @db.Decimal(12, 3)
+  doseUnit         String   @map("dose_unit")
+  sprayVolumeLHa   Decimal? @map("spray_volume_l_ha") @db.Decimal(10, 2)
+  treatedAreaHa    Decimal  @map("treated_area_ha") @db.Decimal(12, 4)
+  quantityUsed     Decimal  @map("quantity_used") @db.Decimal(14, 3)
+  quantityUnit     String   @map("quantity_unit")
+  weatherTempC     Decimal? @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh   Decimal? @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity  Decimal? @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm    Decimal? @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary   String?  @map("weather_summary")
+  weatherSource    String?  @map("weather_source")
+  operator         String?
+  notes            String?
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  parcel   Parcel                @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  cropYear CropYear?             @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
-  product  PhytosanitaryProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  createdBy User?                @relation("PhytoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  parcel    Parcel                @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  cropYear  CropYear?             @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
+  product   PhytosanitaryProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy User?                 @relation("PhytoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
 
@@ -845,21 +851,21 @@ model AgriculturalOperation {
 }
 
 model WeatherRecord {
-  id              String   @id @default(cuid())
-  farmId          String?  @map("farm_id")
-  parcelId        String?  @map("parcel_id")
-  recordedAt      DateTime @map("recorded_at")
-  latitude        Float
-  longitude       Float
-  temperatureC    Decimal? @map("temperature_c") @db.Decimal(5, 1)
-  humidity        Decimal? @db.Decimal(5, 1)
-  windKmh         Decimal? @map("wind_kmh") @db.Decimal(5, 1)
-  windDirectionDeg Int?    @map("wind_direction_deg")
-  precipitationMm Decimal? @map("precipitation_mm") @db.Decimal(6, 2)
-  pressureHpa     Decimal? @map("pressure_hpa") @db.Decimal(7, 1)
-  summary         String?
-  provider        String
-  createdAt       DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  farmId           String?  @map("farm_id")
+  parcelId         String?  @map("parcel_id")
+  recordedAt       DateTime @map("recorded_at")
+  latitude         Float
+  longitude        Float
+  temperatureC     Decimal? @map("temperature_c") @db.Decimal(5, 1)
+  humidity         Decimal? @db.Decimal(5, 1)
+  windKmh          Decimal? @map("wind_kmh") @db.Decimal(5, 1)
+  windDirectionDeg Int?     @map("wind_direction_deg")
+  precipitationMm  Decimal? @map("precipitation_mm") @db.Decimal(6, 2)
+  pressureHpa      Decimal? @map("pressure_hpa") @db.Decimal(7, 1)
+  summary          String?
+  provider         String
+  createdAt        DateTime @default(now()) @map("created_at")
 
   farm   Farm?   @relation(fields: [farmId], references: [id], onDelete: Cascade)
   parcel Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
@@ -929,4 +935,242 @@ model Notification {
 
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// PAC / TéléPAC
+//
+// Ce module s'ajoute au modèle existant sans le remplacer. Les parcelles
+// restent dans `parcels`, leurs géométries dans `parcel_geometries`, et les
+// campagnes culturales dans `crop_years` : un import PAC alimente ces tables
+// comme le ferait une saisie manuelle. Les tables ci-dessous ne conservent que
+// ce que le modèle actuel ne sait pas exprimer — l'îlot, les SNA et ZDH, la
+// provenance des données, et ce qui a changé depuis l'import.
+// ---------------------------------------------------------------------------
+
+enum PacFeatureKind {
+  /// Parcelle culturale déclarée.
+  PARCELLE
+  /// Surface non agricole (mare, bosquet, haie…).
+  SNA
+  /// Zone de densité homogène.
+  ZDH
+  /// Reçue mais non reconnue : conservée telle quelle plutôt qu'écartée.
+  AUTRE
+}
+
+enum PacImportStatus {
+  /// Fichiers analysés, aperçu disponible, rien n'est encore écrit.
+  ANALYZED
+  /// Import appliqué aux parcelles.
+  APPLIED
+  /// Analyse échouée, ou import abandonné par l'utilisateur.
+  FAILED
+  CANCELLED
+}
+
+/// Campagne PAC suivie pour une exploitation.
+model PacCampaign {
+  id     String @id @default(cuid())
+  farmId String @map("farm_id")
+  year   Int
+
+  /// Version du référentiel de codes culture employée pour cette campagne.
+  referentialVersion String?   @map("referential_version")
+  lastImportAt       DateTime? @map("last_import_at")
+  lastExportAt       DateTime? @map("last_export_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  farm      Farm          @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  ilots     PacIlot[]
+  features  PacFeature[]
+  imports   PacImport[]
+  snapshots PacSnapshot[]
+  changes   PacChange[]
+
+  @@unique([farmId, year])
+  @@index([farmId])
+  @@map("pac_campaigns")
+}
+
+/// Îlot PAC : un regroupement de parcelles, distinct de la parcelle elle-même.
+model PacIlot {
+  id         String                                       @id @default(cuid())
+  campaignId String                                       @map("campaign_id")
+  /// Numéro d'îlot tel qu'il figure dans le dossier.
+  numero     String
+  geom       Unsupported("geometry(MultiPolygon, 4326)")?
+  areaHa     Decimal?                                     @map("area_ha") @db.Decimal(12, 4)
+  attributes Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign PacCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  features PacFeature[]
+
+  @@unique([campaignId, numero])
+  @@map("pac_ilots")
+}
+
+/// Entité géographique importée : parcelle, SNA ou ZDH.
+///
+/// Une entité `PARCELLE` est rattachée à une parcelle Parcelys (`parcelId`) dès
+/// qu'elle est rapprochée ; c'est cette parcelle-là qui porte les cultures, les
+/// apports et les registres. Les SNA et ZDH n'ont pas d'équivalent dans le
+/// modèle agricole : elles restent ici, et servent au contrôle et à l'export.
+model PacFeature {
+  id         String         @id @default(cuid())
+  campaignId String         @map("campaign_id")
+  ilotId     String?        @map("ilot_id")
+  parcelId   String?        @map("parcel_id")
+  kind       PacFeatureKind @default(PARCELLE)
+
+  /// Identifiant porté par le fichier d'origine, quand il en porte un.
+  externalId String? @map("external_id")
+  /// Numéro de parcelle dans son îlot, tel que déclaré.
+  numero     String?
+  cropCode   String? @map("crop_code")
+  cropLabel  String? @map("crop_label")
+
+  geom   Unsupported("geometry(MultiPolygon, 4326)")?
+  areaHa Decimal?                                     @map("area_ha") @db.Decimal(12, 4)
+
+  /// Géométrie d'origine, conservée telle qu'importée, dans son système de
+  /// coordonnées d'origine. Reprojeter en 4326 pour l'affichage puis revenir en
+  /// Lambert-93 à l'export ferait un aller-retour inutile : pour une entité non
+  /// modifiée, on réexporte exactement ce qui a été reçu.
+  sourceWkt  String? @map("source_wkt")
+  sourceSrid Int?    @map("source_srid")
+
+  /// Attributs du fichier, conservés intégralement. Le module ne prétend pas
+  /// connaître la signification de chacun : ce qui n'est pas reconnu est gardé
+  /// plutôt qu'écarté.
+  attributes Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign PacCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ilot     PacIlot?    @relation(fields: [ilotId], references: [id], onDelete: SetNull)
+  parcel   Parcel?     @relation(fields: [parcelId], references: [id], onDelete: SetNull)
+  changes  PacChange[]
+
+  @@index([campaignId, kind])
+  @@index([parcelId])
+  @@map("pac_features")
+}
+
+/// Un import : ce qui a été déposé, ce qui en a été compris, ce qui a été fait.
+model PacImport {
+  id         String          @id @default(cuid())
+  campaignId String          @map("campaign_id")
+  status     PacImportStatus @default(ANALYZED)
+
+  /// Noms des fichiers déposés, pour que l'utilisateur retrouve ce qu'il a fait.
+  sourceFiles  Json?   @map("source_files")
+  detectedSrid Int?    @map("detected_srid")
+  srcLabel     String? @map("src_label")
+
+  featureCount Int      @default(0) @map("feature_count")
+  ilotCount    Int      @default(0) @map("ilot_count")
+  areaHa       Decimal? @map("area_ha") @db.Decimal(12, 4)
+
+  /// Rapport d'analyse : anomalies, rapprochements proposés, décisions prises.
+  report Json?
+
+  snapshotId  String?   @map("snapshot_id")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  appliedAt   DateTime? @map("applied_at")
+
+  campaign  PacCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  snapshot  PacSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  createdBy User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+  @@map("pac_imports")
+}
+
+/// Sauvegarde de l'état des parcelles avant un import.
+///
+/// Un import PAC touche au parcellaire : on garde de quoi revenir en arrière
+/// avant d'y toucher, pas après avoir constaté les dégâts.
+model PacSnapshot {
+  id         String @id @default(cuid())
+  campaignId String @map("campaign_id")
+  label      String
+
+  parcelCount Int      @default(0) @map("parcel_count")
+  areaHa      Decimal? @map("area_ha") @db.Decimal(12, 4)
+  /// État complet des parcelles et de leurs géométries, en GeoJSON.
+  payload     Json
+
+  restoredAt  DateTime? @map("restored_at")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  campaign  PacCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  imports   PacImport[]
+
+  @@index([campaignId, createdAt])
+  @@map("pac_snapshots")
+}
+
+/// Ce qui a changé depuis l'import PAC, et par qui.
+model PacChange {
+  id         String  @id @default(cuid())
+  campaignId String  @map("campaign_id")
+  featureId  String? @map("feature_id")
+  parcelId   String? @map("parcel_id")
+  userId     String? @map("user_id")
+
+  /// `geometry`, `area`, `crop`, `create`, `delete`…
+  changeType String @map("change_type")
+
+  previousGeojson Json?    @map("previous_geojson")
+  newGeojson      Json?    @map("new_geojson")
+  previousAreaHa  Decimal? @map("previous_area_ha") @db.Decimal(12, 4)
+  newAreaHa       Decimal? @map("new_area_ha") @db.Decimal(12, 4)
+  previousCrop    String?  @map("previous_crop")
+  newCrop         String?  @map("new_crop")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  campaign PacCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  feature  PacFeature? @relation(fields: [featureId], references: [id], onDelete: SetNull)
+  parcel   Parcel?     @relation(fields: [parcelId], references: [id], onDelete: SetNull)
+  user     User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+  @@index([parcelId])
+  @@map("pac_changes")
+}
+
+/// Référentiel des codes culture PAC, par campagne et par version.
+///
+/// Les codes évoluent d'une campagne à l'autre : ils ne sont donc ni codés dans
+/// l'interface, ni supposés stables. Chaque entrée porte sa campagne, sa version
+/// de référentiel et sa provenance — et l'interface affiche cette provenance,
+/// comme pour le catalogue phytosanitaire.
+model PacCropCode {
+  id         String  @id @default(cuid())
+  year       Int
+  code       String
+  label      String
+  groupCode  String? @map("group_code")
+  groupLabel String? @map("group_label")
+  /// Version du référentiel : deux versions d'une même campagne coexistent.
+  version    String
+  /// D'où vient cette entrée. Jamais « inventé ».
+  source     String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([year, version, code])
+  @@index([year, code])
+  @@map("pac_crop_codes")
 }
