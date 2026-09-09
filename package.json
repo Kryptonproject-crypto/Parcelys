@@ -25,6 +25,7 @@
     "postinstall": "prisma generate",
     "maintenance": "tsx scripts/maintenance.ts",
     "admin": "tsx --conditions=react-server scripts/admin.ts",
+    "reset:data": "tsx --conditions=react-server scripts/reset-data.ts",
     "exports:preview": "tsx --conditions=react-server scripts/preview-exports.ts",
     "test:ci": "npm run build && vitest run",
     "check:security": "node scripts/check-security.mjs",

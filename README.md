@@ -216,6 +216,45 @@ Supprimer un compte qui est **l'unique propriétaire** d'une exploitation demand
 un second geste : l'écran nomme les exploitations concernées et propose soit de
 désigner un autre propriétaire, soit de les supprimer avec le compte.
 
+### Repartir d'une instance vide
+
+Pour effacer les données d'essai sans perdre les référentiels :
+
+```bash
+sudo parcelys-backup                      # d'abord, toujours
+npm run reset:data                        # montre ce qui partirait, ne supprime rien
+npm run reset:data -- --confirmer         # supprime, en une seule transaction
+```
+
+Partent : comptes, exploitations, parcelles, registres, préconisations,
+dossiers PAC, codes d'invitation, journal d'audit. **Restent** : le catalogue
+E-Phy (le retélécharger coûte du temps et de la bande passante), le référentiel
+global — cultures, engrais et produits organiques que chaque exploitation
+recopie à sa création — et les codes culture PAC.
+
+Puis le compte d'administration, **avant** tout autre :
+
+```bash
+npm run admin -- creer-admin vous@exemple.fr --prenom Kévin --nom Guillot
+```
+
+> **Pourquoi cette commande plutôt que la page d'inscription.** Quand la base
+> ne contient aucun compte, l'inscription s'ouvre sans code — c'est l'amorçage.
+> Mais faute d'administrateur pour en délivrer un, elle ne lit aucun code et
+> retombe sur le type par défaut : le premier compte est donc toujours un
+> **exploitant** avec son exploitation. Cette commande est le seul chemin vers
+> un administrateur seul. Elle n'ouvre aucun droit nouveau : qui peut la lancer
+> détient déjà `DATABASE_URL` et le serveur.
+
+Le mot de passe est tiré au hasard et affiché une fois. Connectez-vous, puis
+délivrez les codes depuis **Administration → Invitations** — ou en ligne de
+commande :
+
+```bash
+npm run admin -- inviter --type FARMER      --email exploitant@ferme.fr
+npm run admin -- inviter --type AGRONOMIST  --email expert@conseil.fr
+```
+
 ### Les trois natures de compte
 
 | Nature | Espace | Ce qu'elle voit |
