@@ -25,6 +25,23 @@ export type MapParcel = {
   geometry: MultiPolygonGeometry;
 };
 
+/**
+ * Une couche réglementaire posée sur la carte.
+ *
+ * `source` n'est pas décorative : une couche affichée sans provenance
+ * laisserait croire à une vérité intemporelle, alors qu'un zonage est daté et
+ * révisé. Elle est donc affichée avec la couche, jamais séparément.
+ */
+export type MapRegulatoryLayer = {
+  code: string;
+  label: string;
+  color: string;
+  source: { label: string; version: string; territory: string | null };
+  features: Array<{ type: 'Feature'; properties: unknown; geometry: unknown }>;
+  rendues: number;
+  total: number;
+};
+
 type Props = {
   parcels: MapParcel[];
   tileUrl: string;
@@ -45,6 +62,12 @@ type Props = {
   linkBase?: string;
   heightClass?: string;
   showLayerSwitch?: boolean;
+  /**
+   * Couches réglementaires disponibles. Toutes **éteintes au départ** : la
+   * carte sert d'abord à voir ses parcelles, et six zonages superposés d'emblée
+   * les rendraient illisibles.
+   */
+  regulatoryLayers?: MapRegulatoryLayer[];
 };
 
 /** Carte de consultation : affiche les parcelles et permet d'en sélectionner une. */
@@ -58,6 +81,7 @@ export function ParcelsMap({
   linkBase = '/parcelles',
   heightClass = 'h-[420px]',
   showLayerSwitch = true,
+  regulatoryLayers = [],
 }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +89,8 @@ export function ParcelsMap({
   const layersRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const baseLayersRef = useRef<Record<BaseLayerKey, L.TileLayer> | null>(null);
   const [baseLayer, setBaseLayer] = useState<BaseLayerKey>('plan');
+  const zonesRef = useRef<Map<string, L.GeoJSON>>(new Map());
+  const [couchesActives, setCouchesActives] = useState<string[]>([]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -154,6 +180,52 @@ export function ParcelsMap({
     }
   }, [parcels, selectedId, onSelect, readOnly, linkBase, router]);
 
+  // Couches réglementaires.
+  //
+  // Posées **sous** les parcelles : un zonage qui recouvrirait les contours
+  // masquerait précisément ce qu'on cherche à situer. `bringToBack` s'en
+  // charge, et le remplissage reste très transparent.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const registre = zonesRef.current;
+
+    for (const [code, couche] of registre) {
+      if (!couchesActives.includes(code)) {
+        couche.remove();
+        registre.delete(code);
+      }
+    }
+
+    for (const code of couchesActives) {
+      if (registre.has(code)) continue;
+      const definition = regulatoryLayers.find((c) => c.code === code);
+      if (!definition) continue;
+
+      const couche = L.geoJSON(
+        {
+          type: 'FeatureCollection',
+          features: definition.features,
+        } as unknown as GeoJSON.FeatureCollection,
+        {
+          style: {
+            color: definition.color,
+            weight: 1.5,
+            opacity: 0.85,
+            fillColor: definition.color,
+            fillOpacity: 0.12,
+          },
+          interactive: false,
+        },
+      );
+
+      couche.addTo(map);
+      couche.bringToBack();
+      registre.set(code, couche);
+    }
+  }, [couchesActives, regulatoryLayers]);
+
   // Recentre sur la parcelle sélectionnée.
   useEffect(() => {
     const map = mapRef.current;
@@ -199,6 +271,57 @@ export function ParcelsMap({
         ref={containerRef}
         className={`${heightClass} w-full overflow-hidden rounded-xl border border-line`}
       />
+
+      {/*
+        Sous la carte et non par-dessus : sur un téléphone, un panneau flottant
+        recouvrirait justement les parcelles qu'on veut situer.
+      */}
+      {regulatoryLayers.length > 0 ? (
+        <div className="mt-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+          <p className="text-[12.5px] font-medium text-ink-2">Couches réglementaires</p>
+          <ul className="mt-1.5 space-y-1.5">
+            {regulatoryLayers.map((couche) => {
+              const active = couchesActives.includes(couche.code);
+              return (
+                <li key={couche.code}>
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() =>
+                        setCouchesActives((liste) =>
+                          liste.includes(couche.code)
+                            ? liste.filter((c) => c !== couche.code)
+                            : [...liste, couche.code],
+                        )
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-champ-600"
+                    />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          aria-hidden
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                          style={{ backgroundColor: couche.color }}
+                        />
+                        <span className="text-[13px] text-ink">{couche.label}</span>
+                      </span>
+                      {/* La provenance accompagne la couche, jamais ailleurs. */}
+                      <span className="block text-[11.5px] leading-snug text-ink-3">
+                        {couche.source.label} — version {couche.source.version}
+                        {couche.source.territory ? ` · ${couche.source.territory}` : ''}
+                        {couche.rendues < couche.total
+                          ? ` · ${couche.rendues} zone(s) affichées sur ${couche.total} (emprise de vos parcelles)`
+                          : ''}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -648,6 +648,69 @@ verrouille.
 
 ---
 
+## 7 quater. Les zonages sur la carte
+
+### Sur la carte existante, pas à côté
+
+Une seconde carte « réglementaire » aurait obligé à comparer deux écrans pour
+répondre à une question simple — « cette parcelle-là est-elle dedans ? » — et les
+deux auraient fini par diverger en cadrage, en fond et en style. Les couches
+s'ajoutent donc à la carte que l'exploitant connaît déjà : liste des parcelles et
+fiche de parcelle.
+
+Elles sont **éteintes au départ**. La carte sert d'abord à voir ses parcelles, et
+six zonages superposés d'emblée les rendraient illisibles. Elles se posent
+**sous** les contours : un zonage par-dessus masquerait précisément ce qu'on
+cherche à situer.
+
+### On ne charge jamais le zonage entier
+
+Un zonage régional compte des milliers de polygones, souvent des dizaines de
+mégaoctets. Les envoyer rendrait la carte inutilisable sur un téléphone au bord
+d'un champ — c'est-à-dire là où elle sert.
+
+Seules sont renvoyées les zones **qui recoupent l'emprise des parcelles**,
+élargie d'une marge : une limite qui passe juste à côté explique pourquoi une
+parcelle est classée « partiellement », et la couper au ras du bord la rendrait
+incompréhensible. Les géométries sont légèrement simplifiées — à l'échelle d'une
+parcelle, quelques mètres de généralisation ne se voient pas et divisent le poids
+par cinq ou dix.
+
+Quand une couche ne montre qu'une partie du référentiel, le panneau le dit :
+« 12 zones affichées sur 3 480 (emprise de vos parcelles) ».
+
+### La provenance ne quitte jamais la couche
+
+Chaque couche porte sa source, sa version et son territoire, affichés sous son
+nom. Une couche sans provenance laisserait croire à une vérité intemporelle,
+alors qu'un zonage est daté et révisé — et que c'est la version en vigueur à la
+date de l'intervention qui compte.
+
+### Un piège PostGIS qui aurait tout empêché
+
+`ST_Extent` rend une `box2d`, dont le cast en `geometry` porte le **SRID 0**. La
+croiser telle quelle avec des zones en 4326 échoue net :
+
+```
+ERROR: ST_Intersects: Operation on mixed SRID geometries (MultiPolygon, 4326) != (Polygon, 0)
+```
+
+Aucune couche ne se serait jamais affichée. Le SRID est reposé explicitement, et
+`npm run check:carte` le vérifie sur une vraie base — c'est ce script qui a
+trouvé le défaut.
+
+### Vérifier
+
+```bash
+npm run check:carte
+```
+
+Crée deux zones : une sur les parcelles, une à 550 km. Vérifie que la première
+est renvoyée, la seconde écartée, que la provenance accompagne la couche et que
+le poids reste transportable.
+
+---
+
 ## 8. Ce qui n'est pas encore là
 
 Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
@@ -655,7 +718,7 @@ Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
 **Priorité 2 (0.7.0)** — ~~stocks et lots~~ · ~~couverture des sols~~ ·
 ~~irrigation comme événement~~ · ~~rotations~~ · ~~plafond d'azote organique~~ ·
 ~~cahier d'épandage~~ · ~~dossier de contrôle~~ · ~~justificatifs typés~~ ·
-couches réglementaires sur la carte.
+~~couches réglementaires sur la carte~~. **Priorité 2 terminée.**
 
 **Priorité 3 (0.8.0)** — détection automatique des nouvelles versions de
 référentiels · alertes avancées · registre phytosanitaire électronique lisible

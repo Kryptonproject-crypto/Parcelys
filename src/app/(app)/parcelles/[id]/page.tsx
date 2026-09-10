@@ -13,6 +13,7 @@ import { incoherencesDates } from '@/lib/regulatory/soil-cover';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
 import { computeParcelContext } from '@/lib/regulatory/geography';
+import { couchesPourExploitation } from '@/lib/regulatory/map-layers';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
 import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
 import {
@@ -59,6 +60,7 @@ export default async function ParcelPage({
     phytoTreatments,
     operations,
     soilCovers,
+    couches,
     documents,
     history,
     crops,
@@ -91,6 +93,7 @@ export default async function ParcelPage({
       where: { parcelId: id },
       orderBy: [{ sownOn: 'desc' }, { createdAt: 'desc' }],
     }),
+    couchesPourExploitation({ farmId: ctx.farmId }),
     prisma.document.findMany({
       where: { parcelId: id },
       orderBy: { createdAt: 'desc' },
@@ -211,6 +214,7 @@ export default async function ParcelPage({
               selectedId={parcel.id}
               readOnly
               heightClass="h-[320px]"
+              regulatoryLayers={couches}
             />
           </div>
         </Card>

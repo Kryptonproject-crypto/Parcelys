@@ -40,6 +40,7 @@
     "check:couverture": "tsx --conditions=react-server scripts/check-couverture.ts",
     "check:plafond": "tsx --conditions=react-server scripts/check-plafond.ts",
     "check:dossier": "tsx --conditions=react-server scripts/check-dossier.ts",
+    "check:carte": "tsx --conditions=react-server scripts/check-carte.ts",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts"
