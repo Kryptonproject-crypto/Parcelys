@@ -15,6 +15,12 @@ import {
 // fois. Voir l'alias `@partage` dans vite.config.ts.
 import { checkDose, usagesForCrop } from '@partage/dose';
 import {
+  chercherHorsLigne,
+  ficheHorsLigne,
+  provenanceHorsLigne,
+  retiresMasques,
+} from '../lib/catalogue-local';
+import {
   ActionBar,
   Banner,
   Button,
@@ -23,6 +29,7 @@ import {
   Input,
   Select,
   Textarea,
+  formatDateFr,
   today,
 } from '../components/ui';
 
@@ -107,7 +114,13 @@ export function EntryScreen({
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogHits, setCatalogHits] = useState<CatalogProduct[] | null>(null);
   const [catalogState, setCatalogState] = useState<
-    'idle' | 'searching' | 'empty' | 'unconfigured' | 'offline' | 'error'
+    | 'idle'
+    | 'searching'
+    | 'empty'
+    | 'unconfigured'
+    | 'offline'
+    | 'offline-vide'
+    | 'error'
   >('idle');
   const [verified, setVerified] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
@@ -189,8 +202,14 @@ export function EntryScreen({
       return;
     }
     if (!online) {
-      setCatalogHits(null);
-      setCatalogState('offline');
+      // Hors réseau, on cherche dans les produits embarqués — ceux que
+      // l'exploitation a déjà employés. Ce n'est pas le catalogue entier, et
+      // l'écran le dit : sans cela, ne rien trouver se lirait comme « ce
+      // produit n'existe pas ».
+      const locaux = chercherHorsLigne(referential, terme, includeWithdrawn);
+      setCatalogHits(locaux.length > 0 ? locaux : null);
+      setWithdrawnHidden(includeWithdrawn ? 0 : retiresMasques(referential, terme));
+      setCatalogState(locaux.length > 0 ? 'offline' : 'offline-vide');
       return;
     }
 
@@ -218,7 +237,7 @@ export function EntryScreen({
     }, 400);
 
     return () => clearTimeout(minuteur);
-  }, [catalogQuery, online, includeWithdrawn, context.session]);
+  }, [catalogQuery, online, includeWithdrawn, context.session, referential]);
 
   /** Un produit choisi au catalogue : nom, AMM et substances viennent de lui. */
   function pickCatalogProduct(product: CatalogProduct): void {
@@ -232,6 +251,22 @@ export function EntryScreen({
     setCatalogState('idle');
     setUsages(null);
     setCropLabel('');
+
+    // La fiche embarquée est posée tout de suite, avant même de demander au
+    // serveur : si la liaison tombe pendant la requête — ce qui est la règle
+    // plutôt que l'exception au milieu d'une parcelle —, le contrôle de dose
+    // fonctionne quand même. La réponse en ligne, plus fraîche, la remplace
+    // quand elle arrive.
+    const embarquee = ficheHorsLigne(referential, product.amm || product.id);
+    if (embarquee) {
+      setUsages(embarquee);
+      if (embarquee.crops.length === 1) {
+        setCropLabel(embarquee.crops[0] ?? '');
+      } else if (parcel.cropName) {
+        const correspondant = usagesForCrop(embarquee.usages, parcel.cropName)[0];
+        if (correspondant?.cropLabel) setCropLabel(correspondant.cropLabel);
+      }
+    }
 
     // Les usages sont chargés maintenant, tant qu'il y a du réseau : la dose se
     // saisit ensuite, et la liaison peut avoir disparu entre-temps.
@@ -250,7 +285,11 @@ export function EntryScreen({
             if (correspondant?.cropLabel) setCropLabel(correspondant.cropLabel);
           }
         })
-        .catch(() => setUsages(null));
+        // Un échec réseau ne doit pas emporter la fiche embarquée déjà posée :
+        // l'écraser par `null` remplacerait un contrôle réel par aucun.
+        .catch(() => {
+          if (!embarquee) setUsages(null);
+        });
     }
   }
 
@@ -262,7 +301,23 @@ export function EntryScreen({
     setProductName(value);
     setVerified(false);
     setWithdrawn(false);
-    setUsages(null);
+
+    // Un produit déjà employé a de bonnes chances d'être embarqué : sa fiche
+    // officielle est posée si elle existe. Auparavant, choisir un produit dans
+    // cette liste effaçait les usages, donc le contrôle de dose — le raccourci
+    // le plus utilisé était celui qui vérifiait le moins.
+    const embarquee = known?.amm ? ficheHorsLigne(referential, known.amm) : null;
+    setUsages(embarquee);
+    if (embarquee) {
+      setVerified(true);
+      setWithdrawn(!embarquee.product.authorized);
+      if (embarquee.crops.length === 1) {
+        setCropLabel(embarquee.crops[0] ?? '');
+      } else if (parcel.cropName) {
+        const correspondant = usagesForCrop(embarquee.usages, parcel.cropName)[0];
+        if (correspondant?.cropLabel) setCropLabel(correspondant.cropLabel);
+      }
+    }
     setCropLabel('');
     if (known) {
       setAmm(known.amm ?? '');
@@ -534,8 +589,17 @@ export function EntryScreen({
               <p className="text-[13px] text-ink-3">Recherche…</p>
             ) : catalogState === 'offline' ? (
               <p className="text-[13px] text-ink-3">
-                Hors réseau : le catalogue n&apos;est pas consultable. Saisissez le
-                produit à la main ci-dessous.
+                Hors réseau : recherche dans les {provenanceHorsLigne(referential).produits}{' '}
+                produit(s) que vous avez déjà employés, avec leurs usages officiels.
+                {provenanceHorsLigne(referential).synchroniseLe
+                  ? ` Catalogue du ${formatDateFr(provenanceHorsLigne(referential).synchroniseLe as string)}.`
+                  : ''}
+              </p>
+            ) : catalogState === 'offline-vide' ? (
+              <p className="text-[13px] text-ink-3">
+                {provenanceHorsLigne(referential).disponible
+                  ? 'Hors réseau : ce produit ne fait pas partie de ceux que vous avez déjà employés. Le catalogue complet demande du réseau ; la saisie à la main reste possible, le produit sera marqué non vérifié.'
+                  : 'Hors réseau et aucun produit embarqué. Saisissez le produit à la main ci-dessous : il sera marqué non vérifié.'}
               </p>
             ) : catalogState === 'unconfigured' ? (
               <Banner tone="warning">

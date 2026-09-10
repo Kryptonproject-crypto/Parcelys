@@ -1,4 +1,10 @@
-import type { AccountType, Session, Snapshot, SyncResult } from './types';
+import type {
+  AccountType,
+  CatalogUsage,
+  Session,
+  Snapshot,
+  SyncResult,
+} from './types';
 
 /**
  * Client HTTP de l'API Parcelys.
@@ -254,22 +260,9 @@ export type CatalogSearch = {
 };
 
 /** Calqué sur `UsageForDose` du serveur. */
-export type CatalogUsage = {
-  id: string;
-  cropLabel: string | null;
-  targetLabel: string | null;
-  usageLabel: string | null;
-  doseValue: string | null;
-  doseUnit: string | null;
-  status: string | null;
-  preHarvestDelay: string | null;
-  maxApplications: string | null;
-  minIntervalDays: string | null;
-  zntAquaticM: string | null;
-  zntArthropodM: string | null;
-  zntPlantM: string | null;
-  conditions: string | null;
-};
+// `CatalogUsage` vit maintenant dans `types.ts` : il voyage dans l'instantané,
+// pas seulement dans les réponses d'API. Réexporté ici pour ne rien casser.
+export type { CatalogUsage } from './types';
 
 export type CatalogProductUsages = {
   product: {

@@ -11,7 +11,41 @@ import {
 } from '@/lib/constants/agronomy';
 import { calculerSolde } from '@/lib/stock/balance';
 import { listRecommendations } from '@/lib/services/advisory';
+import { getEphySourceInfo, getProductUsages } from '@/lib/ephy/search';
 import type { FarmContext } from '@/lib/auth/rbac';
+
+/**
+ * Un produit du catalogue officiel, embarqué pour l'usage hors ligne.
+ *
+ * La forme reprend exactement celle que rend `/api/phytosanitary/products/:id/
+ * usages` : l'application applique le même contrôle de dose sur les deux, sans
+ * savoir d'où vient la fiche. Deux formes différentes finiraient par deux
+ * contrôles différents.
+ */
+export type OfflineCatalogueEntry = {
+  amm: string;
+  productId: string;
+  name: string;
+  holder: string | null;
+  formulation: string | null;
+  productType: string | null;
+  /** Substances actives, telles qu'E-Phy les nomme. */
+  substances: string[];
+  status: string | null;
+  authorized: boolean;
+  withdrawnAt: string | null;
+  usages: Awaited<ReturnType<typeof getProductUsages>> extends infer R
+    ? R extends { usages: infer U }
+      ? U
+      : never
+    : never;
+  crops: string[];
+  drainedSoilRestrictions: Array<{
+    category: string;
+    label: string;
+    severity: 'interdit' | 'a-verifier';
+  }>;
+};
 
 /**
  * Instantané destiné au cache de l'application mobile.
@@ -24,6 +58,28 @@ import type { FarmContext } from '@/lib/auth/rbac';
  * Il ne contient aucune donnée réglementaire inventée : les produits proposés
  * hors ligne sont ceux que l'exploitation a réellement déjà utilisés, avec leur
  * AMM d'origine. La recherche dans le catalogue officiel E-Phy reste en ligne.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI LES USAGES OFFICIELS PARTENT AUSSI
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * L'instantané ne portait de ces produits que le nom, l'AMM et la dernière dose
+ * saisie. Le contrôle de dose, lui, avait besoin d'un appel réseau au moment du
+ * choix du produit. Sans réseau, l'exploitant pouvait donc saisir un traitement,
+ * mais **sans le moindre contrôle réglementaire** : ni dose maximale, ni culture
+ * autorisée, ni ZNT, ni délai avant récolte. C'est-à-dire exactement au moment
+ * où il en a le plus besoin — au champ, le pulvérisateur en route.
+ *
+ * Embarquer le catalogue entier reste hors de question : 15 000 produits et
+ * leurs usages ne tiennent pas dans un téléphone, et les télécharger sur une
+ * liaison de campagne serait interminable. Mais les produits que l'exploitation
+ * emploie sont **connus et peu nombreux** — quelques dizaines. Leurs usages
+ * officiels sont donc joints, à l'identique de ce que rendrait la route en
+ * ligne : ce n'est pas une liste devinée, c'est le catalogue officiel restreint
+ * à ce dont cette exploitation se sert.
+ *
+ * Un produit jamais employé reste introuvable hors ligne, et l'application le
+ * dit plutôt que de laisser croire à un catalogue complet.
  */
 
 export type MobileSnapshot = Awaited<ReturnType<typeof buildMobileSnapshot>>;
@@ -95,6 +151,85 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       doseUnit: application.doseUnit,
     });
   }
+
+  // Usages officiels des produits employés, pour que le contrôle de dose
+  // fonctionne sans réseau.
+  //
+  // Une requête par produit, séquentielle et bornée : ces requêtes tirent
+  // chacune jusqu'à 800 usages, et les lancer toutes de front sur le Raspberry
+  // Pi qui fait tourner l'instance mettrait la base à genoux au moment précis
+  // où quelqu'un se connecte.
+  //
+  // Le plafond de 60 produits n'est pas une limite technique mais un garde-fou :
+  // une exploitation qui en emploierait davantage sur douze mois verrait
+  // l'instantané enfler, et c'est la synchronisation au champ qui en pâtirait.
+  // Les produits sont pris dans l'ordre d'utilisation la plus récente — les
+  // plus susceptibles de resservir.
+  const PLAFOND_CATALOGUE = 60;
+  const aveclAmm = [...products.values()].filter(
+    (p): p is typeof p & { amm: string } => Boolean(p.amm),
+  );
+  const catalogueHorsLigne: OfflineCatalogueEntry[] = [];
+  let catalogueTronque = 0;
+
+  for (const produit of aveclAmm.slice(0, PLAFOND_CATALOGUE)) {
+    const detail = await getProductUsages(produit.amm);
+    // Un produit absent du catalogue n'est pas une anomalie : le catalogue
+    // E-Phy peut ne pas être importé sur cette instance, ou l'AMM avoir été
+    // saisie à la main. On ne fabrique rien pour combler.
+    if (!detail) continue;
+    catalogueHorsLigne.push({
+      amm: detail.product.amm,
+      productId: detail.product.id,
+      name: detail.product.name,
+      holder: null,
+      formulation: null,
+      productType: null,
+      substances: [],
+      status: detail.product.status,
+      authorized: detail.product.authorized,
+      withdrawnAt: detail.product.withdrawnAt,
+      usages: detail.usages,
+      crops: detail.crops,
+      drainedSoilRestrictions: detail.drainedSoilRestrictions,
+    });
+  }
+  if (aveclAmm.length > PLAFOND_CATALOGUE) {
+    catalogueTronque = aveclAmm.length - PLAFOND_CATALOGUE;
+  }
+
+  // Titulaire, formulation et substances : une seule requête pour l'ensemble.
+  //
+  // `getProductUsages` ne les rend pas — elle sert la fiche d'usages du site,
+  // qui les affiche déjà ailleurs. Les demander produit par produit ferait
+  // soixante requêtes de plus pour trois colonnes ; les ajouter au contrat de
+  // cette fonction changerait une réponse d'API pour un besoin qui n'est pas
+  // le sien.
+  if (catalogueHorsLigne.length > 0) {
+    const complements = await prisma.phytosanitaryProduct.findMany({
+      where: { amm: { in: catalogueHorsLigne.map((e) => e.amm) } },
+      select: {
+        amm: true,
+        holder: true,
+        formulation: true,
+        productType: true,
+        substances: { select: { substance: { select: { name: true } } } },
+      },
+    });
+    const parAmm = new Map(complements.map((c) => [c.amm, c]));
+    for (const entree of catalogueHorsLigne) {
+      const complement = parAmm.get(entree.amm);
+      if (!complement) continue;
+      entree.holder = complement.holder;
+      entree.formulation = complement.formulation;
+      entree.productType = complement.productType;
+      entree.substances = complement.substances.map((s) => s.substance.name);
+    }
+  }
+
+  // La provenance voyage avec les données : au champ comme au bureau, un
+  // contrôle de dose doit pouvoir dire de quelle édition du catalogue il sort.
+  const sourceEphy = await getEphySourceInfo();
 
   // Préconisations utiles au champ : celles en attente de décision et celles
   // acceptées mais pas encore réalisées, des deux côtés. Un expert emporte
@@ -169,6 +304,22 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         k: input.kContent === null ? null : Number(input.kContent),
       })),
       recentPhytoProducts: [...products.values()],
+      /**
+       * Usages officiels des produits employés : dose retenue, culture, DAR,
+       * ZNT, nombre maximal d'applications, conditions d'emploi.
+       *
+       * C'est ce qui permet au contrôle de dose de fonctionner sans réseau.
+       * La liste ne prétend jamais être le catalogue : elle porte sa
+       * provenance et le nombre de produits qu'elle a dû laisser de côté.
+       */
+      phytoCatalogue: catalogueHorsLigne,
+      phytoCatalogueSource: {
+        label: sourceEphy.label,
+        lastSyncAt: sourceEphy.lastSyncAt,
+        configured: sourceEphy.configured,
+        /** Produits employés mais non embarqués, faute de place. */
+        omitted: catalogueTronque,
+      },
       doseUnits: [...DOSE_UNITS],
       parcelTypes: [...PARCEL_TYPES],
       operationTypes: Object.entries(OPERATION_LABELS).map(([value, label]) => ({
