@@ -1412,3 +1412,46 @@ sudo /usr/local/bin/parcelys-backup         # sauvegarde immédiate
 vcgencmd get_throttled                      # 0x0 attendu
 df -h /                                     # place restante sur le SSD
 ```
+
+## Mise à jour refusée : « ne peut pas écrire dans .git »
+
+```
+✗ « parcelys » ne peut pas écrire dans /opt/parcelys/.git.
+```
+
+Des fichiers du dépôt appartiennent à root. Cela arrive dès qu'une commande
+git a été lancée une fois en `sudo` dans `/opt/parcelys` : git crée alors ses
+fichiers au nom de root, et le compte de service ne peut plus les écrire.
+
+Réparation :
+
+```bash
+sudo chown -R parcelys:parcelys /opt/parcelys
+cd /opt/parcelys && sudo bash scripts/update-pi.sh
+```
+
+ou, en une seule commande :
+
+```bash
+cd /opt/parcelys && sudo bash scripts/update-pi.sh --reparer-droits
+```
+
+Le contrôle a lieu **avant** la sauvegarde : inutile d'attendre deux minutes
+pour découvrir le problème.
+
+> Une version antérieure du script annonçait « git fetch a échoué (réseau ?) »
+> dans ce cas. Le message était faux et envoyait chercher un problème de
+> connexion inexistant. Il nomme désormais la cause réelle — droits, réseau ou
+> authentification — d'après ce que git a effectivement répondu.
+
+### Conséquence à connaître
+
+Quand la mise à jour s'arrête ici, **le nouveau code n'est pas téléchargé**.
+Toute commande ajoutée par la nouvelle version répondra donc :
+
+```
+npm error Missing script: "..."
+```
+
+Ce n'est pas un second problème : c'est le même. Réparez les droits, relancez
+la mise à jour, et la commande existera.

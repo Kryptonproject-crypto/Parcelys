@@ -28,6 +28,7 @@ PORT=${PARCELYS_PORT:-3000}
 BRANCH=''
 SKIP_BACKUP=0
 FORCE=0
+REPARER_DROITS=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,6 +37,7 @@ while [ $# -gt 0 ]; do
     --port)        PORT="$2"; shift 2 ;;
     --branch)      BRANCH="$2"; shift 2 ;;
     --no-backup)   SKIP_BACKUP=1; shift ;;
+    --reparer-droits) REPARER_DROITS=1; shift ;;
     --force)       FORCE=1; shift ;;
     -h|--help)     sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Option inconnue : $1" >&2; exit 2 ;;
@@ -59,6 +61,43 @@ as_service() { sudo -u "$SERVICE_USER" "$@"; }
 [ "$(id -u)" -eq 0 ] || die "À lancer avec sudo."
 [ -d "$APP_DIR/.git" ] || die "$APP_DIR n'est pas un dépôt Parcelys."
 cd "$APP_DIR"
+
+# --- 0. Le service peut-il seulement travailler dans son dossier ? -----------
+#
+# Contrôlé ici, avant la sauvegarde, et non au moment où git échoue.
+#
+# Tout le script agit au nom de « $SERVICE_USER ». Si ce compte ne peut plus
+# écrire dans `.git` — ce qui arrive dès qu'une commande git a été lancée une
+# fois en sudo, laissant des fichiers appartenant à root — la mise à jour
+# s'arrête à la première commande git. Elle s'arrêtait jusqu'ici APRÈS la
+# sauvegarde, sur un message parlant de réseau : deux minutes d'attente pour
+# une cause fausse.
+
+id "$SERVICE_USER" >/dev/null 2>&1 \
+  || die "L'utilisateur « $SERVICE_USER » n'existe pas sur cette machine.
+        Précisez-le avec --user, ou reprenez l'installation."
+
+if ! sudo -u "$SERVICE_USER" test -w "$APP_DIR/.git"; then
+  if [ "$REPARER_DROITS" -eq 1 ]; then
+    step "Droits"
+    chown -R "$SERVICE_USER":"$SERVICE_USER" "$APP_DIR"
+    ok "$APP_DIR rendu à $SERVICE_USER"
+  else
+    die "« $SERVICE_USER » ne peut pas écrire dans $APP_DIR/.git.
+
+        Des fichiers du dépôt appartiennent à un autre utilisateur, presque
+        toujours parce qu'une commande git y a été lancée en sudo.
+
+        Réparez :
+
+          sudo chown -R $SERVICE_USER:$SERVICE_USER $APP_DIR
+
+        ou relancez cette mise à jour avec --reparer-droits, qui fait
+        exactement cela avant de continuer.
+
+        Propriétaire actuel de .git : $(stat -c '%U:%G' "$APP_DIR/.git")"
+  fi
+fi
 
 # --- 1. Sauvegarde ----------------------------------------------------------
 
@@ -108,7 +147,55 @@ if [ -n "$MODIFIES" ]; then
         puis relancez cette commande."
 fi
 
-as_service git fetch origin "$BRANCH" --quiet || die "git fetch a échoué (réseau ?)"
+# On capture la sortie d'erreur pour dire ce qui a réellement échoué.
+#
+# La version précédente affichait « git fetch a échoué (réseau ?) » quoi qu'il
+# arrive. Sur une installation où `.git` appartenait à root — ce qui se produit
+# dès qu'une commande git a été lancée une fois en `sudo` —, git répondait
+# « Permission denied » et le message envoyait chercher un problème de réseau
+# qui n'existait pas. Une cause mal nommée coûte plus de temps qu'une erreur
+# sans message.
+FETCH_ERR=$(mktemp)
+if ! as_service git fetch origin "$BRANCH" --quiet 2>"$FETCH_ERR"; then
+  DETAIL=$(tr '\n' ' ' <"$FETCH_ERR" | sed 's/  */ /g')
+  rm -f "$FETCH_ERR"
+
+  case "$DETAIL" in
+    *"Permission denied"*|*"permission denied"*|*"Operation not permitted"*)
+      die "git fetch n'a pas pu écrire dans le dépôt — ce n'est pas le réseau.
+
+        Des fichiers de $APP_DIR appartiennent à un autre utilisateur que
+        « $SERVICE_USER » : c'est ce qui arrive après une commande git lancée
+        en sudo. Rendez le dépôt à son propriétaire :
+
+          sudo chown -R $SERVICE_USER:$SERVICE_USER $APP_DIR
+
+        puis relancez cette mise à jour.
+
+        Détail de git : $DETAIL"
+      ;;
+    *"Could not resolve host"*|*"unable to access"*|*"Connection timed out"*|*"Network is unreachable"*)
+      die "git fetch n'a pas joint GitHub — problème de réseau.
+
+        Vérifiez la connexion du Pi, puis relancez.
+
+        Détail de git : $DETAIL"
+      ;;
+    *"Authentication failed"*|*"could not read Username"*)
+      die "git fetch a été refusé par GitHub — problème d'authentification.
+
+        Le dépôt est privé et les identifiants du Pi ne conviennent plus.
+
+        Détail de git : $DETAIL"
+      ;;
+    *)
+      die "git fetch a échoué.
+
+        Détail de git : $DETAIL"
+      ;;
+  esac
+fi
+rm -f "$FETCH_ERR"
 
 # `git pull` sur une branche mal suivie dit « Already up to date » sans rien
 # faire : on se cale explicitement sur la branche distante.
