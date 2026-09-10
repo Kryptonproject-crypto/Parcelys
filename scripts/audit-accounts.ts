@@ -100,16 +100,24 @@ async function main(): Promise<void> {
     // Une mission de conseil, pas une adhésion : l'expert n'est pas membre de
     // l'exploitation, il y a un accès révocable. C'est le même mécanisme
     // qu'en production.
-    const existante = await prisma.advisoryEngagement.findFirst({
-      where: { farmId: farm.id, expertId: expert.id, status: 'ACTIVE' },
-      select: { id: true },
+    // Réactivée si elle existe, créée sinon.
+    //
+    // Chercher uniquement les missions `ACTIVE` puis créer était un piège :
+    // `scripts/check-advisory-flow.mjs` finit par **révoquer** l'accès, c'est
+    // même son dernier contrôle. La mission existait donc toujours, mais
+    // révoquée ; la recherche ne la trouvait pas, la création butait sur la
+    // contrainte d'unicité, et le script s'arrêtait là — laissant l'expert
+    // sans exploitation. Toute la suite de l'audit devenait impossible à
+    // relancer, avec des erreurs qui ne désignaient pas la cause.
+    const mission = await prisma.advisoryEngagement.upsert({
+      where: { farmId_expertId: { farmId: farm.id, expertId: expert.id } },
+      update: { status: 'ACTIVE', endedAt: null },
+      create: { farmId: farm.id, expertId: expert.id },
+      select: { status: true },
     });
-    if (!existante) {
-      await prisma.advisoryEngagement.create({
-        data: { farmId: farm.id, expertId: expert.id },
-      });
-    }
-    console.info(`  ✓ mission de conseil sur « ${farm.name} »`);
+    console.info(
+      `  ✓ mission de conseil sur « ${farm.name} » (${mission.status.toLowerCase()})`,
+    );
   }
 
   console.info(`\n  Mot de passe des deux comptes : ${MOT_DE_PASSE}\n`);

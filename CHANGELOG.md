@@ -115,11 +115,30 @@ npm run check:carte      # emprise, provenance, poids
 npm run check:security   # 55 contrôles de cloisonnement
 ```
 
-Les scripts au navigateur (`check:pages`, `check:mobile`, `check:advisory`,
-`check:admin`, `check:corrections`) demandent le serveur démarré et les comptes
-d'audit : `npm run audit:comptes` d'abord. Ils se lancent **avant**
-`check:security`, qui coupe volontairement la connexion après une série d'essais
-infructueux et bloquerait les suivants.
+Deux commandes groupent tout, dans le bon ordre :
+
+```bash
+npm run verif:sans-navigateur   # les cinq contrôles sur base
+npm start &                     # puis, serveur démarré :
+npm run verif:navigateur        # comptes d'audit, écrans, pages, mobile, sécurité
+```
+
+**L'ordre n'est pas décoratif**, et deux pièges ont coûté du temps avant d'être
+compris :
+
+- `check:security` coupe volontairement la connexion après une série d'essais
+  infructueux — c'est même l'un de ses 55 contrôles. Lancé en premier, il bloque
+  tous les contrôles au navigateur qui suivent, avec des délais d'attente qui ne
+  désignent pas la cause. Il passe donc **en dernier**.
+- `check:advisory` **révoque l'accès de l'expert** à la fin de son parcours, ce
+  qui est précisément ce qu'il vérifie. Tout contrôle qui suit trouve un
+  portefeuille vide. Il passe donc après `check:corrections`, et
+  `npm run audit:comptes` sait maintenant réactiver une mission révoquée au lieu
+  d'échouer sur la contrainte d'unicité.
+
+Troisième piège, hors ordre : `next dev` écrase la sortie de production dans
+`.next`, et un serveur relancé après lui sert l'ancien code. Reconstruire avant
+de vérifier.
 
 ---
 

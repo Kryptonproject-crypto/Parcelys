@@ -44,6 +44,8 @@
     "check:ecrans": "node scripts/check-ecrans-07.mjs",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
+    "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte",
+    "verif:navigateur": "npm run audit:comptes && npm run check:ecrans && npm run check:pages && npm run check:mobile && npm run check:corrections && npm run check:admin && npm run check:advisory && npm run check:security",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts"
   },
   "prisma": {

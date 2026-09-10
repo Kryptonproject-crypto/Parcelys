@@ -999,3 +999,71 @@ l'appartenance est retirée.
 | `GET /api/geo/reverse?lat=&lng=` | Commune correspondant à un point |
 
 Limitation : 60 requêtes par minute et par IP.
+
+---
+
+## Réglementaire
+
+Ces routes servent le socle réglementaire. Toutes obéissent au principe qui
+gouverne le reste : **elles ne renvoient jamais une valeur inventée**. Une
+vérification impossible se dit, avec ce qui manque.
+
+| Route | Description |
+| --- | --- |
+| `GET /api/regulatory/compliance?year=` | Synthèse de conformité d'une campagne. Ne prononce jamais de conformité — voir `docs/reglementaire.md` §2. |
+| `GET /api/regulatory/ift?year=` | IFT de l'exploitation. `total: null` (jamais `0`) sans référentiel de doses. |
+| `GET /api/regulatory/referentials` | État de chaque référentiel : importé, version, source, ou « non configuré » et ce que son absence empêche. |
+| `GET /api/regulatory/control-file?year=` | Dossier de contrôle : pièces rassemblées, pièces manquantes, versions des référentiels employés. |
+| `POST /api/regulatory/control-file` | Verrouille un document de campagne. Le contenu figé est **produit par le serveur**, jamais transmis par le client. |
+
+### `POST /api/regulatory/control-file`
+
+```json
+{ "campaignYear": 2026, "kind": "CAHIER_EPANDAGE", "notes": "Remis au contrôle" }
+```
+
+Natures gérées : `CAHIER_EPANDAGE`, `DOSSIER_CONTROLE`. Les autres sont refusées
+plutôt que verrouillées à vide sous un nom officiel.
+
+Réponse `201` à la création d'une version, `200` quand le contenu est identique
+au dernier verrou — dans ce cas `inchange: true` et aucune version n'est créée.
+
+---
+
+## Stocks
+
+| Route | Description |
+| --- | --- |
+| `GET /api/stocks` | Articles, lots, soldes, alertes, **et les utilisations non rattachées** — sans elles, un écart de saisie resterait invisible. |
+| `POST /api/stocks` | Crée un article suivi en stock. |
+| `POST /api/stocks/lots` | Enregistre un lot, et son entrée si la quantité reçue est fournie. |
+| `GET /api/stocks/lots?id=` | Traçabilité d'un lot : où il est parti, avec les parcelles et les dates. |
+| `POST /api/stocks/mouvements` | Entrée, sortie, ajustement, retour, élimination — ou rattachement d'une utilisation déjà enregistrée. |
+
+Le solde renvoyé est **celui des mouvements enregistrés**, pas un inventaire :
+la réponse porte cet avertissement en toutes lettres, et l'interface l'affiche
+avant tout chiffre.
+
+Les refus portent un motif écrit pour être lu par un exploitant, pas un code :
+« Impossible de convertir des kilos en litres sans connaître la densité du
+produit. »
+
+---
+
+## Couverture des sols
+
+| Route | Description |
+| --- | --- |
+| `GET /api/soil-covers?year=` | Couverts par parcelle, **avec l'état du référentiel régional** : sans lui, aucune période obligatoire n'est vérifiable et la réponse le dit. |
+| `POST /api/soil-covers` | Enregistre un couvert. |
+| `DELETE /api/soil-covers/:id` | Retire un couvert. Journalisé : un couvert supprimé disparaît du dossier de contrôle. |
+
+Seules les **dates incohérentes** sont refusées — une destruction avant le
+semis est une erreur de saisie certaine. Rien d'autre ne l'est : les périodes
+autorisées relèvent du programme d'actions régional, et inventer une contrainte
+serait pire que n'en poser aucune.
+
+La parcelle est lue dans le chemin quand il en porte une, dans le corps sinon.
+Ce n'est pas un détail : la file d'attente de l'application mobile remplace
+l'identifiant provisoire d'une parcelle relevée hors réseau dans le champ
+`parcelId`, pas dans le corps de la requête.
