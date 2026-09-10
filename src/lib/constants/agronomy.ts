@@ -114,6 +114,34 @@ export const DOSE_TO_TOTAL_UNIT: Record<string, string> = {
 
 export const YIELD_UNITS = ['q/ha', 't/ha', 'kg/ha', 'hL/ha', 'bottes/ha'] as const;
 
+/**
+ * Couverts d'interculture et modes de destruction.
+ *
+ * Déclarés ici plutôt que dans chaque formulaire : le site et l'application
+ * mobile doivent proposer exactement les mêmes, sans quoi une saisie faite au
+ * champ porterait une valeur que l'écran de bureau ne saurait pas afficher.
+ * L'application les reçoit dans son instantané hors ligne.
+ */
+export const SOIL_COVER_KINDS: Array<{ value: string; label: string }> = [
+  { value: 'CIPAN', label: 'CIPAN' },
+  { value: 'DEROBEE', label: 'Culture dérobée' },
+  { value: 'REPOUSSES', label: 'Repousses' },
+  { value: 'RESIDUS', label: 'Résidus de récolte' },
+  { value: 'COUVERT_PERMANENT', label: 'Couvert permanent' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
+export const COVER_DESTRUCTION_METHODS: Array<{ value: string; label: string }> = [
+  { value: 'MECANIQUE', label: 'Mécanique' },
+  { value: 'GEL', label: 'Gel' },
+  { value: 'PATURAGE', label: 'Pâturage' },
+  { value: 'ROULAGE', label: 'Roulage' },
+  { value: 'BROYAGE', label: 'Broyage' },
+  { value: 'CHIMIQUE', label: 'Chimique' },
+  { value: 'RECOLTE', label: 'Récolte' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
 export const OPERATION_LABELS: Record<string, string> = {
   LABOUR: 'Labour',
   DECHAUMAGE: 'Déchaumage',

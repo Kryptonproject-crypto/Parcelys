@@ -18,7 +18,7 @@ l'administration restent sur l'application web, où ils se font au bureau.
 | **Connexion** | Adresse e-mail et mot de passe — rien d'autre. L'application se connecte à **parcelys.fr**, adresse inscrite à la compilation. Le jeton de session est conservé par l'appareil (stockage natif), jamais dans un cookie. |
 | **Parcelles** | Liste et recherche, servies par le cache local : disponibles hors réseau. |
 | **Relever une parcelle** | Contour au GPS, en **marchant la limite** (un point tous les 10 m) ou en **posant un sommet** à chaque angle. Surface et périmètre calculés en direct. |
-| **Fiche parcelle** | Trois saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé. |
+| **Fiche parcelle** | Quatre saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé (irrigation comprise), couvert d'interculture. |
 | **Synchronisation** | File d'attente visible, envoi manuel ou automatique au retour du réseau, motif de refus affiché pour chaque saisie rejetée. |
 
 ### Ce qu'elle ne fait pas, volontairement
@@ -34,6 +34,30 @@ l'administration restent sur l'application web, où ils se font au bureau.
   depuis l'application web.
 - **Pas de fond de carte** pendant le relevé : les tuiles exigeraient du réseau,
   précisément ce qui manque. L'aperçu du contour est un tracé, pas une carte.
+- **Aucune période réglementaire n'est affichée pour les couverts.** Les dates
+  de couverture obligatoire relèvent du programme d'actions régional ; les
+  inventer ici donnerait une échéance fausse à un exploitant qui n'a pas de
+  réseau pour la vérifier.
+
+### Ce que le champ apporte, et que le bureau ne peut pas
+
+Trois saisies n'ont de sens qu'à l'endroit et au moment de l'intervention :
+
+- **Le numéro de lot** d'un produit phytosanitaire. C'est le bidon en main qu'on
+  le lit — au bureau une semaine plus tard, il est perdu. Or c'est exactement ce
+  qu'un contrôle demande : quel lot sur quelle parcelle. Le lot est proposé
+  quand l'exploitation tient un stock, et le serveur crée la sortie
+  correspondante dans la foulée.
+- **Le semis d'un CIPAN.** Rarement à portée de réseau, et noté le soir venu
+  c'est noté de mémoire — donc parfois pas du tout.
+- **L'analyse de l'eau d'irrigation.** La teneur saisie est celle du
+  **nitrate** (NO₃), comme la rend une analyse — pas celle de l'azote. Sans le
+  volume *et* la teneur, l'azote apporté par l'eau n'est pas chiffré, et il
+  n'est pas estimé non plus.
+
+Un refus de mouvement de stock **n'annule jamais le traitement** : le registre
+phytosanitaire prime, un traitement réellement effectué doit y figurer. L'écart
+apparaît ensuite dans « utilisations non rattachées », côté web.
 
 ---
 

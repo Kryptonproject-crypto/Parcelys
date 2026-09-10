@@ -63,6 +63,32 @@ export type Referential = {
   doseUnits: string[];
   parcelTypes: string[];
   operationTypes: Array<{ value: string; label: string }>;
+  /**
+   * Couverts et modes de destruction, reçus du serveur.
+   *
+   * Facultatifs pour rester compatible avec un instantané pris par une version
+   * antérieure : un appareil qui n'a pas encore resynchronisé doit continuer à
+   * fonctionner, pas afficher une liste vide.
+   */
+  soilCoverKinds?: Array<{ value: string; label: string }>;
+  coverDestructionMethods?: Array<{ value: string; label: string }>;
+  /**
+   * Lots phytosanitaires encore en stock.
+   *
+   * C'est au champ, le bidon en main, qu'on connaît le numéro de lot — pas au
+   * bureau une semaine plus tard. C'est exactement ce qu'un contrôle demande :
+   * quel lot sur quelle parcelle.
+   */
+  phytoLots?: Array<{
+    id: string;
+    itemId: string;
+    itemName: string;
+    lotNumber: string | null;
+    amm: string | null;
+    unit: string;
+    reste: number;
+    expiresOn: string | null;
+  }>;
 };
 
 export type AccountType = 'FARMER' | 'AGRONOMIST';
@@ -162,13 +188,15 @@ export type OperationKind =
   | 'phyto.create'
   | 'operation.create'
   | 'recommendation.create'
-  | 'recommendation.respond';
+  | 'recommendation.respond'
+  | 'soilCover.create';
 
 export const OPERATION_LABELS: Record<OperationKind, string> = {
   'parcel.create': 'Nouvelle parcelle',
   'fertilization.create': 'Apport',
   'phyto.create': 'Traitement',
   'operation.create': 'Travail',
+  'soilCover.create': 'Couvert d’interculture',
   'recommendation.create': 'Préconisation',
   'recommendation.respond': 'Réponse à une préconisation',
 };

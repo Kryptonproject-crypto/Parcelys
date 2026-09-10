@@ -907,6 +907,217 @@ describe('Application mobile et synchronisation', () => {
   });
 
   // -------------------------------------------------------------------------
+  describe('Nouveautés 0.7.0 au champ', () => {
+    it('fait passer un couvert d’interculture par la file d’attente', async () => {
+      // Le semis d'un CIPAN se fait rarement à portée de réseau. Si la file ne
+      // le transporte pas, il se note de mémoire le soir — donc parfois pas du
+      // tout.
+      const { native, user } = await setup();
+      const parcelle = await prisma.parcel.create({
+        data: { farmId: user.farmId, name: 'Interculture', areaHa: 12 },
+        select: { id: true },
+      });
+
+      const push = await native.post<{ applied: number; rejected: number }>(
+        '/api/sync',
+        {
+          operations: [
+            {
+              clientId: randomUUID(),
+              kind: 'soilCover.create',
+              parcelId: parcelle.id,
+              payload: {
+                parcelId: parcelle.id,
+                kind: 'CIPAN',
+                species: 'Moutarde blanche, phacélie',
+                sownOn: '2025-08-25',
+                destroyedOn: '2025-11-20',
+                destructionMethod: 'MECANIQUE',
+              },
+            },
+          ],
+        },
+      );
+
+      expect(push.body.applied).toBe(1);
+      const couvert = await prisma.soilCover.findFirstOrThrow({
+        where: { parcelId: parcelle.id },
+      });
+      expect(couvert.kind).toBe('CIPAN');
+      expect(couvert.species).toContain('phacélie');
+      expect(couvert.destructionMethod).toBe('MECANIQUE');
+    });
+
+    it('refuse un couvert aux dates incohérentes, même venu du champ', async () => {
+      // Le contrôle vit côté serveur, pas dans le formulaire : sans cela, tout
+      // ce qui est saisi hors ligne passerait sans vérification — c'est-à-dire
+      // l'essentiel.
+      const { native, user } = await setup();
+      const parcelle = await prisma.parcel.create({
+        data: { farmId: user.farmId, name: 'Dates fausses', areaHa: 5 },
+        select: { id: true },
+      });
+
+      const push = await native.post<{
+        applied: number;
+        rejected: number;
+        results: Array<{ status: string; message?: string }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'soilCover.create',
+            parcelId: parcelle.id,
+            payload: {
+              parcelId: parcelle.id,
+              kind: 'CIPAN',
+              sownOn: '2025-09-10',
+              destroyedOn: '2025-08-30',
+            },
+          },
+        ],
+      });
+
+      expect(push.body.rejected).toBe(1);
+      expect(push.body.results[0]?.message).toContain('antérieure au semis');
+      expect(await prisma.soilCover.count({ where: { parcelId: parcelle.id } })).toBe(0);
+    });
+
+    it('rattache un traitement à son lot de stock, saisi au champ', async () => {
+      // La traçabilité « quel lot sur quelle parcelle » est la question d'un
+      // contrôle. Elle ne se répond qu'au champ, le bidon en main : au bureau
+      // une semaine plus tard, le numéro est perdu.
+      const { native, user } = await setup();
+      const parcelle = await prisma.parcel.create({
+        data: { farmId: user.farmId, name: 'Traçable', areaHa: 10 },
+        select: { id: true },
+      });
+      const article = await prisma.stockItem.create({
+        data: {
+          farmId: user.farmId,
+          category: 'PHYTOSANITAIRE',
+          name: 'Herbicide de test',
+          unit: 'L',
+        },
+        select: { id: true },
+      });
+      const lot = await prisma.stockLot.create({
+        data: { itemId: article.id, lotNumber: 'LOT-77' },
+        select: { id: true },
+      });
+      await prisma.stockMovement.create({
+        data: {
+          itemId: article.id,
+          lotId: lot.id,
+          kind: 'ENTREE',
+          occurredOn: new Date('2026-01-10'),
+          quantity: 50,
+          unit: 'L',
+        },
+      });
+
+      const push = await native.post<{ applied: number }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'phyto.create',
+            parcelId: parcelle.id,
+            payload: {
+              appliedOn: '2026-04-20',
+              productName: 'Herbicide de test',
+              dose: 2,
+              doseUnit: 'L/ha',
+              stockLotId: lot.id,
+            },
+          },
+        ],
+      });
+
+      expect(push.body.applied).toBe(1);
+
+      const traitement = await prisma.phytosanitaryApplication.findFirstOrThrow({
+        where: { parcelId: parcelle.id },
+      });
+      // 2 L/ha sur 10 ha = 20 L sortis du lot.
+      const mouvement = await prisma.stockMovement.findFirstOrThrow({
+        where: { phytoApplicationId: traitement.id },
+      });
+      expect(mouvement.kind).toBe('SORTIE');
+      expect(Number(mouvement.quantity)).toBe(-20);
+      expect(mouvement.lotId).toBe(lot.id);
+    });
+
+    it('enregistre le traitement même si le stock refuse le mouvement', async () => {
+      // Le registre phytosanitaire prime. Un traitement réellement effectué
+      // doit y figurer, même si le lot est introuvable — le perdre pour une
+      // question de stock produirait un registre faux.
+      const { native, user } = await setup();
+      const parcelle = await prisma.parcel.create({
+        data: { farmId: user.farmId, name: 'Lot inconnu', areaHa: 8 },
+        select: { id: true },
+      });
+
+      const push = await native.post<{
+        applied: number;
+        results: Array<{ status: string; warnings?: string[] }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'phyto.create',
+            parcelId: parcelle.id,
+            payload: {
+              appliedOn: '2026-04-20',
+              productName: 'Produit sans lot valide',
+              dose: 1,
+              doseUnit: 'L/ha',
+              stockLotId: 'lot-qui-nexiste-pas',
+            },
+          },
+        ],
+      });
+
+      expect(push.body.applied).toBe(1);
+      expect(await prisma.phytosanitaryApplication.count({ where: { parcelId: parcelle.id } })).toBe(1);
+      // L'écart est dit, pas tu.
+      expect(push.body.results[0]?.warnings?.join(' ')).toContain('introuvable');
+    });
+
+    it('transporte l’irrigation avec le volume et l’analyse d’eau', async () => {
+      const { native, user } = await setup();
+      const parcelle = await prisma.parcel.create({
+        data: { farmId: user.farmId, name: 'Irriguée', areaHa: 20 },
+        select: { id: true },
+      });
+
+      const push = await native.post<{ applied: number }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'operation.create',
+            parcelId: parcelle.id,
+            payload: {
+              performedOn: '2026-06-15',
+              type: 'IRRIGATION',
+              irrigationMm: 30,
+              waterSource: 'Forage',
+              // Teneur en **nitrate**, comme la rend une analyse d'eau.
+              waterNitrateMgL: 40,
+            },
+          },
+        ],
+      });
+
+      expect(push.body.applied).toBe(1);
+      const operation = await prisma.agriculturalOperation.findFirstOrThrow({
+        where: { parcelId: parcelle.id, type: 'IRRIGATION' },
+      });
+      expect(Number(operation.irrigationMm)).toBe(30);
+      expect(Number(operation.waterNitrateMgL)).toBe(40);
+      expect(operation.waterSource).toBe('Forage');
+    });
+  });
+
   describe('Relève des changements', () => {
     it('renvoie les parcelles modifiées depuis une date', async () => {
       const { native } = await setup();

@@ -26,19 +26,48 @@ import {
   today,
 } from '../components/ui';
 
-export type EntryKind = 'phyto' | 'apport' | 'travaux';
+export type EntryKind = 'phyto' | 'apport' | 'travaux' | 'couvert';
 
 const TITLES: Record<EntryKind, string> = {
   phyto: 'Traitement phytosanitaire',
   apport: 'Apport de fertilisant',
   travaux: 'Travail réalisé',
+  couvert: 'Couvert d’interculture',
 };
 
 const KINDS: Record<EntryKind, OperationKind> = {
   phyto: 'phyto.create',
   apport: 'fertilization.create',
   travaux: 'operation.create',
+  couvert: 'soilCover.create',
 };
+
+/**
+ * Natures de couvert.
+ *
+ * Le semis d'un CIPAN se fait rarement à portée de réseau, et le noter le soir
+ * venu, c'est le noter de mémoire — donc parfois pas du tout.
+ */
+const COUVERTS_PAR_DEFAUT = [
+  { value: 'CIPAN', label: 'CIPAN' },
+  { value: 'DEROBEE', label: 'Culture dérobée' },
+  { value: 'REPOUSSES', label: 'Repousses' },
+  { value: 'RESIDUS', label: 'Résidus de récolte' },
+  { value: 'COUVERT_PERMANENT', label: 'Couvert permanent' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
+const DESTRUCTIONS_PAR_DEFAUT = [
+  { value: '', label: 'Non détruit / non renseigné' },
+  { value: 'MECANIQUE', label: 'Mécanique' },
+  { value: 'GEL', label: 'Gel' },
+  { value: 'PATURAGE', label: 'Pâturage' },
+  { value: 'ROULAGE', label: 'Roulage' },
+  { value: 'BROYAGE', label: 'Broyage' },
+  { value: 'CHIMIQUE', label: 'Chimique' },
+  { value: 'RECOLTE', label: 'Récolte' },
+  { value: 'AUTRE', label: 'Autre' },
+];
 
 /**
  * Saisie d'une intervention.
@@ -105,6 +134,18 @@ export function EntryScreen({
 
   // Travaux
   const [operationType, setOperationType] = useState('LABOUR');
+  // Irrigation. Les champs n'apparaissent que pour ce type de travail : au
+  // champ, chaque champ inutile est un champ que l'on renonce à remplir.
+  const [irrigationMm, setIrrigationMm] = useState('');
+  // Couvert d'interculture.
+  const [coverKind, setCoverKind] = useState('CIPAN');
+  const [species, setSpecies] = useState('');
+  const [emergedOn, setEmergedOn] = useState('');
+  const [destroyedOn, setDestroyedOn] = useState('');
+  const [destruction, setDestruction] = useState('');
+  const [stockLotId, setStockLotId] = useState('');
+  const [waterSource, setWaterSource] = useState('');
+  const [waterNitrate, setWaterNitrate] = useState('');
   const [equipment, setEquipment] = useState('');
 
   const doseUnits = referential?.doseUnits ?? ['L/ha', 'kg/ha'];
@@ -311,6 +352,11 @@ export function EntryScreen({
           : {}),
         dose: Number(phytoDose),
         doseUnit: phytoUnit,
+        // Le lot employé, quand l'exploitation tient un stock. Le serveur crée
+        // la sortie correspondante : au champ il n'y a qu'un geste, et une file
+        // d'attente ne sait pas enchaîner deux opérations dont la seconde
+        // dépend de l'identifiant produit par la première.
+        ...(stockLotId ? { stockLotId } : {}),
         // Relevées à l'ouverture du formulaire, sur la parcelle : c'est la
         // météo de l'intervention, pas celle de la synchronisation.
         ...weatherPayload(),
@@ -344,10 +390,37 @@ export function EntryScreen({
       };
     }
 
+    if (kind === 'couvert') {
+      // Aucune date n'est obligatoire, sauf celle de la saisie : un couvert
+      // semé dont on n'a pas noté la levée reste un couvert semé, et exiger la
+      // date pousserait à l'inventer. C'est justement celle qu'un contrôle
+      // regarderait.
+      return {
+        parcelId: parcel.id,
+        kind: coverKind,
+        ...(species.trim() ? { species: species.trim() } : {}),
+        sownOn: date,
+        ...(emergedOn ? { emergedOn } : {}),
+        ...(destroyedOn ? { destroyedOn } : {}),
+        ...(destruction ? { destructionMethod: destruction } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      };
+    }
+
     return {
       performedOn: date,
       type: operationType,
       ...(equipment.trim() ? { equipment: equipment.trim() } : {}),
+      // L'irrigation n'est pas un objet à part : c'est un travail sur la
+      // parcelle, avec sa date, son opérateur et sa météo. Le serveur applique
+      // les mêmes contrôles qu'en ligne.
+      ...(operationType === 'IRRIGATION'
+        ? {
+            ...(irrigationMm ? { irrigationMm: Number(irrigationMm) } : {}),
+            ...(waterSource.trim() ? { waterSource: waterSource.trim() } : {}),
+            ...(waterNitrate ? { waterNitrateMgL: Number(waterNitrate) } : {}),
+          }
+        : {}),
       ...weatherPayload(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
@@ -711,6 +784,32 @@ export function EntryScreen({
                 </Select>
               </Field>
             </div>
+
+            {/*
+              Le lot employé. N'apparaît que si l'exploitation tient un stock —
+              sinon ce serait un champ vide de plus sur un écran où chaque champ
+              inutile est un champ que l'on renonce à remplir.
+            */}
+            {(referential?.phytoLots?.length ?? 0) > 0 ? (
+              <Field
+                label="Lot employé"
+                hint="C'est ici, le bidon en main, que le numéro de lot est connu. C'est ce qu'un contrôle demande."
+              >
+                <Select
+                  value={stockLotId}
+                  onChange={(event) => setStockLotId(event.target.value)}
+                >
+                  <option value="">— Aucun lot rattaché —</option>
+                  {referential?.phytoLots?.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      {lot.itemName}
+                      {lot.lotNumber ? ` · lot ${lot.lotNumber}` : ' · sans numéro'}
+                      {` · reste ${lot.reste} ${lot.unit}`}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
           </>
         ) : null}
 
@@ -811,6 +910,112 @@ export function EntryScreen({
                 placeholder="Charrue 4 corps"
               />
             </Field>
+
+            {operationType === 'IRRIGATION' ? (
+              <>
+                <Field label="Hauteur d’eau (mm)">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min="0"
+                    value={irrigationMm}
+                    onChange={(event) => setIrrigationMm(event.target.value)}
+                    placeholder="30"
+                  />
+                </Field>
+
+                <Field label="Origine de l’eau">
+                  <Input
+                    value={waterSource}
+                    onChange={(event) => setWaterSource(event.target.value)}
+                    placeholder="Forage, canal…"
+                  />
+                </Field>
+
+                <Field label="Nitrate de l’eau (mg/L de NO₃)">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min="0"
+                    value={waterNitrate}
+                    onChange={(event) => setWaterNitrate(event.target.value)}
+                    placeholder="40"
+                  />
+                </Field>
+
+                <p className="px-1 text-[13px] leading-relaxed text-ink-3">
+                  C’est la teneur en <strong>nitrate</strong> que rend une analyse
+                  d’eau, pas la teneur en azote. Sans le volume <em>et</em> la
+                  teneur, l’azote apporté par l’eau n’est pas chiffré — il n’est
+                  pas estimé non plus.
+                </p>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        {kind === 'couvert' ? (
+          <>
+            <Field label="Nature du couvert" required>
+              <Select
+                value={coverKind}
+                onChange={(event) => setCoverKind(event.target.value)}
+              >
+                {(referential?.soilCoverKinds ?? COUVERTS_PAR_DEFAUT).map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Espèces">
+              <Input
+                value={species}
+                onChange={(event) => setSpecies(event.target.value)}
+                placeholder="Moutarde blanche, phacélie"
+              />
+            </Field>
+
+            <Field label="Levée">
+              <Input
+                type="date"
+                value={emergedOn}
+                onChange={(event) => setEmergedOn(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Destruction">
+              <Input
+                type="date"
+                value={destroyedOn}
+                onChange={(event) => setDestroyedOn(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Mode de destruction">
+              <Select
+                value={destruction}
+                onChange={(event) => setDestruction(event.target.value)}
+              >
+                {DESTRUCTIONS_PAR_DEFAUT.slice(0, 1)
+                  .concat(referential?.coverDestructionMethods ?? DESTRUCTIONS_PAR_DEFAUT.slice(1))
+                  .map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+
+            <p className="px-1 text-[13px] leading-relaxed text-ink-3">
+              La date du haut est celle du <strong>semis</strong>. Les périodes de
+              couverture obligatoire dépendent du programme d’actions régional :
+              Parcelys enregistre ce que vous faites, il n’invente aucune
+              échéance.
+            </p>
           </>
         ) : null}
 

@@ -8,6 +8,7 @@ import { computeTotalQuantity } from '@/lib/services/fertilization';
 import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
 import { buildPhytoWarnings } from '@/lib/services/phyto-control';
 import { logAudit } from '@/lib/audit';
+import { enregistrerMouvement } from '@/lib/services/stock';
 import { badRequest, notFound } from '@/lib/api/errors';
 
 type Ctx = { params: Promise<Record<string, string>> };
@@ -132,6 +133,42 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     },
   });
 
+  // Sortie de stock, quand un lot a été désigné.
+  //
+  // Créée ici, dans la foulée du traitement, plutôt que laissée à un second
+  // appel : au champ il n'y a qu'un geste, et une file d'attente ne sait pas
+  // enchaîner deux opérations dont la seconde dépend de l'identifiant produit
+  // par la première.
+  //
+  // Un refus n'annule pas le traitement. Le registre phytosanitaire prime : un
+  // traitement réellement effectué doit y figurer, même si le stock ne peut pas
+  // être mouvementé. L'écart apparaîtra dans « utilisations non rattachées ».
+  let avertissementStock: string | null = null;
+  if (input.stockLotId) {
+    const lot = await prisma.stockLot.findFirst({
+      where: { id: input.stockLotId, item: { farmId: ctx.farmId } },
+      select: { id: true, itemId: true },
+    });
+
+    if (!lot) {
+      avertissementStock =
+        'Le lot indiqué est introuvable : le traitement est enregistré, mais le stock n’a pas été mouvementé.';
+    } else {
+      const mouvement = await enregistrerMouvement(ctx.farmId, {
+        itemId: lot.itemId,
+        lotId: lot.id,
+        kind: 'SORTIE',
+        occurredOn: input.appliedOn,
+        quantity: Number(totalQuantity),
+        unit: totalUnit,
+        phytoApplicationId: created.id,
+        reason: 'Traitement enregistré',
+        createdById: ctx.user.id,
+      });
+      if (!mouvement.ok) avertissementStock = `Stock non mouvementé : ${mouvement.raison}`;
+    }
+  }
+
   await logAudit({
     action: 'phyto.created',
     userId: ctx.user.id,
@@ -167,6 +204,9 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
               'Aucun numéro d’AMM associé : cette intervention apparaîtra comme incomplète dans votre registre.',
             ]),
         ...controles,
+        // Le refus du stock est un avertissement, pas une erreur : le
+        // traitement est bel et bien enregistré.
+        ...(avertissementStock ? [avertissementStock] : []),
       ],
     },
     201,

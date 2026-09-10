@@ -194,6 +194,15 @@ export const phytoApplicationSchema = z.object({
   operator: optionalText(120),
   notes: optionalText(2000),
   cropYearId: z.string().optional(),
+  /**
+   * Lot de stock réellement employé.
+   *
+   * C'est au champ, le bidon en main, qu'on connaît le numéro de lot — pas au
+   * bureau une semaine plus tard. Facultatif : tout le monde ne tient pas de
+   * stock, et l'exiger empêcherait d'enregistrer un traitement réellement
+   * effectué, ce qui produirait un registre faux.
+   */
+  stockLotId: z.string().optional(),
   ...weatherFields,
 });
 

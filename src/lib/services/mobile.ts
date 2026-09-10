@@ -2,11 +2,14 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { getFarmParcelsGeoJSON } from '@/lib/geo/repository';
 import {
+  COVER_DESTRUCTION_METHODS,
   DOSE_UNITS,
   OPERATION_LABELS,
   PARCEL_TYPES,
+  SOIL_COVER_KINDS,
   currentCampaignYear,
 } from '@/lib/constants/agronomy';
+import { calculerSolde } from '@/lib/stock/balance';
 import { listRecommendations } from '@/lib/services/advisory';
 import type { FarmContext } from '@/lib/auth/rbac';
 
@@ -107,6 +110,8 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         : ['PROPOSED', 'ACCEPTED'],
   });
 
+  const lotsPhyto = await lotsPhytoDisponibles(ctx.farmId);
+
   return {
     syncedAt: new Date().toISOString(),
     campaignYear: year,
@@ -170,6 +175,21 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         value,
         label,
       })),
+      soilCoverKinds: SOIL_COVER_KINDS,
+      coverDestructionMethods: COVER_DESTRUCTION_METHODS,
+      /**
+       * Lots phytosanitaires encore en stock.
+       *
+       * C'est au champ, le bidon en main, qu'on connaît le numéro de lot — pas
+       * au bureau une semaine plus tard. Sans cette liste dans l'instantané, la
+       * traçabilité « quel lot sur quelle parcelle » resterait un vœu : c'est
+       * exactement la question qu'un contrôle pose.
+       *
+       * Seuls les lots d'articles rattachés à un produit du catalogue sont
+       * envoyés, et seulement s'il en reste : proposer un lot vide ferait
+       * saisir une sortie impossible.
+       */
+      phytoLots: lotsPhyto,
     },
   };
 }
@@ -234,4 +254,67 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
     })),
     deletedParcelIds: deleted.map((parcel) => parcel.id),
   };
+}
+
+/**
+ * Lots phytosanitaires dont il reste quelque chose.
+ *
+ * Le solde est recalculé ici comme partout ailleurs : la somme des mouvements,
+ * jamais un compteur. Un lot vide est écarté — le proposer ferait saisir une
+ * sortie impossible, et le refus arriverait au retour du réseau, quand la
+ * parcelle est loin.
+ */
+async function lotsPhytoDisponibles(farmId: string): Promise<
+  Array<{
+    id: string;
+    itemId: string;
+    itemName: string;
+    lotNumber: string | null;
+    amm: string | null;
+    unit: string;
+    reste: number;
+    expiresOn: string | null;
+  }>
+> {
+  const articles = await prisma.stockItem.findMany({
+    where: { farmId, archivedAt: null, category: 'PHYTOSANITAIRE' },
+    select: {
+      id: true,
+      name: true,
+      unit: true,
+      phytoProduct: { select: { amm: true } },
+      lots: {
+        where: { closedAt: null },
+        select: { id: true, lotNumber: true, expiresOn: true },
+      },
+      movements: { select: { quantity: true, unit: true, lotId: true } },
+    },
+  });
+
+  const lots: Awaited<ReturnType<typeof lotsPhytoDisponibles>> = [];
+
+  for (const article of articles) {
+    for (const lot of article.lots) {
+      const solde = calculerSolde(
+        article.movements
+          .filter((m) => m.lotId === lot.id)
+          .map((m) => ({ quantity: Number(m.quantity), unit: m.unit })),
+        article.unit,
+      );
+      if (solde.quantite <= 0) continue;
+
+      lots.push({
+        id: lot.id,
+        itemId: article.id,
+        itemName: article.name,
+        lotNumber: lot.lotNumber,
+        amm: article.phytoProduct?.amm ?? null,
+        unit: article.unit,
+        reste: solde.quantite,
+        expiresOn: lot.expiresOn ? lot.expiresOn.toISOString() : null,
+      });
+    }
+  }
+
+  return lots.sort((a, b) => a.itemName.localeCompare(b.itemName));
 }

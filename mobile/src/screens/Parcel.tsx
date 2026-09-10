@@ -73,10 +73,26 @@ export function ParcelScreen({
     {
       kind: 'travaux' as const,
       title: 'Travail réalisé',
-      description: 'Labour, semis, récolte… avec le matériel employé.',
+      description: 'Labour, semis, récolte, irrigation… avec le matériel employé.',
       icon: (
         <path
           d="M4 17h3l2-6h6l2 6h3M7 21a2 2 0 100-4 2 2 0 000 4zm10 0a2 2 0 100-4 2 2 0 000 4z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ),
+    },
+    {
+      // Le semis d'un CIPAN se fait rarement à portée de réseau, et le noter le
+      // soir venu, c'est le noter de mémoire — donc parfois pas du tout.
+      kind: 'couvert' as const,
+      title: 'Couvert d’interculture',
+      description: 'CIPAN, dérobée, repousses — avec semis et destruction.',
+      icon: (
+        <path
+          d="M12 20V9m0 0c0-3 2-5 5-5 0 3-2 5-5 5zm0 0c0-3-2-5-5-5 0 3 2 5 5 5zM6 20h12"
           stroke="currentColor"
           strokeWidth="1.8"
           strokeLinecap="round"
