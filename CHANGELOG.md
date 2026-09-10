@@ -106,7 +106,7 @@ sur un délai d'attente qui ne désignait pas la cause.
 ### Vérifier
 
 ```bash
-npm run test:ci          # build puis 430+ tests
+npm run test:ci          # build puis 429 tests
 npm run check:stocks     # solde, cloisonnement, traçabilité, sur une vraie base
 npm run check:couverture # qu'aucune règle régionale ne soit inventée
 npm run check:plafond    # les deux sens du plafond, avec et sans règle
