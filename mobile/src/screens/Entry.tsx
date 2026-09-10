@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { AppContext } from '../App';
 import type { CachedParcel, OperationKind } from '../lib/types';
 import { enqueue } from '../lib/db';
+import {
+  captureWeather,
+  searchCatalog,
+  type CatalogProduct,
+  type InterventionWeather,
+} from '../lib/api';
 import {
   ActionBar,
   Banner,
@@ -60,6 +66,19 @@ export function EntryScreen({
   // Phytosanitaire
   const [productName, setProductName] = useState('');
   const [amm, setAmm] = useState('');
+  const [substances, setSubstances] = useState('');
+
+  // Recherche dans le catalogue officiel (en ligne uniquement).
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const [catalogHits, setCatalogHits] = useState<CatalogProduct[] | null>(null);
+  const [catalogState, setCatalogState] = useState<
+    'idle' | 'searching' | 'empty' | 'unconfigured' | 'offline' | 'error'
+  >('idle');
+  const [verified, setVerified] = useState(false);
+
+  // Conditions relevées à la saisie, jamais à la synchronisation.
+  const [weather, setWeather] = useState<InterventionWeather | null>(null);
+  const [weatherState, setWeatherState] = useState<'idle' | 'loading' | 'none'>('idle');
   const [phytoDose, setPhytoDose] = useState('');
   const [phytoUnit, setPhytoUnit] = useState('L/ha');
 
@@ -76,12 +95,93 @@ export function EntryScreen({
 
   const doseUnits = referential?.doseUnits ?? ['L/ha', 'kg/ha'];
 
+  /**
+   * Les conditions du moment, relevées dès l'ouverture du formulaire.
+   *
+   * Maintenant, et pas à la synchronisation : une file d'attente peut partir
+   * des heures plus tard, et la météo d'alors ne serait pas celle de
+   * l'intervention. Sans réseau on ne relève rien — et on ne déduit rien.
+   */
+  useEffect(() => {
+    if (!online) {
+      setWeatherState('none');
+      return;
+    }
+    let vivant = true;
+    setWeatherState('loading');
+    void captureWeather(context.session, parcel.id).then((releve) => {
+      if (!vivant) return;
+      setWeather(releve);
+      setWeatherState(releve ? 'idle' : 'none');
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [online, context.session, parcel.id]);
+
+  /**
+   * Recherche au catalogue, après une pause de frappe.
+   *
+   * 400 ms : assez pour ne pas lancer une requête par lettre sur une liaison
+   * de campagne, assez peu pour que la liste suive la saisie.
+   */
+  const rechercheEnCours = useRef(0);
+  useEffect(() => {
+    const terme = catalogQuery.trim();
+    if (terme.length < 2) {
+      setCatalogHits(null);
+      setCatalogState('idle');
+      return;
+    }
+    if (!online) {
+      setCatalogHits(null);
+      setCatalogState('offline');
+      return;
+    }
+
+    const jeton = (rechercheEnCours.current += 1);
+    setCatalogState('searching');
+    const minuteur = setTimeout(() => {
+      void searchCatalog(context.session, terme)
+        .then((reponse) => {
+          // Une réponse arrivée après une frappe plus récente est périmée.
+          if (jeton !== rechercheEnCours.current) return;
+          if (!reponse.source.configured) {
+            setCatalogHits(null);
+            setCatalogState('unconfigured');
+            return;
+          }
+          setCatalogHits(reponse.results);
+          setCatalogState(reponse.results.length === 0 ? 'empty' : 'idle');
+        })
+        .catch(() => {
+          if (jeton !== rechercheEnCours.current) return;
+          setCatalogHits(null);
+          setCatalogState('error');
+        });
+    }, 400);
+
+    return () => clearTimeout(minuteur);
+  }, [catalogQuery, online, context.session]);
+
+  /** Un produit choisi au catalogue : nom, AMM et substances viennent de lui. */
+  function pickCatalogProduct(product: CatalogProduct): void {
+    setProductName(product.name);
+    setAmm(product.amm);
+    setSubstances(product.substances.join(', '));
+    setVerified(true);
+    setCatalogQuery('');
+    setCatalogHits(null);
+    setCatalogState('idle');
+  }
+
   /** Pré-remplit à partir d'un produit déjà utilisé, AMM comprise. */
   function pickKnownProduct(value: string): void {
     const known = referential?.recentPhytoProducts.find(
       (product) => product.productName === value,
     );
     setProductName(value);
+    setVerified(false);
     if (known) {
       setAmm(known.amm ?? '');
       setPhytoUnit(known.doseUnit);
@@ -99,6 +199,23 @@ export function EntryScreen({
     if (found) setProductLabel(found.name);
   }
 
+  /**
+   * Les conditions relevées, prêtes à joindre. Vide si rien n'a été relevé :
+   * un registre sans météo dit la vérité, un registre avec une météo inventée
+   * ment.
+   */
+  function weatherPayload(): Record<string, unknown> {
+    if (!weather) return {};
+    const champs: Record<string, unknown> = {};
+    if (weather.weatherTempC !== null) champs.weatherTempC = weather.weatherTempC;
+    if (weather.weatherWindKmh !== null) champs.weatherWindKmh = weather.weatherWindKmh;
+    if (weather.weatherHumidity !== null) champs.weatherHumidity = weather.weatherHumidity;
+    if (weather.weatherRainMm !== null) champs.weatherRainMm = weather.weatherRainMm;
+    if (weather.weatherSummary) champs.weatherSummary = weather.weatherSummary;
+    if (weather.weatherSource) champs.weatherSource = weather.weatherSource;
+    return champs;
+  }
+
   function buildPayload(): Record<string, unknown> | null {
     if (kind === 'phyto') {
       if (!productName.trim()) {
@@ -113,10 +230,12 @@ export function EntryScreen({
         appliedOn: date,
         productName: productName.trim(),
         ...(amm.trim() ? { amm: amm.trim() } : {}),
+        ...(substances.trim() ? { activeSubstances: substances.trim() } : {}),
         dose: Number(phytoDose),
         doseUnit: phytoUnit,
-        // Les conditions météo sont relevées côté serveur : le téléphone n'a
-        // pas de station et ne doit rien inventer.
+        // Relevées à l'ouverture du formulaire, sur la parcelle : c'est la
+        // météo de l'intervention, pas celle de la synchronisation.
+        ...weatherPayload(),
         captureWeather: false,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
@@ -142,6 +261,7 @@ export function EntryScreen({
         productLabel: productLabel.trim(),
         dose: Number(dose),
         doseUnit,
+        ...weatherPayload(),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
     }
@@ -150,6 +270,7 @@ export function EntryScreen({
       performedOn: date,
       type: operationType,
       ...(equipment.trim() ? { equipment: equipment.trim() } : {}),
+      ...weatherPayload(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
   }
@@ -202,8 +323,120 @@ export function EntryScreen({
           />
         </Field>
 
+        {/*
+          Ce qui sera consigné avec la saisie. Affiché, pas caché : l'exploitant
+          doit savoir ce qui entre dans son registre — et savoir quand rien n'y
+          entre.
+        */}
+        {weatherState === 'loading' ? (
+          <p className="text-[13px] text-ink-3">Relevé des conditions…</p>
+        ) : weather ? (
+          <div className="rounded-xl border border-line bg-surface-2 px-3 py-2.5">
+            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-3">
+              Conditions relevées
+            </p>
+            <p className="mt-1 text-[14px] text-ink">
+              {[
+                weather.weatherSummary,
+                weather.weatherTempC !== null ? `${weather.weatherTempC} °C` : null,
+                weather.weatherWindKmh !== null ? `vent ${weather.weatherWindKmh} km/h` : null,
+                weather.weatherHumidity !== null ? `${weather.weatherHumidity} % HR` : null,
+                weather.weatherRainMm !== null ? `${weather.weatherRainMm} mm` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            <p className="mt-0.5 text-[12px] text-ink-3">
+              Source : {weather.weatherSource ?? 'inconnue'} · relevé maintenant
+            </p>
+          </div>
+        ) : weatherState === 'none' ? (
+          <p className="text-[13px] text-ink-3">
+            Conditions non relevées — elles resteront vides dans le registre.
+          </p>
+        ) : null}
+
         {kind === 'phyto' ? (
           <>
+            {/*
+              Recherche au catalogue officiel — même source que le site. Elle
+              exige du réseau : le catalogue compte des dizaines de milliers de
+              fiches, hors de question de l'embarquer. Sans réseau, la saisie
+              libre reste ouverte, simplement marquée « non vérifiée ».
+            */}
+            <Field
+              label="Chercher au catalogue E-Phy"
+              hint="Nom commercial ou numéro d&apos;AMM. Deux lettres suffisent."
+            >
+              <Input
+                type="search"
+                value={catalogQuery}
+                onChange={(event) => setCatalogQuery(event.target.value)}
+                placeholder="Ex. : Karaté Zeon, ou 2100094"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </Field>
+
+            {catalogState === 'searching' ? (
+              <p className="text-[13px] text-ink-3">Recherche…</p>
+            ) : catalogState === 'offline' ? (
+              <p className="text-[13px] text-ink-3">
+                Hors réseau : le catalogue n&apos;est pas consultable. Saisissez le
+                produit à la main ci-dessous.
+              </p>
+            ) : catalogState === 'unconfigured' ? (
+              <Banner tone="warning">
+                Le catalogue E-Phy n&apos;a pas encore été synchronisé sur cette
+                instance. Rien ne peut être vérifié pour l&apos;instant.
+              </Banner>
+            ) : catalogState === 'empty' ? (
+              <p className="text-[13px] text-ink-3">
+                Aucun produit trouvé. Vérifiez l&apos;orthographe, ou saisissez-le à
+                la main.
+              </p>
+            ) : catalogState === 'error' ? (
+              <p className="text-[13px] text-ink-3">
+                Le catalogue n&apos;a pas répondu. La saisie manuelle reste possible.
+              </p>
+            ) : null}
+
+            {catalogHits && catalogHits.length > 0 ? (
+              <ul className="space-y-1.5">
+                {catalogHits.map((product) => (
+                  <li key={product.id}>
+                    <button
+                      type="button"
+                      onClick={() => pickCatalogProduct(product)}
+                      className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-left active:bg-surface-2"
+                    >
+                      <span className="block text-[14px] font-medium text-ink">
+                        {product.name}
+                      </span>
+                      <span className="block text-[12.5px] text-ink-3">
+                        AMM {product.amm}
+                        {product.holder ? ` · ${product.holder}` : ''}
+                      </span>
+                      {product.status ? (
+                        <span className="mt-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-[12px] text-ink-2">
+                          {product.status}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {verified ? (
+              <Banner tone="info">
+                Produit repris du catalogue officiel : AMM et substances actives
+                sont celles d&apos;E-Phy. Vérifiez toujours l&apos;étiquette et l&apos;usage
+                autorisé avant application.
+              </Banner>
+            ) : null}
+
             {(referential?.recentPhytoProducts.length ?? 0) > 0 ? (
               <Field
                 label="Produit déjà utilisé"

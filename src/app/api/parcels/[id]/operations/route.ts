@@ -5,6 +5,7 @@ import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { operationSchema } from '@/lib/validation/farming';
 import { logAudit } from '@/lib/audit';
+import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
 import { notFound } from '@/lib/api/errors';
 
 type Ctx = { params: Promise<Record<string, string>> };
@@ -34,8 +35,20 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
   const { ctx } = await requireParcelAccess(id, 'record:write');
   const input = await parseBody(request, operationSchema);
 
+  // Conditions au moment de l'intervention : celles relevées au champ priment,
+  // sinon relevé ici si la parcelle est localisée.
+  const location = await prisma.parcel.findUnique({
+    where: { id },
+    select: { centroidLat: true, centroidLng: true },
+  });
+  const weather = await resolveInterventionWeather(
+    input,
+    location ? { latitude: location.centroidLat, longitude: location.centroidLng } : null,
+  );
+
   const created = await prisma.agriculturalOperation.create({
     data: {
+      ...decimalWeather(weather),
       parcelId: id,
       performedOn: input.performedOn,
       type: input.type,

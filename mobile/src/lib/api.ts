@@ -216,3 +216,111 @@ export async function ping(serverUrl: string): Promise<boolean> {
     return error instanceof ApiError;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Catalogue E-Phy
+// ---------------------------------------------------------------------------
+
+/** Calqué sur `ProductSearchHit` du serveur : mêmes noms, mêmes types. */
+export type CatalogProduct = {
+  id: string;
+  amm: string;
+  name: string;
+  holder: string | null;
+  /** État d'autorisation tel qu'E-Phy le publie. Nul si le champ manque. */
+  status: string | null;
+  formulation: string | null;
+  productType: string | null;
+  substances: string[];
+};
+
+export type CatalogSearch = {
+  results: CatalogProduct[];
+  total: number;
+  source: {
+    label: string;
+    lastSyncAt: string | null;
+    productsInBase: number;
+    /** Faux tant qu'aucune synchronisation E-Phy n'a eu lieu. */
+    configured: boolean;
+  };
+};
+
+/**
+ * Recherche dans le catalogue officiel, servie par l'instance.
+ *
+ * Elle exige du réseau, et c'est assumé : le catalogue pèse plusieurs dizaines
+ * de milliers de fiches, hors de question de l'embarquer dans le téléphone. Sans
+ * réseau, la saisie libre reste possible — le produit sera simplement marqué
+ * « non vérifié au catalogue », ce qui est la vérité.
+ */
+export async function searchCatalog(
+  session: Session,
+  query: string,
+  onlyAuthorized = false,
+): Promise<CatalogSearch> {
+  const params = new URLSearchParams({ q: query, limit: '15' });
+  if (onlyAuthorized) params.set('onlyAuthorized', 'true');
+  return request<CatalogSearch>(
+    session.serverUrl,
+    `/api/phytosanitary/products?${params.toString()}`,
+    { token: session.token },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Météo
+// ---------------------------------------------------------------------------
+
+export type InterventionWeather = {
+  weatherTempC: number | null;
+  weatherWindKmh: number | null;
+  weatherHumidity: number | null;
+  weatherRainMm: number | null;
+  weatherSummary: string | null;
+  weatherSource: string | null;
+};
+
+type WeatherResponse = {
+  current: {
+    temperatureC: number | null;
+    windKmh: number | null;
+    humidity: number | null;
+    precipitationMm: number | null;
+    summary: string | null;
+  };
+  provider: string;
+};
+
+/**
+ * Conditions du moment sur la parcelle, à joindre à la saisie.
+ *
+ * Relevées **maintenant**, et non à la synchronisation : une file d'attente
+ * peut partir des heures plus tard, et la météo d'alors ne serait pas celle de
+ * l'intervention. Sans réseau, on ne relève rien — et surtout on n'invente
+ * rien : la saisie part sans météo, ce que le registre indiquera.
+ */
+export async function captureWeather(
+  session: Session,
+  parcelId: string,
+): Promise<InterventionWeather | null> {
+  try {
+    const data = await request<WeatherResponse>(
+      session.serverUrl,
+      `/api/weather?parcelId=${encodeURIComponent(parcelId)}`,
+      { token: session.token },
+    );
+    return {
+      weatherTempC: data.current.temperatureC,
+      weatherWindKmh: data.current.windKmh,
+      weatherHumidity: data.current.humidity,
+      weatherRainMm: data.current.precipitationMm,
+      weatherSummary: data.current.summary,
+      weatherSource: data.provider,
+    };
+  } catch {
+    // Hors réseau, parcelle non localisée, fournisseur muet : trois raisons de
+    // n'avoir pas de météo, aucune de bloquer la saisie.
+    return null;
+  }
+}

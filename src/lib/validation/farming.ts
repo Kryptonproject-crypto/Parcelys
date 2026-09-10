@@ -109,8 +109,34 @@ export const customCropSchema = z.object({
 // Apports
 // ---------------------------------------------------------------------------
 
+/**
+ * Conditions météo d'une intervention.
+ *
+ * Les mêmes pour un traitement, un apport et un travail : le vent emporte
+ * l'azote comme il emporte la bouillie, la pluie lessive l'un comme l'autre.
+ * Les valeurs sont facultatives — au champ, sans réseau, on ne les a pas, et
+ * une donnée réglementaire ne s'invente pas.
+ *
+ * `captureWeather` demande au serveur d'aller les chercher lui-même à partir
+ * des coordonnées de la parcelle ; l'application de terrain, elle, les relève
+ * au moment de la saisie et les transmet telles quelles, parce qu'une file
+ * d'attente peut partir des heures plus tard — la météo de la synchronisation
+ * ne serait pas celle de l'intervention.
+ */
+export const weatherFields = {
+  captureWeather: z.boolean().default(false),
+  weatherTempC: optionalDecimal(80),
+  weatherWindKmh: optionalDecimal(300),
+  weatherHumidity: optionalDecimal(100),
+  weatherRainMm: optionalDecimal(1000),
+  weatherSummary: optionalText(160),
+  /** D'où viennent ces valeurs. Jamais inventé : nul si rien n'a été relevé. */
+  weatherSource: optionalText(60),
+} as const;
+
 export const fertilizationSchema = z
   .object({
+    ...weatherFields,
     appliedOn: dateSchema,
     inputType: z.enum(['ORGANIC', 'MINERAL']),
     fertilizerId: z.string().optional(),
@@ -159,13 +185,7 @@ export const phytoApplicationSchema = z.object({
   operator: optionalText(120),
   notes: optionalText(2000),
   cropYearId: z.string().optional(),
-  /** Renseigne automatiquement les conditions météo depuis le fournisseur. */
-  captureWeather: z.boolean().default(false),
-  weatherTempC: optionalDecimal(80),
-  weatherWindKmh: optionalDecimal(300),
-  weatherHumidity: optionalDecimal(100),
-  weatherRainMm: optionalDecimal(1000),
-  weatherSummary: optionalText(160),
+  ...weatherFields,
 });
 
 // ---------------------------------------------------------------------------
@@ -182,6 +202,7 @@ export const operationSchema = z.object({
   operator: optionalText(120),
   durationHours: optionalDecimal(1000),
   notes: optionalText(2000),
+  ...weatherFields,
 });
 
 // ---------------------------------------------------------------------------

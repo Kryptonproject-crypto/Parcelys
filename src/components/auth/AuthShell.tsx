@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -26,12 +27,14 @@ export function AuthShell({
           href="/"
           className="inline-flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-ink"
         >
-          <span
-            aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft"
-          >
-            🌾
-          </span>
+          <Image
+            src="/icone.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-lg"
+            priority
+          />
           Parcelys
         </Link>
       </header>

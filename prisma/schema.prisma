@@ -659,6 +659,18 @@ model FertilizerApplication {
   kSupplied      Decimal?  @map("k_supplied") @db.Decimal(12, 2)
   supplier       String?
   batchNumber    String?   @map("batch_number")
+  /**
+   * Conditions au moment de l'apport, comme pour un traitement : le vent
+   * emporte l'azote d'un engrais volatil, la pluie le lessive. Un bilan de
+   * fertilisation qui ne dit rien du temps qu'il faisait explique mal ses
+   * écarts.
+   */
+  weatherTempC    Decimal? @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh  Decimal? @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity Decimal? @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm   Decimal? @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary  String?  @map("weather_summary")
+  weatherSource   String?  @map("weather_source")
   operator       String?
   notes          String?
   createdById    String?   @map("created_by_id")
@@ -848,6 +860,17 @@ model AgriculturalOperation {
   equipment     String?
   operator      String?
   durationHours Decimal?      @map("duration_hours") @db.Decimal(6, 2)
+  /**
+   * Conditions au moment du travail. Un semis sous la pluie, un labour en
+   * terre gelée : c'est ce qui explique, une saison plus tard, pourquoi une
+   * parcelle a moins donné qu'une autre.
+   */
+  weatherTempC    Decimal? @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh  Decimal? @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity Decimal? @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm   Decimal? @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary  String?  @map("weather_summary")
+  weatherSource   String?  @map("weather_source")
   notes         String?
   createdById   String?       @map("created_by_id")
   createdAt     DateTime      @default(now()) @map("created_at")

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PARCELYS, mentionsCompletes } from '@/lib/constants/identity';
 
 export const metadata: Metadata = { title: 'Politique de confidentialité' };
 
@@ -14,12 +15,13 @@ export default function PrivacyPage() {
         Politique de confidentialité
       </h1>
 
-      <div className="mt-4 rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 p-4 text-sm text-ble-700 dark:text-ble-100">
-        <strong>Document à compléter.</strong> Cette trame décrit fidèlement les traitements
-        réellement effectués par le logiciel. Elle doit être complétée (identité du
-        responsable de traitement, hébergeur, durées retenues) et validée avant mise en
-        production.
-      </div>
+      {!mentionsCompletes() ? (
+        <div className="mt-4 rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 p-4 text-sm text-ble-700 dark:text-ble-100">
+          <strong>Adresse postale et SIRET à renseigner.</strong> Le reste de ce
+          document décrit fidèlement les traitements réellement effectués. Ces deux
+          mentions manquent : elles ne sont pas inventées, elles sont signalées.
+        </div>
+      ) : null}
 
       <div className="mt-6 space-y-6 text-sm leading-relaxed text-ink-2">
         <section>
@@ -27,9 +29,28 @@ export default function PrivacyPage() {
             1. Responsable de traitement
           </h2>
           <p>
-            [Raison sociale], [adresse], contact : [adresse e-mail]. Hébergement des données :
-            [hébergeur et localisation].
+            {PARCELYS.editeur.nom}, {PARCELYS.editeur.qualite}, éditeur et
+            exploitant du service {PARCELYS.nom} ({PARCELYS.domaine}).
           </p>
+          <p className="mt-2">
+            Contact pour toute question relative à vos données personnelles :{' '}
+            <a
+              href={`mailto:${PARCELYS.contact.donneesPersonnelles}`}
+              className="underline hover:text-ink"
+            >
+              {PARCELYS.contact.donneesPersonnelles}
+            </a>
+            .
+          </p>
+          <p className="mt-2">Hébergement des données : {PARCELYS.hebergement}</p>
+          {PARCELYS.editeur.adressePostale ? (
+            <p className="mt-2">Adresse : {PARCELYS.editeur.adressePostale}</p>
+          ) : (
+            <p className="mt-2 text-ink-3">
+              Adresse postale : à renseigner. Elle sera publiée ici dès qu&apos;elle
+              sera communiquée.
+            </p>
+          )}
         </section>
 
         <section>

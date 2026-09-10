@@ -5,7 +5,7 @@ import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { phytoApplicationSchema } from '@/lib/validation/farming';
 import { computeTotalQuantity } from '@/lib/services/fertilization';
-import { captureTreatmentConditions } from '@/lib/weather';
+import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
 import { logAudit } from '@/lib/audit';
 import { badRequest, notFound } from '@/lib/api/errors';
 
@@ -95,29 +95,16 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     treatedAreaHa,
   );
 
-  // Conditions météo : relevé automatique si demandé et si la parcelle est localisée.
-  let weather = {
-    temperatureC: input.weatherTempC ?? null,
-    windKmh: input.weatherWindKmh ?? null,
-    humidity: input.weatherHumidity ?? null,
-    precipitationMm: input.weatherRainMm ?? null,
-    summary: input.weatherSummary ?? null,
-    provider: null as string | null,
-  };
-
-  if (input.captureWeather) {
-    const location = await prisma.parcel.findUnique({
-      where: { id },
-      select: { centroidLat: true, centroidLng: true },
-    });
-    if (location?.centroidLat != null && location.centroidLng != null) {
-      const captured = await captureTreatmentConditions(
-        location.centroidLat,
-        location.centroidLng,
-      );
-      if (captured) weather = captured;
-    }
-  }
+  // Conditions météo : celles relevées au champ priment, sinon relevé ici si
+  // la parcelle est localisée. Voir `resolveInterventionWeather`.
+  const location = await prisma.parcel.findUnique({
+    where: { id },
+    select: { centroidLat: true, centroidLng: true },
+  });
+  const weather = await resolveInterventionWeather(
+    input,
+    location ? { latitude: location.centroidLat, longitude: location.centroidLng } : null,
+  );
 
   const created = await prisma.phytosanitaryApplication.create({
     data: {
@@ -137,16 +124,7 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
       treatedAreaHa: new Prisma.Decimal(treatedAreaHa.toFixed(4)),
       quantityUsed: new Prisma.Decimal(totalQuantity),
       quantityUnit: totalUnit,
-      weatherTempC:
-        weather.temperatureC !== null ? new Prisma.Decimal(weather.temperatureC) : null,
-      weatherWindKmh:
-        weather.windKmh !== null ? new Prisma.Decimal(weather.windKmh) : null,
-      weatherHumidity:
-        weather.humidity !== null ? new Prisma.Decimal(weather.humidity) : null,
-      weatherRainMm:
-        weather.precipitationMm !== null ? new Prisma.Decimal(weather.precipitationMm) : null,
-      weatherSummary: weather.summary,
-      weatherSource: weather.provider,
+      ...decimalWeather(weather),
       operator: input.operator ?? null,
       notes: input.notes ?? null,
       createdById: ctx.user.id,

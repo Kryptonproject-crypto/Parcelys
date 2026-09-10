@@ -669,6 +669,16 @@ describe('Application mobile et synchronisation', () => {
                 dose: 1.5,
                 doseUnit: 'L/ha',
                 captureWeather: false,
+                // Conditions relevées par l'appareil AU MOMENT de la saisie.
+                // Elles doivent traverser la file d'attente intactes : la météo
+                // de la synchronisation, des heures plus tard, ne serait pas
+                // celle de l'intervention.
+                weatherTempC: 14.2,
+                weatherWindKmh: 11,
+                weatherHumidity: 68,
+                weatherRainMm: 0,
+                weatherSummary: 'Ciel voilé',
+                weatherSource: 'open-meteo',
               },
             },
             {
@@ -681,13 +691,23 @@ describe('Application mobile et synchronisation', () => {
                 productLabel: 'Ammonitrate 33,5 %',
                 dose: 180,
                 doseUnit: 'kg/ha',
+                weatherTempC: 9.5,
+                weatherWindKmh: 22,
+                weatherSummary: 'Vent soutenu',
+                weatherSource: 'open-meteo',
               },
             },
             {
               clientId: randomUUID(),
               kind: 'operation.create',
               parcelId,
-              payload: { performedOn: '2026-04-04', type: 'SEMIS' },
+              payload: {
+                performedOn: '2026-04-04',
+                type: 'SEMIS',
+                weatherTempC: 7.1,
+                weatherSummary: 'Averses',
+                weatherSource: 'open-meteo',
+              },
             },
           ],
         },
@@ -695,6 +715,28 @@ describe('Application mobile et synchronisation', () => {
 
       expect(second.body.applied).toBe(3);
       expect(second.body.rejected).toBe(0);
+
+      // La météo relevée au champ est arrivée jusqu'au registre, pour les trois
+      // natures de saisie — c'est le point qui pourrait échouer en silence.
+      const traitement = await prisma.phytosanitaryApplication.findFirstOrThrow({
+        where: { parcelId },
+      });
+      expect(Number(traitement.weatherTempC)).toBe(14.2);
+      expect(Number(traitement.weatherWindKmh)).toBe(11);
+      expect(traitement.weatherSummary).toBe('Ciel voilé');
+      expect(traitement.weatherSource).toBe('open-meteo');
+
+      const apport = await prisma.fertilizerApplication.findFirstOrThrow({
+        where: { parcelId },
+      });
+      expect(Number(apport.weatherTempC)).toBe(9.5);
+      expect(apport.weatherSummary).toBe('Vent soutenu');
+
+      const travail = await prisma.agriculturalOperation.findFirstOrThrow({
+        where: { parcelId },
+      });
+      expect(Number(travail.weatherTempC)).toBe(7.1);
+      expect(travail.weatherSummary).toBe('Averses');
 
       // Les règles métier des routes appelées ont bien joué : la superficie
       // vient de PostGIS et la quantité totale du calcul serveur.

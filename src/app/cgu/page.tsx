@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { PARCELYS, mentionsCompletes } from '@/lib/constants/identity';
 
 export const metadata: Metadata = { title: "Conditions générales d'utilisation" };
 
@@ -18,20 +19,41 @@ export default function TermsPage() {
         Conditions générales d&apos;utilisation
       </h1>
 
-      <div className="mt-4 rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 p-4 text-sm text-ble-700 dark:text-ble-100">
-        <strong>Document à compléter.</strong> Cette trame doit être adaptée et validée
-        juridiquement avant toute exploitation commerciale. Les mentions entre crochets
-        sont à renseigner par l&apos;éditeur du service.
-      </div>
+      {!mentionsCompletes() ? (
+        <div className="mt-4 rounded-lg border border-ble-500/40 bg-ble-50 dark:bg-ble-700/15 p-4 text-sm text-ble-700 dark:text-ble-100">
+          <strong>Adresse postale et SIRET à renseigner.</strong> Le reste de ce
+          document décrit le service tel qu&apos;il fonctionne. Une validation
+          juridique reste conseillée avant toute exploitation commerciale.
+        </div>
+      ) : null}
 
       <div className="prose mt-6 space-y-6 text-sm leading-relaxed text-ink-2">
         <section>
           <h2 className="text-lg font-semibold text-ink">1. Éditeur du service</h2>
           <p>
-            Parcelys est édité par [raison sociale], [forme juridique] au capital de
-            [montant], immatriculée sous le numéro [SIRET], dont le siège social est situé
-            [adresse]. Directeur de la publication : [nom]. Contact : [adresse e-mail].
+            {PARCELYS.nom} est édité et exploité par {PARCELYS.editeur.nom},{' '}
+            {PARCELYS.editeur.qualite}, également directeur de la publication.
+            Le service est accessible à l&apos;adresse {PARCELYS.domaine}.
           </p>
+          <p className="mt-2">
+            Contact :{' '}
+            <a
+              href={`mailto:${PARCELYS.contact.support}`}
+              className="underline hover:text-ink"
+            >
+              {PARCELYS.contact.support}
+            </a>
+            .
+          </p>
+          {PARCELYS.editeur.adressePostale && PARCELYS.editeur.siret ? (
+            <p className="mt-2">
+              Siège : {PARCELYS.editeur.adressePostale} · SIRET {PARCELYS.editeur.siret}.
+            </p>
+          ) : (
+            <p className="mt-2 text-ink-3">
+              Adresse postale et numéro SIRET : à renseigner.
+            </p>
+          )}
         </section>
 
         <section>

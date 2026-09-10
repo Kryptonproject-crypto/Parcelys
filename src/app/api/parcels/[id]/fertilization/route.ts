@@ -10,6 +10,7 @@ import {
   computeTotalQuantity,
 } from '@/lib/services/fertilization';
 import { logAudit } from '@/lib/audit';
+import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
 import { badRequest, notFound } from '@/lib/api/errors';
 
 type Ctx = { params: Promise<Record<string, string>> };
@@ -130,8 +131,20 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     if (!cropYear) throw badRequest('Culture inconnue pour cette parcelle.');
   }
 
+  // Conditions au moment de l'intervention : celles relevées au champ priment,
+  // sinon relevé ici si la parcelle est localisée.
+  const location = await prisma.parcel.findUnique({
+    where: { id },
+    select: { centroidLat: true, centroidLng: true },
+  });
+  const weather = await resolveInterventionWeather(
+    input,
+    location ? { latitude: location.centroidLat, longitude: location.centroidLng } : null,
+  );
+
   const created = await prisma.fertilizerApplication.create({
     data: {
+      ...decimalWeather(weather),
       parcelId: id,
       cropYearId: input.cropYearId ?? null,
       appliedOn: input.appliedOn,

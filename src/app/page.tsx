@@ -1,5 +1,8 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { PARCELYS } from '@/lib/constants/identity';
+import { PublicFooter } from '@/components/marketing/PublicShell';
 import { getAuthContext } from '@/lib/auth/session';
 import { LinkButton } from '@/components/ui';
 import { HeroParcels } from '@/components/marketing/HeroParcels';
@@ -83,13 +86,15 @@ export default async function HomePage() {
             href="/"
             className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-ink"
           >
-            <span
-              aria-hidden
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft"
-            >
-              🌾
-            </span>
-            Parcelys
+            <Image
+              src="/icone.png"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg"
+              priority
+            />
+            {PARCELYS.nom}
           </Link>
           <nav className="flex items-center gap-2">
             <LinkButton href="/connexion" variant="ghost" size="sm">
@@ -254,6 +259,39 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Qui est derrière Parcelys */}
+      <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+          <div className="grid gap-8 p-8 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center lg:gap-12">
+            <div>
+              <h2 className="text-[20px] font-semibold tracking-tight text-ink">
+                Écrit par quelqu&apos;un qui tient les registres
+              </h2>
+              <p className="mt-3 text-[14.5px] leading-relaxed text-ink-2">
+                Parcelys est conçu et exploité par{' '}
+                <strong>{PARCELYS.editeur.nom}</strong>, {PARCELYS.editeur.qualite}.
+                Pas un logiciel qu&apos;on installe chez soi : un service hébergé,
+                tenu par une seule personne, qui remplit les mêmes registres que
+                vous et sait ce qu&apos;on cherche à saisir un soir de moisson.
+              </p>
+              <p className="mt-3 text-[14.5px] leading-relaxed text-ink-2">
+                Une question, une anomalie, une donnée qui semble fausse :{' '}
+                <Link href="/contact" className="text-champ-700 underline dark:text-champ-400">
+                  écrivez-lui directement
+                </Link>
+                .
+              </p>
+            </div>
+            <Link
+              href="/contact"
+              className="inline-flex h-11 shrink-0 items-center gap-2 self-start rounded-lg border border-line bg-canvas px-5 text-[15px] font-medium text-ink transition-colors hover:border-champ-500/50 lg:self-center"
+            >
+              {PARCELYS.contact.support}
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Appel à l'action */}
       <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
         <div className="relative overflow-hidden rounded-2xl bg-champ-800 px-8 py-14 text-center sm:px-12">
@@ -283,24 +321,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-[13.5px] text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p className="flex items-center gap-2">
-            <span aria-hidden>🌾</span> Parcelys — logiciel de gestion parcellaire agricole
-          </p>
-          <nav className="flex flex-wrap gap-5">
-            <Link href="/confidentialite" className="transition-colors hover:text-ink">
-              Confidentialité
-            </Link>
-            <Link href="/cgu" className="transition-colors hover:text-ink">
-              Conditions générales
-            </Link>
-            <Link href="/connexion" className="transition-colors hover:text-ink">
-              Se connecter
-            </Link>
-          </nav>
-        </div>
-      </footer>
+      <PublicFooter />
+
     </div>
   );
 }
