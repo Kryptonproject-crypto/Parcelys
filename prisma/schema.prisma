@@ -1172,8 +1172,14 @@ model PacFeature {
   cropCode   String? @map("crop_code")
   cropLabel  String? @map("crop_label")
 
-  geom   Unsupported("geometry(MultiPolygon, 4326)")?
-  areaHa Decimal?                                     @map("area_ha") @db.Decimal(12, 4)
+  /// Type volontairement ouvert, contrairement aux îlots et aux parcelles.
+  ///
+  /// Une SNA n'est pas toujours une surface : dans le dossier XML TéléPAC, 157
+  /// des 560 SNA de la campagne 2026 sont des **points** — des arbres isolés.
+  /// Une colonne restreinte aux MultiPolygon les refuse purement et simplement,
+  /// et l'import échoue sur des données parfaitement déclarées.
+  geom   Unsupported("geometry(Geometry, 4326)")?
+  areaHa Decimal?                                @map("area_ha") @db.Decimal(12, 4)
 
   /// Géométrie d'origine, conservée telle qu'importée, dans son système de
   /// coordonnées d'origine. Reprojeter en 4326 pour l'affichage puis revenir en

@@ -145,6 +145,38 @@ export async function applyImport(params: {
         userId,
       );
 
+      // --- Les entités que cet import réécrit -----------------------------
+      //
+      // Réimporter la même campagne est un geste courant : on redépose son
+      // dossier pour vérifier que ça a bien marché, ou après avoir corrigé une
+      // correspondance. Les entités étaient jusqu'ici créées sans condition —
+      // un second import doublait donc tout le contenu PAC de la campagne (769
+      // entités devenaient 1 538, mesuré sur un dossier réel). Rien ne le
+      // signalait : la carte affichait les mêmes contours deux fois, et le
+      // décompte des SNA était faux.
+      //
+      // Une entité PAC est **dérivée** du fichier, elle ne porte aucune saisie
+      // de l'exploitant : la remplacer ne perd rien, contrairement à une
+      // parcelle, qui porte cultures, traitements et apports et n'est donc
+      // jamais supprimée ici.
+      //
+      // Le remplacement est limité aux natures présentes dans cet import. Un
+      // dépôt qui n'apporte que des parcelles ne doit pas emporter les SNA de
+      // la campagne, importées séparément — ce que permet le format Shapefile,
+      // couche par couche.
+      const naturesReecrites = [
+        ...new Set(
+          params.features
+            .filter((f) => !params.ilotLayers.includes(f.layer))
+            .map((f) => f.kind),
+        ),
+      ];
+      if (naturesReecrites.length > 0) {
+        await tx.pacFeature.deleteMany({
+          where: { campaignId: campaign.id, kind: { in: naturesReecrites } },
+        });
+      }
+
       // --- Îlots ---------------------------------------------------------
       const ilotsParNumero = new Map<string, string>();
       let ilotCount = 0;

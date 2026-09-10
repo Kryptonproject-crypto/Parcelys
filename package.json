@@ -47,7 +47,9 @@
     "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte",
     "audit:debit": "tsx --conditions=react-server scripts/audit-reset-debit.ts",
     "verif:navigateur": "npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security",
-    "referentiels": "tsx --conditions=react-server scripts/referentiels.ts"
+    "referentiels": "tsx --conditions=react-server scripts/referentiels.ts",
+    "check:telepac": "tsx --conditions=react-server scripts/check-telepac-xml.ts",
+    "check:pac": "tsx --conditions=react-server scripts/check-pac-import.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -66,6 +68,7 @@
     "pdfkit": "^0.16.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "saxes": "^6.0.0",
     "server-only": "^0.0.1",
     "shapefile": "^0.6.6",
     "unzipper": "^0.12.3",

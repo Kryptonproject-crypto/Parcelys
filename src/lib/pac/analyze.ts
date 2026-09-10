@@ -287,6 +287,13 @@ export async function analyzeDossier(params: {
   choices?: Record<string, MappingChoice>;
   /** SRID imposé par l'utilisateur quand le .prj est absent ou illisible. */
   sridOverride?: Record<string, number>;
+  /**
+   * Provenance annoncée par la source, quand elle en donne une.
+   *
+   * Le dossier XML sait dire de quel schéma il relève ; un jeu Shapefile ne dit
+   * rien de lui-même, et c'est alors l'adaptateur de campagne qui parle.
+   */
+  provenance?: string;
 }): Promise<DossierAnalysis> {
   const adapter = getTelepacAdapter(params.year);
 
@@ -294,8 +301,11 @@ export async function analyzeDossier(params: {
   const features: AnalyzedFeature[] = [];
 
   for (const layer of params.layers) {
-    const propose = adapter.guessMapping(layer.columns);
-    const mapping = applyChoice(propose, params.choices?.[layer.name] ?? {});
+    // Une couche qui apporte sa correspondance l'a établie en lisant sa propre
+    // structure ; la redeviner à partir des noms de colonnes reviendrait à
+    // ignorer ce qu'on sait déjà.
+    const base = layer.mapping ?? adapter.guessMapping(layer.columns);
+    const mapping = applyChoice(base, params.choices?.[layer.name] ?? {});
     const srid = params.sridOverride?.[layer.name] ?? layer.srid;
 
     const warnings = [...layer.warnings];
@@ -345,7 +355,9 @@ export async function analyzeDossier(params: {
       continue;
     }
 
-    const wkts = layer.features.map((f) => ringsToWkt(f.rings));
+    // Une entité qui porte déjà sa géométrie en WKT (un point SNA) la garde ;
+    // les autres sont assemblées depuis leurs anneaux.
+    const wkts = layer.features.map((f) => f.wkt ?? ringsToWkt(f.rings));
     const projetees = await projectAndMeasure(wkts, srid);
     const correspondances = layer.isIlotLayer
       ? projetees.map(() => null)
@@ -415,7 +427,7 @@ export async function analyzeDossier(params: {
   return {
     year: params.year,
     adapterLabel: adapter.label,
-    provenance: adapter.provenance,
+    provenance: params.provenance ?? adapter.provenance,
     layers: layerAnalyses,
     features,
     ignoredFiles: params.ignoredFiles,

@@ -5,16 +5,34 @@
  * ou les fichiers un à un. On ne lui demande jamais ses identifiants TéléPAC —
  * Parcelys ne se connecte pas au portail, il travaille sur les fichiers fournis.
  *
- * Le travail de ce module est de faire le tri : reconnaître les jeux Shapefile
- * (quatre fichiers qui vont ensemble), signaler ceux qui sont incomplets, et
- * ignorer poliment le reste — un dossier TéléPAC contient aussi des PDF, des
- * XML et des fichiers d'accompagnement dont ce module n'a que faire.
+ * Deux formats sont lus, parce que TéléPAC en propose deux :
+ *
+ *   · l'**export graphique**, un jeu Shapefile (quatre fichiers qui vont
+ *     ensemble) ;
+ *   · le **dossier lui-même**, en XML.
+ *
+ * Le second a longtemps été ignoré « poliment », ce qui revenait à refuser le
+ * fichier que TéléPAC donne spontanément à l'exploitant. Les deux formats
+ * produisent désormais la même chose — des `DossierLayer` — et empruntent
+ * ensuite exactement le même chemin : analyse, rapprochement, sauvegarde,
+ * écriture. Une seule chaîne à vérifier, pas deux.
  */
 
 import { Open } from 'unzipper';
 import path from 'node:path';
 import { detectSrid, readShapefile, type ShapeFeature } from '@/lib/pac/shapefile';
-import { getTelepacAdapter, looksLikeIlotLayer } from '@/lib/pac/adapter';
+import { getTelepacAdapter, looksLikeIlotLayer, type FieldMapping } from '@/lib/pac/adapter';
+import {
+  lireTelepacXml,
+  versShapeFeatures,
+  sridProbable,
+  kindPourCouche,
+  mappingPourCouche,
+  provenanceXml,
+  TelepacXmlError,
+  type TelepacDeclaration,
+  type TelepacEntite,
+} from '@/lib/pac/telepac-xml';
 import type { PacFeatureKind } from '@prisma/client';
 
 export type DeposedFile = { name: string; buffer: Buffer };
@@ -29,6 +47,15 @@ export type DossierLayer = {
   srid: number | null;
   sridLabel: string;
   warnings: string[];
+  /**
+   * Correspondance déjà établie, quand la source la donne sans ambiguïté.
+   *
+   * Le Shapefile ne la fournit pas : ses noms de colonnes varient d'un
+   * producteur à l'autre, et l'adaptateur ne peut que proposer. Le XML, lui,
+   * porte sa propre structure — la deviner à partir des noms serait faire
+   * semblant d'ignorer ce qu'on vient de lire.
+   */
+  mapping?: FieldMapping;
 };
 
 export type DossierReadResult = {
@@ -37,6 +64,13 @@ export type DossierReadResult = {
   ignored: string[];
   /** Problèmes qui empêchent d'exploiter une partie du dossier. */
   problems: string[];
+  /**
+   * Ce que Parcelys peut affirmer de ce dossier et sur quoi il s'appuie.
+   * Absent quand la source ne dit rien d'elle-même (cas du Shapefile).
+   */
+  provenance?: string;
+  /** En-tête du dossier XML : PACAGE, campagne, version de schéma, SIRET. */
+  declaration?: TelepacDeclaration;
 };
 
 export class DossierError extends Error {
@@ -87,6 +121,60 @@ export async function flattenFiles(files: DeposedFile[]): Promise<DeposedFile[]>
   return plats;
 }
 
+/**
+ * Un fichier a-t-il la forme d'un export XML TéléPAC ?
+ *
+ * L'extension ne suffit pas : un dossier peut contenir d'autres XML
+ * (accompagnement, accusés). On regarde donc le début du contenu, où
+ * l'espace de noms d'échange producteur est annoncé. Le prologue et la
+ * déclaration de racine sont en ASCII, quel que soit l'encodage du reste.
+ */
+function ressembleAuXmlTelepac(file: DeposedFile): boolean {
+  if (!/\.xml$/i.test(file.name)) return false;
+  const debut = file.buffer.subarray(0, 2048).toString('ascii');
+  return /echange-producteur|<producteurs[\s>]/i.test(debut);
+}
+
+/** Une couche par nature d'entité : îlots, parcelles, SNA, ZDH. */
+function couchesDuXml(
+  nomFichier: string,
+  entites: TelepacEntite[],
+  couche: 'ilots' | 'parcelles' | 'sna' | 'zdh',
+  avertissementsCommuns: string[],
+): DossierLayer | null {
+  if (entites.length === 0) return null;
+
+  const { features, colonnes, points, sansGeometrie } = versShapeFeatures(entites);
+  const anneaux = features.flatMap((f) => f.rings);
+  const { srid, label } = sridProbable(anneaux);
+
+  const warnings = [...avertissementsCommuns];
+  if (points > 0) {
+    warnings.push(
+      `${points} entité(s) sont des points et non des surfaces — des arbres isolés, le plus ` +
+        'souvent. Leur position est conservée, mais elles n’ont pas de surface : Parcelys ' +
+        'ne leur en invente pas.',
+    );
+  }
+  if (sansGeometrie > 0) {
+    warnings.push(
+      `${sansGeometrie} entité(s) sans géométrie exploitable. Leurs attributs sont conservés.`,
+    );
+  }
+
+  return {
+    name: `${nomFichier.replace(/\.xml$/i, '')} — ${couche}`,
+    kind: kindPourCouche(couche),
+    isIlotLayer: couche === 'ilots',
+    features,
+    columns: colonnes,
+    srid,
+    sridLabel: label,
+    warnings,
+    mapping: mappingPourCouche(couche, colonnes),
+  };
+}
+
 /** Regroupe les fichiers en couches et lit celles qui sont exploitables. */
 export async function readDossier(
   files: DeposedFile[],
@@ -99,8 +187,13 @@ export async function readDossier(
   // forment une seule couche.
   const groupes = new Map<string, Map<string, Buffer>>();
   const ignored: string[] = [];
+  const xmlTelepac: DeposedFile[] = [];
 
   for (const file of plats) {
+    if (ressembleAuXmlTelepac(file)) {
+      xmlTelepac.push(file);
+      continue;
+    }
     const ext = path.extname(file.name).toLowerCase();
     if (!SHAPE_EXTS.has(ext)) {
       ignored.push(file.name);
@@ -112,11 +205,77 @@ export async function readDossier(
     groupes.set(base, groupe);
   }
 
+  // ---- Dossier XML --------------------------------------------------------
+  //
+  // Traité en premier et rendu seul : un dépôt qui contient à la fois le XML et
+  // l'export graphique décrit deux fois le même parcellaire. Les mélanger
+  // ferait entrer chaque parcelle deux fois.
+  if (xmlTelepac.length > 0) {
+    const premier = xmlTelepac[0];
+    if (!premier) throw new DossierError('Fichier XML illisible.');
+
+    let lu;
+    try {
+      lu = lireTelepacXml(premier.buffer);
+    } catch (cause) {
+      if (cause instanceof TelepacXmlError) throw new DossierError(cause.message);
+      throw cause;
+    }
+
+    const communs = [...lu.warnings];
+    for (const autre of xmlTelepac.slice(1)) ignored.push(autre.name);
+    if (xmlTelepac.length > 1) {
+      communs.push(
+        `${xmlTelepac.length} dossiers XML ont été déposés ; seul « ${premier.name} » a été lu. ` +
+          'Importez les campagnes une par une : chacune a la sienne.',
+      );
+    }
+    if (groupes.size > 0) {
+      communs.push(
+        "Un export graphique accompagnait le dossier XML : il a été laissé de côté. " +
+          'Les deux décrivent le même parcellaire, et les lire tous les deux importerait ' +
+          'chaque parcelle en double.',
+      );
+      for (const base of groupes.keys()) ignored.push(base);
+    }
+
+    const layers = (
+      [
+        couchesDuXml(premier.name, lu.ilots, 'ilots', communs),
+        couchesDuXml(premier.name, lu.parcelles, 'parcelles', communs),
+        couchesDuXml(premier.name, lu.sna, 'sna', communs),
+        couchesDuXml(premier.name, lu.zdh, 'zdh', communs),
+      ] satisfies Array<DossierLayer | null>
+    ).filter((c): c is DossierLayer => c !== null);
+
+    if (layers.length === 0) {
+      throw new DossierError(
+        "Ce dossier XML ne contient ni îlot, ni parcelle, ni SNA, ni ZDH exploitables.",
+      );
+    }
+
+    return {
+      layers,
+      ignored,
+      // Les branches écartées volontairement (effectifs animaux, demandes
+      // d'aides) sont annoncées, pas confondues avec un problème.
+      problems: [],
+      provenance: `${provenanceXml(lu.declaration)}${
+        lu.ignores.length > 0 ? ` Non repris : ${lu.ignores.join(' ')}` : ''
+      }`,
+      declaration: lu.declaration,
+    };
+  }
+
   if (groupes.size === 0) {
     throw new DossierError(
-      "Aucun jeu de données géographiques n'a été trouvé dans ce dépôt. " +
-        'Un export graphique TéléPAC contient au minimum un fichier .shp, ' +
-        'accompagné de ses .shx, .dbf et .prj.',
+      "Aucune donnée géographique n'a été trouvée dans ce dépôt.\n" +
+        'Parcelys lit deux formats, tous deux téléchargeables depuis TéléPAC :\n' +
+        '  · le dossier au format XML, tel qu’il est proposé au téléchargement ;\n' +
+        '  · l’export graphique, un jeu de fichiers .shp, .shx, .dbf et .prj.\n' +
+        (ignored.length > 0
+          ? `Reçu, mais d’aucun de ces deux formats : ${ignored.slice(0, 5).join(', ')}.`
+          : ''),
     );
   }
 

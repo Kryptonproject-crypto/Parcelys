@@ -82,6 +82,7 @@ export const POST = route(async (request: NextRequest) => {
       problems: dossier.problems,
       choices: choices as never,
       sridOverride: sridOverride as never,
+      provenance: dossier.provenance,
     });
 
     return ok({
@@ -123,6 +124,7 @@ export const PUT = route(async (request: NextRequest) => {
       problems: dossier.problems,
       choices: choices as never,
       sridOverride: sridOverride as never,
+      provenance: dossier.provenance,
     });
 
     if (analyse.layers.some((l) => l.srid === null)) {

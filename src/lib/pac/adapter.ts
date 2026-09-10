@@ -35,6 +35,15 @@ import type { PacFeatureKind } from '@prisma/client';
 export type MappingConfidence =
   /** Nom relevé dans une source officielle vérifiée. */
   | 'officiel'
+  /**
+   * Nom établi en confrontant plusieurs exports réels, sans notice officielle.
+   *
+   * Plus solide qu'une proposition tirée de noms courants — la structure a été
+   * observée, pas devinée —, moins solide qu'une notice : cinq dossiers d'une
+   * même exploitation ne prouvent pas qu'un sixième leur ressemblera. La nuance
+   * a sa propre valeur plutôt que d'être noyée dans « officiel ».
+   */
+  | 'constate'
   /** Nom courant, proposé — à confirmer par l'utilisateur. */
   | 'propose'
   /** Rien de reconnu. */

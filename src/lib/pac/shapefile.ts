@@ -53,6 +53,16 @@ export type ShapeFeature = {
   /** Anneaux bruts, dans l'ordre du fichier. */
   rings: Ring[];
   attributes: Record<string, string | number | null>;
+  /**
+   * Géométrie qui ne se décrit pas par des anneaux, en WKT.
+   *
+   * Un Shapefile de polygones n'en produit jamais : le champ reste vide sur ce
+   * chemin-là. Il sert au dossier XML TéléPAC, dont les SNA sont tantôt des
+   * surfaces, tantôt des **points** — 157 des 560 du dossier 2026, des arbres
+   * isolés. Les forcer en anneaux demanderait de leur inventer un rayon, donc
+   * une surface ; les écarter perdrait des éléments qui comptent pour les IAE.
+   */
+  wkt?: string | null;
 };
 
 export type ShapefileParts = {

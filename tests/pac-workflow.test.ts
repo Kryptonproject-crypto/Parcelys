@@ -392,10 +392,26 @@ describe('Parcours PAC / TéléPAC', () => {
       readDossier([{ name: 'PARCELLES.shp', buffer: shp.shp }], 2026),
     ).rejects.toThrow(/\.dbf/);
 
-    // Un fichier qui n'est pas un Shapefile du tout.
+    // Un fichier qui n'est ni un Shapefile ni un dossier XML.
+    //
+    // Le message nomme désormais les deux formats lus : un utilisateur qui
+    // dépose le mauvais fichier doit apprendre ce qu'on attend, pas seulement
+    // que ce n'est pas ça.
     await expect(
       readDossier([{ name: 'notice.pdf', buffer: Buffer.from('%PDF-1.4') }], 2026),
-    ).rejects.toThrow(/géographiques/);
+    ).rejects.toThrow(/géographique/);
+    await expect(
+      readDossier([{ name: 'notice.pdf', buffer: Buffer.from('%PDF-1.4') }], 2026),
+    ).rejects.toThrow(/XML/);
+
+    // Un XML qui n'est pas un dossier TéléPAC est refusé pour ce qu'il est,
+    // sans être confondu avec un dépôt vide.
+    await expect(
+      readDossier(
+        [{ name: 'export.xml', buffer: Buffer.from('<?xml version="1.0"?><producteurs/>') }],
+        2026,
+      ),
+    ).rejects.toThrow(/TéléPAC/);
 
     // Et rien n'a été écrit en base au passage.
     expect(await prisma.parcel.count({ where: { farmId: user.farmId } })).toBe(0);
