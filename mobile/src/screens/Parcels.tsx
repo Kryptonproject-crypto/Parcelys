@@ -1,7 +1,16 @@
 import { useMemo, useState } from 'react';
 import type { AppContext } from '../App';
 import { formatAreaHa } from '../lib/geo';
-import { Badge, Button, Card, EmptyState, Header, Input, cn } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Header,
+  Input,
+  SyncBadge,
+  cn,
+} from '../components/ui';
 
 /**
  * Écran d'accueil : les parcelles de l'exploitation.
@@ -11,7 +20,8 @@ import { Badge, Button, Card, EmptyState, Header, Input, cn } from '../component
  * plutôt que de laisser croire qu'elle est à jour.
  */
 export function ParcelsScreen({ context }: { context: AppContext }) {
-  const { snapshot, online, pending, navigate, back, isExpert, readOnly } = context;
+  const { snapshot, online, pending, syncStatus, navigate, back, isExpert, readOnly } =
+    context;
   const [search, setSearch] = useState('');
 
   const waiting = (snapshot?.recommendations ?? []).filter(
@@ -47,27 +57,16 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         {...(isExpert ? { onBack: back } : {})}
         action={
           <div className="flex items-center gap-1">
-            <button
-              type="button"
+            {/* Le voyant remplace l'ancienne icône de file : il porte l'état,
+                le nombre en attente et la navigation vers l'écran d'envoi.
+                Deux indicateurs pour la même chose finissaient par se
+                contredire — l'icône ne savait dire que « il y en a », pas
+                « ça n'est pas parti ». */}
+            <SyncBadge
+              status={syncStatus}
+              pending={pending}
               onClick={() => navigate({ name: 'queue' })}
-              aria-label={`File d'attente${pending > 0 ? ` — ${pending} en attente` : ''}`}
-              className="relative flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 active:bg-surface-2"
-            >
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              {pending > 0 ? (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ble-500 px-1 text-[10px] font-bold text-white">
-                  {pending > 9 ? '9+' : pending}
-                </span>
-              ) : null}
-            </button>
+            />
             <button
               type="button"
               onClick={() => navigate({ name: 'settings' })}

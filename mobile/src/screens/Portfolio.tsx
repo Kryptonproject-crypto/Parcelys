@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppContext } from '../App';
 import { OfflineError } from '../lib/api';
-import { Badge, Banner, Card, EmptyState, Header } from '../components/ui';
+import { Badge, Banner, Card, EmptyState, Header, SyncBadge } from '../components/ui';
 
 /**
  * Portefeuille de l'expert agronomique.
@@ -12,7 +12,8 @@ import { Badge, Banner, Card, EmptyState, Header } from '../components/ui';
  * dire franchement vaut mieux qu'un écran vide.
  */
 export function PortfolioScreen({ context }: { context: AppContext }) {
-  const { snapshot, session, online, pending, navigate, selectFarm } = context;
+  const { snapshot, session, online, pending, syncStatus, navigate, selectFarm } =
+    context;
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,27 +43,13 @@ export function PortfolioScreen({ context }: { context: AppContext }) {
         subtitle={`${session.firstName} ${session.lastName}`}
         action={
           <div className="flex items-center gap-1">
-            <button
-              type="button"
+            {/* Même voyant que sur l'écran des parcelles : l'expert aussi
+                doit voir d'un coup d'œil si ses préconisations sont parties. */}
+            <SyncBadge
+              status={syncStatus}
+              pending={pending}
               onClick={() => navigate({ name: 'queue' })}
-              aria-label={`File d'attente${pending > 0 ? ` — ${pending} en attente` : ''}`}
-              className="relative flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 active:bg-surface-2"
-            >
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              {pending > 0 ? (
-                <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ble-500 px-1 text-[10px] font-bold text-white">
-                  {pending > 9 ? '9+' : pending}
-                </span>
-              ) : null}
-            </button>
+            />
             <button
               type="button"
               onClick={() => navigate({ name: 'settings' })}

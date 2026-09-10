@@ -286,3 +286,110 @@ export const today = (): string => {
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
 };
+
+/**
+ * Voyant de synchronisation.
+ *
+ * Quatre états, chacun avec sa couleur, son mot et son sens d'action :
+ *
+ *   🟢 synchronisé   — rien en attente, tout est chez le serveur ;
+ *   🟠 en cours      — envoi en route, ne pas fermer l'application ;
+ *   🔵 en attente    — des saisies attendent, il reste à envoyer ;
+ *   🔴 erreur        — le dernier envoi a échoué, ou des saisies ont été refusées ;
+ *   ⚪ hors ligne    — pas de réseau. **Ce n'est pas une panne.**
+ *
+ * Le dernier point est celui qui compte le plus. Une parcelle sans réseau est
+ * la situation normale, pas un incident : peindre en rouge un exploitant au
+ * milieu de son champ lui apprendrait surtout à ne plus regarder le voyant. Le
+ * gris dit « rien ne part pour l'instant, c'est prévu », le rouge est réservé à
+ * ce qui demande une décision.
+ *
+ * Une pastille de couleur seule ne suffit pas : le mot l'accompagne toujours.
+ * Un tiers des hommes daltoniens ne distingue pas le rouge du vert, et c'est
+ * une population surreprésentée dans le métier.
+ */
+export type SyncTone =
+  | 'synchronise'
+  | 'en-cours'
+  | 'en-attente'
+  | 'erreur'
+  | 'hors-ligne';
+
+const SYNC_LOOK: Record<SyncTone, { point: string; texte: string; libelle: string }> = {
+  synchronise: {
+    point: 'bg-champ-500',
+    texte: 'text-champ-700 dark:text-champ-400',
+    libelle: 'Synchronisé',
+  },
+  'en-cours': {
+    point: 'bg-ble-500 animate-pulse',
+    texte: 'text-ble-600 dark:text-ble-400',
+    libelle: 'Envoi en cours',
+  },
+  'en-attente': {
+    point: 'bg-ciel-500',
+    texte: 'text-ciel-600 dark:text-ciel-500',
+    libelle: 'À envoyer',
+  },
+  erreur: {
+    point: 'bg-brique-500',
+    texte: 'text-brique-600 dark:text-brique-500',
+    libelle: 'Échec d’envoi',
+  },
+  'hors-ligne': {
+    point: 'bg-ink-3',
+    texte: 'text-ink-3',
+    libelle: 'Hors connexion',
+  },
+};
+
+export function SyncBadge({
+  status,
+  pending = 0,
+  onClick,
+}: {
+  status: SyncTone;
+  /** Nombre de saisies en attente, ajouté au libellé quand il y en a. */
+  pending?: number;
+  onClick?: () => void;
+}) {
+  const look = SYNC_LOOK[status];
+  const libelle =
+    pending > 0 && (status === 'en-attente' || status === 'hors-ligne' || status === 'erreur')
+      ? `${look.libelle} · ${pending}`
+      : look.libelle;
+
+  const contenu = (
+    <>
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', look.point)} aria-hidden />
+      <span className="truncate">{libelle}</span>
+    </>
+  );
+
+  const classes = cn(
+    'inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2',
+    'px-2.5 text-[12.5px] font-medium',
+    look.texte,
+  );
+
+  // La cible tactile fait 44 px de haut quand le voyant est actionnable, comme
+  // tout ce qui se touche dans l'application ; sinon il reste compact.
+  if (!onClick) {
+    return (
+      <span className={cn(classes, 'py-1')} role="status">
+        {contenu}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(classes, 'min-h-[44px] active:bg-line')}
+      aria-label={`${libelle} — ouvrir la synchronisation`}
+    >
+      {contenu}
+    </button>
+  );
+}

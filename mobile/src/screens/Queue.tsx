@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppContext } from '../App';
 import { dequeue, readOutbox } from '../lib/db';
-import { synchronize, type SyncReport } from '../lib/sync';
+import type { SyncReport } from '../lib/sync';
 import { OPERATION_LABELS, type QueuedOperation } from '../lib/types';
 import {
   ActionBar,
@@ -24,8 +24,7 @@ import {
  * réglementaire.
  */
 export function QueueScreen({ context }: { context: AppContext }) {
-  const { back, session, online, refreshPending, refreshSnapshot, activeFarmId } =
-    context;
+  const { back, online, refreshPending, runSync } = context;
 
   const [operations, setOperations] = useState<QueuedOperation[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -41,15 +40,32 @@ export function QueueScreen({ context }: { context: AppContext }) {
     void reload();
   }, [reload]);
 
+  /**
+   * L'envoi passe par le contexte, pas par un appel local.
+   *
+   * Cet écran en gardait sa propre copie : le voyant de l'en-tête, lui, ne
+   * savait rien de l'envoi en cours et restait au vert pendant que ça
+   * travaillait. Un seul chemin, un seul état.
+   *
+   * Le compte rendu détaillé — ce qui est passé, ce qui a été refusé — reste
+   * affiché ici : c'est l'écran qu'on ouvre pour le lire.
+   */
+  /**
+   * L'envoi passe par le contexte, pas par une copie locale.
+   *
+   * Cet écran en gardait sa propre : le voyant de l'en-tête, lui, ne savait
+   * rien de l'envoi en cours et restait au vert pendant que ça travaillait. Un
+   * seul chemin, un seul état — et le compte rendu détaillé reste affiché ici,
+   * puisque c'est l'écran qu'on ouvre pour le lire.
+   */
   async function sync(): Promise<void> {
     setSyncing(true);
     setError(null);
     setReport(null);
     try {
-      const result = await synchronize(session, activeFarmId);
+      const result = await runSync();
       setReport(result);
       await reload();
-      if (result.snapshotRefreshed) await refreshSnapshot();
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : 'Synchronisation impossible.',

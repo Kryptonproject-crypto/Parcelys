@@ -11,6 +11,7 @@ import {
 } from './lib/storage';
 import { SERVER_URL } from './lib/config';
 import { fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
+import { synchronize, syncStatusFrom, type SyncReport } from './lib/sync';
 import { writeSnapshot } from './lib/db';
 import type { CachedParcel, Session, Snapshot } from './lib/types';
 import { LoginScreen } from './screens/Login';
@@ -52,11 +53,40 @@ export type Screen =
   | { name: 'settings' }
   | { name: 'security' };
 
+/**
+ * État de la synchronisation, tel que l'exploitant doit pouvoir le lire d'un
+ * coup d'œil, sans ouvrir d'écran.
+ *
+ * Quatre états et pas trois : « hors connexion » n'est pas une erreur, et les
+ * confondre ferait passer une situation normale au champ — une parcelle sans
+ * réseau — pour une panne. Inversement, « en attente » n'est pas
+ * « synchronisé » : une saisie qui n'est pas partie n'existe que dans ce
+ * téléphone, et c'est ce qu'il faut savoir avant de le laisser tomber dans une
+ * cuve.
+ */
+export type SyncStatus =
+  /** Rien en attente, réseau présent : tout est chez le serveur. */
+  | 'synchronise'
+  /** Envoi en cours. */
+  | 'en-cours'
+  /** Le dernier envoi a échoué, ou des saisies ont été refusées. */
+  | 'erreur'
+  /** Des saisies attendent, réseau présent : il reste à envoyer. */
+  | 'en-attente'
+  /** Pas de réseau. Ce n'est pas une panne. */
+  | 'hors-ligne';
+
 export type AppContext = {
   session: Session;
   snapshot: Snapshot | null;
   online: boolean;
   pending: number;
+  /** Voyant de synchronisation, dérivé du réseau, de la file et du dernier envoi. */
+  syncStatus: SyncStatus;
+  /** Message du dernier échec, s'il y en a eu un. */
+  syncError: string | null;
+  /** Lance un envoi. Rend le compte rendu, ou lève si l'envoi a échoué. */
+  runSync: () => Promise<SyncReport | null>;
   /** Exploitation ouverte ; `null` tant que rien n'a été téléchargé. */
   activeFarmId: string | null;
   /** `true` si le compte est un expert agronomique. */
@@ -78,6 +108,8 @@ export function App() {
   const [stack, setStack] = useState<Screen[]>([{ name: 'parcels' }]);
   const [pending, setPending] = useState(0);
   const [online, setOnline] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
 
   const isExpert = session?.accountType === 'AGRONOMIST';
@@ -149,6 +181,49 @@ export function App() {
   useEffect(() => {
     if (session && online) void refreshSnapshot();
   }, [session, online, refreshSnapshot]);
+
+  /**
+   * Envoi de la file, appelable de n'importe où.
+   *
+   * Remonté ici plutôt que laissé dans l'écran de la file : le voyant doit
+   * pouvoir passer à l'orange pendant l'envoi, où que l'on soit dans
+   * l'application, et un envoi lancé depuis un écran ne doit pas devenir
+   * invisible parce qu'on en a changé.
+   */
+  const runSync = useCallback(async (): Promise<SyncReport | null> => {
+    if (!session) return null;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const rapport = await synchronize(session, activeFarmId);
+      setPending(await outboxCount());
+      if (rapport.snapshotRefreshed) await refreshSnapshot();
+      // Des saisies refusées ne font pas échouer l'envoi, mais elles ne sont
+      // pas parties : le voyant doit rester rouge, sans quoi l'exploitant
+      // croirait tout envoyé.
+      if (rapport.errors.length > 0) {
+        setSyncError(
+          `${rapport.errors.length} saisie(s) refusée(s) — ouvrez la file pour voir lesquelles.`,
+        );
+      }
+      return rapport;
+    } catch (cause) {
+      setSyncError(
+        cause instanceof Error ? cause.message : 'Synchronisation impossible.',
+      );
+      throw cause;
+    } finally {
+      setSyncing(false);
+    }
+  }, [session, activeFarmId, refreshSnapshot]);
+
+  // Le voyant se calcule, il ne se stocke pas : voir `syncStatusFrom`.
+  const syncStatus: SyncStatus = syncStatusFrom({
+    online,
+    pending,
+    syncing,
+    error: syncError,
+  });
 
   const navigate = useCallback((screen: Screen) => {
     setStack((current) => [...current, screen]);
@@ -235,6 +310,9 @@ export function App() {
     snapshot,
     online,
     pending,
+    syncStatus,
+    syncError,
+    runSync,
     activeFarmId,
     isExpert,
     // La lecture seule vient du serveur, pas d'une déduction locale : c'est lui
