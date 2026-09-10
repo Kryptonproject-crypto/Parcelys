@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/session';
 import { getDashboardData } from '@/lib/services/dashboard';
+import { buildComplianceReport } from '@/lib/regulatory/compliance';
+import { ComplianceCard } from '@/components/regulatory/ComplianceCard';
 import { getMonthlyActivity } from '@/lib/services/activity';
 import { getFarmParcelsGeoJSON } from '@/lib/geo/repository';
 import { prisma } from '@/lib/prisma';
@@ -84,7 +86,7 @@ export default async function DashboardPage() {
   const env = getEnv();
   const campaignYear = currentCampaignYear();
 
-  const [data, geojson, farm, parcelIds] = await Promise.all([
+  const [data, geojson, farm, parcelIds, compliance] = await Promise.all([
     getDashboardData(auth.activeFarmId, campaignYear),
     getFarmParcelsGeoJSON(auth.activeFarmId, campaignYear),
     prisma.farm.findUniqueOrThrow({
@@ -97,6 +99,7 @@ export default async function DashboardPage() {
         select: { id: true },
       })
       .then((rows) => rows.map((r) => r.id)),
+    buildComplianceReport({ farmId: auth.activeFarmId, campaignYear }),
   ]);
 
   const activity = await getMonthlyActivity(parcelIds);
@@ -200,6 +203,13 @@ export default async function DashboardPage() {
               href="/historique"
               hint={`Campagne ${campaignYear}`}
             />
+          </div>
+
+          {/* Conformité — ajoutée au tableau de bord existant plutôt que
+              reléguée dans un écran séparé : la conformité doit se voir dans le
+              travail quotidien, pas constituer un second travail. */}
+          <div className="mt-6">
+            <ComplianceCard report={compliance} />
           </div>
 
           {/* À faire */}

@@ -40,6 +40,17 @@ export function migrateTestDatabase(): void {
  * racines.
  */
 const TABLES_IN_DELETION_ORDER = [
+  'compliance_findings',
+  'nitrogen_plan_deviations',
+  'nitrogen_plan_entries',
+  'nitrogen_plans',
+  'soil_analyses',
+  'parcel_regulatory_contexts',
+  'ift_references',
+  'regulatory_zones',
+  'regulatory_rules',
+  'regulatory_imports',
+  'regulatory_referentials',
   'recommendations',
   'advisory_engagements',
   'invitation_codes',

@@ -30,6 +30,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import type { ParcelTabsProps } from '@/app/(app)/parcelles/[id]/types';
+import { ParcelContextCard } from '@/components/regulatory/ParcelContextCard';
 import { IconAttachment, IconCrops, IconDocuments, IconFile, IconHistory, IconImage, IconInputs, IconOperation, IconPhyto } from '@/components/ui/icons';
 
 const TABS = [
@@ -68,6 +69,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
     history,
     referentials,
     ephySource,
+    regulatoryContext,
   } = props;
 
   const router = useRouter();
@@ -208,6 +210,15 @@ export function ParcelTabs(props: ParcelTabsProps) {
               <p className="mt-1 whitespace-pre-line text-sm text-ink">
                 {parcel.notes}
               </p>
+            </div>
+          ) : null}
+
+          {/* Le contexte réglementaire s'ajoute à la fiche existante : il est
+              déduit de la géométrie déjà tracée, et n'a donc rien à demander à
+              l'exploitant. */}
+          {regulatoryContext !== undefined ? (
+            <div className="mt-6 border-t border-line pt-4">
+              <ParcelContextCard context={regulatoryContext} areaHa={parcel.areaHa} />
             </div>
           ) : null}
         </Card>

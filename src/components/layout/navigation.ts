@@ -17,6 +17,7 @@ import {
   IconProfile,
   IconArea,
   IconRegistry,
+  IconSecurity,
   IconSettings,
   IconWeather,
   type LucideIcon,
@@ -69,6 +70,12 @@ export const MAIN_NAV: NavItem[] = [
   },
 
   { href: '/pac', label: 'PAC / TéléPAC', icon: IconArea, group: 'documents' },
+  {
+    href: '/conformite',
+    label: 'Conformité',
+    icon: IconSecurity,
+    group: 'documents',
+  },
   { href: '/registres', label: 'Registres', icon: IconRegistry, group: 'documents' },
   { href: '/historique', label: 'Historique', icon: IconHistory, group: 'documents' },
   { href: '/documents', label: 'Documents', icon: IconDocuments, group: 'documents' },
@@ -129,6 +136,12 @@ export const ADMIN_SECTIONS: NavItem[] = [
     href: '/administration/experts',
     label: 'Experts',
     icon: IconUsers,
+    group: 'exploitation',
+  },
+  {
+    href: '/administration/referentiels',
+    label: 'Référentiels',
+    icon: IconRegistry,
     group: 'exploitation',
   },
   {

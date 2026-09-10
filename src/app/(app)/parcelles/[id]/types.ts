@@ -139,4 +139,15 @@ export type ParcelTabsProps = {
   history: HistoryEvent[];
   referentials: Referentials;
   ephySource: EphySource;
+  /**
+   * Contexte réglementaire déduit de la géométrie : zonages recoupant la
+   * parcelle et surfaces concernées. `null` quand il n'a jamais été calculé,
+   * `undefined` quand l'appelant ne le fournit pas (vue expert, par exemple).
+   */
+  regulatoryContext?:
+    | (import('@/lib/regulatory/geography').ParcelContext & {
+        computedAt: string;
+        commune: string | null;
+      })
+    | null;
 };

@@ -123,6 +123,8 @@ model User {
   pacImports            PacImport[]
   pacSnapshots          PacSnapshot[]
   pacChanges            PacChange[]
+  deviationsAuthored    NitrogenPlanDeviation[]    @relation("DeviationAuthor")
+  soilAnalysesAuthored  SoilAnalysis[]             @relation("SoilAnalysisAuthor")
 
   @@index([emailNormalized])
   @@index([isPlatformAdmin])
@@ -385,6 +387,7 @@ model Farm {
   weatherRecords  WeatherRecord[]
   sessions        Session[]
   pacCampaigns    PacCampaign[]
+  findings        ComplianceFinding[]
 
   @@index([isDemo])
   @@map("farms")
@@ -526,6 +529,10 @@ model Parcel {
   pacFeatures     PacFeature[]
   pacChanges      PacChange[]
 
+  regulatoryContext ParcelRegulatoryContext?
+  soilAnalyses      SoilAnalysis[]
+  findings          ComplianceFinding[]
+
   @@unique([farmId, internalNumber])
   @@index([farmId, deletedAt])
   @@index([farmId, status])
@@ -591,6 +598,7 @@ model CropYear {
 
   fertilizations  FertilizerApplication[]
   phytoTreatments PhytosanitaryApplication[]
+  nitrogenPlan    NitrogenPlan?
 
   @@unique([parcelId, campaignYear, cropId])
   @@index([parcelId, campaignYear])
@@ -646,41 +654,41 @@ model OrganicInput {
 }
 
 model FertilizerApplication {
-  id             String    @id @default(cuid())
-  parcelId       String    @map("parcel_id")
-  cropYearId     String?   @map("crop_year_id")
-  appliedOn      DateTime  @map("applied_on")
-  inputType      InputType @map("input_type")
-  fertilizerId   String?   @map("fertilizer_id")
-  organicInputId String?   @map("organic_input_id")
-  productLabel   String    @map("product_label")
-  dose           Decimal   @db.Decimal(12, 3)
-  doseUnit       String    @map("dose_unit")
-  treatedAreaHa  Decimal   @map("treated_area_ha") @db.Decimal(12, 4)
-  totalQuantity  Decimal   @map("total_quantity") @db.Decimal(14, 3)
-  totalUnit      String    @map("total_unit")
-  nSupplied      Decimal?  @map("n_supplied") @db.Decimal(12, 2)
-  pSupplied      Decimal?  @map("p_supplied") @db.Decimal(12, 2)
-  kSupplied      Decimal?  @map("k_supplied") @db.Decimal(12, 2)
-  supplier       String?
-  batchNumber    String?   @map("batch_number")
+  id              String    @id @default(cuid())
+  parcelId        String    @map("parcel_id")
+  cropYearId      String?   @map("crop_year_id")
+  appliedOn       DateTime  @map("applied_on")
+  inputType       InputType @map("input_type")
+  fertilizerId    String?   @map("fertilizer_id")
+  organicInputId  String?   @map("organic_input_id")
+  productLabel    String    @map("product_label")
+  dose            Decimal   @db.Decimal(12, 3)
+  doseUnit        String    @map("dose_unit")
+  treatedAreaHa   Decimal   @map("treated_area_ha") @db.Decimal(12, 4)
+  totalQuantity   Decimal   @map("total_quantity") @db.Decimal(14, 3)
+  totalUnit       String    @map("total_unit")
+  nSupplied       Decimal?  @map("n_supplied") @db.Decimal(12, 2)
+  pSupplied       Decimal?  @map("p_supplied") @db.Decimal(12, 2)
+  kSupplied       Decimal?  @map("k_supplied") @db.Decimal(12, 2)
+  supplier        String?
+  batchNumber     String?   @map("batch_number")
   /**
    * Conditions au moment de l'apport, comme pour un traitement : le vent
    * emporte l'azote d'un engrais volatil, la pluie le lessive. Un bilan de
    * fertilisation qui ne dit rien du temps qu'il faisait explique mal ses
    * écarts.
    */
-  weatherTempC    Decimal? @map("weather_temp_c") @db.Decimal(5, 1)
-  weatherWindKmh  Decimal? @map("weather_wind_kmh") @db.Decimal(5, 1)
-  weatherHumidity Decimal? @map("weather_humidity") @db.Decimal(5, 1)
-  weatherRainMm   Decimal? @map("weather_rain_mm") @db.Decimal(6, 2)
-  weatherSummary  String?  @map("weather_summary")
-  weatherSource   String?  @map("weather_source")
-  operator       String?
-  notes          String?
-  createdById    String?   @map("created_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  weatherTempC    Decimal?  @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh  Decimal?  @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity Decimal?  @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm   Decimal?  @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary  String?   @map("weather_summary")
+  weatherSource   String?   @map("weather_source")
+  operator        String?
+  notes           String?
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   parcel       Parcel        @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   cropYear     CropYear?     @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
@@ -892,28 +900,28 @@ enum OperationType {
 }
 
 model AgriculturalOperation {
-  id            String        @id @default(cuid())
-  parcelId      String        @map("parcel_id")
-  performedOn   DateTime      @map("performed_on")
-  type          OperationType
-  equipment     String?
-  operator      String?
-  durationHours Decimal?      @map("duration_hours") @db.Decimal(6, 2)
+  id              String        @id @default(cuid())
+  parcelId        String        @map("parcel_id")
+  performedOn     DateTime      @map("performed_on")
+  type            OperationType
+  equipment       String?
+  operator        String?
+  durationHours   Decimal?      @map("duration_hours") @db.Decimal(6, 2)
   /**
    * Conditions au moment du travail. Un semis sous la pluie, un labour en
    * terre gelée : c'est ce qui explique, une saison plus tard, pourquoi une
    * parcelle a moins donné qu'une autre.
    */
-  weatherTempC    Decimal? @map("weather_temp_c") @db.Decimal(5, 1)
-  weatherWindKmh  Decimal? @map("weather_wind_kmh") @db.Decimal(5, 1)
-  weatherHumidity Decimal? @map("weather_humidity") @db.Decimal(5, 1)
-  weatherRainMm   Decimal? @map("weather_rain_mm") @db.Decimal(6, 2)
-  weatherSummary  String?  @map("weather_summary")
-  weatherSource   String?  @map("weather_source")
-  notes         String?
-  createdById   String?       @map("created_by_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  weatherTempC    Decimal?      @map("weather_temp_c") @db.Decimal(5, 1)
+  weatherWindKmh  Decimal?      @map("weather_wind_kmh") @db.Decimal(5, 1)
+  weatherHumidity Decimal?      @map("weather_humidity") @db.Decimal(5, 1)
+  weatherRainMm   Decimal?      @map("weather_rain_mm") @db.Decimal(6, 2)
+  weatherSummary  String?       @map("weather_summary")
+  weatherSource   String?       @map("weather_source")
+  notes           String?
+  createdById     String?       @map("created_by_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   parcel    Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   createdBy User?  @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
@@ -966,6 +974,9 @@ model Document {
   farm       Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
   parcel     Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   uploadedBy User?   @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  deviations   NitrogenPlanDeviation[]
+  soilAnalyses SoilAnalysis[]
 
   @@index([farmId])
   @@index([parcelId])
@@ -1247,4 +1258,497 @@ model PacCropCode {
   @@unique([year, version, code])
   @@index([year, code])
   @@map("pac_crop_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Socle réglementaire
+//
+// Trois principes gouvernent tout ce qui suit, et aucun n'est négociable.
+//
+//  1. Rien n'est inventé. Une valeur réglementaire vient d'un référentiel
+//     importé depuis une source officielle, ou elle n'existe pas. Un
+//     référentiel absent produit « impossible de vérifier », jamais un
+//     résultat plausible.
+//
+//  2. Tout est daté et territorialisé. Une règle applicable en 2024 ne doit
+//     pas venir corriger rétroactivement la campagne 2024. Chaque règle porte
+//     sa période d'application et son territoire ; le moteur choisit la règle
+//     en vigueur à la date de l'intervention, pas la plus récente.
+//
+//  3. Tout est traçable. Chaque calcul peut nommer le référentiel, sa version,
+//     sa source et sa date. Un agriculteur contrôlé doit pouvoir dire d'où
+//     vient un chiffre.
+// ---------------------------------------------------------------------------
+
+/// Domaines réglementaires couverts. Sert à ranger référentiels et règles ;
+/// l'énumération grandit avec le logiciel, elle ne présume de rien.
+enum RegulatoryDomain {
+  /// Zonages géographiques (zones vulnérables, ZAR, captages, cours d'eau).
+  ZONAGE
+  /// Programme d'actions nitrates, national ou régional.
+  NITRATES
+  /// Référentiel de calcul de la dose prévisionnelle d'azote (GREN).
+  GREN
+  /// Doses de référence pour le calcul de l'IFT.
+  IFT
+  /// Catalogue des produits phytopharmaceutiques (E-Phy).
+  PHYTO
+  /// Codes culture et règles de la déclaration PAC.
+  PAC
+  /// Couverture des sols en interculture.
+  COUVERTURE
+}
+
+enum ReferentialStatus {
+  /// Déclaré, mais aucune donnée importée : le moteur répond « non vérifiable ».
+  NON_CONFIGURE
+  IMPORT_EN_COURS
+  ACTIF
+  /// Remplacé par une version plus récente ; conservé pour les campagnes passées.
+  REMPLACE
+  ECHEC
+}
+
+/// Un jeu de données réglementaire, dans une version donnée.
+///
+/// C'est l'unité que l'administrateur voit dans le centre des référentiels :
+/// « zones vulnérables, Centre-Val de Loire, version 2024-07, importée le … ».
+/// Deux versions d'un même référentiel coexistent : la campagne 2024 lit celle
+/// de 2024 même après l'arrivée de celle de 2026.
+model RegulatoryReferential {
+  id     String           @id @default(cuid())
+  domain RegulatoryDomain
+  /// Identifiant stable du jeu de données, indépendant de sa version.
+  /// Ex. « zones-vulnerables », « ift-doses-reference ».
+  code   String
+  name   String
+
+  /// Territoire couvert : code INSEE de région, de département, ou `FR` pour
+  /// le national. `null` quand le référentiel n'est pas territorialisé.
+  territory String?
+
+  version     String
+  /// Provenance lisible, affichée à l'utilisateur à côté de chaque calcul.
+  sourceLabel String  @map("source_label")
+  sourceUrl   String? @map("source_url")
+  /// Empreinte du fichier importé : reconnaître une réimportation identique.
+  checksum    String?
+
+  /// Date de publication par l'autorité, quand elle est connue.
+  publishedAt DateTime? @map("published_at")
+  /// Période d'application de cette version. `appliesTo` nul = en vigueur.
+  appliesFrom DateTime? @map("applies_from")
+  appliesTo   DateTime? @map("applies_to")
+
+  status      ReferentialStatus @default(NON_CONFIGURE)
+  recordCount Int               @default(0) @map("record_count")
+  /// Ce que l'import n'a pas su faire, dit en clair plutôt que passé sous silence.
+  notes       String?
+
+  importedAt DateTime? @map("imported_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  rules   RegulatoryRule[]
+  zones   RegulatoryZone[]
+  imports RegulatoryImport[]
+  iftRefs IftReference[]
+
+  @@unique([code, territory, version])
+  @@index([domain, status])
+  @@index([code, territory])
+  @@map("regulatory_referentials")
+}
+
+/// Journal d'import : ce qui a été tenté, quand, avec quel résultat.
+///
+/// Une version n'est jamais remplacée silencieusement. Le journal garde la
+/// trace de chaque tentative, réussie ou non, avec ce qu'elle a changé.
+model RegulatoryImport {
+  id            String  @id @default(cuid())
+  referentialId String  @map("referential_id")
+  status        String
+  sourceUrl     String? @map("source_url")
+  recordCount   Int     @default(0) @map("record_count")
+  /// Avertissements de l'import, concaténés. Jamais vidés en cas de succès :
+  /// un import réussi avec des colonnes manquantes reste un import diminué.
+  warnings      String?
+  errorMessage  String? @map("error_message")
+
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  referential RegulatoryReferential @relation(fields: [referentialId], references: [id], onDelete: Cascade)
+
+  @@index([referentialId, startedAt])
+  @@map("regulatory_imports")
+}
+
+/// Une règle réglementaire, telle que publiée.
+///
+/// `condition` et `value` sont volontairement en JSON : les règles nitrates
+/// n'ont pas toutes la même forme (une période d'épandage, un plafond, une
+/// obligation de couverture). Les figer dans des colonnes obligerait à
+/// remodeler la base à chaque programme régional.
+///
+/// Ce qui n'est PAS négociable, en revanche : le territoire, les dates, et la
+/// source. Une règle sans ces trois-là n'est pas exploitable.
+model RegulatoryRule {
+  id            String           @id @default(cuid())
+  referentialId String           @map("referential_id")
+  domain        RegulatoryDomain
+  /// Identifiant de la règle dans son référentiel.
+  code          String
+  label         String
+
+  /// Territoire d'application (code INSEE région/département, ou `FR`).
+  territory String
+
+  /// À quoi la règle s'applique : culture, type de fertilisant, zonage…
+  condition Json?
+  /// Ce que la règle impose : une période, un plafond, une durée.
+  value     Json
+  unit      String?
+  /// Exceptions publiées avec la règle, reprises telles quelles.
+  exception String?
+
+  appliesFrom DateTime  @map("applies_from")
+  appliesTo   DateTime? @map("applies_to")
+
+  /// Référence du texte : arrêté, article. Affichée à l'utilisateur.
+  sourceRef String? @map("source_ref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  referential RegulatoryReferential @relation(fields: [referentialId], references: [id], onDelete: Cascade)
+
+  @@index([domain, territory, appliesFrom])
+  @@index([referentialId])
+  @@map("regulatory_rules")
+}
+
+/// Nature d'un zonage réglementaire.
+enum ZoneKind {
+  ZONE_VULNERABLE
+  ZONE_ACTION_RENFORCEE
+  CAPTAGE
+  AIRE_ALIMENTATION_CAPTAGE
+  COURS_EAU
+  ZONE_ENVIRONNEMENTALE
+  AUTRE
+}
+
+/// Un zonage réglementaire, avec sa géométrie.
+///
+/// `geom` est une colonne PostGIS `geometry(MultiPolygon, 4326)` gérée en SQL
+/// brut, comme `ParcelGeometry` : Prisma ne connaît pas les types spatiaux.
+/// L'index GiST est créé en SQL et doit survivre aux migrations générées —
+/// cf. `tests/migrations.test.ts`.
+model RegulatoryZone {
+  id            String   @id @default(cuid())
+  referentialId String   @map("referential_id")
+  kind          ZoneKind
+  /// Code officiel du zonage, quand la source en fournit un.
+  code          String?
+  label         String
+
+  geom Unsupported("geometry(MultiPolygon, 4326)")?
+
+  /// Attributs de la source, conservés intégralement : ce qui n'est pas
+  /// reconnu est gardé plutôt qu'écarté.
+  attributes Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  referential RegulatoryReferential @relation(fields: [referentialId], references: [id], onDelete: Cascade)
+
+  @@index([referentialId, kind])
+  @@map("regulatory_zones")
+}
+
+/// Contexte réglementaire d'une parcelle, calculé depuis sa géométrie.
+///
+/// Calculé, jamais demandé à l'agriculteur : la géométrie est déjà là, et une
+/// question de plus dans un formulaire est une réponse de moins qui sera juste.
+///
+/// Le résultat est daté et porte les versions de référentiels utilisées : un
+/// contexte calculé en 2024 reste lisible tel quel après une révision du
+/// zonage en 2026.
+model ParcelRegulatoryContext {
+  id       String @id @default(cuid())
+  parcelId String @map("parcel_id")
+
+  /// Découpage administratif, déterminé par intersection.
+  inseeCode   String? @map("insee_code")
+  commune     String?
+  departement String?
+  region      String?
+  bassin      String?
+
+  /// Zonages détectés, avec la surface concernée. Forme :
+  /// `[{ kind, code, label, areaHa, coverage: 'totale'|'partielle',
+  ///     referential: { code, version, sourceLabel } }]`
+  zones Json @default("[]")
+
+  /// Versions de référentiels ayant servi au calcul, pour l'affichage des
+  /// sources et pour savoir quoi recalculer après un import.
+  referentialVersions Json @default("[]") @map("referential_versions")
+
+  /// Ce qui n'a pas pu être déterminé, et pourquoi. Le champ est renseigné
+  /// bien plus souvent qu'on ne voudrait, et c'est normal : tant qu'un
+  /// référentiel n'est pas importé, le contexte reste partiel — il le dit.
+  unresolved Json @default("[]")
+
+  computedAt DateTime @default(now()) @map("computed_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@unique([parcelId])
+  @@map("parcel_regulatory_contexts")
+}
+
+// ---------------------------------------------------------------------------
+// Fertilisation azotée : prévisionnel, bilan, écart
+// ---------------------------------------------------------------------------
+
+/// Plan prévisionnel de fumure, pour un îlot cultural et une campagne.
+///
+/// Les champs suivent ceux qu'un PPF doit porter. Aucun n'est calculé par
+/// défaut : un objectif de rendement inventé fausserait tout le bilan, et un
+/// reliquat supposé encore davantage. Ce qui n'est pas renseigné reste nul et
+/// le bilan le signale.
+model NitrogenPlan {
+  id           String @id @default(cuid())
+  cropYearId   String @map("crop_year_id")
+  campaignYear Int    @map("campaign_year")
+
+  /// Type de sol, tel que nommé par le référentiel régional employé.
+  soilType              String?   @map("soil_type")
+  /// Date d'ouverture du bilan.
+  openedOn              DateTime? @map("opened_on")
+  /// Azote déjà absorbé par la culture à l'ouverture, quand la méthode l'exige.
+  absorbedAtOpeningKgHa Decimal?  @map("absorbed_at_opening_kg_ha") @db.Decimal(8, 2)
+
+  /// Objectif de production, dans l'unité de la culture.
+  yieldTarget     Decimal? @map("yield_target") @db.Decimal(10, 2)
+  yieldTargetUnit String?  @map("yield_target_unit")
+
+  /// Part de légumineuses dans le couvert, quand elle est pertinente.
+  legumeShare Decimal? @map("legume_share") @db.Decimal(5, 2)
+
+  irrigated            Boolean  @default(false)
+  /// Teneur en azote de l'eau d'irrigation (mg/L de NO3).
+  irrigationNitrateMgL Decimal? @map("irrigation_nitrate_mg_l") @db.Decimal(8, 2)
+  irrigationVolumeM3Ha Decimal? @map("irrigation_volume_m3_ha") @db.Decimal(10, 2)
+
+  /// Analyse de sol retenue pour le reliquat sortie hiver.
+  soilAnalysisId String? @map("soil_analysis_id")
+
+  /// Précédent cultural, repris de la campagne précédente quand elle existe.
+  previousCrop String? @map("previous_crop")
+
+  /// Besoin de la culture et fournitures, en kg N/ha. Renseignés par le calcul
+  /// à partir d'un référentiel GREN ; nuls tant qu'aucun n'est importé.
+  needKgHa             Decimal? @map("need_kg_ha") @db.Decimal(8, 2)
+  soilSupplyKgHa       Decimal? @map("soil_supply_kg_ha") @db.Decimal(8, 2)
+  previousCropKgHa     Decimal? @map("previous_crop_kg_ha") @db.Decimal(8, 2)
+  residualKgHa         Decimal? @map("residual_kg_ha") @db.Decimal(8, 2)
+  otherSuppliesKgHa    Decimal? @map("other_supplies_kg_ha") @db.Decimal(8, 2)
+  /// Dose prévisionnelle retenue, en azote efficace puis en azote total.
+  plannedEfficientKgHa Decimal? @map("planned_efficient_kg_ha") @db.Decimal(8, 2)
+  plannedTotalKgHa     Decimal? @map("planned_total_kg_ha") @db.Decimal(8, 2)
+
+  /// Référentiel de calcul employé, pour l'affichage de la source.
+  referentialCode    String? @map("referential_code")
+  referentialVersion String? @map("referential_version")
+
+  /// Détail du calcul, conservé tel qu'il a été fait. C'est ce que l'écran
+  /// « voir le détail » affiche, et ce qu'un contrôle peut relire des années
+  /// plus tard même si le référentiel a changé depuis.
+  computation Json?
+
+  /// Verrouillé : le plan de la campagne close ne bouge plus.
+  lockedAt DateTime? @map("locked_at")
+
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cropYear     CropYear      @relation(fields: [cropYearId], references: [id], onDelete: Cascade)
+  soilAnalysis SoilAnalysis? @relation(fields: [soilAnalysisId], references: [id], onDelete: SetNull)
+
+  entries    NitrogenPlanEntry[]
+  deviations NitrogenPlanDeviation[]
+
+  @@unique([cropYearId])
+  @@index([campaignYear])
+  @@map("nitrogen_plans")
+}
+
+/// Un apport prévu au plan. Le réalisé vit dans `FertilizerApplication` :
+/// on ne duplique pas, on compare.
+model NitrogenPlanEntry {
+  id     String @id @default(cuid())
+  planId String @map("plan_id")
+
+  label         String
+  /// Date prévue, quand elle est connue.
+  plannedOn     DateTime? @map("planned_on")
+  inputType     InputType @map("input_type")
+  /// Azote efficace et total prévus, en kg N/ha.
+  efficientKgHa Decimal?  @map("efficient_kg_ha") @db.Decimal(8, 2)
+  totalKgHa     Decimal?  @map("total_kg_ha") @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  plan NitrogenPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("nitrogen_plan_entries")
+}
+
+/// Justification d'un écart entre le prévisionnel et le réalisé.
+///
+/// Un dépassement de la dose prévisionnelle doit pouvoir être justifié et le
+/// justificatif conservé. On garde donc la cause, la date, l'outil de pilotage
+/// employé et, le cas échéant, le document joint.
+model NitrogenPlanDeviation {
+  id     String @id @default(cuid())
+  planId String @map("plan_id")
+
+  /// Écart constaté au moment de la justification, en kg N/ha.
+  deviationKgHa Decimal   @map("deviation_kg_ha") @db.Decimal(8, 2)
+  cause         String
+  occurredOn    DateTime? @map("occurred_on")
+  /// Outil de pilotage employé (analyse, pesée, capteur…), tel que déclaré.
+  tool          String?
+  comment       String?
+  documentId    String?   @map("document_id")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  plan      NitrogenPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  document  Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy User?        @relation("DeviationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@map("nitrogen_plan_deviations")
+}
+
+/// Analyse de sol, rattachée à une parcelle et à une campagne.
+model SoilAnalysis {
+  id           String   @id @default(cuid())
+  parcelId     String   @map("parcel_id")
+  campaignYear Int      @map("campaign_year")
+  sampledOn    DateTime @map("sampled_on")
+  laboratory   String?
+
+  depthCm              Int?     @map("depth_cm")
+  ph                   Decimal? @db.Decimal(4, 2)
+  organicMatter        Decimal? @map("organic_matter") @db.Decimal(6, 2)
+  nitrogenTotal        Decimal? @map("nitrogen_total") @db.Decimal(8, 3)
+  phosphorus           Decimal? @db.Decimal(8, 2)
+  potassium            Decimal? @db.Decimal(8, 2)
+  /// Reliquat azoté sortie hiver, en kg N/ha : la valeur qui entre au bilan.
+  residualNitrogenKgHa Decimal? @map("residual_nitrogen_kg_ha") @db.Decimal(8, 2)
+
+  /// Résultats non modélisés, conservés tels que rendus par le laboratoire.
+  results    Json?
+  documentId String? @map("document_id")
+  notes      String?
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parcel    Parcel    @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("SoilAnalysisAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  plans NitrogenPlan[]
+
+  @@index([parcelId, campaignYear])
+  @@map("soil_analyses")
+}
+
+/// Dose de référence servant au calcul de l'IFT.
+///
+/// L'IFT n'est pas un compteur de traitements : c'est un rapport entre la dose
+/// appliquée et une dose de référence publiée. Sans référentiel importé, aucun
+/// IFT n'est calculé — et l'interface le dit plutôt que d'afficher un nombre
+/// de passages déguisé en indicateur.
+model IftReference {
+  id            String @id @default(cuid())
+  referentialId String @map("referential_id")
+
+  /// Culture visée, telle que nommée par le référentiel.
+  cropLabel      String  @map("crop_label")
+  cropNormalized String  @map("crop_normalized")
+  /// Numéro d'AMM, quand la référence est propre à un produit.
+  amm            String?
+  /// Cible ou usage, quand la référence en dépend.
+  targetLabel    String? @map("target_label")
+
+  /// Catégorie officielle : herbicide, fongicide, insecticide, autres.
+  category String
+
+  doseValue String @map("dose_value")
+  doseUnit  String @map("dose_unit")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  referential RegulatoryReferential @relation(fields: [referentialId], references: [id], onDelete: Cascade)
+
+  @@index([referentialId, cropNormalized])
+  @@index([amm])
+  @@map("ift_references")
+}
+
+/// Anomalie détectée par le moteur, avec de quoi la comprendre.
+///
+/// Jamais « non conforme » : « anomalie détectée selon les référentiels
+/// disponibles ». Et quand un référentiel manque, l'anomalie est de niveau
+/// `INDETERMINE` — ce qui est une information, pas un silence.
+enum FindingLevel {
+  OK
+  INDETERMINE
+  VERIFICATION
+  ANOMALIE
+}
+
+model ComplianceFinding {
+  id           String  @id @default(cuid())
+  farmId       String  @map("farm_id")
+  parcelId     String? @map("parcel_id")
+  campaignYear Int     @map("campaign_year")
+
+  domain             RegulatoryDomain
+  level              FindingLevel
+  code               String
+  title              String
+  /// Ce qui est constaté, en clair.
+  detail             String
+  /// La règle invoquée et d'où elle vient. Nul quand le niveau est
+  /// `INDETERMINE` faute de référentiel — et c'est précisément l'information.
+  ruleLabel          String?          @map("rule_label")
+  referentialCode    String?          @map("referential_code")
+  referentialVersion String?          @map("referential_version")
+  sourceLabel        String?          @map("source_label")
+  /// Ce que l'agriculteur peut faire.
+  action             String?
+
+  /// Objet concerné, pour pouvoir y renvoyer depuis l'écran.
+  entity   String?
+  entityId String? @map("entity_id")
+
+  detectedAt DateTime @default(now()) @map("detected_at")
+
+  farm   Farm    @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parcel Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([farmId, campaignYear, level])
+  @@index([parcelId])
+  @@map("compliance_findings")
 }

@@ -11,6 +11,7 @@ import { computeNutrientBalance } from '@/lib/services/fertilization';
 import { currentCampaignYear, PARCEL_STATUS_LABELS } from '@/lib/constants/agronomy';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
+import { computeParcelContext } from '@/lib/regulatory/geography';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
 import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
 import {
@@ -120,6 +121,26 @@ export default async function ParcelPage({
     })),
   );
 
+  /**
+   * Contexte réglementaire, recalculé à l'affichage.
+   *
+   * À l'affichage plutôt qu'à la création de la parcelle : un zonage importé
+   * après coup doit se répercuter sans qu'on ait à repasser sur chaque
+   * parcelle. Le calcul est une découpe PostGIS sur un index GiST, sans
+   * commune mesure avec le reste du chargement de la page.
+   *
+   * Un échec ne casse pas la fiche : le contexte vaut alors `null` et le bloc
+   * affiche qu'il n'a pas été déterminé. Une parcelle doit rester consultable
+   * même quand le moteur réglementaire a un problème.
+   */
+  const contexteReglementaire = await computeParcelContext(id)
+    .then((contexte) => ({
+      ...contexte,
+      commune: parcel.commune,
+      computedAt: new Date().toISOString(),
+    }))
+    .catch(() => null);
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -210,6 +231,7 @@ export default async function ParcelPage({
           drainedSoil: parcel.drainedSoil,
           createdAt: parcel.createdAt.toISOString(),
         }}
+        regulatoryContext={contexteReglementaire}
         campaignYear={year}
         cropYears={parcel.cropYears.map((cy) => ({
           id: cy.id,
