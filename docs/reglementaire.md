@@ -312,6 +312,53 @@ Chaque référentiel lit son adresse dans une variable d'environnement
 (`ZONES_VULNERABLES_URL`, `IFT_DATA_URL`…). Sans elle, il reste
 « non configuré », ce que l'interface affiche en toutes lettres.
 
+### Services web : WFS oui, WMS non
+
+Les DREAL publient leurs zonages **en services web bien plus souvent qu'en
+fichiers**. Le cas rencontré en Auvergne-Rhône-Alpes est représentatif : des deux
+jeux publiés, l'un n'existait qu'en `wms` et `wfs`, l'autre en `mapinfo tab`. Un
+exploitant de cette région ne pouvait donc pas importer le zonage de sa propre
+région — pas une limite acceptable, un défaut.
+
+La distinction compte, et elle n'est pas de vocabulaire :
+
+| Format | Ce qu'il rend | Utilisable ? |
+| --- | --- | --- |
+| **WFS** | des géométries et leurs attributs | **oui** — c'est ce qu'il faut |
+| **WMS** | une image de carte déjà dessinée | non : on ne croise pas une image avec une parcelle |
+| **MapInfo TAB/MIF** | un fichier propriétaire | non lu par Parcelys |
+
+Quand une ressource n'est pas exploitable, `chercher` ne se contente plus de le
+constater : il dit **pourquoi** et **quoi faire à la place** — pour un WMS,
+demander le WFS équivalent, que le même producteur publie presque toujours.
+
+```bash
+# Lister les couches exposées par un service (Parcelys n'en choisit aucune)
+npm run referentiels -- importer-zonage --code zones-vulnerables \
+    --dataset <identifiant> --ressource <identifiant> --territoire 69
+
+# Importer la couche retenue
+npm run referentiels -- importer-zonage --code zones-vulnerables \
+    --dataset <identifiant> --couche nitrates:zones_vulnerables_2021 --territoire 69
+```
+
+Un service WFS expose couramment plusieurs couches — zones vulnérables, ZAR,
+communes. En choisir une automatiquement importerait le mauvais zonage sans que
+rien ne le signale : les couches sont listées, l'humain tranche.
+
+Deux détails techniques qui ont chacun leur test, parce qu'ils se trompent en
+silence :
+
+- **La version du service n'est pas celle du document XML.** Tout
+  GetCapabilities commence par `<?xml version="1.0"?>` ; lire le premier
+  `version=` ramène « 1.0 » pour tous les services. Parcelys aurait alors envoyé
+  les paramètres de la version 1 à un serveur 2.0.0 et, surtout, cessé de
+  paginer : un zonage de 8 000 polygones se serait importé à 1 000, sans
+  message. La version est lue sur l'élément racine, ou dans
+  `ServiceTypeVersion`.
+- **La pagination change de nom selon la version** : `typeNames`/`count`/
+  `startIndex` en 2.0.0, `typeName`/`maxFeatures` avant.
+
 ### Importer
 
 ```bash

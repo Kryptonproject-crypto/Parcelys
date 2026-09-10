@@ -41,6 +41,12 @@ import {
   versionOf,
   type DatagouvResource,
 } from '@/lib/regulatory/datagouv';
+import {
+  classifyResourceFormat,
+  describeWfs,
+  explainFormat,
+  fetchWfsFeatures,
+} from '@/lib/regulatory/wfs';
 import type { ZoneKind } from '@prisma/client';
 
 type Args = Record<string, string | boolean>;
@@ -227,28 +233,118 @@ async function importerZonage(args: Args): Promise<void> {
     return;
   }
 
-  let brut: string;
-  if (fichier) {
-    console.info(`→ Lecture de ${fichier}`);
-    brut = await readFile(path.resolve(fichier), 'utf8');
-  } else {
-    console.info(`↓ Téléchargement : ${url}`);
-    const reponse = await fetch(url as string, {
-      headers: { 'User-Agent': 'Parcelys/referentiels' },
-      redirect: 'follow',
-    });
-    if (!reponse.ok) {
-      throw new Error(`Téléchargement impossible (HTTP ${reponse.status}) : ${url}`);
-    }
-    brut = await reponse.text();
+  let features: ZoneFeature[] = [];
+  const nature = classifyResourceFormat(
+    ressource?.format ?? (typeof args.format === 'string' ? args.format : null),
+  );
+
+  if (nature === 'wms') {
+    // Un WMS rend des images. On ne croise pas une image avec une parcelle.
+    console.error(`✗ ${explainFormat(ressource?.format ?? 'wms')}`);
+    process.exitCode = 1;
+    return;
   }
 
-  const collection = JSON.parse(brut) as {
-    type?: string;
-    features?: ZoneFeature[];
-  };
+  if (nature === 'wfs' && !fichier) {
+    // --- Service WFS ------------------------------------------------------
+    console.info(`→ Interrogation du service WFS : ${url}`);
+    const capacites = await describeWfs(url as string);
+    console.info(`  version   : WFS ${capacites.version}`);
+    console.info(`  couches   : ${capacites.layers.length}`);
 
-  const features = collection.features ?? [];
+    if (capacites.layers.length === 0) {
+      console.error('✗ Ce service n’expose aucune couche.');
+      process.exitCode = 1;
+      return;
+    }
+
+    const demandee = typeof args.couche === 'string' ? args.couche : null;
+    const couche = demandee
+      ? capacites.layers.find((l) => l.name === demandee)
+      : capacites.layers.length === 1
+        ? capacites.layers[0]
+        : undefined;
+
+    if (!couche) {
+      // Un service de DREAL expose couramment plusieurs couches — zones
+      // vulnérables, ZAR, communes. En choisir une au hasard importerait le
+      // mauvais zonage sans que rien ne le signale.
+      console.error(
+        demandee
+          ? `✗ Couche « ${demandee} » absente de ce service.\n`
+          : '✗ Ce service expose plusieurs couches : précisez laquelle avec --couche.\n',
+      );
+      for (const l of capacites.layers) {
+        console.info(`    ${l.name}`);
+        console.info(`      ${l.title}`);
+        if (l.abstract) console.info(`      ${l.abstract.slice(0, 120)}`);
+      }
+      console.info(
+        `\n  Exemple :\n    npm run referentiels -- importer-zonage --code ${code} \\\n` +
+          `        --dataset ${args.dataset ?? '<identifiant>'} --couche ${capacites.layers[0]?.name} \\\n` +
+          '        --territoire <code INSEE>\n',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    if (!capacites.geojsonFormat) {
+      console.error(
+        '✗ Ce service ne sait pas rendre de GeoJSON.\n' +
+          `  Formats annoncés : ${capacites.outputFormats.join(', ') || '—'}\n\n` +
+          '  Téléchargez le fichier auprès du producteur et utilisez --fichier.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    console.info(`  couche    : ${couche.name} (${couche.title})`);
+    console.info(`  format    : ${capacites.geojsonFormat}`);
+
+    const resultat = await fetchWfsFeatures({
+      serviceUrl: url as string,
+      typeName: couche.name,
+      version: capacites.version,
+      outputFormat: capacites.geojsonFormat,
+      onProgress: (recues, total) => {
+        process.stdout.write(
+          `\r  entités   : ${recues.toLocaleString('fr-FR')}${total ? ` / ${total.toLocaleString('fr-FR')}` : ''}   `,
+        );
+      },
+    });
+    process.stdout.write('\n');
+    features = resultat.features as ZoneFeature[];
+    provenance = `${provenance} — WFS ${resultat.version}, couche ${couche.name}`;
+  } else {
+    // --- Fichier ----------------------------------------------------------
+    let brut: string;
+    if (fichier) {
+      console.info(`→ Lecture de ${fichier}`);
+      brut = await readFile(path.resolve(fichier), 'utf8');
+    } else {
+      console.info(`↓ Téléchargement : ${url}`);
+      const reponse = await fetch(url as string, {
+        headers: { 'User-Agent': 'Parcelys/referentiels' },
+        redirect: 'follow',
+      });
+      if (!reponse.ok) {
+        throw new Error(`Téléchargement impossible (HTTP ${reponse.status}) : ${url}`);
+      }
+      brut = await reponse.text();
+    }
+
+    try {
+      const collection = JSON.parse(brut) as { features?: ZoneFeature[] };
+      features = collection.features ?? [];
+    } catch {
+      console.error(
+        `✗ Le contenu récupéré n’est pas du GeoJSON.\n  ${explainFormat(ressource?.format ?? null)}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   if (features.length === 0) {
     console.error(
       '✗ Le fichier ne contient aucune entité. Rien n’a été importé — mieux vaut\n' +
@@ -421,6 +517,12 @@ async function chercher(args: Args): Promise<void> {
       console.info(
         `     ressource   : aucune exploitable (formats présents : ${c.availableFormats.join(', ') || '—'})`,
       );
+      // Dire POURQUOI, et vers quoi se tourner. « Aucune exploitable » seul
+      // laisse croire que le jeu est inutilisable, alors que le producteur
+      // publie souvent le même zonage sous une autre forme.
+      for (const format of c.availableFormats) {
+        console.info(`                   ${explainFormat(format)}`);
+      }
     }
     console.info('');
   }

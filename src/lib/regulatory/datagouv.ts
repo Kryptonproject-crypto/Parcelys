@@ -163,8 +163,18 @@ export async function getDataset(
   return lire<DatagouvDataset>(`/datasets/${encodeURIComponent(idOrSlug)}/`, fetcher);
 }
 
-/** Formats que Parcelys sait lire pour un zonage, du plus commode au moins. */
-export const FORMATS_ZONAGE = ['geojson', 'json', 'shp', 'zip'] as const;
+/**
+ * Formats que Parcelys sait lire pour un zonage, du plus commode au moins.
+ *
+ * `wfs` y figure, et ce n'est pas un détail : les DREAL publient leurs zonages
+ * en service web bien plus souvent qu'en fichier. Sans lui, la recherche
+ * trouvait le bon jeu et concluait « aucune ressource exploitable » — un
+ * exploitant ne pouvait pas importer le zonage de sa propre région.
+ *
+ * Le GeoJSON reste en tête : un fichier s'importe d'un coup, un WFS demande de
+ * choisir une couche et de paginer.
+ */
+export const FORMATS_ZONAGE = ['geojson', 'json', 'shp', 'zip', 'wfs'] as const;
 
 /**
  * Retient la ressource la plus exploitable d'un jeu de données.

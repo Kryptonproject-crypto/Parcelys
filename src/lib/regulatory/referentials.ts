@@ -125,7 +125,7 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
       'Le classement de la parcelle reste indéterminé. Aucune règle nitrates n’est opposée, et l’interface le signale.',
     datagouv: {
       query: 'zones vulnérables nitrates',
-      formats: ['geojson', 'json', 'shp', 'zip'],
+      formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note:
         'Aucun jeu national : des dizaines de jeux régionaux et départementaux, de millésimes différents. Choisir CELUI de son territoire — un autre classerait des parcelles à tort.',
     },
@@ -141,7 +141,7 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     degradedWithout: 'Les prescriptions renforcées éventuelles ne sont pas opposées.',
     datagouv: {
       query: 'zones actions renforcées nitrates',
-      formats: ['geojson', 'json', 'shp', 'zip'],
+      formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note: 'Publiées par les DREAL régionales, à l’intérieur des zones vulnérables.',
     },
   },
@@ -192,7 +192,7 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     degradedWithout: 'La proximité d’un captage n’est pas détectée.',
     datagouv: {
       query: 'captages aire alimentation captage périmètre protection',
-      formats: ['geojson', 'json', 'shp', 'zip'],
+      formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note:
         'Un captage est souvent publié en points ; seules les aires et périmètres, qui sont des surfaces, permettent de calculer une part de parcelle concernée.',
     },
@@ -209,7 +209,7 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
       'La proximité d’un cours d’eau n’est pas détectée : les ZNT restent affichées sans être rapportées au terrain.',
     datagouv: {
       query: 'cours d’eau police de l’eau BD TOPO hydrographie',
-      formats: ['geojson', 'json', 'shp', 'zip'],
+      formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note:
         'Les cours d’eau sont des lignes : leur import sert au repérage, pas au calcul de surface concernée.',
     },
