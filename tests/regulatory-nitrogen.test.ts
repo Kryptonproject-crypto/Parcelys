@@ -190,7 +190,13 @@ describe('Bilan azoté et IFT', () => {
         treatedAreaHa: 10,
         totalQuantity: 2000,
         totalUnit: 'kg',
-        nSupplied: 1650, // 165 kg N/ha sur 10 ha
+        // `nSupplied` est une **dose à l'hectare**, pas un total : c'est ce que
+        // `computeNutrients` produit (dose × teneur), et `tests/agronomy.test.ts`
+        // l'atteste sur ce même produit. Ce test écrivait ici un total (1650),
+        // et `comparePlanToActual` le redivisait par la surface — le réalisé
+        // ressortait à 165 par une double erreur qui s'annulait sur 10 ha, et
+        // qui se serait vue sur toute autre surface.
+        nSupplied: 165,
       },
     });
 
@@ -198,9 +204,51 @@ describe('Bilan azoté et IFT', () => {
     expect(comparaison).not.toBeNull();
     expect(comparaison?.plannedKgHa).toBe(150);
     expect(comparaison?.actualKgHa).toBe(165);
+    // La dose telle qu'appliquée, distincte de sa contribution à l'hectare de
+    // parcelle : ici les deux coïncident, la parcelle entière ayant été traitée.
+    expect(comparaison?.applications[0]?.doseKgHa).toBe(165);
     expect(comparaison?.deviationKgHa).toBe(15);
     expect(comparaison?.exceeds).toBe(true);
     expect(comparaison?.justified).toBe(false);
+  });
+
+  it('ramène la dose à l’hectare de parcelle quand une partie seulement est traitée', async () => {
+    // Le test qui aurait attrapé le défaut d'origine.
+    //
+    // Sur une parcelle entièrement traitée, prendre `nSupplied` pour un total
+    // et le rediviser par la surface donnait le bon résultat par accident : les
+    // deux erreurs s'annulaient. Dès que la surface traitée diffère de la
+    // parcelle, elles ne s'annulent plus.
+    //
+    // Ici : 150 kg N/ha appliqués sur 4 ha d'une parcelle de 10 ha. La parcelle
+    // a donc reçu 600 kg, soit 60 kg N/ha de parcelle.
+    const plan = await creerPlan();
+    await prisma.nitrogenPlanEntry.create({
+      data: { planId: plan.id, label: 'Urée', inputType: 'MINERAL', efficientKgHa: 100 },
+    });
+    await prisma.fertilizerApplication.create({
+      data: {
+        parcelId,
+        cropYearId,
+        appliedOn: new Date('2026-03-01'),
+        inputType: 'MINERAL',
+        productLabel: 'Urée',
+        dose: 326,
+        doseUnit: 'kg/ha',
+        treatedAreaHa: 4,
+        totalQuantity: 1304,
+        totalUnit: 'kg',
+        nSupplied: 150,
+      },
+    });
+
+    const comparaison = await comparePlanToActual(plan.id);
+    expect(comparaison?.applications[0]?.doseKgHa).toBe(150);
+    expect(comparaison?.actualKgHa).toBe(60);
+    // 60 < 100 : pas de dépassement. L'ancien calcul rendait 37,5 — faux, et
+    // dans le même sens que l'erreur d'origine : toujours trop bas, donc
+    // toujours rassurant.
+    expect(comparaison?.exceeds).toBe(false);
   });
 
   it('tient compte de la justification enregistrée', async () => {
@@ -220,7 +268,7 @@ describe('Bilan azoté et IFT', () => {
         treatedAreaHa: 10,
         totalQuantity: 2500,
         totalUnit: 'kg',
-        nSupplied: 1200,
+        nSupplied: 120,
       },
     });
     await prisma.nitrogenPlanDeviation.create({

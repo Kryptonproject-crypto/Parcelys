@@ -360,7 +360,11 @@ export type PlanVsActual = {
     id: string;
     appliedOn: string;
     label: string;
+    /** Dose appliquée sur la surface traitée, en kg N/ha. */
+    doseKgHa: number | null;
+    /** Cette dose ramenée à l'hectare de parcelle — ce que le plan compare. */
     nKgHa: number | null;
+    treatedAreaHa: number;
   }>;
   /**
    * Irrigation réellement effectuée sur la campagne.
@@ -481,7 +485,17 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
     include: {
       entries: { select: { efficientKgHa: true, totalKgHa: true } },
       deviations: { select: { id: true } },
-      cropYear: { select: { id: true, parcelId: true, campaignYear: true } },
+      cropYear: {
+        select: {
+          id: true,
+          campaignYear: true,
+          parcelId: true,
+          // La surface de la parcelle est indispensable : un apport ne couvre
+          // pas toujours la parcelle entière, et le prévisionnel s'exprime en
+          // kg N par hectare **de parcelle**.
+          parcel: { select: { areaHa: true } },
+        },
+      },
     },
   });
   if (!plan) return null;
@@ -498,18 +512,38 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
     orderBy: { appliedOn: 'asc' },
   });
 
+  // `nSupplied` est une **dose à l'hectare**, pas un total.
+  //
+  // Le piège vaut d'être expliqué, parce qu'il ne se voit pas : `computeNutrients`
+  // calcule à partir de la dose (kg/ha × teneur), et sa documentation le dit —
+  // « Éléments fertilisants apportés, en kg/ha ». Le code d'ici supposait
+  // l'inverse et divisait encore par la surface traitée.
+  //
+  // Sur une parcelle de 74 ha, un apport de 112,5 kg N/ha ressortait à
+  // 1,51 kg N/ha. Le réalisé était donc environ 75 fois trop bas, et le
+  // contrôle de dépassement du prévisionnel — la vérification centrale de la
+  // fertilisation azotée — ne se serait pratiquement jamais déclenché.
+  //
+  // Un apport ne couvre pas toujours toute la parcelle : on ramène donc la
+  // dose à l'hectare **de parcelle**, en la pondérant par la part traitée.
+  const surfaceParcelleHa = nombre(plan.cropYear.parcel.areaHa) ?? 0;
+
   const applications = apports.map((apport) => {
-    const surface = nombre(apport.treatedAreaHa) ?? 0;
-    const azoteTotal = nombre(apport.nSupplied);
+    const surfaceTraitee = nombre(apport.treatedAreaHa) ?? 0;
+    const doseKgHa = nombre(apport.nSupplied);
+
     return {
       id: apport.id,
       appliedOn: apport.appliedOn.toISOString(),
       label: apport.productLabel,
-      // `nSupplied` porte l'azote total de l'apport, pas la dose à l'hectare.
+      /** Dose réellement appliquée, sur la surface traitée. */
+      doseKgHa,
+      /** Ramenée à l'hectare de parcelle : c'est ce que le plan compare. */
       nKgHa:
-        azoteTotal !== null && surface > 0
-          ? Number((azoteTotal / surface).toFixed(2))
-          : null,
+        doseKgHa !== null && surfaceParcelleHa > 0
+          ? Number(((doseKgHa * surfaceTraitee) / surfaceParcelleHa).toFixed(2))
+          : doseKgHa,
+      treatedAreaHa: surfaceTraitee,
     };
   });
 

@@ -394,6 +394,93 @@ import diminué, et cela doit rester visible.
 
 ---
 
+## 5 bis. Plafond d'azote organique, et cahier d'épandage
+
+### Pourquoi 170 n'est écrit nulle part
+
+Le plafond d'azote issu d'effluents d'élevage — 170 kg N/ha de SAU et par an en
+zone vulnérable — est le chiffre le plus connu de la directive nitrates. Il
+serait tentant de l'écrire en constante.
+
+Trois raisons l'interdisent, et chacune suffirait :
+
+- **Il ne s'applique pas partout.** Hors zone vulnérable, il n'est pas
+  opposable. Une exploitation entièrement hors zone verrait une alerte qui ne la
+  concerne pas — et cesserait de lire les alertes.
+- **Des dérogations existent.** Certains programmes régionaux, certains systèmes
+  d'élevage relèvent le plafond ou en ajoutent un autre.
+- **Un chiffre en dur n'a pas de source.** Un exploitant contrôlé doit pouvoir
+  dire d'où vient la valeur qu'on lui oppose. « C'est écrit dans le logiciel »
+  n'est pas une réponse.
+
+Parcelys calcule donc **toujours** ce qui a été épandu — une donnée de
+l'exploitation, jamais indisponible — et ne le compare à un plafond que si le
+programme d'actions en fournit un. Sinon il affiche la quantité et dit qu'il n'y
+a rien à quoi la comparer.
+
+Un programme d'actions est un **arrêté**, pas un jeu de données : les règles se
+saisissent, et `--source` est obligatoire.
+
+```bash
+npm run referentiels -- regle --code plafond-azote-organique \
+    --valeur 170 --unite "kg N/ha" --territoire 45 \
+    --depuis 2024-01-01 --version "PAR-CVL-7" \
+    --source "Arrêté du 19/12/2011, art. 2 — PAR Centre-Val de Loire"
+```
+
+### Le piège des unités, et ce qu'il a coûté
+
+`nSupplied` est une **dose à l'hectare**, pas un total. C'est ce que produit
+`computeNutrients` (dose × teneur), et sa documentation le dit.
+
+`comparePlanToActual` supposait l'inverse et redivisait par la surface traitée.
+Sur une parcelle de 74 ha, un apport de 112,5 kg N/ha ressortait à
+**1,51 kg N/ha** : le réalisé était environ 75 fois trop bas, et le contrôle de
+dépassement du prévisionnel — la vérification centrale de la fertilisation
+azotée — ne se serait pratiquement jamais déclenché.
+
+Deux détails rendaient le défaut invisible :
+
+- sur une parcelle **entièrement** traitée, la double erreur s'annulait ;
+- deux fixtures de test encodaient la convention inverse, et se contredisaient
+  entre elles (`agronomy.test.ts` attendait 67 kg N/ha là où
+  `regulatory-nitrogen.test.ts` écrivait un total).
+
+Le calcul retenu tient compte d'un traitement partiel :
+
+```
+réalisé (kg N/ha de parcelle) = Σ (dose kg N/ha × surface traitée) / surface de la parcelle
+```
+
+Un test de non-régression traite volontairement **4 ha sur 10** : c'est le seul
+cas où l'ancienne erreur ne s'annule pas.
+
+### Le cahier d'épandage est produit, jamais saisi
+
+Chaque ligne vient d'un apport organique déjà enregistré. Un cahier saisi à part
+aurait divergé du registre dès le premier oubli — et c'est le cahier qu'un
+contrôle lirait.
+
+Les lignes incomplètes **ne sont pas écartées** : un cahier amputé de ses lignes
+gênantes se présenterait mieux et vaudrait moins. Ce qui manque est écrit sur la
+ligne, et compté en tête du document.
+
+Le pied de page porte le plafond opposé **avec sa référence de texte**, ou dit
+qu'aucun n'est configuré. Il n'écrit jamais 170 de lui-même.
+
+### Vérifier
+
+```bash
+npm run check:plafond
+```
+
+Éprouve les deux sens : sans règle importée, aucun verdict ; avec une règle, le
+dépassement **et** le respect, chacun avec sa source. Le seuil du test est
+dérivé des données réelles de la base plutôt que fixé à 170 — un test qui
+dépendrait du chiffre officiel n'éprouverait pas le mécanisme.
+
+---
+
 ## 7 bis. Couverture des sols, irrigation, rotation
 
 ### Ce que Parcelys ne codera pas
@@ -483,9 +570,9 @@ prononce aucune conformité. Un test unitaire ne peut pas le prouver.
 Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
 
 **Priorité 2 (0.7.0)** — ~~stocks et lots~~ · ~~couverture des sols~~ ·
-~~irrigation comme événement~~ · ~~rotations~~ · plafond d'azote organique ·
-dossier de contrôle · justificatifs typés · couches réglementaires sur la
-carte.
+~~irrigation comme événement~~ · ~~rotations~~ · ~~plafond d'azote organique~~ ·
+~~cahier d'épandage~~ · dossier de contrôle · justificatifs typés · couches
+réglementaires sur la carte.
 
 **Priorité 3 (0.8.0)** — détection automatique des nouvelles versions de
 référentiels · alertes avancées · registre phytosanitaire électronique lisible

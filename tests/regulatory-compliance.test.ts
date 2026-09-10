@@ -155,6 +155,16 @@ describe('Synthèse de conformité', () => {
     await prisma.nitrogenPlanEntry.create({
       data: { planId: plan.id, label: 'Urée', inputType: 'MINERAL', efficientKgHa: 150 },
     });
+    // La superficie est celle que PostGIS a calculée depuis le contour, pas le
+    // 10 saisi à la création : c'est PostGIS qui fait autorité. On traite la
+    // parcelle entière, pour que le dépassement porte bien sur la dose et non
+    // sur une part de surface.
+    const { areaHa } = await prisma.parcel.findUniqueOrThrow({
+      where: { id: parcelId },
+      select: { areaHa: true },
+    });
+    const surface = Number(areaHa);
+
     await prisma.fertilizerApplication.create({
       data: {
         parcelId,
@@ -164,10 +174,14 @@ describe('Synthèse de conformité', () => {
         productLabel: 'Ammonitrate',
         dose: 200,
         doseUnit: 'kg/ha',
-        treatedAreaHa: 10,
-        totalQuantity: 2000,
+        treatedAreaHa: surface,
+        totalQuantity: 200 * surface,
         totalUnit: 'kg',
-        nSupplied: 1650,
+        // Dose **à l'hectare**, pas un total : c'est ce que `computeNutrients`
+        // produit. Cette fixture écrivait 1650, et `comparePlanToActual` le
+        // redivisait par la surface traitée — les deux erreurs s'annulaient
+        // tant que la parcelle était entièrement traitée.
+        nSupplied: 165,
       },
     });
 

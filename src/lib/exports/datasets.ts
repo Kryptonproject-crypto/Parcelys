@@ -1,6 +1,10 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { OPERATION_LABELS, PARCEL_STATUS_LABELS } from '@/lib/constants/agronomy';
+import {
+  cahierEpandage,
+  plafondAzoteOrganique,
+} from '@/lib/regulatory/organic-nitrogen';
 
 export type ExportColumn = {
   key: string;
@@ -629,6 +633,116 @@ const HISTORY_KIND_LABELS: Record<string, string> = {
   DOCUMENT: 'Document',
 };
 
+/**
+ * Cahier d'épandage.
+ *
+ * ## Produit, jamais saisi
+ *
+ * Chaque ligne vient d'un apport organique déjà enregistré. Un cahier saisi à
+ * part aurait divergé du registre dès le premier oubli — et c'est le cahier
+ * qu'un contrôle lirait.
+ *
+ * ## Les lignes incomplètes restent
+ *
+ * Un cahier amputé de ses lignes gênantes se présenterait mieux et vaudrait
+ * moins. Ce qui manque est écrit sur la ligne elle-même, et compté en tête.
+ *
+ * ## Aucun plafond n'est imprimé sans sa source
+ *
+ * Le ratio d'azote organique à l'hectare figure dans la synthèse. Il n'est
+ * confronté à un plafond que si le programme d'actions en fournit un, et ce
+ * plafond est alors imprimé **avec sa référence de texte**. Sans règle
+ * importée, le document dit qu'il n'y a rien à quoi comparer — il n'écrit pas
+ * 170.
+ */
+export async function buildSpreadingLogDataset(
+  filters: DatasetFilters,
+): Promise<ExportDataset> {
+  const annee = filters.year ?? new Date().getFullYear();
+  const [cahier, plafond] = await Promise.all([
+    cahierEpandage({ farmId: filters.farmId, campaignYear: annee }),
+    plafondAzoteOrganique({ farmId: filters.farmId, campaignYear: annee }),
+  ]);
+
+  const notices: string[] = [];
+  if (cahier.lignesIncompletes > 0) {
+    notices.push(
+      `${cahier.lignesIncompletes} ligne(s) incomplète(s), conservées et signalées : ` +
+        'un cahier amputé de ses lignes gênantes vaudrait moins.',
+    );
+  }
+  if (plafond.manque) notices.push(plafond.manque);
+
+  const summary = [
+    { label: 'Épandages', value: String(cahier.lignes.length) },
+    {
+      label: 'Azote organique',
+      value: `${cahier.totalAzoteKg.toLocaleString('fr-FR')} kg`,
+    },
+    {
+      label: 'Par hectare',
+      value:
+        plafond.parHectare === null
+          ? 'non calculable'
+          : `${plafond.parHectare.toLocaleString('fr-FR')} kg N/ha`,
+    },
+    {
+      label: 'Plafond opposable',
+      value: plafond.plafond
+        ? `${plafond.plafond.valeurKgHa} ${plafond.plafond.unite}`
+        : 'non configuré',
+    },
+  ];
+
+  return {
+    title: 'Cahier d’épandage',
+    subtitle: `${filters.farmName} — campagne ${annee}`,
+    summary,
+    notices,
+    orientation: 'landscape',
+    columns: [
+      { key: 'date', header: 'Date' },
+      { key: 'parcelle', header: 'Parcelle' },
+      { key: 'ilot', header: 'Îlot PAC' },
+      { key: 'culture', header: 'Culture' },
+      { key: 'produit', header: 'Effluent' },
+      { key: 'dose', header: 'Dose', align: 'right' },
+      { key: 'surface', header: 'Surface (ha)', align: 'right' },
+      { key: 'quantite', header: 'Quantité totale', align: 'right' },
+      { key: 'azote', header: 'N (kg)', align: 'right' },
+      { key: 'azoteHa', header: 'N (kg/ha)', align: 'right' },
+      { key: 'operateur', header: 'Opérateur' },
+      { key: 'manque', header: 'À compléter' },
+    ],
+    rows: cahier.lignes.map((l) => ({
+      date: l.appliedOn.toLocaleDateString('fr-FR'),
+      parcelle: l.parcelName,
+      ilot: l.pacId ?? '—',
+      culture: l.cropName ?? '—',
+      produit: l.organicInputName ?? l.productLabel,
+      dose: `${l.dose.toLocaleString('fr-FR')} ${l.doseUnit}`,
+      surface: l.treatedAreaHa.toLocaleString('fr-FR'),
+      quantite: `${l.totalQuantity.toLocaleString('fr-FR')} ${l.totalUnit}`,
+      azote: l.nSupplied === null ? '—' : l.nSupplied.toLocaleString('fr-FR'),
+      azoteHa: l.nParHectare === null ? '—' : l.nParHectare.toLocaleString('fr-FR'),
+      operateur: l.operator ?? '—',
+      manque: l.lacunes.join(' · ') || '',
+    })),
+    totals: {
+      parcelle: 'Total',
+      azote: cahier.totalAzoteKg.toLocaleString('fr-FR'),
+    },
+    footnote: plafond.plafond
+      ? `Plafond opposé : ${plafond.plafond.valeurKgHa} ${plafond.plafond.unite} — ` +
+        `${plafond.plafond.sourceRef ?? plafond.plafond.sourceLabel} ` +
+        `(${plafond.plafond.referentialCode} ${plafond.plafond.referentialVersion}). ` +
+        'Document produit à partir des apports enregistrés dans Parcelys.'
+      : 'Aucun plafond d’azote organique n’est configuré : ce document ne compare ' +
+        'la quantité épandue à aucune valeur. Document produit à partir des apports ' +
+        'enregistrés dans Parcelys.',
+  };
+}
+
 export const DATASET_BUILDERS = {
   parcelles: buildParcelDataset,
   phytosanitaire: buildPhytoDataset,
@@ -637,6 +751,7 @@ export const DATASET_BUILDERS = {
   travaux: buildOperationsDataset,
   cultures: buildCropsDataset,
   historique: buildHistoryDataset,
+  'cahier-epandage': buildSpreadingLogDataset,
 } as const;
 
 export type DatasetName = keyof typeof DATASET_BUILDERS;

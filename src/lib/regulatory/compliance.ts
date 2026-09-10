@@ -5,6 +5,7 @@ import { buildNitrogenBalance, comparePlanToActual } from '@/lib/regulatory/nitr
 import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
 import { constatsCouverture } from '@/lib/regulatory/soil-cover';
+import { plafondAzoteOrganique } from '@/lib/regulatory/organic-nitrogen';
 import type { FindingLevel, RegulatoryDomain } from '@prisma/client';
 
 /**
@@ -287,6 +288,71 @@ export async function buildComplianceReport(params: {
       detail: `${sansAmm} traitement${sansAmm > 1 ? 's' : ''} enregistré${sansAmm > 1 ? 's' : ''} sans AMM : le registre est incomplet.`,
       action: 'Rattachez ces traitements au catalogue E-Phy, ou reportez l’AMM de l’étiquette.',
     });
+  }
+
+  // --- Plafond d'azote organique --------------------------------------------
+  //
+  // Le chiffre de 170 kg N/ha n'est pas écrit dans Parcelys : il ne s'applique
+  // pas partout, connaît des dérogations, et un chiffre en dur n'a pas de
+  // source à montrer lors d'un contrôle. Sans plafond importé, on affiche la
+  // quantité épandue et on dit qu'il n'y a rien à quoi la comparer.
+  const plafond = await plafondAzoteOrganique({
+    farmId: params.farmId,
+    campaignYear: params.campaignYear,
+  });
+
+  if (plafond.apports > 0) {
+    const parHa =
+      plafond.parHectare === null
+        ? 'ratio incalculable'
+        : `${plafond.parHectare.toLocaleString('fr-FR')} kg N/ha`;
+
+    if (plafond.verdict === 'ANOMALIE' && plafond.plafond) {
+      findings.push({
+        domain: 'NITRATES',
+        level: 'ANOMALIE',
+        code: 'nitrates.plafond-organique-depasse',
+        title: 'Plafond d’azote organique dépassé',
+        detail:
+          `${parHa} épandus sur ${plafond.surfaceHa.toLocaleString('fr-FR')} ha, ` +
+          `pour un plafond de ${plafond.plafond.valeurKgHa} ${plafond.plafond.unite}.`,
+        action:
+          'Vérifiez les apports de la campagne, ou la dérogation dont vous relevez.',
+        ruleLabel: `Plafond ${plafond.plafond.valeurKgHa} ${plafond.plafond.unite}`,
+        referentialCode: plafond.plafond.referentialCode,
+        referentialVersion: plafond.plafond.referentialVersion,
+        sourceLabel: plafond.plafond.sourceLabel,
+      });
+    } else if (plafond.verdict === 'OK' && plafond.plafond) {
+      findings.push({
+        domain: 'NITRATES',
+        level: 'OK',
+        code: 'nitrates.plafond-organique',
+        title: 'Azote organique sous le plafond',
+        detail:
+          `${parHa} épandus, pour un plafond de ${plafond.plafond.valeurKgHa} ` +
+          `${plafond.plafond.unite}.`,
+        ruleLabel: `Plafond ${plafond.plafond.valeurKgHa} ${plafond.plafond.unite}`,
+        referentialCode: plafond.plafond.referentialCode,
+        referentialVersion: plafond.plafond.referentialVersion,
+        sourceLabel: plafond.plafond.sourceLabel,
+      });
+    } else {
+      findings.push({
+        domain: 'NITRATES',
+        level: plafond.verdict === 'VERIFICATION' ? 'VERIFICATION' : 'INDETERMINE',
+        code: 'nitrates.plafond-organique-non-verifiable',
+        title: 'Azote organique : plafond non vérifiable',
+        detail:
+          `${plafond.azoteOrganiqueKg.toLocaleString('fr-FR')} kg d’azote organique ` +
+          `épandus (${parHa}). ${plafond.manque ?? ''}`.trim(),
+        action:
+          plafond.verdict === 'VERIFICATION'
+            ? 'Complétez la teneur en azote des apports concernés.'
+            : 'Importez le programme d’actions régional et sa règle de plafond.',
+        ...(plafond.plafond ? { referentialCode: plafond.plafond.referentialCode } : {}),
+      });
+    }
   }
 
   // --- Couverture des sols en interculture ----------------------------------

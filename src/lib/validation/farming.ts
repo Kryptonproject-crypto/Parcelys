@@ -252,6 +252,7 @@ export const exportQuerySchema = z.object({
     'historique',
     'travaux',
     'cultures',
+    'cahier-epandage',
   ]),
   format: z.enum(['csv', 'xlsx', 'pdf']),
   year: z.coerce.number().int().min(1900).max(2200).optional(),

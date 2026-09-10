@@ -28,7 +28,9 @@ import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import {
   REFERENTIAL_CATALOG,
+  beginImport,
   findSpec,
+  finishImport,
   getReferentialStates,
 } from '@/lib/regulatory/referentials';
 import { importZoneCollection, type ZoneFeature } from '@/lib/regulatory/import-zones';
@@ -534,6 +536,127 @@ async function chercher(args: Args): Promise<void> {
   );
 }
 
+/**
+ * Saisie d'une règle du programme d'actions, avec sa référence de texte.
+ *
+ * ## Pourquoi une saisie, et pas un import
+ *
+ * Un programme d'actions est un **arrêté**, pas un jeu de données. Ce qui
+ * circule en ouvert sur data.gouv.fr en est partiel et hétérogène. Il n'y a
+ * donc rien à télécharger : les règles se saisissent, une à une, en recopiant
+ * l'arrêté.
+ *
+ * Ce que la commande impose, et qui fait toute la différence avec un chiffre
+ * écrit dans le code : **`--source` est obligatoire**. Un exploitant contrôlé
+ * doit pouvoir dire d'où vient la valeur qu'on lui oppose, et « c'est écrit
+ * dans le logiciel » n'est pas une réponse.
+ *
+ *     npm run referentiels -- regle --code plafond-azote-organique \
+ *         --valeur 170 --unite "kg N/ha" --territoire 45 \
+ *         --depuis 2024-01-01 \
+ *         --source "Arrêté du 19/12/2011, art. 2 — PAR Centre-Val de Loire 7e programme" \
+ *         --version "PAR-CVL-7"
+ */
+async function saisirRegle(args: Args): Promise<void> {
+  const code = String(args.code ?? '');
+  const valeur = Number(args.valeur);
+  const territoire = args.territoire ? String(args.territoire) : 'FR';
+  const source = String(args.source ?? '');
+  const version = String(args.version ?? '');
+  const depuis = args.depuis ? new Date(String(args.depuis)) : null;
+  const jusqua = args.jusqua ? new Date(String(args.jusqua)) : null;
+
+  if (!code) {
+    console.error('✗ --code est obligatoire (ex. plafond-azote-organique).');
+    process.exitCode = 1;
+    return;
+  }
+  if (!Number.isFinite(valeur) || valeur <= 0) {
+    console.error('✗ --valeur doit être un nombre positif.');
+    process.exitCode = 1;
+    return;
+  }
+  if (!source) {
+    console.error(
+      '✗ --source est obligatoire.\n' +
+        "  Sans référence de texte, la règle n'est pas opposable : un exploitant\n" +
+        "  contrôlé doit pouvoir dire d'où vient la valeur. Recopiez l'arrêté,\n" +
+        '  avec son article.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (!version) {
+    console.error(
+      '✗ --version est obligatoire (ex. « PAR-CVL-7 »).\n' +
+        "  Sans elle, impossible de savoir quel programme s'appliquait à une\n" +
+        '  campagne passée.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (!depuis || Number.isNaN(depuis.getTime())) {
+    console.error(
+      '✗ --depuis est obligatoire (AAAA-MM-JJ) : date d’entrée en vigueur.\n' +
+        "  Une règle sans date d'effet corrigerait rétroactivement des campagnes\n" +
+        'closes.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const { referentiel, journal } = await beginImport({
+    code: 'programme-actions-nitrates',
+    domain: 'NITRATES',
+    name: 'Programme d’actions nitrates',
+    territory: territoire,
+    version,
+    sourceLabel: source,
+    appliesFrom: depuis,
+    appliesTo: jusqua,
+  });
+
+  await prisma.regulatoryRule.deleteMany({
+    where: { referentialId: referentiel.id, code, territory: territoire },
+  });
+
+  await prisma.regulatoryRule.create({
+    data: {
+      referentialId: referentiel.id,
+      domain: 'NITRATES',
+      code,
+      label: String(args.libelle ?? code),
+      territory: territoire,
+      value: { kgHa: valeur },
+      unit: String(args.unite ?? 'kg N/ha'),
+      exception: args.exception ? String(args.exception) : null,
+      appliesFrom: depuis,
+      appliesTo: jusqua,
+      sourceRef: source,
+    },
+  });
+
+  await finishImport({
+    referentialId: referentiel.id,
+    importId: journal.id,
+    recordCount: 1,
+    warnings: [],
+  });
+
+  console.info(
+    [
+      `✓ Règle « ${code} » enregistrée`,
+      `  valeur     : ${valeur} ${args.unite ?? 'kg N/ha'}`,
+      `  territoire : ${territoire}`,
+      `  en vigueur : depuis le ${depuis.toISOString().slice(0, 10)}` +
+        (jusqua ? ` jusqu'au ${jusqua.toISOString().slice(0, 10)}` : ''),
+      `  source     : ${source}`,
+      '',
+      '  Cette valeur sera opposée avec sa source, jamais seule.',
+    ].join('\n'),
+  );
+}
+
 async function main(): Promise<void> {
   const { commande, args } = parseArgs(process.argv.slice(2));
 
@@ -549,6 +672,9 @@ async function main(): Promise<void> {
       break;
     case 'recalculer-contextes':
       await recalculerContextes();
+      break;
+    case 'regle':
+      await saisirRegle(args);
       break;
     default:
       console.info(
@@ -571,6 +697,13 @@ async function main(): Promise<void> {
           '',
           '      Sans data.gouv.fr :',
           '                          --version <v> [--fichier f.geojson | --url https://…]',
+          '',
+          '  npm run referentiels -- regle --code plafond-azote-organique',
+          '                          --valeur 170 --territoire 45 --depuis 2024-01-01',
+          '                          --version "PAR-CVL-7" --source "Arrêté du …, art. 2"',
+          '      Un programme d’actions est un arrêté, pas un jeu de données :',
+          '      les règles se saisissent. --source est obligatoire — sans',
+          '      référence de texte, une valeur n’est pas opposable.',
           '',
           '  npm run referentiels -- recalculer-contextes',
           '      À lancer après chaque import de zonage.',

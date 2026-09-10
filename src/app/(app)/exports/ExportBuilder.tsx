@@ -44,6 +44,16 @@ const DATASETS = [
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
+    key: 'cahier-epandage',
+    label: 'Cahier d’épandage',
+    icon: IconInputs,
+    description:
+      'Épandages organiques de la campagne, avec l’azote à l’hectare. Produit à ' +
+      'partir des apports enregistrés — jamais ressaisi. Le plafond n’est opposé ' +
+      'que s’il a été importé, et toujours avec sa source.',
+    formats: ['pdf', 'xlsx', 'csv'],
+  },
+  {
     key: 'historique',
     label: 'Historique des interventions',
     icon: IconHistory,
