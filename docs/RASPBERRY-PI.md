@@ -1247,6 +1247,35 @@ cd /opt/parcelys && sudo bash scripts/update-pi.sh
 C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
 migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
 
+### Passer en 0.7.0
+
+Rien de particulier : la mise à jour applique quatre migrations (stocks et lots,
+couverture des sols et irrigation, dossier de contrôle, justificatifs typés).
+Aucune donnée existante n'est modifiée — seules des tables s'ajoutent.
+
+Deux choses valent d'être faites **après** la mise à jour, et une seule est
+urgente.
+
+**Le réalisé azoté était faux, et il redevient juste.** Le contrôle de
+dépassement du prévisionnel comparait un réalisé environ 75 fois trop bas (voir
+`CHANGELOG.md`). Rouvrez « Conformité » : des dépassements jusque-là invisibles
+peuvent apparaître. Ce ne sont pas des anomalies nouvelles, ce sont des
+anomalies qui étaient déjà là.
+
+**Le plafond d'azote organique n'est pas configuré**, et Parcelys le dira
+franchement plutôt que d'opposer 170 kg N/ha de sa propre initiative. Pour qu'il
+le vérifie, recopiez la règle de votre programme d'actions régional :
+
+```bash
+cd /opt/parcelys
+sudo -u parcelys npm run referentiels -- regle \
+    --code plafond-azote-organique --valeur 170 --unite "kg N/ha" \
+    --territoire 45 --depuis 2024-01-01 --version "PAR-CVL-7" \
+    --source "Arrêté du 19/12/2011, art. 2 — 7e programme d'actions régional"
+```
+
+`--source` est obligatoire : c'est ce que vous montrerez lors d'un contrôle.
+
 ### Pourquoi un script, et pas la suite de commandes
 
 Enchaîner les commandes à la main a un défaut qui ne se voit pas : **si l'une
