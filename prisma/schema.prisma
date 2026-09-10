@@ -115,6 +115,7 @@ model User {
   operationEntries      AgriculturalOperation[]    @relation("OperationAuthor")
   stockMovements        StockMovement[]            @relation("StockMovementAuthor")
   soilCovers            SoilCover[]                @relation("SoilCoverAuthor")
+  campaignDocuments     CampaignDocument[]         @relation("CampaignDocumentAuthor")
   invitationsIssued     InvitationCode[]           @relation("InvitationIssuer")
   invitationsRevoked    InvitationCode[]           @relation("InvitationRevoker")
   invitationsUsed       InvitationCode[]           @relation("InvitationRecipient")
@@ -388,9 +389,10 @@ model Farm {
   notifications   Notification[]
   weatherRecords  WeatherRecord[]
   sessions        Session[]
-  pacCampaigns    PacCampaign[]
-  findings        ComplianceFinding[]
-  stockItems      StockItem[]
+  pacCampaigns      PacCampaign[]
+  findings          ComplianceFinding[]
+  stockItems        StockItem[]
+  campaignDocuments CampaignDocument[]
 
   @@index([isDemo])
   @@map("farms")
@@ -999,6 +1001,23 @@ model Document {
   checksum     String?
   category     String   @default("AUTRE")
   description  String?
+
+  /**
+   * Validité d'un justificatif, quand elle a un sens.
+   *
+   * Un certificat individuel, un contrôle de pulvérisateur, une attestation de
+   * conseil ont une date de fin. Parcelys **ne calcule pas** cette date : les
+   * durées de validité relèvent de la réglementation et changent. Elle est
+   * recopiée du document, et Parcelys se contente de signaler qu'elle est
+   * passée.
+   */
+  validFrom  DateTime? @map("valid_from")
+  validUntil DateTime? @map("valid_until")
+  /// Numéro porté par la pièce (certificat, rapport de contrôle).
+  reference  String?
+  /// Campagne à laquelle la pièce se rattache, quand elle en vise une.
+  campaignYear Int?    @map("campaign_year")
+
   uploadedById String?  @map("uploaded_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -2033,4 +2052,77 @@ model SoilCover {
   @@index([parcelId, sownOn])
   @@index([cropYearId])
   @@map("soil_covers")
+}
+
+// ---------------------------------------------------------------------------
+// Dossier de contrôle, justificatifs et documents verrouillés (0.7.0)
+//
+// Un contrôle ne demande pas « montrez-moi votre logiciel ». Il demande des
+// pièces : le registre phytosanitaire de telle campagne, le cahier d'épandage,
+// le certificat individuel, le dernier contrôle du pulvérisateur.
+//
+// Deux besoins distincts en découlent, et il ne faut pas les confondre :
+//
+//  1. **Rassembler** ce qui existe et dire ce qui manque — le dossier de
+//     contrôle, recalculé à chaque consultation ;
+//  2. **Figer** un document tel qu'il a été produit un jour donné, pour qu'il
+//     ne bouge plus. Une campagne close dont le registre changerait encore ne
+//     vaudrait rien : ce qui a été remis lors d'un contrôle doit rester
+//     consultable à l'identique.
+// ---------------------------------------------------------------------------
+
+/// Nature d'un document produit par Parcelys et figé pour une campagne.
+enum CampaignDocumentKind {
+  /// Registre des traitements phytosanitaires.
+  REGISTRE_PHYTO
+  /// Cahier d'épandage des effluents organiques.
+  CAHIER_EPANDAGE
+  /// Cahier d'enregistrement des pratiques (fertilisation + phyto).
+  CEP
+  /// Plan prévisionnel de fumure.
+  PPF
+  /// Dossier de contrôle : l'ensemble des pièces d'une campagne.
+  DOSSIER_CONTROLE
+}
+
+/// Un document produit puis **verrouillé** pour une campagne.
+///
+/// Verrouiller ne veut pas dire empêcher de saisir : l'exploitation continue de
+/// travailler. Cela veut dire qu'une **copie datée** existe, et qu'elle ne
+/// bougera plus. Si les données changent ensuite, le document verrouillé reste
+/// tel quel et une nouvelle version peut être produite à côté.
+///
+/// Rien n'est jamais écrasé : `version` s'incrémente. C'est la seule façon de
+/// répondre à « que contenait le registre que vous avez présenté en mars ? ».
+model CampaignDocument {
+  id           String               @id @default(cuid())
+  farmId       String               @map("farm_id")
+  campaignYear Int                  @map("campaign_year")
+  kind         CampaignDocumentKind
+  version      Int                  @default(1)
+
+  /// Le contenu figé, tel qu'il a été produit. En JSON pour rester lisible et
+  /// re-rendu à l'identique, quel que soit le format demandé ensuite.
+  content Json
+
+  /// Empreinte SHA-256 du contenu. Permet de prouver qu'un document n'a pas
+  /// changé, et de repérer qu'une nouvelle version serait identique.
+  checksum String
+
+  rowCount Int @default(0) @map("row_count")
+
+  /// Ce qui manquait au moment du verrouillage. Conservé avec le document :
+  /// un registre incomplet reste incomplet, et l'effacer serait le maquiller.
+  gaps String?
+
+  lockedAt    DateTime @default(now()) @map("locked_at")
+  lockedById  String?  @map("locked_by_id")
+  notes       String?
+
+  farm     Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  lockedBy User? @relation("CampaignDocumentAuthor", fields: [lockedById], references: [id], onDelete: SetNull)
+
+  @@unique([farmId, campaignYear, kind, version])
+  @@index([farmId, campaignYear])
+  @@map("campaign_documents")
 }

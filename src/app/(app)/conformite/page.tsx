@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { buildComplianceReport } from '@/lib/regulatory/compliance';
 import { computeFarmIft } from '@/lib/regulatory/ift';
@@ -65,6 +66,21 @@ export default async function CompliancePage({
 
       <Card className="mb-5">
         <p className="text-[15px] leading-relaxed text-ink">{rapport.summary}</p>
+
+        {/*
+          Les deux pages répondent à des questions différentes : celle-ci dit ce
+          qui cloche dans les données, le dossier dit ce qui manque dans les
+          pièces. Le lien évite qu'on cherche l'un en lisant l'autre.
+        */}
+        <p className="mt-3 text-[13.5px]">
+          <Link
+            href={`/conformite/dossier?annee=${campagne}`}
+            className="text-champ-700 underline-offset-2 hover:underline"
+          >
+            Ouvrir le dossier de contrôle de la campagne {campagne}
+          </Link>
+          <span className="text-ink-3"> — les pièces à sortir si on sonne demain.</span>
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {(['ANOMALIE', 'VERIFICATION', 'INDETERMINE', 'OK'] as const).map((niveau) => (

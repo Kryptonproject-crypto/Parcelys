@@ -565,14 +565,97 @@ prononce aucune conformité. Un test unitaire ne peut pas le prouver.
 
 ---
 
+## 7 ter. Dossier de contrôle, justificatifs, documents verrouillés
+
+### Ce qu'un contrôle demande
+
+Pas « montrez-moi votre logiciel », mais des **pièces** : le registre
+phytosanitaire de telle campagne, le cahier d'épandage, le certificat
+individuel, le dernier contrôle du pulvérisateur, le plan prévisionnel de
+fumure.
+
+Le dossier de contrôle (`/conformite/dossier`) rassemble ce qui existe et **dit
+ce qui manque**. C'est la seconde partie qui compte : un dossier qui n'afficherait
+que les pièces présentes se lirait comme complet.
+
+Il est distinct de la synthèse de conformité, et les deux répondent à des
+questions différentes :
+
+| Écran | Question |
+| --- | --- |
+| `/conformite` | qu'est-ce qui cloche dans mes **données** ? |
+| `/conformite/dossier` | qu'est-ce que je sors si on sonne **demain** ? |
+
+### Ce qu'il ne dira jamais
+
+Qu'il est complet. La liste des pièces exigibles dépend du contrôle, de
+l'exploitation et de ses productions ; Parcelys en connaît une partie. La phrase
+affichée en tête le dit :
+
+> Ce dossier rassemble les pièces que Parcelys sait produire ou retrouver. Il ne
+> prétend pas être la liste des pièces exigibles lors d'un contrôle […].
+> L'absence d'une pièce non listée ici ne signifie pas qu'elle n'est pas
+> demandée.
+
+Ce n'est pas une formule de prudence : un exploitant qui croirait son dossier
+complet parce que Parcelys l'affiche ainsi arriverait au contrôle sans une pièce
+que Parcelys ignore.
+
+### Justificatifs typés
+
+Les catégories de documents comprennent désormais les pièces qu'un contrôle
+réclame nommément : certificat individuel, contrôle du pulvérisateur, attestation
+de conseil stratégique, plan d'épandage, justificatif d'écart, bulletin de santé
+du végétal.
+
+**Parcelys ne calcule aucune date de fin de validité.** Les durées relèvent de la
+réglementation et changent — cinq ans pour un certificat individuel aujourd'hui,
+pas nécessairement demain, et pas partout. La date est recopiée de la pièce ;
+Parcelys signale seulement qu'elle est passée.
+
+Une pièce n'est « périmée » que si **toutes** celles de sa catégorie le sont :
+un renouvellement remplace le précédent, et signaler l'ancien serait faux.
+
+### Verrouiller un document
+
+Verrouiller **n'empêche pas de saisir**. L'exploitation continue de travailler.
+Cela crée une **copie datée qui ne bougera plus** — la seule façon de répondre,
+deux ans plus tard, à « que contenait le registre que vous avez présenté ? ».
+
+Trois propriétés, chacune sous test :
+
+- **Rien n'est jamais écrasé.** Une nouvelle version s'ajoute (`version`
+  s'incrémente) ; l'ancienne reste consultable.
+- **Un contenu identique ne crée pas de doublon.** Une pile de versions
+  identiques rendrait l'historique illisible. L'empreinte SHA-256 le détecte.
+- **Les lacunes sont conservées avec le document.** Un registre incomplet reste
+  incomplet ; effacer ses manques le maquillerait.
+
+Le contenu figé est produit **côté serveur**. Accepter un contenu transmis par
+le navigateur reviendrait à laisser verrouiller n'importe quoi sous le nom d'un
+registre officiel.
+
+### Vérifier
+
+```bash
+npm run check:dossier
+```
+
+Le test décisif : il verrouille un cahier, **ajoute un apport après coup**, et
+vérifie que la copie figée est restée à son nombre de lignes pendant que les
+données vivantes avançaient. C'est la seule façon de prouver qu'un verrou
+verrouille.
+
+---
+
 ## 8. Ce qui n'est pas encore là
 
 Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
 
 **Priorité 2 (0.7.0)** — ~~stocks et lots~~ · ~~couverture des sols~~ ·
 ~~irrigation comme événement~~ · ~~rotations~~ · ~~plafond d'azote organique~~ ·
-~~cahier d'épandage~~ · dossier de contrôle · justificatifs typés · couches
-réglementaires sur la carte.
+~~cahier d'épandage~~ · ~~dossier de contrôle~~ · ~~justificatifs typés~~ ·
+couches réglementaires sur la carte.
 
 **Priorité 3 (0.8.0)** — détection automatique des nouvelles versions de
 référentiels · alertes avancées · registre phytosanitaire électronique lisible

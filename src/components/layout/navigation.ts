@@ -78,6 +78,13 @@ export const MAIN_NAV: NavItem[] = [
     icon: IconSecurity,
     group: 'documents',
   },
+  {
+    href: '/conformite/dossier',
+    label: 'Dossier de contrôle',
+    shortLabel: 'Dossier',
+    icon: IconAudit,
+    group: 'documents',
+  },
   { href: '/registres', label: 'Registres', icon: IconRegistry, group: 'documents' },
   { href: '/historique', label: 'Historique', icon: IconHistory, group: 'documents' },
   { href: '/documents', label: 'Documents', icon: IconDocuments, group: 'documents' },

@@ -43,6 +43,7 @@ export type AuditAction =
   | 'operation.deleted'
   | 'soilCover.created'
   | 'soilCover.deleted'
+  | 'campaignDocument.locked'
   | 'document.uploaded'
   | 'document.downloaded'
   | 'document.deleted'

@@ -144,12 +144,31 @@ export const PARCEL_TYPES = [
   'Autre',
 ] as const;
 
+/**
+ * Catégories de documents.
+ *
+ * Les six premières existaient déjà et servent au classement courant. Les
+ * suivantes sont des **justificatifs réglementaires** : ce sont les pièces
+ * qu'un contrôle réclame nommément, et les nommer permet au dossier de contrôle
+ * de dire laquelle manque.
+ *
+ * Ce que Parcelys ne fait pas : calculer une date de fin de validité. Les durées
+ * relèvent de la réglementation et changent — cinq ans pour un certificat
+ * individuel aujourd'hui, pas nécessairement demain, et pas partout. La date
+ * est recopiée de la pièce ; Parcelys signale seulement qu'elle est passée.
+ */
 export const DOCUMENT_CATEGORIES = [
   'FACTURE',
   'ANALYSE_SOL',
   'PHOTO',
   'ADMINISTRATIF',
   'RESULTAT_ANALYSE',
+  'CERTIPHYTO',
+  'CONTROLE_PULVERISATEUR',
+  'ATTESTATION_CONSEIL',
+  'PLAN_EPANDAGE',
+  'JUSTIFICATIF_ECART',
+  'BSV',
   'AUTRE',
 ] as const;
 
@@ -159,6 +178,12 @@ export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
   PHOTO: 'Photo',
   ADMINISTRATIF: 'Document administratif',
   RESULTAT_ANALYSE: "Résultat d'analyse",
+  CERTIPHYTO: 'Certificat individuel (Certiphyto)',
+  CONTROLE_PULVERISATEUR: 'Contrôle du pulvérisateur',
+  ATTESTATION_CONSEIL: 'Attestation de conseil stratégique',
+  PLAN_EPANDAGE: 'Plan d’épandage',
+  JUSTIFICATIF_ECART: 'Justificatif d’écart au prévisionnel',
+  BSV: 'Bulletin de santé du végétal',
   AUTRE: 'Autre',
 };
 
