@@ -12,6 +12,7 @@ export {
   Map as IconParcels,
   Sprout as IconCrops,
   Droplets as IconInputs,
+  Boxes as IconStock,
   FlaskConical as IconPhyto,
   CloudSun as IconWeather,
   ClipboardList as IconRegistry,

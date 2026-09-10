@@ -18,6 +18,7 @@ import {
   IconArea,
   IconRegistry,
   IconSecurity,
+  IconStock,
   IconSettings,
   IconWeather,
   type LucideIcon,
@@ -61,6 +62,7 @@ export const MAIN_NAV: NavItem[] = [
     mobile: true,
     group: 'suivi',
   },
+  { href: '/stocks', label: 'Stocks', icon: IconStock, group: 'suivi' },
   { href: '/meteo', label: 'Météo', icon: IconWeather, group: 'suivi' },
   {
     href: '/preconisations',

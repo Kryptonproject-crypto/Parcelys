@@ -36,6 +36,7 @@
     "check:admin": "node scripts/check-admin-v3.mjs",
     "email:test": "tsx --conditions=react-server scripts/email-test.ts",
     "check:corrections": "node scripts/check-corrections.mjs",
+    "check:stocks": "tsx --conditions=react-server scripts/check-stocks.ts",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts"

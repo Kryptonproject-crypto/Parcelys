@@ -113,6 +113,7 @@ model User {
   fertilizerEntries     FertilizerApplication[]    @relation("FertilizerAuthor")
   phytoEntries          PhytosanitaryApplication[] @relation("PhytoAuthor")
   operationEntries      AgriculturalOperation[]    @relation("OperationAuthor")
+  stockMovements        StockMovement[]            @relation("StockMovementAuthor")
   invitationsIssued     InvitationCode[]           @relation("InvitationIssuer")
   invitationsRevoked    InvitationCode[]           @relation("InvitationRevoker")
   invitationsUsed       InvitationCode[]           @relation("InvitationRecipient")
@@ -388,6 +389,7 @@ model Farm {
   sessions        Session[]
   pacCampaigns    PacCampaign[]
   findings        ComplianceFinding[]
+  stockItems      StockItem[]
 
   @@index([isDemo])
   @@map("farms")
@@ -628,6 +630,7 @@ model Fertilizer {
 
   farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
   applications FertilizerApplication[]
+  stockItems   StockItem[]
 
   @@unique([farmId, name])
   @@map("fertilizers")
@@ -648,6 +651,7 @@ model OrganicInput {
 
   farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
   applications FertilizerApplication[]
+  stockItems   StockItem[]
 
   @@unique([farmId, name])
   @@map("organic_inputs")
@@ -697,6 +701,7 @@ model FertilizerApplication {
   createdBy    User?         @relation("FertilizerAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
+  stockMovements  StockMovement[]
 
   @@index([parcelId, appliedOn])
   @@index([appliedOn])
@@ -744,6 +749,7 @@ model PhytosanitaryProduct {
   usages          PhytoUsage[]
   conditions      PhytoCondition[]
   applications    PhytosanitaryApplication[]
+  stockItems      StockItem[]
   recommendations Recommendation[]
 
   @@index([normalizedName])
@@ -875,6 +881,7 @@ model PhytosanitaryApplication {
   createdBy User?                 @relation("PhytoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
+  stockMovements  StockMovement[]
 
   @@index([parcelId, appliedOn])
   @@index([appliedOn])
@@ -927,6 +934,7 @@ model AgriculturalOperation {
   createdBy User?  @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
+  stockMovements  StockMovement[]
 
   @@index([parcelId, performedOn])
   @@map("agricultural_operations")
@@ -977,6 +985,7 @@ model Document {
 
   deviations   NitrogenPlanDeviation[]
   soilAnalyses SoilAnalysis[]
+  stockLots    StockLot[]
 
   @@index([farmId])
   @@index([parcelId])
@@ -1751,4 +1760,169 @@ model ComplianceFinding {
   @@index([farmId, campaignYear, level])
   @@index([parcelId])
   @@map("compliance_findings")
+}
+
+// ---------------------------------------------------------------------------
+// Stocks et lots (0.7.0)
+//
+// Ce que la traçabilité exige réellement : pour un produit phytosanitaire, un
+// contrôle peut demander **quel lot** a été appliqué sur **quelle parcelle**,
+// et **d'où il venait**. Un registre qui note « Karaté Zéon, 0,075 L/ha » sans
+// numéro de lot ne répond pas à cette question.
+//
+// Le solde n'est jamais stocké. Il se calcule en additionnant les mouvements —
+// c'est le seul moyen d'être sûr qu'il ne dérive pas. Un champ « quantité
+// restante » mis à jour à chaque écriture finit toujours par mentir : une
+// écriture ratée, une reprise de sauvegarde, un import, et le chiffre affiché
+// ne correspond plus à rien. La somme, elle, est toujours exacte par
+// construction.
+//
+// Ce que Parcelys ne prétendra pas : que le stock affiché est le stock réel.
+// Il est le solde **des mouvements enregistrés**. Un bidon entamé sans saisie
+// reste compté. L'écran le dit, et signale les utilisations non rattachées à
+// un lot plutôt que de les absorber en silence.
+// ---------------------------------------------------------------------------
+
+enum StockCategory {
+  PHYTOSANITAIRE
+  ENGRAIS
+  AMENDEMENT
+  SEMENCE
+  AUTRE
+}
+
+/// Pourquoi une quantité entre ou sort.
+enum StockMovementKind {
+  /// Achat, réception, don reçu.
+  ENTREE
+  /// Consommation : traitement, apport, semis.
+  SORTIE
+  /// Écart constaté à l'inventaire physique. Peut aller dans les deux sens.
+  AJUSTEMENT
+  /// Retour au fournisseur.
+  RETOUR
+  /// Élimination (PPNU, produit retiré du marché, péremption).
+  DESTRUCTION
+}
+
+/// Un article détenu par l'exploitation.
+///
+/// Rattaché quand c'est possible au référentiel — un produit E-Phy, un engrais,
+/// un effluent — pour que le stock hérite de l'AMM, des substances actives et
+/// des teneurs sans qu'on les ressaisisse. Les semences et amendements n'ont
+/// pas de référentiel officiel exploitable : ils restent en texte libre, et
+/// c'est indiqué comme tel.
+model StockItem {
+  id       String        @id @default(cuid())
+  farmId   String        @map("farm_id")
+  category StockCategory
+  name     String
+
+  phytoProductId String? @map("phyto_product_id")
+  fertilizerId   String? @map("fertilizer_id")
+  organicInputId String? @map("organic_input_id")
+
+  /// Unité de gestion du stock (L, kg, t, unité…). Les mouvements doivent s'y
+  /// ramener : Parcelys ne convertit jamais une masse en volume, faute de
+  /// connaître la densité du produit.
+  unit String
+
+  /// Seuil facultatif en dessous duquel l'écran alerte. Nul = pas d'alerte :
+  /// un seuil inventé n'a aucun sens agronomique.
+  alertThreshold Decimal? @map("alert_threshold") @db.Decimal(14, 3)
+
+  notes      String?
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  farm         Farm                  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  phytoProduct PhytosanitaryProduct? @relation(fields: [phytoProductId], references: [id], onDelete: SetNull)
+  fertilizer   Fertilizer?           @relation(fields: [fertilizerId], references: [id], onDelete: SetNull)
+  organicInput OrganicInput?         @relation(fields: [organicInputId], references: [id], onDelete: SetNull)
+
+  lots      StockLot[]
+  movements StockMovement[]
+
+  @@unique([farmId, category, name])
+  @@index([farmId, category])
+  @@map("stock_items")
+}
+
+/// Un lot précis : ce qui est réellement tracé lors d'un contrôle.
+model StockLot {
+  id     String @id @default(cuid())
+  itemId String @map("item_id")
+
+  /// Numéro porté par l'emballage. Facultatif — un achat ancien peut ne plus
+  /// l'avoir — mais c'est lui qu'un contrôle demande.
+  lotNumber   String?   @map("lot_number")
+  supplier    String?
+  purchasedOn DateTime? @map("purchased_on")
+  /// Date limite d'utilisation optimale. Sert à alerter, jamais à interdire :
+  /// la décision appartient à l'exploitant.
+  expiresOn   DateTime? @map("expires_on")
+
+  /// Prix unitaire à l'achat, si renseigné. Sert au coût d'un traitement.
+  unitPrice Decimal? @map("unit_price") @db.Decimal(12, 4)
+  currency  String   @default("EUR")
+
+  /// Facture ou bon de livraison rattaché.
+  documentId String? @map("document_id")
+
+  notes     String?
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  item      StockItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  movements StockMovement[]
+
+  @@index([itemId])
+  @@index([expiresOn])
+  @@map("stock_lots")
+}
+
+/// Un mouvement de stock. Le solde est la somme de ces lignes, rien d'autre.
+model StockMovement {
+  id     String @id @default(cuid())
+  itemId String @map("item_id")
+  lotId  String? @map("lot_id")
+
+  kind       StockMovementKind
+  occurredOn DateTime          @map("occurred_on")
+
+  /// **Signée** : positive quand la quantité entre, négative quand elle sort.
+  ///
+  /// Ce choix rend le solde incapable de dériver — c'est un SUM, pas un calcul
+  /// à branches. Un ajustement d'inventaire peut aller dans les deux sens, ce
+  /// qu'une quantité toujours positive n'aurait pas permis d'exprimer sans un
+  /// champ supplémentaire à tenir cohérent.
+  quantity Decimal @db.Decimal(14, 3)
+  unit     String
+
+  /// L'application qui a consommé cette quantité, quand la sortie vient d'une
+  /// saisie de traitement ou d'apport. C'est ce lien qui répond à « quel lot
+  /// sur quelle parcelle ».
+  phytoApplicationId      String? @map("phyto_application_id")
+  fertilizerApplicationId String? @map("fertilizer_application_id")
+  operationId             String? @map("operation_id")
+
+  reason      String?
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  item                   StockItem                 @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  lot                    StockLot?                 @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  phytoApplication       PhytosanitaryApplication? @relation(fields: [phytoApplicationId], references: [id], onDelete: SetNull)
+  fertilizerApplication  FertilizerApplication?    @relation(fields: [fertilizerApplicationId], references: [id], onDelete: SetNull)
+  operation              AgriculturalOperation?    @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy              User?                     @relation("StockMovementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([itemId, occurredOn])
+  @@index([lotId])
+  @@index([phytoApplicationId])
+  @@index([fertilizerApplicationId])
+  @@map("stock_movements")
 }
