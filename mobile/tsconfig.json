@@ -17,7 +17,10 @@
     "noEmit": true,
     "types": ["vite/client"],
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": {
+      "@/*": ["src/*"],
+      "@partage/*": ["../src/lib/ephy/*"]
+    }
   },
-  "include": ["src", "vite.config.ts", "capacitor.config.ts"]
+  "include": ["src", "vite.config.ts", "capacitor.config.ts", "../src/lib/ephy/dose.ts", "../src/lib/ephy/schema.ts", "../src/lib/ephy/conditions.ts"]
 }

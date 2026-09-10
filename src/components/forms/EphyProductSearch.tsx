@@ -10,6 +10,8 @@ export type EphyProduct = {
   name: string;
   holder: string | null;
   status: string | null;
+  authorized: boolean;
+  withdrawnAt: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];
@@ -18,13 +20,21 @@ export type EphyProduct = {
 type SearchResponse = {
   results: EphyProduct[];
   total: number;
+  withdrawnHidden: number;
   source: {
     label: string;
     lastSyncAt: string | null;
     productsInBase: number;
+    authorizedInBase: number;
     configured: boolean;
   };
 };
+
+function dateCourte(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('fr-FR');
+}
 
 /**
  * Recherche de produit dans le référentiel officiel E-Phy.
@@ -32,6 +42,10 @@ type SearchResponse = {
  * Aucun résultat n'est fabriqué : si le référentiel n'a pas été synchronisé, le
  * composant l'annonce et propose la saisie libre. La provenance et la date de
  * synchronisation sont toujours affichées.
+ *
+ * Les produits retirés du marché sont écartés par défaut — ils forment plus des
+ * quatre cinquièmes du catalogue officiel, qui est un historique. Ils restent
+ * accessibles d'un clic : on en a besoin pour compléter un registre ancien.
  */
 export function EphyProductSearch({
   onSelect,
@@ -41,10 +55,12 @@ export function EphyProductSearch({
   selected: EphyProduct | null;
 }) {
   const [query, setQuery] = useState('');
+  const [includeWithdrawn, setIncludeWithdrawn] = useState(false);
   const [results, setResults] = useState<EphyProduct[]>([]);
   const [source, setSource] = useState<SearchResponse['source'] | null>(null);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [withdrawnHidden, setWithdrawnHidden] = useState(0);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -60,17 +76,20 @@ export function EphyProductSearch({
     if (query.trim().length < 2) {
       setResults([]);
       setSearched(false);
+      setWithdrawnHidden(0);
       return;
     }
 
     debounceRef.current = setTimeout(() => {
       setLoading(true);
       void apiFetch<SearchResponse>(
-        `/api/phytosanitary/products?q=${encodeURIComponent(query)}&limit=25`,
+        `/api/phytosanitary/products?q=${encodeURIComponent(query)}&limit=25` +
+          (includeWithdrawn ? '&includeWithdrawn=true' : ''),
       )
         .then((data) => {
           setResults(data.results);
           setTotal(data.total);
+          setWithdrawnHidden(data.withdrawnHidden);
           setSource(data.source);
           setSearched(true);
         })
@@ -81,15 +100,20 @@ export function EphyProductSearch({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, includeWithdrawn]);
 
-  const lastSync = source?.lastSyncAt
-    ? new Date(source.lastSyncAt).toLocaleDateString('fr-FR')
-    : null;
+  const lastSync = dateCourte(source?.lastSyncAt ?? null);
 
   if (selected) {
+    const retraitLe = dateCourte(selected.withdrawnAt);
     return (
-      <div className="rounded-lg border border-champ-300 bg-accent-soft p-3.5">
+      <div
+        className={`rounded-lg border p-3.5 ${
+          selected.authorized
+            ? 'border-champ-300 bg-accent-soft'
+            : 'border-brique-400 bg-brique-50 dark:bg-brique-700/15'
+        }`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-semibold text-ink">{selected.name}</p>
@@ -105,15 +129,11 @@ export function EphyProductSearch({
             ) : null}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {selected.status ? (
-                <Badge
-                  tone={/autoris/i.test(selected.status) ? 'green' : 'red'}
-                >
-                  {selected.status}
+                <Badge tone={selected.authorized ? 'green' : 'red'}>
+                  {selected.authorized ? 'Autorisé' : 'Retiré du marché'}
                 </Badge>
               ) : null}
-              {selected.formulation ? (
-                <Badge>{selected.formulation}</Badge>
-              ) : null}
+              {selected.formulation ? <Badge>{selected.formulation}</Badge> : null}
             </div>
           </div>
 
@@ -126,7 +146,16 @@ export function EphyProductSearch({
           </button>
         </div>
 
-        <p className="mt-2.5 border-t border-champ-200 dark:border-champ-800 pt-2 text-xs text-ink-3">
+        {!selected.authorized ? (
+          <p className="mt-2.5 rounded-md bg-brique-100 px-2.5 py-2 text-[13px] leading-relaxed text-brique-700 dark:bg-brique-700/25 dark:text-brique-200">
+            Ce produit ne figure plus parmi les produits autorisés du catalogue
+            E-Phy{retraitLe ? ` (retrait au ${retraitLe})` : ''}. Il reste
+            sélectionnable pour compléter un registre antérieur au retrait ;
+            l’appliquer aujourd’hui ne l’est pas.
+          </p>
+        ) : null}
+
+        <p className="mt-2.5 border-t border-line pt-2 text-xs text-ink-3">
           {source?.label ?? 'Données issues de sources officielles'}
           {lastSync ? ` — dernière synchronisation : ${lastSync}` : ''}
         </p>
@@ -172,9 +201,7 @@ export function EphyProductSearch({
                 className="block w-full px-3 py-2.5 text-left transition hover:bg-accent-soft/60"
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-medium text-ink">
-                    {product.name}
-                  </span>
+                  <span className="truncate font-medium text-ink">{product.name}</span>
                   <span className="shrink-0 text-xs tabular-nums text-ink-3">
                     AMM {product.amm}
                   </span>
@@ -184,17 +211,21 @@ export function EphyProductSearch({
                     {product.substances.join(', ')}
                   </p>
                 ) : null}
-                {product.status ? (
-                  <span
-                    className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[12.5px] sm:text-[11px] font-medium ${
-                      /autoris/i.test(product.status)
-                        ? 'bg-accent-soft text-champ-800 dark:text-champ-300'
-                        : 'bg-brique-100 text-brique-600'
-                    }`}
-                  >
-                    {product.status}
-                  </span>
-                ) : null}
+                <span
+                  className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[12.5px] font-medium sm:text-[11px] ${
+                    product.authorized
+                      ? 'bg-accent-soft text-champ-800 dark:text-champ-300'
+                      : 'bg-brique-100 text-brique-700 dark:bg-brique-700/30 dark:text-brique-200'
+                  }`}
+                >
+                  {product.authorized
+                    ? 'Autorisé'
+                    : `Retiré${
+                        dateCourte(product.withdrawnAt)
+                          ? ` le ${dateCourte(product.withdrawnAt)}`
+                          : ' du marché'
+                      }`}
+                </span>
               </button>
             </li>
           ))}
@@ -203,9 +234,39 @@ export function EphyProductSearch({
 
       {searched && results.length === 0 && !loading && source?.configured ? (
         <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-sm text-ink-2">
-          Aucun produit trouvé pour « {query} » dans le catalogue E-Phy. Vérifiez
-          l&apos;orthographe ou saisissez le produit manuellement.
+          Aucun produit autorisé pour «&nbsp;{query}&nbsp;» dans le catalogue E-Phy.
+          {withdrawnHidden > 0
+            ? ` ${withdrawnHidden} produit${withdrawnHidden > 1 ? 's' : ''} retiré${
+                withdrawnHidden > 1 ? 's' : ''
+              } du marché correspond${withdrawnHidden > 1 ? 'ent' : ''} à cette recherche.`
+            : ' Vérifiez l’orthographe ou saisissez le produit manuellement.'}
         </p>
+      ) : null}
+
+      {/* Le catalogue officiel est un historique : plus de quatre produits sur
+          cinq y sont retirés. Les afficher d'office donnait l'impression d'un
+          catalogue faux ; les cacher sans le dire donnerait l'impression d'un
+          catalogue incomplet. On les compte, et on laisse le choix. */}
+      {withdrawnHidden > 0 && !includeWithdrawn ? (
+        <button
+          type="button"
+          onClick={() => setIncludeWithdrawn(true)}
+          className="text-xs text-champ-700 underline hover:text-champ-800 dark:text-champ-400"
+        >
+          Afficher aussi les {withdrawnHidden} produit
+          {withdrawnHidden > 1 ? 's' : ''} retiré{withdrawnHidden > 1 ? 's' : ''} du
+          marché (registre antérieur)
+        </button>
+      ) : null}
+
+      {includeWithdrawn ? (
+        <button
+          type="button"
+          onClick={() => setIncludeWithdrawn(false)}
+          className="text-xs text-ink-3 underline hover:text-ink"
+        >
+          Ne montrer que les produits autorisés
+        </button>
       ) : null}
 
       {results.length > 0 && total > results.length ? (
@@ -221,7 +282,8 @@ export function EphyProductSearch({
             ? ` — dernière synchronisation : ${lastSync}`
             : ' — aucune synchronisation enregistrée'}
           {source.productsInBase > 0
-            ? ` (${source.productsInBase.toLocaleString('fr-FR')} produits)`
+            ? ` (${source.authorizedInBase.toLocaleString('fr-FR')} produits autorisés
+               sur ${source.productsInBase.toLocaleString('fr-FR')} référencés)`
             : ''}
         </p>
       ) : null}

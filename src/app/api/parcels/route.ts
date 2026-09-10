@@ -154,6 +154,7 @@ export const POST = route(async (request: NextRequest) => {
         pacId: input.pacId ?? null,
         parcelType: input.parcelType ?? null,
         status: input.status,
+        drainedSoil: input.drainedSoil ?? null,
         notes: input.notes ?? null,
       },
     });

@@ -141,6 +141,16 @@ type OperationResult = {
   message?: string;
   /** Erreurs par champ, pour que l'appareil sache quoi corriger. */
   fieldErrors?: Array<{ field: string; message: string }>;
+  /**
+   * Avertissements réglementaires produits par la route appelée : surdosage,
+   * produit retiré, sol drainé.
+   *
+   * Ils sont remontés jusqu'ici parce qu'une saisie faite au champ passe par
+   * cette file d'attente et par nulle part ailleurs. Les laisser tomber
+   * reviendrait à contrôler les traitements saisis au bureau et à ignorer ceux
+   * saisis dans la parcelle — l'inverse de ce qu'il faut.
+   */
+  warnings?: string[];
 };
 
 /** POST /api/sync — rejoue un lot de saisies faites hors ligne. */
@@ -178,16 +188,27 @@ export const POST = route(async (request: NextRequest) => {
       .clone()
       .json()
       .catch(() => null)) as
-      | { id?: string; error?: { message?: string; details?: unknown } }
+      | {
+          id?: string;
+          warnings?: unknown;
+          error?: { message?: string; details?: unknown };
+        }
       | null;
 
     if (response.ok) {
+      const warnings = Array.isArray(body?.warnings)
+        ? (body.warnings as unknown[]).filter(
+            (w): w is string => typeof w === 'string',
+          )
+        : [];
+
       results.push({
         clientId: operation.clientId,
         kind: operation.kind,
         status: replayed ? 'replayed' : 'applied',
         ...(body?.id ? { entityId: body.id } : {}),
         httpStatus: response.status,
+        ...(warnings.length ? { warnings } : {}),
       });
       continue;
     }

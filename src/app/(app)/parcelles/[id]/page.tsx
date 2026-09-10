@@ -207,6 +207,7 @@ export default async function ParcelPage({
           areaHa: Number(parcel.areaHa),
           centroidLat: parcel.centroidLat,
           centroidLng: parcel.centroidLng,
+          drainedSoil: parcel.drainedSoil,
           createdAt: parcel.createdAt.toISOString(),
         }}
         campaignYear={year}

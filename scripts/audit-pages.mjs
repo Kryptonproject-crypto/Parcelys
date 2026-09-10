@@ -48,7 +48,9 @@ const COMPTES = {
     pages: ['/portefeuille', '/portefeuille/preconisations', '/profil'],
   },
   administration: {
-    identifiants: { email: 'kevin@parcelys.fr', password: 'MotDePasse2026' },
+    // Compte posé par `scripts/audit-accounts.ts`, pas un compte réel : l'audit
+    // ne doit dépendre d'aucun état qu'il ne crée pas lui-même.
+    identifiants: { email: 'administration@parcelys.test', password: 'MotDePasse2026' },
     porte: '/connexion',
     pages: [
       '/administration',

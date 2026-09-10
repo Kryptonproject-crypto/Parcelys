@@ -277,6 +277,7 @@ Paramètres : `search`, `cropId`, `status` (`ACTIVE`/`FALLOW`/`ARCHIVED`),
   "pacId": "...",
   "parcelType": "Terre labourable",
   "status": "ACTIVE",
+  "drainedSoil": true,
   "notes": "...",
   "geometry": {
     "type": "Polygon",
@@ -290,6 +291,12 @@ latitude]`, SRID 4326). Les anneaux non fermés le sont automatiquement.
 
 **La superficie n'est jamais reprise du client** : elle est calculée par PostGIS
 (`ST_Area(geometry::geography)`) sur l'ellipsoïde WGS84.
+
+`drainedSoil` a **trois** valeurs : `true`, `false` et `null` (« non
+renseigné »). `null` n'est pas traité comme « non drainé » — plusieurs produits
+interdisent l'application sur sol artificiellement drainé (mentions SPe 2), et
+prendre l'absence de réponse pour un « non » ferait taire l'avertissement
+précisément là où il manque.
 
 `201` :
 
@@ -437,7 +444,14 @@ Référentiels d'engrais minéraux et de produits organiques.
 ### `GET /api/phytosanitary/products?q=`
 
 Recherche dans le catalogue **E-Phy importé**. Paramètres : `q` (nom commercial,
-second nom ou numéro d'AMM), `onlyAuthorized`, `limit` (≤ 50).
+second nom ou numéro d'AMM), `includeWithdrawn`, `limit` (≤ 50).
+
+**Les produits retirés du marché sont écartés par défaut.** Le catalogue
+officiel est un historique : à l'édition de septembre 2026, 12 449 des 15 139
+produits y sont retirés. `includeWithdrawn=true` les rappelle — c'est nécessaire
+pour compléter un registre antérieur au retrait. `withdrawnHidden` dit toujours
+combien ont été écartés, pour que l'absence d'un produit ne passe jamais pour
+une lacune du catalogue.
 
 ```json
 {
@@ -447,16 +461,21 @@ second nom ou numéro d'AMM), `onlyAuthorized`, `limit` (≤ 50).
       "amm": "2020024",
       "name": "...",
       "holder": "...",
-      "status": "Autorisé",
+      "status": "AUTORISE",
+      "authorized": true,
+      "withdrawnAt": null,
       "formulation": "SL",
+      "productType": "Herbicide",
       "substances": ["..."]
     }
   ],
   "total": 12,
+  "withdrawnHidden": 34,
   "source": {
     "label": "Données issues de sources officielles (E-Phy — ANSES, jeu de données ouvert)",
     "lastSyncAt": "2026-09-01T03:00:00.000Z",
-    "productsInBase": 15234,
+    "productsInBase": 15140,
+    "authorizedInBase": 2692,
     "configured": true
   }
 }
@@ -469,10 +488,61 @@ second nom ou numéro d'AMM), `onlyAuthorized`, `limit` (≤ 50).
 ### `GET /api/phytosanitary/products/:idOrAmm`
 
 Fiche produit officielle : substances actives (avec numéro CAS et
-concentration), usages autorisés (culture, cible, dose, DAR, ZNT aquatique,
-nombre maximal d'applications, conditions d'emploi), mentions autorisées,
-restrictions, date de retrait. Les champs absents du jeu de données sont
-retournés `null`.
+concentration), usages (culture, cible, dose, DAR, stades BBCH, les **trois**
+ZNT — aquatique, arthropodes non cibles, plantes non cibles —, nombre maximal
+d'applications, conditions d'emploi), conditions d'emploi catégorisées, mentions
+autorisées, restrictions, date de retrait. Les champs absents du jeu de données
+sont retournés `null`.
+
+> Une ZNT `null` est une **donnée absente**, pas une ZNT nulle. L'interface
+> affiche un tiret, jamais « 0 m ».
+
+### `GET /api/phytosanitary/products/:idOrAmm/usages`
+
+Ce qu'il faut pour saisir un traitement en connaissance de cause, en un seul
+appel — l'application mobile s'en sert au champ, où trois allers-retours sont
+trois occasions d'échouer.
+
+```json
+{
+  "product": {
+    "id": "...", "amm": "2190312", "name": "...",
+    "status": "AUTORISE", "authorized": true, "withdrawnAt": null
+  },
+  "usages": [
+    {
+      "id": "...",
+      "cropLabel": "Blé",
+      "targetLabel": "Désherbage",
+      "doseValue": "0.1", "doseUnit": "L/ha",
+      "status": "Autorisé",
+      "preHarvestDelay": null,
+      "maxApplications": "1",
+      "minIntervalDays": null,
+      "zntAquaticM": "5.0", "zntArthropodM": null, "zntPlantM": "5.0",
+      "conditions": "..."
+    }
+  ],
+  "crops": ["Blé", "Orge", "Seigle"],
+  "drainedSoilRestrictions": [
+    {
+      "category": "Environnement faune",
+      "label": "Condition: - SPe 2 : Pour protéger les organismes aquatiques, ne pas appliquer sur sol artificiellement drainé.",
+      "severity": "interdit"
+    }
+  ],
+  "source": { "...": "..." }
+}
+```
+
+Seuls les usages **en vigueur** sont servis : un usage retiré ne doit jamais
+faire référence de dose. Aucune valeur n'est calculée hormis `severity`, qui
+distingue l'interdiction franche de la condition à vérifier ; les libellés sont
+ceux de l'ANSES, mot pour mot.
+
+Le rapprochement dose saisie / dose retenue se fait à partir de ces valeurs
+(`src/lib/ephy/dose.ts`, partagé avec l'application mobile). Voir
+[`docs/ephy.md`](./ephy.md).
 
 ### `POST /api/parcels/:id/phytosanitary`
 
@@ -502,6 +572,31 @@ retournés `null`.
 - `captureWeather: true` relève automatiquement température, vent, humidité et
   précipitations sur le centroïde de la parcelle. En cas d'indisponibilité du
   service, les champs restent vides — aucune valeur n'est inventée.
+
+#### Contrôles réglementaires (`warnings`)
+
+La réponse porte un tableau `warnings`. Ces contrôles **avertissent, ils ne
+bloquent pas** : le catalogue ne connaît ni les dérogations, ni les mélanges, ni
+les doses réduites décidées à la parcelle, et refuser l'enregistrement d'un
+traitement réellement effectué produirait un registre faux.
+
+| Cas | Avertissement |
+|---|---|
+| Dose > dose retenue au catalogue pour la culture | « Surdosage : … soit N % au-dessus. » |
+| Unités non comparables (masse ↔ volume) | Comparaison refusée, jamais supposée |
+| Culture absente des usages en vigueur du produit | « un usage absent du catalogue n'est pas un usage autorisé » |
+| Traitement postérieur à la date de retrait du produit | Rappel de la date de retrait |
+| Parcelle en sol drainé + condition SPe 2 sur le produit | Condition d'emploi citée mot pour mot |
+| Aucun numéro d'AMM | L'intervention est « à compléter » |
+
+`cropLabel` détermine le rapprochement avec les usages du catalogue ; à défaut,
+la culture est reprise de `cropYearId`. Sans l'un ni l'autre, aucun contrôle de
+dose n'est effectué et rien n'est supposé.
+
+Les mêmes contrôles s'appliquent aux saisies rejouées par `/api/sync`, qui
+appelle ce gestionnaire : les `warnings` y sont remontés dans chaque
+`results[]`. Un contrôle qui n'existerait que dans le navigateur laisserait
+passer tout ce qui a été saisi au champ.
 
 ### `GET /api/phytosanitary/applications`
 

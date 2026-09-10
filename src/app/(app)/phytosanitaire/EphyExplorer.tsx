@@ -38,8 +38,18 @@ type ProductDetail = {
       status: string | null;
       conditions: string | null;
       preHarvestDelay: string | null;
+      bbchMin: string | null;
+      bbchMax: string | null;
       zntAquaticM: string | null;
+      zntArthropodM: string | null;
+      zntPlantM: string | null;
       maxApplications: string | null;
+      minIntervalDays: string | null;
+    }>;
+    conditions: Array<{
+      category: string;
+      label: string;
+      concernsDrainedSoil: boolean;
     }>;
   };
 };
@@ -166,9 +176,12 @@ export function EphyExplorer() {
                       <Th>Cible</Th>
                       <Th>Dose</Th>
                       <Th>Statut</Th>
+                      <Th>Stade (BBCH)</Th>
                       <Th>DAR</Th>
-                      <Th>ZNT aquatique</Th>
-                      <Th>Applications max.</Th>
+                      <Th>Applications</Th>
+                      <Th>ZNT aquat.</Th>
+                      <Th>ZNT arthr.</Th>
+                      <Th>ZNT plantes</Th>
                       <Th>Conditions d&apos;emploi</Th>
                     </tr>
                   </thead>
@@ -183,9 +196,21 @@ export function EphyExplorer() {
                             : '—'}
                         </Td>
                         <Td>{usage.status ?? '—'}</Td>
-                        <Td>{usage.preHarvestDelay ?? '—'}</Td>
-                        <Td>{usage.zntAquaticM ?? '—'}</Td>
-                        <Td>{usage.maxApplications ?? '—'}</Td>
+                        <Td>
+                          {usage.bbchMin || usage.bbchMax
+                            ? `${usage.bbchMin ?? '?'} – ${usage.bbchMax ?? '?'}`
+                            : '—'}
+                        </Td>
+                        <Td>{usage.preHarvestDelay ? `${usage.preHarvestDelay} j` : '—'}</Td>
+                        <Td>
+                          {usage.maxApplications ?? '—'}
+                          {usage.minIntervalDays ? ` / ${usage.minIntervalDays} j` : ''}
+                        </Td>
+                        {/* Une ZNT absente du catalogue est une donnée absente,
+                            pas une ZNT nulle : on écrit un tiret, jamais « 0 m ». */}
+                        <Td>{usage.zntAquaticM ? `${usage.zntAquaticM} m` : '—'}</Td>
+                        <Td>{usage.zntArthropodM ? `${usage.zntArthropodM} m` : '—'}</Td>
+                        <Td>{usage.zntPlantM ? `${usage.zntPlantM} m` : '—'}</Td>
                         <Td className="max-w-[280px] text-xs">
                           {usage.conditions ?? '—'}
                         </Td>
@@ -201,6 +226,34 @@ export function EphyExplorer() {
               </p>
             )}
           </div>
+
+          {/* Conditions d'emploi : c'est là que vivent les mentions SPe, dont
+              les restrictions de sol drainé. Reprises mot pour mot. */}
+          {detail.product.conditions.length > 0 ? (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-ink">
+                Conditions d&apos;emploi ({detail.product.conditions.length})
+              </h4>
+              <ul className="space-y-2">
+                {detail.product.conditions.map((condition) => (
+                  <li
+                    key={`${condition.category}-${condition.label}`}
+                    className={`rounded-lg border p-3 text-sm ${
+                      condition.concernsDrainedSoil
+                        ? 'border-ble-500/40 bg-ble-50 dark:bg-ble-700/15'
+                        : 'border-line bg-surface-2'
+                    }`}
+                  >
+                    <span className="text-xs font-medium uppercase tracking-wide text-ink-3">
+                      {condition.category}
+                      {condition.concernsDrainedSoil ? ' · sol drainé' : ''}
+                    </span>
+                    <p className="mt-1 text-ink-2">{condition.label}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <p className="border-t border-line pt-3 text-xs text-ink-3">
             {detail.source.label}

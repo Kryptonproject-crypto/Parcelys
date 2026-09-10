@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -16,9 +17,21 @@ const { version } = JSON.parse(
  * que l'application compare à la dernière version publiée pour savoir si une
  * mise à jour l'attend.
  */
+/**
+ * Le contrôle de dose réglementaire vit dans `src/lib/ephy/`, côté serveur, et
+ * l'application mobile le compile ici plutôt que de le réécrire.
+ *
+ * Deux implémentations d'une même règle réglementaire finiraient par diverger,
+ * et c'est celle du téléphone — utilisée au champ, au moment où l'on remplit le
+ * pulvérisateur — qui serait la mauvaise. Les fichiers concernés n'importent
+ * rien du serveur : ni Prisma, ni `server-only`, ni l'alias `@` du site.
+ */
+const PARTAGE = fileURLToPath(new URL('../src/lib/ephy', import.meta.url));
+
 export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(version) },
+  resolve: { alias: { '@partage': PARTAGE } },
   plugins: [react(), tailwindcss()],
   build: {
     outDir: 'dist',
@@ -26,5 +39,7 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
   },
-  server: { host: '127.0.0.1', port: 5174 },
+  // `fs.allow` : en développement, Vite refuse de servir un fichier hors du
+  // dossier du projet. Le module partagé en est un.
+  server: { host: '127.0.0.1', port: 5174, fs: { allow: ['..'] } },
 });

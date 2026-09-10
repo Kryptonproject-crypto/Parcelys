@@ -174,6 +174,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
               ['Référence cadastrale', parcel.cadastralRef ?? '—'],
               ['Identifiant PAC / RPG', parcel.pacId ?? '—'],
               ['Type de parcelle', parcel.parcelType ?? '—'],
+              [
+                'Sol drainé',
+                parcel.drainedSoil === true
+                  ? 'Oui'
+                  : parcel.drainedSoil === false
+                    ? 'Non'
+                    : 'Non renseigné',
+              ],
               ['Statut', PARCEL_STATUS_LABELS[parcel.status] ?? parcel.status],
               [
                 'Coordonnées GPS (centre)',
@@ -780,6 +788,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
           parcelAreaHa={parcel.areaHa}
           cropYears={cropYears}
           hasLocation={parcel.centroidLat !== null && parcel.centroidLng !== null}
+          parcelDrained={parcel.drainedSoil}
           onDone={() => setModal(null)}
         />
       </Modal>

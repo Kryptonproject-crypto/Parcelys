@@ -59,6 +59,7 @@ export default async function EditParcelPage({
           pacId: parcel.pacId,
           parcelType: parcel.parcelType,
           status: parcel.status,
+          drainedSoil: parcel.drainedSoil,
           notes: parcel.notes,
           geometry,
         }}

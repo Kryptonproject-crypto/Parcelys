@@ -229,6 +229,10 @@ export type CatalogProduct = {
   holder: string | null;
   /** État d'autorisation tel qu'E-Phy le publie. Nul si le champ manque. */
   status: string | null;
+  /** `status` désigne-t-il une autorisation en vigueur ? Calculé par le serveur. */
+  authorized: boolean;
+  /** Date de retrait publiée par l'ANSES, au format ISO. */
+  withdrawnAt: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];
@@ -237,13 +241,53 @@ export type CatalogProduct = {
 export type CatalogSearch = {
   results: CatalogProduct[];
   total: number;
+  /** Produits retirés écartés de la liste faute d'être demandés. */
+  withdrawnHidden: number;
   source: {
     label: string;
     lastSyncAt: string | null;
     productsInBase: number;
+    authorizedInBase: number;
     /** Faux tant qu'aucune synchronisation E-Phy n'a eu lieu. */
     configured: boolean;
   };
+};
+
+/** Calqué sur `UsageForDose` du serveur. */
+export type CatalogUsage = {
+  id: string;
+  cropLabel: string | null;
+  targetLabel: string | null;
+  usageLabel: string | null;
+  doseValue: string | null;
+  doseUnit: string | null;
+  status: string | null;
+  preHarvestDelay: string | null;
+  maxApplications: string | null;
+  minIntervalDays: string | null;
+  zntAquaticM: string | null;
+  zntArthropodM: string | null;
+  zntPlantM: string | null;
+  conditions: string | null;
+};
+
+export type CatalogProductUsages = {
+  product: {
+    id: string;
+    amm: string;
+    name: string;
+    status: string | null;
+    authorized: boolean;
+    withdrawnAt: string | null;
+  };
+  usages: CatalogUsage[];
+  crops: string[];
+  drainedSoilRestrictions: Array<{
+    category: string;
+    label: string;
+    severity: 'interdit' | 'a-verifier';
+  }>;
+  source: CatalogSearch['source'];
 };
 
 /**
@@ -257,13 +301,32 @@ export type CatalogSearch = {
 export async function searchCatalog(
   session: Session,
   query: string,
-  onlyAuthorized = false,
+  includeWithdrawn = false,
 ): Promise<CatalogSearch> {
   const params = new URLSearchParams({ q: query, limit: '15' });
-  if (onlyAuthorized) params.set('onlyAuthorized', 'true');
+  if (includeWithdrawn) params.set('includeWithdrawn', 'true');
   return request<CatalogSearch>(
     session.serverUrl,
     `/api/phytosanitary/products?${params.toString()}`,
+    { token: session.token },
+  );
+}
+
+/**
+ * Usages autorisés d'un produit : doses retenues, DAR, ZNT, sols drainés.
+ *
+ * Un seul appel, fait au moment où le produit est choisi. Le contrôle de dose
+ * se fait ensuite dans le téléphone, sans réseau : au champ, la liaison peut
+ * tomber entre le choix du produit et la saisie de la dose, et c'est justement
+ * là que l'avertissement doit tenir.
+ */
+export async function fetchProductUsages(
+  session: Session,
+  productId: string,
+): Promise<CatalogProductUsages> {
+  return request<CatalogProductUsages>(
+    session.serverUrl,
+    `/api/phytosanitary/products/${encodeURIComponent(productId)}/usages`,
     { token: session.token },
   );
 }

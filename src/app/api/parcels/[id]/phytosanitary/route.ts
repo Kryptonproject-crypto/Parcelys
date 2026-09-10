@@ -6,6 +6,7 @@ import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { phytoApplicationSchema } from '@/lib/validation/farming';
 import { computeTotalQuantity } from '@/lib/services/fertilization';
 import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
+import { buildPhytoWarnings } from '@/lib/services/phyto-control';
 import { logAudit } from '@/lib/audit';
 import { badRequest, notFound } from '@/lib/api/errors';
 
@@ -141,15 +142,32 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     metadata: { productName, amm, dose: input.dose },
   });
 
+  // Contrôles réglementaires : dose retenue au catalogue, produit retiré, sol
+  // drainé. Ils avertissent après l'enregistrement plutôt que de le refuser —
+  // voir `buildPhytoWarnings`. Ils portent aussi sur les saisies rejouées
+  // depuis l'application mobile, qui passent par ce même gestionnaire.
+  const controles = await buildPhytoWarnings({
+    parcelId: id,
+    productId,
+    cropLabel: input.cropLabel ?? null,
+    cropYearId: input.cropYearId ?? null,
+    dose: input.dose,
+    doseUnit: input.doseUnit,
+    appliedOn: input.appliedOn,
+  });
+
   return ok(
     {
       item: created,
       message: 'Traitement enregistré',
-      warnings: amm
-        ? []
-        : [
-            'Aucun numéro d’AMM associé : cette intervention apparaîtra comme incomplète dans votre registre.',
-          ],
+      warnings: [
+        ...(amm
+          ? []
+          : [
+              'Aucun numéro d’AMM associé : cette intervention apparaîtra comme incomplète dans votre registre.',
+            ]),
+        ...controles,
+      ],
     },
     201,
   );

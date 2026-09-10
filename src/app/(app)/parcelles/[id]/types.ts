@@ -16,6 +16,8 @@ export type ParcelSummary = {
   areaHa: number;
   centroidLat: number | null;
   centroidLng: number | null;
+  /** Sol artificiellement drainé. `null` = non renseigné, pas « non drainé ». */
+  drainedSoil: boolean | null;
   createdAt: string;
 };
 

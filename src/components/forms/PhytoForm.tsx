@@ -9,6 +9,7 @@ import {
   EphyProductSearch,
   type EphyProduct,
 } from '@/components/forms/EphyProductSearch';
+import { PhytoUsagePanel } from '@/components/forms/PhytoUsagePanel';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 import type { CropYearRow } from '@/app/(app)/parcelles/[id]/types';
 
@@ -17,6 +18,7 @@ export function PhytoForm({
   parcelAreaHa,
   cropYears,
   hasLocation,
+  parcelDrained,
   onDone,
 }: {
   parcelId: string;
@@ -24,6 +26,8 @@ export function PhytoForm({
   cropYears: CropYearRow[];
   /** La parcelle a un centroïde : le relevé météo automatique est possible. */
   hasLocation: boolean;
+  /** Sol drainé de la parcelle. `null` = non renseigné, et non « non drainé ». */
+  parcelDrained: boolean | null;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -32,6 +36,8 @@ export function PhytoForm({
   const [dose, setDose] = useState('');
   const [doseUnit, setDoseUnit] = useState('L/ha');
   const [treatedArea, setTreatedArea] = useState(parcelAreaHa.toFixed(4));
+  const [cropYearId, setCropYearId] = useState('');
+  const [cropLabel, setCropLabel] = useState('');
   const [captureWeather, setCaptureWeather] = useState(hasLocation);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +53,17 @@ export function PhytoForm({
     return computeTotalQuantity(doseValue, doseUnit, area);
   }, [dose, doseUnit, treatedArea]);
 
+  const cropNameOf = (id: string): string =>
+    cropYears.find((cy) => cy.id === id)?.cropName ?? '';
+
+  /**
+   * Culture retenue pour interroger le catalogue : le libellé E-Phy choisi dans
+   * le panneau s'il l'a été, sinon le nom de la culture de la parcelle. Les deux
+   * ne coïncident pas toujours — E-Phy dit « Blé », l'assolement « Blé tendre
+   * d'hiver » — et c'est bien pour cela qu'on laisse choisir.
+   */
+  const cropPourCatalogue = cropLabel || cropNameOf(cropYearId);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSubmitting(true);
@@ -61,7 +78,11 @@ export function PhytoForm({
       productName: product?.name ?? manualName,
       amm: product?.amm ?? String(form.get('amm') ?? ''),
       activeSubstances: product?.substances.join(', ') ?? '',
-      cropLabel: String(form.get('cropLabel') ?? ''),
+      // Le libellé de culture voyage avec l'enregistrement : c'est lui qui
+      // rattache le traitement à un usage du catalogue, et un registre sans
+      // culture ne se contrôle pas. Il était perdu jusqu'ici — le formulaire
+      // lisait un champ qui n'existait pas.
+      cropLabel: cropLabel || cropNameOf(cropYearId) || '',
       targetLabel: String(form.get('targetLabel') ?? ''),
       dose: Number(dose),
       doseUnit,
@@ -69,7 +90,7 @@ export function PhytoForm({
       treatedAreaHa: Number(treatedArea),
       operator: String(form.get('operator') ?? ''),
       notes: String(form.get('notes') ?? ''),
-      cropYearId: String(form.get('cropYearId') ?? '') || undefined,
+      cropYearId: cropYearId || undefined,
       captureWeather,
       weatherTempC: String(form.get('weatherTempC') ?? '') || undefined,
       weatherWindKmh: String(form.get('weatherWindKmh') ?? '') || undefined,
@@ -153,7 +174,11 @@ export function PhytoForm({
         </Field>
 
         <Field label="Culture concernée" htmlFor="cropYearId">
-          <Select id="cropYearId" name="cropYearId" defaultValue="">
+          <Select
+            id="cropYearId"
+            value={cropYearId}
+            onChange={(e) => setCropYearId(e.target.value)}
+          >
             <option value="">— Non rattaché —</option>
             {cropYears.map((cy) => (
               <option key={cy.id} value={cy.id}>
@@ -224,6 +249,18 @@ export function PhytoForm({
           <Input id="operator" name="operator" placeholder="Nom de l'applicateur" />
         </Field>
       </div>
+
+      {/* Ce que le catalogue officiel dit de ce produit sur cette culture :
+          dose retenue, ZNT, sol drainé. Placé après la dose pour que l'écart
+          se voie à la frappe, avant l'enregistrement. */}
+      <PhytoUsagePanel
+        productId={product?.id ?? null}
+        crop={cropPourCatalogue}
+        onCropChange={setCropLabel}
+        dose={dose}
+        doseUnit={doseUnit}
+        parcelDrained={parcelDrained}
+      />
 
       {preview ? (
         <div className="rounded-lg border border-champ-200 dark:border-champ-800 bg-accent-soft p-3.5 text-sm">

@@ -68,11 +68,40 @@ export type UsageField =
   | 'dose'
   | 'doseUnit'
   | 'preHarvestDelay'
+  | 'preHarvestBbch'
+  | 'bbchMin'
+  | 'bbchMax'
   | 'maxApplications'
+  | 'minIntervalDays'
   | 'conditions'
   | 'zntAquatic'
+  | 'zntArthropod'
+  | 'zntPlant'
+  | 'endDistribution'
+  | 'endUsage'
   | 'decisionDate';
 
+/**
+ * Colonnes des fichiers d'usages.
+ *
+ * Deux fichiers de l'archive portent des usages, et ils ne nomment pas les
+ * choses pareil — voir `USAGE_LABEL_IS_ID` plus bas, qui documente le piège.
+ * Les intitulés réels de l'édition 2026-09 sont, pour
+ * `usages_des_produits_autorises_utf8.csv` :
+ *
+ *   identifiant usage lib court · identifiant usage · date decision ·
+ *   stade cultural min (BBCH) · stade cultural max (BBCH) · etat usage ·
+ *   dose retenue · dose retenue unite · delai avant recolte jour ·
+ *   delai avant recolte bbch · nombre max d'application · date fin distribution ·
+ *   date fin utilisation · condition emploi · ZNT aquatique (en m) ·
+ *   ZNT arthropodes non cibles (en m) · ZNT plantes non cibles (en m)
+ *
+ * `produits_usages_utf8.csv` y ajoute
+ * `intervalle minimum entre applications (jour)` et écrit, faute de frappe
+ * comprise dans le fichier officiel, `tade cultural max (BBCH)`. Cet alias-là
+ * n'est pas une coquille de notre côté : c'est celle du fichier, et la corriger
+ * reviendrait à ne plus lire la colonne.
+ */
 export const USAGE_COLUMNS: ColumnMap<UsageField> = {
   amm: ['numero amm', 'numero d amm', 'n amm', 'amm'],
   usageId: ['identifiant usage', 'id usage'],
@@ -91,15 +120,67 @@ export const USAGE_COLUMNS: ColumnMap<UsageField> = {
     'delai avant recolte',
     'dar',
   ],
+  preHarvestBbch: ['delai avant recolte bbch'],
+  bbchMin: ['stade cultural min bbch', 'stade cultural min'],
+  bbchMax: ['stade cultural max bbch', 'tade cultural max bbch', 'stade cultural max'],
   maxApplications: [
     'nombre max d application',
     'nombre max d applications',
     'nombre maximum d applications',
   ],
+  minIntervalDays: [
+    'intervalle minimum entre applications jour',
+    'intervalle minimum entre applications',
+  ],
   conditions: ['condition emploi', 'conditions d emploi', 'condition d emploi'],
-  zntAquatic: ['znt aquatique m', 'znt aquatique', 'znt eau'],
+  zntAquatic: ['znt aquatique en m', 'znt aquatique m', 'znt aquatique', 'znt eau'],
+  zntArthropod: [
+    'znt arthropodes non cibles en m',
+    'znt arthropodes non cibles',
+    'znt arthropodes',
+  ],
+  zntPlant: ['znt plantes non cibles en m', 'znt plantes non cibles', 'znt plantes'],
+  endDistribution: ['date fin distribution', 'date de fin de distribution'],
+  endUsage: ['date fin utilisation', 'date de fin d utilisation'],
   decisionDate: ['date decision', 'date de decision'],
 };
+
+export type ConditionField = 'amm' | 'category' | 'label';
+
+/** Colonnes de `produits_condition_emploi_utf8.csv`. */
+export const CONDITION_COLUMNS: ColumnMap<ConditionField> = {
+  amm: ['numero amm', 'numero d amm', 'n amm', 'amm'],
+  category: ['categorie de condition d emploi', 'categorie condition d emploi'],
+  label: ['condition d emploi libelle', 'condition emploi libelle', 'libelle'],
+};
+
+/**
+ * Où se trouve vraiment le libellé d'usage ?
+ *
+ * Les deux colonnes candidates ne portent pas ce que leur intitulé annonce, et
+ * pas de la même façon d'un fichier à l'autre.
+ *
+ * Dans `usages_des_produits_autorises_utf8.csv`, l'en-tête déclare
+ * « identifiant usage lib court » puis « identifiant usage » ; les valeurs
+ * arrivent dans l'ordre inverse de ce qu'on attendrait — le code `15105913`
+ * sous « lib court », le libellé `Orge*Désherbage` sous « identifiant usage ».
+ * Dans `produits_usages_utf8.csv`, il n'y a qu'une colonne, « identifiant
+ * usage », et elle porte le libellé.
+ *
+ * Se fier aux intitulés produirait, au choix, des cultures vides ou des
+ * cultures nommées `00610005` — dans les deux cas un catalogue d'apparence
+ * complète dont plus aucune dose ne serait rattachée à une culture lisible.
+ *
+ * On tranche donc sur le contenu : un libellé d'usage E-Phy s'écrit
+ * `culture*traitement*cible` et contient toujours des `*`. C'est la seule
+ * propriété que les deux fichiers partagent réellement.
+ */
+export function looksLikeUsageLabel(values: Array<string | undefined>): boolean {
+  const renseignes = values.filter((v): v is string => Boolean(v && v.trim()));
+  if (renseignes.length === 0) return false;
+  const avecEtoile = renseignes.filter((v) => v.includes('*')).length;
+  return avecEtoile / renseignes.length > 0.5;
+}
 
 export type SubstanceField = 'name' | 'casNumber' | 'status';
 
@@ -150,14 +231,16 @@ export const DATA_FILE_PATTERNS: Record<EphyRole, RegExp[]> = {
     /^produits_usages(?:_utf8)?\.csv$/i,
   ],
   substances: [/^substances?_actives?(?:_utf8)?\.csv$/i],
+  conditions: [/^produits_condition_emploi(?:_utf8)?\.csv$/i],
 };
 
-export type EphyRole = 'products' | 'usages' | 'substances';
+export type EphyRole = 'products' | 'usages' | 'substances' | 'conditions';
 
 const ROLE_LABELS: Record<EphyRole, string> = {
   products: 'produits',
   usages: 'usages autorisés',
   substances: 'substances actives',
+  conditions: "conditions d'emploi",
 };
 
 /**

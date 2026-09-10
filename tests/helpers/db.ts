@@ -58,6 +58,7 @@ const TABLES_IN_DELETION_ORDER = [
   'fertilizers',
   'organic_inputs',
   'phyto_usages',
+  'phyto_conditions',
   'product_substances',
   'phytosanitary_products',
   'active_substances',

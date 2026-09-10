@@ -4,10 +4,16 @@ import type { CachedParcel, OperationKind } from '../lib/types';
 import { enqueue } from '../lib/db';
 import {
   captureWeather,
+  fetchProductUsages,
   searchCatalog,
   type CatalogProduct,
+  type CatalogProductUsages,
+  type CatalogUsage,
   type InterventionWeather,
 } from '../lib/api';
+// Même code que le site : le contrôle de dose réglementaire n'existe qu'une
+// fois. Voir l'alias `@partage` dans vite.config.ts.
+import { checkDose, usagesForCrop } from '@partage/dose';
 import {
   ActionBar,
   Banner,
@@ -75,6 +81,14 @@ export function EntryScreen({
     'idle' | 'searching' | 'empty' | 'unconfigured' | 'offline' | 'error'
   >('idle');
   const [verified, setVerified] = useState(false);
+  const [withdrawn, setWithdrawn] = useState(false);
+  /** Produits retirés du marché écartés de la dernière recherche. */
+  const [withdrawnHidden, setWithdrawnHidden] = useState(0);
+  const [includeWithdrawn, setIncludeWithdrawn] = useState(false);
+
+  /** Usages autorisés du produit choisi : doses, ZNT, conditions de drainage. */
+  const [usages, setUsages] = useState<CatalogProductUsages | null>(null);
+  const [cropLabel, setCropLabel] = useState('');
 
   // Conditions relevées à la saisie, jamais à la synchronisation.
   const [weather, setWeather] = useState<InterventionWeather | null>(null);
@@ -142,7 +156,7 @@ export function EntryScreen({
     const jeton = (rechercheEnCours.current += 1);
     setCatalogState('searching');
     const minuteur = setTimeout(() => {
-      void searchCatalog(context.session, terme)
+      void searchCatalog(context.session, terme, includeWithdrawn)
         .then((reponse) => {
           // Une réponse arrivée après une frappe plus récente est périmée.
           if (jeton !== rechercheEnCours.current) return;
@@ -152,6 +166,7 @@ export function EntryScreen({
             return;
           }
           setCatalogHits(reponse.results);
+          setWithdrawnHidden(reponse.withdrawnHidden);
           setCatalogState(reponse.results.length === 0 ? 'empty' : 'idle');
         })
         .catch(() => {
@@ -162,7 +177,7 @@ export function EntryScreen({
     }, 400);
 
     return () => clearTimeout(minuteur);
-  }, [catalogQuery, online, context.session]);
+  }, [catalogQuery, online, includeWithdrawn, context.session]);
 
   /** Un produit choisi au catalogue : nom, AMM et substances viennent de lui. */
   function pickCatalogProduct(product: CatalogProduct): void {
@@ -170,9 +185,32 @@ export function EntryScreen({
     setAmm(product.amm);
     setSubstances(product.substances.join(', '));
     setVerified(true);
+    setWithdrawn(!product.authorized);
     setCatalogQuery('');
     setCatalogHits(null);
     setCatalogState('idle');
+    setUsages(null);
+    setCropLabel('');
+
+    // Les usages sont chargés maintenant, tant qu'il y a du réseau : la dose se
+    // saisit ensuite, et la liaison peut avoir disparu entre-temps.
+    if (online) {
+      void fetchProductUsages(context.session, product.id)
+        .then((reponse) => {
+          setUsages(reponse);
+          // Une seule culture au catalogue : inutile de la faire choisir.
+          if (reponse.crops.length === 1) {
+            setCropLabel(reponse.crops[0] ?? '');
+          } else if (parcel.cropName) {
+            // La culture de la parcelle porte-t-elle un usage ? Le catalogue
+            // dit « Blé » là où l'assolement dit « Blé tendre d'hiver » : on
+            // retient le libellé du catalogue, c'est lui qui fait référence.
+            const correspondant = usagesForCrop(reponse.usages, parcel.cropName)[0];
+            if (correspondant?.cropLabel) setCropLabel(correspondant.cropLabel);
+          }
+        })
+        .catch(() => setUsages(null));
+    }
   }
 
   /** Pré-remplit à partir d'un produit déjà utilisé, AMM comprise. */
@@ -182,12 +220,46 @@ export function EntryScreen({
     );
     setProductName(value);
     setVerified(false);
+    setWithdrawn(false);
+    setUsages(null);
+    setCropLabel('');
     if (known) {
       setAmm(known.amm ?? '');
       setPhytoUnit(known.doseUnit);
       if (!phytoDose) setPhytoDose(String(known.lastDose));
     }
   }
+
+  /**
+   * Le verdict de dose, recalculé à chaque frappe et sans réseau : les usages
+   * sont déjà dans le téléphone, la comparaison est du calcul local.
+   */
+  const controleDose =
+    kind === 'phyto' && usages && phytoDose && Number(phytoDose) > 0
+      ? checkDose({
+          usages: usages.usages,
+          crop: cropLabel || parcel.cropName,
+          dose: Number(phytoDose),
+          doseUnit: phytoUnit,
+        })
+      : null;
+
+  /** Usages de la culture retenue, pour afficher ZNT et délais. */
+  const usagesCulture: CatalogUsage[] =
+    usages && (cropLabel || parcel.cropName)
+      ? usagesForCrop(usages.usages, cropLabel || parcel.cropName || '').slice(0, 3)
+      : [];
+
+  /**
+   * Restriction de sol drainé à signaler ?
+   *
+   * `drainedSoil === null` veut dire « non renseigné », pas « non drainé » : on
+   * prévient dans ce cas aussi, faute de pouvoir affirmer que la parcelle n'est
+   * pas concernée.
+   */
+  const restrictionsDrainage = usages?.drainedSoilRestrictions ?? [];
+  const alerteDrainage =
+    restrictionsDrainage.length > 0 && parcel.drainedSoil !== false;
 
   function pickFertilizer(value: string): void {
     setProductId(value);
@@ -231,6 +303,12 @@ export function EntryScreen({
         productName: productName.trim(),
         ...(amm.trim() ? { amm: amm.trim() } : {}),
         ...(substances.trim() ? { activeSubstances: substances.trim() } : {}),
+        // La culture voyage avec la saisie : c'est elle qui rattache le
+        // traitement à un usage du catalogue, et le serveur refait le contrôle
+        // de dose au moment où la file d'attente part.
+        ...(cropLabel || parcel.cropName
+          ? { cropLabel: cropLabel || parcel.cropName }
+          : {}),
         dose: Number(phytoDose),
         doseUnit: phytoUnit,
         // Relevées à l'ouverture du formulaire, sur la parcelle : c'est la
@@ -418,23 +496,147 @@ export function EntryScreen({
                         AMM {product.amm}
                         {product.holder ? ` · ${product.holder}` : ''}
                       </span>
-                      {product.status ? (
-                        <span className="mt-1 inline-block rounded-full bg-surface-2 px-2 py-0.5 text-[12px] text-ink-2">
-                          {product.status}
-                        </span>
-                      ) : null}
+                      <span
+                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[12px] ${
+                          product.authorized
+                            ? 'bg-champ-50 text-champ-700'
+                            : 'bg-brique-50 text-brique-700'
+                        }`}
+                      >
+                        {product.authorized ? 'Autorisé' : 'Retiré du marché'}
+                      </span>
                     </button>
                   </li>
                 ))}
               </ul>
             ) : null}
 
-            {verified ? (
+            {/*
+              Le catalogue officiel est un historique : plus de quatre produits
+              sur cinq y sont retirés du marché. Les afficher d'office noyait les
+              produits utilisables ; les taire ferait croire à un catalogue
+              incomplet. On les compte, et on laisse le choix.
+            */}
+            {withdrawnHidden > 0 && !includeWithdrawn ? (
+              <button
+                type="button"
+                onClick={() => setIncludeWithdrawn(true)}
+                className="text-left text-[12.5px] text-champ-700 underline"
+              >
+                {withdrawnHidden} produit{withdrawnHidden > 1 ? 's' : ''} retiré
+                {withdrawnHidden > 1 ? 's' : ''} du marché correspond
+                {withdrawnHidden > 1 ? 'ent' : ''} aussi — les afficher
+              </button>
+            ) : null}
+            {includeWithdrawn ? (
+              <button
+                type="button"
+                onClick={() => setIncludeWithdrawn(false)}
+                className="text-left text-[12.5px] text-ink-3 underline"
+              >
+                N&apos;afficher que les produits autorisés
+              </button>
+            ) : null}
+
+            {verified && !withdrawn ? (
               <Banner tone="info">
                 Produit repris du catalogue officiel : AMM et substances actives
                 sont celles d&apos;E-Phy. Vérifiez toujours l&apos;étiquette et l&apos;usage
                 autorisé avant application.
               </Banner>
+            ) : null}
+
+            {withdrawn ? (
+              <Banner tone="warning">
+                Ce produit ne figure plus parmi les produits autorisés du
+                catalogue E-Phy. Il reste saisissable pour compléter un registre
+                antérieur à son retrait ; l&apos;appliquer aujourd&apos;hui ne l&apos;est pas.
+              </Banner>
+            ) : null}
+
+            {/* --- Usages autorisés, dose retenue, ZNT --------------------- */}
+            {usages && usages.crops.length > 0 ? (
+              <Field
+                label="Culture traitée, au catalogue"
+                hint="C'est ce libellé qui détermine la dose de référence et les ZNT."
+              >
+                <Select
+                  value={cropLabel}
+                  onChange={(event) => setCropLabel(event.target.value)}
+                >
+                  <option value="">— Choisir la culture —</option>
+                  {usages.crops.map((crop) => (
+                    <option key={crop} value={crop}>
+                      {crop}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+
+            {usagesCulture.length > 0 ? (
+              <div className="rounded-xl border border-line bg-surface-2 px-3 py-2.5">
+                <p className="text-[12.5px] font-medium text-ink-2">
+                  Ce que le catalogue retient
+                </p>
+                <ul className="mt-1.5 space-y-1.5">
+                  {usagesCulture.map((usage) => (
+                    <li key={usage.id} className="text-[13px] text-ink-2">
+                      <span className="font-medium text-ink">
+                        {usage.targetLabel ?? 'Tous usages'}
+                      </span>{' '}
+                      —{' '}
+                      {usage.doseValue && usage.doseUnit
+                        ? `${usage.doseValue} ${usage.doseUnit}`
+                        : 'dose non publiée'}
+                      {usage.preHarvestDelay ? ` · DAR ${usage.preHarvestDelay} j` : ''}
+                      {usage.maxApplications
+                        ? ` · ${usage.maxApplications} application(s)`
+                        : ''}
+                      <span className="block text-[12px] text-ink-3">
+                        ZNT — aquatique {usage.zntAquaticM ? `${usage.zntAquaticM} m` : '—'}
+                        {' · '}arthropodes{' '}
+                        {usage.zntArthropodM ? `${usage.zntArthropodM} m` : '—'}
+                        {' · '}plantes {usage.zntPlantM ? `${usage.zntPlantM} m` : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11.5px] text-ink-3">
+                  Une ZNT non publiée est une donnée absente, pas une ZNT nulle.
+                  L&apos;étiquette du produit fait foi.
+                </p>
+              </div>
+            ) : null}
+
+            {/* --- Surdosage ---------------------------------------------- */}
+            {controleDose && controleDose.verdict === 'depassement' ? (
+              <Banner tone="danger">{controleDose.message}</Banner>
+            ) : controleDose && controleDose.verdict === 'conforme' ? (
+              <p className="text-[13px] text-champ-700">{controleDose.message}</p>
+            ) : controleDose &&
+              (controleDose.verdict === 'usage-inconnu' ||
+                controleDose.verdict === 'unites-incomparables' ||
+                controleDose.verdict === 'dose-non-exploitable') ? (
+              <Banner tone="warning">{controleDose.message}</Banner>
+            ) : null}
+
+            {/* --- Sol drainé --------------------------------------------- */}
+            {alerteDrainage ? (
+              <Banner tone={parcel.drainedSoil === true ? 'danger' : 'warning'}>
+                {parcel.drainedSoil === true
+                  ? 'Parcelle déclarée en sol drainé. '
+                  : 'Sol drainé non renseigné sur cette parcelle. '}
+                Condition d&apos;emploi officielle :{' '}
+                {restrictionsDrainage[0]?.label}
+              </Banner>
+            ) : null}
+
+            {verified && !online && !usages ? (
+              <p className="text-[12.5px] text-ink-3">
+                Hors réseau : les doses autorisées et les ZNT n&apos;ont pas pu être
+                lues. Reportez-vous à l&apos;étiquette du produit.
+              </p>
             ) : null}
 
             {(referential?.recentPhytoProducts.length ?? 0) > 0 ? (

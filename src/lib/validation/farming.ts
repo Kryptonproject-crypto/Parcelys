@@ -58,6 +58,15 @@ export const parcelCreateSchema = z.object({
   pacId: optionalText(40),
   parcelType: optionalText(60),
   status: z.enum(['ACTIVE', 'FALLOW', 'ARCHIVED']).default('ACTIVE'),
+  /**
+   * Sol artificiellement drainé.
+   *
+   * Trois états, et le troisième compte : `undefined` laisse la parcelle « non
+   * renseignée ». Plusieurs produits interdisent l'application sur sol drainé
+   * (mentions SPe 2), et prendre l'absence de réponse pour un « non » ferait
+   * taire l'avertissement précisément là où il manque.
+   */
+  drainedSoil: z.boolean().nullish(),
   notes: optionalText(2000),
   geometry: geometrySchema,
 });

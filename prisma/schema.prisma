@@ -502,6 +502,11 @@ model Parcel {
   areaHa         Decimal      @default(0) @map("area_ha") @db.Decimal(12, 4)
   centroidLat    Float?       @map("centroid_lat")
   centroidLng    Float?       @map("centroid_lng")
+  /// Sol artificiellement drainé. Trois états volontairement : `null` signifie
+  /// « non renseigné », et non « non drainé » — plusieurs produits interdisent
+  /// l'application sur sol drainé, et supposer l'absence de drainage
+  /// transformerait une information manquante en autorisation.
+  drainedSoil    Boolean?     @map("drained_soil")
   notes          String?
   isDemo         Boolean      @default(false) @map("is_demo")
   deletedAt      DateTime?    @map("deleted_at")
@@ -729,6 +734,7 @@ model PhytosanitaryProduct {
 
   substances      ProductSubstance[]
   usages          PhytoUsage[]
+  conditions      PhytoCondition[]
   applications    PhytosanitaryApplication[]
   recommendations Recommendation[]
 
@@ -758,6 +764,9 @@ model PhytoUsage {
   productId       String    @map("product_id")
   ephyUsageId     String?   @map("ephy_usage_id")
   cropLabel       String?   @map("crop_label")
+  /// `cropLabel` normalisé (minuscules, sans accents) : sert au rapprochement
+  /// avec la culture saisie, jamais à l'affichage.
+  cropNormalized  String?   @map("crop_normalized")
   targetLabel     String?   @map("target_label")
   usageLabel      String?   @map("usage_label")
   doseValue       String?   @map("dose_value")
@@ -765,15 +774,45 @@ model PhytoUsage {
   status          String?
   conditions      String?
   preHarvestDelay String?   @map("pre_harvest_delay")
+  preHarvestBbch  String?   @map("pre_harvest_bbch")
+  bbchMin         String?   @map("bbch_min")
+  bbchMax         String?   @map("bbch_max")
   zntAquaticM     String?   @map("znt_aquatic_m")
+  zntArthropodM   String?   @map("znt_arthropod_m")
+  zntPlantM       String?   @map("znt_plant_m")
   maxApplications String?   @map("max_applications")
+  minIntervalDays String?   @map("min_interval_days")
+  endDistribution DateTime? @map("end_distribution_at")
+  endUsage        DateTime? @map("end_usage_at")
   decisionDate    DateTime? @map("decision_date")
 
   product PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([cropLabel])
+  @@index([productId, cropNormalized])
   @@map("phyto_usages")
+}
+
+/// Condition d'emploi officielle d'un produit, telle que publiée par l'ANSES
+/// dans `produits_condition_emploi_utf8.csv`. Le libellé est repris mot pour
+/// mot : c'est de ce texte que relèvent les restrictions SPe (sol drainé,
+/// dispositif végétalisé, dérive), et le reformuler serait le réécrire.
+model PhytoCondition {
+  id        String @id @default(cuid())
+  productId String @map("product_id")
+  category  String
+  label     String
+
+  /// Marqueur calculé à l'import : la condition vise-t-elle les sols drainés ?
+  /// Sert à alerter, jamais à remplacer la lecture du libellé.
+  concernsDrainedSoil Boolean @default(false) @map("concerns_drained_soil")
+
+  product PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, concernsDrainedSoil])
+  @@map("phyto_conditions")
 }
 
 model EphySyncRun {

@@ -151,6 +151,8 @@ export type ParcelFeature = {
     areaHa: number;
     status: string;
     crop: string | null;
+    /** Sol drainé. `null` = non renseigné, pas « non drainé ». */
+    drainedSoil: boolean | null;
   };
 };
 
@@ -174,6 +176,7 @@ export async function getFarmParcelsGeoJSON(
       area_ha: string;
       status: string;
       crop_name: string | null;
+      drained_soil: boolean | null;
       geojson: string | null;
     }>
   >`
@@ -184,6 +187,7 @@ export async function getFarmParcelsGeoJSON(
       p.commune,
       p.area_ha::text AS area_ha,
       p.status::text  AS status,
+      p.drained_soil,
       c.name          AS crop_name,
       ST_AsGeoJSON(pg.geom) AS geojson
     FROM parcels p
@@ -216,6 +220,7 @@ export async function getFarmParcelsGeoJSON(
         areaHa: Number(row.area_ha),
         status: row.status,
         crop: row.crop_name,
+        drainedSoil: row.drained_soil,
       },
     });
   }

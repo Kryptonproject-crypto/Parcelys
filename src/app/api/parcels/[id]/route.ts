@@ -55,6 +55,7 @@ export const GET = route(async (_request: NextRequest, context: Ctx) => {
     pacId: parcel.pacId,
     parcelType: parcel.parcelType,
     status: parcel.status,
+    drainedSoil: parcel.drainedSoil,
     notes: parcel.notes,
     areaHa: Number(parcel.areaHa),
     centroid:
@@ -107,6 +108,7 @@ export const PUT = route(async (request: NextRequest, context: Ctx) => {
         ...(input.pacId !== undefined ? { pacId: input.pacId ?? null } : {}),
         ...(input.parcelType !== undefined ? { parcelType: input.parcelType ?? null } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.drainedSoil !== undefined ? { drainedSoil: input.drainedSoil ?? null } : {}),
         ...(input.notes !== undefined ? { notes: input.notes ?? null } : {}),
       },
     });

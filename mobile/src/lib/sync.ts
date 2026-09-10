@@ -34,6 +34,16 @@ export type SyncReport = {
   offline: boolean;
   /** Messages des saisies refusées, pour affichage. */
   errors: Array<{ label: string; message: string }>;
+  /**
+   * Avertissements réglementaires des saisies **acceptées** : surdosage,
+   * produit retiré, sol drainé.
+   *
+   * Ils comptent autant que les erreurs. Une saisie faite au champ hors réseau
+   * n'a pas pu être contrôlée au moment de la frappe : c'est ici, au moment où
+   * elle part, que l'exploitant l'apprend. Les taire reviendrait à ne contrôler
+   * que ce qui a été saisi au bureau.
+   */
+  warnings: Array<{ label: string; message: string }>;
   snapshotRefreshed: boolean;
 };
 
@@ -56,6 +66,7 @@ export async function synchronize(
     remaining: 0,
     offline: false,
     errors: [],
+    warnings: [],
     snapshotRefreshed: false,
   };
 
@@ -117,6 +128,9 @@ export async function synchronize(
       }
 
       report.applied += 1;
+      for (const message of result.warnings ?? []) {
+        report.warnings.push({ label: operation.label, message });
+      }
       if (result.entityId) resolved.set(operation.clientId, result.entityId);
       await dequeue(operation.clientId);
     }

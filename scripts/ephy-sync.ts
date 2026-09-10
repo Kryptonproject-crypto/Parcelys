@@ -55,12 +55,14 @@ function parseArgs(argv: string[]): Args {
 async function purgeCatalogue(): Promise<void> {
   console.info('→ Purge du catalogue (le registre phytosanitaire est conservé)…');
   const usages = await prisma.phytoUsage.deleteMany();
+  const conditions = await prisma.phytoCondition.deleteMany();
   const links = await prisma.productSubstance.deleteMany();
   const products = await prisma.phytosanitaryProduct.deleteMany();
   const substances = await prisma.activeSubstance.deleteMany();
   console.info(
     `  supprimés : ${products.count} produit(s), ${usages.count} usage(s), ` +
-      `${substances.count} substance(s), ${links.count} liaison(s)`,
+      `${conditions.count} condition(s), ${substances.count} substance(s), ` +
+      `${links.count} liaison(s)`,
   );
 }
 
@@ -114,6 +116,7 @@ async function readFromZip(zipPath: string): Promise<ImportSource> {
     products,
     usages: await read(chosen.usages),
     substances: await read(chosen.substances),
+    conditions: await read(chosen.conditions),
   };
 }
 
@@ -129,6 +132,7 @@ function chooseFiles(names: string[]): {
   products: string;
   usages: string | null;
   substances: string | null;
+  conditions: string | null;
 } {
   const products = resolveDataFile(names, 'products');
   if (!products) {
@@ -140,12 +144,16 @@ function chooseFiles(names: string[]): {
 
   const usages = resolveDataFile(names, 'usages');
   const substances = resolveDataFile(names, 'substances');
+  const conditions = resolveDataFile(names, 'conditions');
 
   console.info(`  → produits   : ${products}`);
-  console.info(`  → usages     : ${usages ?? '(absent — doses et DAR non importés)'}`);
+  console.info(`  → usages     : ${usages ?? '(absent — doses, ZNT et DAR non importés)'}`);
   console.info(`  → substances : ${substances ?? '(absent)'}`);
+  console.info(
+    `  → conditions : ${conditions ?? '(absent — restrictions sol drainé non importées)'}`,
+  );
 
-  return { products, usages, substances };
+  return { products, usages, substances, conditions };
 }
 
 /** Lit les CSV d'un dossier déjà décompressé. */
@@ -162,6 +170,9 @@ async function readFromDir(dir: string): Promise<ImportSource> {
     usages: chosen.usages ? await readFile(path.join(dir, chosen.usages)) : undefined,
     substances: chosen.substances
       ? await readFile(path.join(dir, chosen.substances))
+      : undefined,
+    conditions: chosen.conditions
+      ? await readFile(path.join(dir, chosen.conditions))
       : undefined,
   };
 }
@@ -233,6 +244,7 @@ async function main(): Promise<void> {
   console.info(`  produits        : ${report.productCount}`);
   console.info(`  substances      : ${report.substanceCount}`);
   console.info(`  usages          : ${report.usageCount}`);
+  console.info(`  conditions      : ${report.conditionCount}`);
   for (const warning of report.warnings) console.warn(`  ⚠ ${warning}`);
 }
 

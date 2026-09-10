@@ -196,6 +196,9 @@ describe('Référentiel E-Phy', () => {
       'usages_des_produits_autorises_utf8.csv',
     );
     expect(resolveDataFile(ARCHIVE_REELLE, 'substances')).toBe('substance_active_utf8.csv');
+    expect(resolveDataFile(ARCHIVE_REELLE, 'conditions')).toBe(
+      'produits_condition_emploi_utf8.csv',
+    );
   });
 
   it('refuse de choisir plutôt que de deviner quand plusieurs fichiers conviennent', () => {
@@ -274,8 +277,8 @@ describe('Référentiel E-Phy', () => {
     const byName = await searchProducts({ query: 'ALPHA' });
     expect(byName.results.map((r) => r.amm)).toContain('9900001');
 
-    // Recherche insensible aux accents.
-    const byAccent = await searchProducts({ query: 'beta' });
+    // Recherche insensible aux accents. BÊTA est retiré : il faut le demander.
+    const byAccent = await searchProducts({ query: 'beta', includeWithdrawn: true });
     expect(byAccent.results.map((r) => r.amm)).toContain('9900002');
 
     const byAmm = await searchProducts({ query: '9900003' });
@@ -286,21 +289,47 @@ describe('Référentiel E-Phy', () => {
     expect(unknown.results).toHaveLength(0);
   });
 
-  it('filtre les produits retirés à la demande', async () => {
+  /**
+   * Le catalogue officiel est un historique : plus de quatre produits sur cinq
+   * y sont retirés du marché. Les lister comme les autres donnait l'impression
+   * d'un catalogue faux ; les taire donnerait l'impression d'un catalogue
+   * incomplet. On les écarte, on les compte, et on sait les rappeler.
+   */
+  it('écarte les produits retirés par défaut, sans les cacher', async () => {
     await importEphyData(
       { products: toWindows1252(PRODUCTS_CSV) },
       { sourceLabel: 'échantillon de test' },
     );
 
-    const all = await searchProducts({ query: 'PRODUIT TEST' });
-    expect(all.results).toHaveLength(3);
+    const defaut = await searchProducts({ query: 'PRODUIT TEST' });
+    expect(defaut.results).toHaveLength(2);
+    expect(defaut.results.every((r) => r.authorized)).toBe(true);
+    expect(defaut.withdrawnHidden).toBe(1);
+    expect(defaut.total).toBe(2);
 
-    const authorized = await searchProducts({
-      query: 'PRODUIT TEST',
-      onlyAuthorized: true,
-    });
-    expect(authorized.results).toHaveLength(2);
-    expect(authorized.results.every((r) => r.status === 'AUTORISE')).toBe(true);
+    const tous = await searchProducts({ query: 'PRODUIT TEST', includeWithdrawn: true });
+    expect(tous.results).toHaveLength(3);
+    expect(tous.withdrawnHidden).toBe(0);
+    expect(tous.total).toBe(3);
+
+    // Les autorisés viennent en tête, quel que soit l'ordre alphabétique.
+    expect(tous.results.slice(0, 2).every((r) => r.authorized)).toBe(true);
+    expect(tous.results[2]?.authorized).toBe(false);
+
+    // La date de retrait est restituée telle que publiée (15/03/2024).
+    const retire = tous.results.find((r) => r.amm === '9900002');
+    expect(retire?.withdrawnAt?.slice(0, 10)).toBe('2024-03-15');
+  });
+
+  it('compte les produits autorisés séparément du catalogue complet', async () => {
+    await importEphyData(
+      { products: toWindows1252(PRODUCTS_CSV) },
+      { sourceLabel: 'échantillon de test' },
+    );
+
+    const source = await getEphySourceInfo();
+    expect(source.productsInBase).toBe(3);
+    expect(source.authorizedInBase).toBe(2);
   });
 
   it('renvoie une fiche produit complète avec sa provenance', async () => {

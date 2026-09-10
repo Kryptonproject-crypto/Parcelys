@@ -107,6 +107,33 @@ export function QueueScreen({ context }: { context: AppContext }) {
           </Banner>
         ) : null}
 
+        {/*
+          Avertissements des saisies acceptées : surdosage, produit retiré, sol
+          drainé. Séparés des erreurs parce qu'ils ne demandent pas de renvoyer
+          quoi que ce soit — la saisie est passée, et c'est le registre qui
+          porte désormais l'annotation. Mais une saisie faite hors réseau n'a
+          pas pu être contrôlée à la frappe : c'est ici qu'on l'apprend.
+        */}
+        {report && report.warnings.length > 0 ? (
+          <Banner tone="warning">
+            <strong>
+              {report.warnings.length} point
+              {report.warnings.length > 1 ? 's' : ''} à vérifier au catalogue
+              officiel
+            </strong>
+            <ul className="mt-2 space-y-1.5 text-[13px]">
+              {report.warnings.map((entry, index) => (
+                <li key={`${entry.label}-${index}`}>
+                  <strong>{entry.label}</strong> : {entry.message}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[12px]">
+              Ces saisies sont enregistrées. L’étiquette du produit fait foi.
+            </p>
+          </Banner>
+        ) : null}
+
         {operations.length === 0 ? (
           <EmptyState
             title="Aucune saisie en attente"

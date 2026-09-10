@@ -28,6 +28,12 @@ export type CachedParcel = {
   areaHa: number;
   status: string;
   cropName: string | null;
+  /**
+   * Sol artificiellement drainé. `null` = non renseigné, et non « non drainé » :
+   * plusieurs produits interdisent l'application sur sol drainé, et supposer
+   * l'absence de drainage tairait l'avertissement là où il manque.
+   */
+  drainedSoil: boolean | null;
   geometry: MultiPolygonGeometry | null;
 };
 
@@ -194,6 +200,12 @@ export type SyncResult = {
   httpStatus: number;
   message?: string;
   fieldErrors?: Array<{ field: string; message: string }>;
+  /**
+   * Avertissements réglementaires d'une saisie acceptée : surdosage, produit
+   * retiré, sol drainé. Une saisie hors réseau n'a pas pu être contrôlée à la
+   * frappe ; c'est ici qu'elle l'est.
+   */
+  warnings?: string[];
 };
 
 export type Session = {

@@ -48,6 +48,7 @@ type Props = {
     pacId: string | null;
     parcelType: string | null;
     status: string;
+    drainedSoil: boolean | null;
     notes: string | null;
     geometry: MultiPolygonGeometry | null;
   };
@@ -73,6 +74,11 @@ export function NewParcelWizard({ tileUrl, attribution, otherParcels, parcel }: 
   // Commune pré-remplie par le géocodage inverse au moment du tracé.
   const [commune, setCommune] = useState(parcel?.commune ?? '');
   const [inseeCode, setInseeCode] = useState(parcel?.inseeCode ?? '');
+
+  /** `''` = non renseigné, `'oui'`, `'non'`. Voir le champ « Sol drainé ». */
+  const [drainedSoil, setDrainedSoil] = useState(
+    parcel?.drainedSoil === true ? 'oui' : parcel?.drainedSoil === false ? 'non' : '',
+  );
 
   const geometry = draw?.geometry ?? parcel?.geometry ?? null;
   const areaHa = draw?.areaHa ?? null;
@@ -113,6 +119,9 @@ export function NewParcelWizard({ tileUrl, attribution, otherParcels, parcel }: 
       pacId: String(form.get('pacId') ?? ''),
       parcelType: String(form.get('parcelType') ?? ''),
       status: String(form.get('status') ?? 'ACTIVE'),
+      // Trois valeurs, dont « non renseigné » : « oui » et « non » ne sont pas
+      // les deux seules réponses possibles à une question qu'on n'a pas posée.
+      drainedSoil: drainedSoil === '' ? null : drainedSoil === 'oui',
       notes: String(form.get('notes') ?? ''),
       // En édition, on n'envoie la géométrie que si elle a été retracée.
       ...(isEdit && !draw ? {} : { geometry }),
@@ -209,6 +218,22 @@ export function NewParcelWizard({ tileUrl, attribution, otherParcels, parcel }: 
                   {type}
                 </option>
               ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Sol artificiellement drainé"
+            htmlFor="drainedSoil"
+            hint="Certains produits interdisent l’application sur sol drainé (mentions SPe 2). Sans réponse, Parcelys avertit au lieu de supposer."
+          >
+            <Select
+              id="drainedSoil"
+              value={drainedSoil}
+              onChange={(e) => setDrainedSoil(e.target.value)}
+            >
+              <option value="">— Non renseigné —</option>
+              <option value="oui">Oui, parcelle drainée</option>
+              <option value="non">Non</option>
             </Select>
           </Field>
 

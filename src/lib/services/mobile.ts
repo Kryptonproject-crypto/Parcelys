@@ -139,6 +139,7 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       areaHa: feature.properties.areaHa,
       status: feature.properties.status,
       cropName: feature.properties.crop,
+      drainedSoil: feature.properties.drainedSoil,
       geometry: feature.geometry,
     })),
     referential: {
@@ -195,6 +196,7 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
         status: true,
         centroidLat: true,
         centroidLng: true,
+        drainedSoil: true,
         updatedAt: true,
         cropYears: {
           where: { campaignYear: year },
@@ -227,6 +229,7 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
           ? { lat: parcel.centroidLat, lng: parcel.centroidLng }
           : null,
       cropName: parcel.cropYears[0]?.crop.name ?? null,
+      drainedSoil: parcel.drainedSoil,
       updatedAt: parcel.updatedAt.toISOString(),
     })),
     deletedParcelIds: deleted.map((parcel) => parcel.id),
