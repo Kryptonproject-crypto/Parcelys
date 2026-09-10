@@ -181,7 +181,7 @@ export function InvitationsPanel({
         <CardHeader
           icon={IconPlus}
           title="Délivrer un code d'invitation"
-          description="Sans code, personne ne peut créer de compte sur cette instance."
+          description="Sans code, personne ne peut créer de compte."
         />
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -277,7 +277,7 @@ export function InvitationsPanel({
             <Checkbox name="grantsPlatformAdmin" className="mt-0.5" />
             <span>
               <span className="font-medium text-ink">
-                Faire de cette personne un administrateur de l&apos;instance
+                Faire de cette personne un administrateur
               </span>
               <span className="mt-0.5 block text-[12.5px] text-ink-3">
                 Elle pourra gérer les comptes, délivrer des invitations et activer la
@@ -337,7 +337,7 @@ export function InvitationsPanel({
                   </span>
                   {invitation.grantsPlatformAdmin ? (
                     <Badge tone="blue" icon={IconSecurity} className="mt-1">
-                      Administrateur d&apos;instance
+                      Administrateur
                     </Badge>
                   ) : null}
                 </Td>

@@ -156,8 +156,8 @@ export function RecommendationScreen({
 
             <p className="mt-3 border-t border-line pt-3 text-[12.5px] leading-relaxed text-ink-3">
               {recommendation.productSource === 'catalogue'
-                ? 'AMM retrouvée dans le catalogue officiel E-Phy de votre instance. Vérifiez toujours l’étiquette et l’usage autorisé avant application.'
-                : 'Produit saisi par l’expert, sans correspondance au catalogue officiel E-Phy de votre instance. Vérifiez l’AMM, l’usage et la dose sur l’étiquette avant application.'}
+                ? 'AMM retrouvée dans le catalogue officiel E-Phy. Vérifiez toujours l’étiquette et l’usage autorisé avant application.'
+                : 'Produit saisi par l’expert, sans correspondance au catalogue officiel E-Phy. Vérifiez l’AMM, l’usage et la dose sur l’étiquette avant application.'}
             </p>
           </Card>
         ) : null}

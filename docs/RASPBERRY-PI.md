@@ -1247,6 +1247,31 @@ cd /opt/parcelys && sudo bash scripts/update-pi.sh
 C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
 migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
 
+### Passer en 0.8.0
+
+Une migration, qui élargit le type géométrique des entités PAC pour accepter les
+SNA ponctuelles (des arbres isolés). Aucune donnée n'est convertie ni perdue.
+
+Trois choses valent d'être essayées après la mise à jour.
+
+**Votre dossier TéléPAC s'importe enfin tel quel.** Le fichier XML que TéléPAC
+vous propose au téléchargement — un seul fichier, rien à décompresser — se
+dépose directement dans « PAC / TéléPAC ». Importez vos campagnes **une par
+une** : elles coexistent, 2026 n'efface pas 2025.
+
+Vérifiez le système de coordonnées affiché dans l'aperçu avant de valider : le
+fichier ne le déclare pas, Parcelys le propose d'après l'emprise.
+
+**Le contrôle de dose fonctionne maintenant sans réseau**, sur les produits que
+vous avez déjà employés. Rien à faire : la prochaine synchronisation de
+l'application les embarque avec leurs usages officiels. Un produit jamais
+employé reste introuvable hors ligne, et l'application le dit.
+
+**Votre adresse e-mail se change depuis « Mon profil »**, ou depuis l'écran
+« Compte et sécurité » de l'application. Un code part vers la nouvelle adresse
+et l'ancienne est prévenue : votre adresse actuelle reste celle du compte tant
+que ce code n'est pas saisi.
+
 ### Passer en 0.7.0
 
 Rien de particulier : la mise à jour applique quatre migrations (stocks et lots,

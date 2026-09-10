@@ -6,6 +6,110 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.8.0 — Le dossier TéléPAC, et le hors-ligne qui vérifie vraiment
+
+Cinq exports TéléPAC réels — les campagnes 2022 à 2026 d'une même
+exploitation — ont servi de matière. Ils ont montré deux choses : Parcelys ne
+savait pas lire le fichier que TéléPAC donne, et le contrôle réglementaire du
+téléphone s'arrêtait dès que le réseau tombait.
+
+### Ce qui est nouveau
+
+**Import du dossier XML TéléPAC.** TéléPAC propose deux téléchargements :
+l'export graphique (Shapefile) et le dossier lui-même, en XML. Parcelys ne
+savait lire que le premier et rangeait le second parmi « les fichiers dont ce
+module n'a que faire ». Un exploitant qui déposait le fichier que TéléPAC lui
+donne spontanément s'entendait répondre qu'aucune donnée géographique n'avait
+été trouvée : exact, et parfaitement inutile.
+
+La structure a été établie en confrontant cinq exports réels, faute de notice
+officielle. Elle est donc annoncée **constatée**, jamais officielle — cinq
+dossiers ne prouvent pas qu'un sixième leur ressemblera. Les deux formats
+empruntent maintenant la même chaîne : une seule à vérifier, pas deux.
+
+Trois points où l'honnêteté a coûté quelque chose :
+
+- Le fichier ne déclare **pas** son système de coordonnées. Il est proposé
+  d'après l'emprise et l'utilisateur doit le confirmer : un parcellaire projeté
+  depuis le mauvais système atterrit à des centaines de kilomètres.
+- `surface-admissible` n'est pas rattachée au champ « surface déclarée ». Sur le
+  dossier 2026, 9 parcelles sur 113 la portent **supérieure** à leur propre
+  géométrie — jusqu'à 1,08 ha — alors que les totaux se rejoignent au niveau de
+  l'îlot. La cause n'a pas pu être vérifiée ; signaler l'écart produirait une
+  alerte sur des parcelles correctes.
+- Le libellé de culture reste vide : le fichier ne porte que le code.
+
+Effectifs animaux et demandes d'aides ne sont pas lus, et sont **nommés** plutôt
+que passés sous silence.
+
+**Le contrôle de dose fonctionne sans réseau.** L'instantané mobile ne portait
+des produits que le nom, l'AMM et la dernière dose. Les usages officiels — dose
+retenue, culture autorisée, ZNT, délai avant récolte — demandaient un appel
+réseau. Hors connexion, l'application acceptait donc un traitement **sans le
+moindre contrôle réglementaire**, au champ, pulvérisateur en route. Pire, le
+raccourci le plus utilisé — reprendre un produit déjà employé — effaçait les
+usages et vérifiait donc le moins.
+
+Les produits qu'une exploitation emploie sont peu nombreux : leurs usages
+officiels partent désormais dans l'instantané, dans la même forme que la réponse
+en ligne. 1,5 Ko par produit, 60 produits au plus. Ce n'est pas le catalogue
+E-Phy, et l'application ne le laisse jamais croire : un produit jamais employé
+se dit « pas dans ceux que vous avez employés », jamais « produit inconnu ».
+
+**Changement d'adresse e-mail**, web et mobile. `EMAIL_CHANGE` était déclaré
+dans le schéma depuis le début sans que rien ne l'utilise. L'adresse est
+l'identifiant de connexion et l'endroit où arrivent les liens de
+réinitialisation : la modifier sans vérification donnerait à quiconque passe
+devant un écran resté ouvert le moyen de s'approprier le compte. Mot de passe
+redemandé, code envoyé à la **nouvelle** adresse, ancienne prévenue dès la
+demande — pas seulement à la fin.
+
+**Voyant de synchronisation**, cinq états dérivés et jamais stockés. Hors
+connexion n'est pas une panne : c'est la situation normale au champ, et la
+peindre en rouge apprendrait à ne plus regarder le voyant.
+
+### Défauts corrigés
+
+**Un second import de la même campagne doublait toutes les entités PAC.** 769
+entités devenaient 1 538, mesuré sur un dossier réel. Rien ne le signalait : la
+carte affichait les mêmes contours deux fois et le décompte des SNA était faux.
+Réimporter son dossier pour vérifier que ça a marché est pourtant le geste le
+plus naturel qui soit.
+
+**157 des 560 SNA de 2026 sont des points** — des arbres isolés — que la colonne
+`geometry(MultiPolygon)` refusait. Élargie ; aucun rayon n'est inventé pour un
+point, il n'a donc pas de surface.
+
+**Deux débordements horizontaux**, aucun visible à 390 px : `/phytosanitaire` à
+768 px en tablette, `/profil` à 320 px. Le contrôle ne mesurait qu'à une seule
+largeur ; il en couvre sept, soit 168 mesures.
+
+**Vingt-cinq textes disaient « instance » à l'utilisateur** — « Instance
+privée », « Premier compte de l'instance », « Administrateur de l'instance ». Ce
+mot décrit la façon dont le logiciel tourne, ce qui ne regarde pas l'exploitant.
+Aucun comportement n'a changé ; un test de garde empêche le retour.
+
+### Vérifier
+
+```bash
+npm run test:ci                          # build puis 497 tests
+npm run check:telepac -- <dossiers.xml>  # 77 contrôles, cinq campagnes réelles
+npm run check:pac -- <2025.xml> <2026.xml>  # import complet en base
+```
+
+`check:pac` vérifie ce qu'aucun test unitaire ne peut voir : interventions,
+registre phytosanitaire, apports et cultures **intacts** après import, et la
+campagne 2025 encore entière après l'import de 2026.
+
+**`npm run verif:navigateur` remet la limite de débit à zéro avant de
+commencer**, et plus seulement entre les contrôles. `check:security` coupe
+volontairement la connexion à la fin de son parcours — c'est l'un de ses 55
+contrôles. Le paquet lancé deux fois de suite échouait donc toujours au second
+passage, dès le premier écran, sur un délai d'attente qui ne désignait pas la
+cause. Constaté en le lançant deux fois.
+
+---
+
 ## 0.7.0 — Priorité 2 du socle réglementaire
 
 Six manques annoncés en 0.6.0 sont comblés. Six défauts ont été trouvés en

@@ -57,9 +57,33 @@ pour la campagne concernée. Selon les années et les rubriques, TéléPAC met �
 disposition un récapitulatif PDF, un export de données, et un jeu de données
 géographiques.
 
-Ce qui intéresse Parcelys, ce sont les **données géographiques** : soit une
-archive ZIP, soit un ensemble de fichiers portant le même nom et des extensions
-différentes.
+Parcelys lit **deux formats**, et l'un des deux suffit.
+
+### A. Le dossier au format XML — le plus simple
+
+C'est le fichier que TéléPAC propose spontanément au téléchargement, nommé
+quelque chose comme `DossierPAC2026_dossier_003015584_20260910.xml`. Un seul
+fichier, rien à décompresser, rien à assortir.
+
+Il contient les îlots, les parcelles, leurs géométries, les codes culture, les
+SNA et les ZDH. Déposez-le tel quel.
+
+> **Ce que Parcelys en lit, et ce qu'il en laisse.** Le dossier contient aussi
+> vos effectifs animaux et le détail de vos demandes d'aides. Parcelys gère le
+> parcellaire : ces branches ne sont **pas** reprises, et l'aperçu vous le dit
+> plutôt que de les passer sous silence.
+
+> ⚠️ **Le fichier ne dit pas dans quel système de coordonnées il est.** Parcelys
+> en propose un d'après l'ordre de grandeur des coordonnées — Lambert-93 dans
+> tous les dossiers examinés — mais c'est une proposition, pas une lecture.
+> **Vérifiez-la avant d'importer** : un parcellaire projeté depuis le mauvais
+> système atterrit à des centaines de kilomètres de chez vous.
+
+### B. L'export graphique — un jeu Shapefile
+
+Si vous avez téléchargé les **données graphiques** plutôt que le dossier : soit
+une archive ZIP, soit un ensemble de fichiers portant le même nom et des
+extensions différentes.
 
 > ⚠️ **Les quatre fichiers vont ensemble.** Un Shapefile n'est pas un fichier,
 > c'est un jeu :
@@ -84,9 +108,18 @@ différentes.
 Menu **PAC / TéléPAC**.
 
 1. Choisissez la **campagne** (par défaut, l'année en cours).
-2. Cliquez sur **Fichiers** et sélectionnez votre archive ZIP, ou les quatre
-   fichiers ensemble.
+2. Cliquez sur **Fichiers** et sélectionnez votre dossier XML, votre archive
+   ZIP, ou les quatre fichiers Shapefile ensemble.
 3. **Analyser le dossier.**
+
+> **Ne déposez pas les deux à la fois.** Le XML et l'export graphique décrivent
+> le même parcellaire : les lire tous les deux importerait chaque parcelle en
+> double. Si les deux sont présents, Parcelys retient le XML et vous dit qu'il
+> a laissé l'autre de côté.
+
+> **Une campagne à la fois.** Chaque dossier porte la sienne. Importer 2026
+> n'efface pas 2025 : les deux campagnes coexistent, avec leurs propres
+> géométries et leurs propres cultures déclarées.
 
 Rien n'est encore écrit. L'analyse lit les fichiers, détecte le système de
 coordonnées, mesure les surfaces et compare aux parcelles déjà présentes.
@@ -247,10 +280,40 @@ restauration ne doit pas être plus destructrice que l'import qu'elle répare.
 
 Elles sont écrites ici parce qu'elles sont réelles, pas pour la forme.
 
-### Le schéma des fichiers TéléPAC n'a pas été vérifié
+### Le schéma des fichiers TéléPAC n'a pas été vérifié sur notice
 
 Les notices officielles de la campagne n'ont pas pu être consultées lors de
-l'écriture du module. Conséquences :
+l'écriture du module.
+
+**Pour le dossier XML**, la structure a été établie autrement : en confrontant
+cinq exports réels d'une même exploitation, campagnes 2022 à 2026, schémas
+`Echanges-producteur-export-2022-V4`, `2023-V6`, `2024-V4` et `2026-V1`. C'est
+une source plus solide qu'une devinette et moins qu'une notice — cinq dossiers
+ne prouvent pas qu'un sixième leur ressemblera. L'aperçu annonce donc la
+correspondance comme **constatée**, jamais officielle.
+
+Ce qui a été vérifié sur ces fichiers, et qui vaut donc d'être écrit :
+
+| Constat | Sur quoi |
+|---|---|
+| Géométries en GML 2, avec trous | 2 984 polygones |
+| Jamais plus d'un contour extérieur par polygone | 2 984 sur 2 984 |
+| Les SNA sont tantôt des surfaces, tantôt des **points** | 157 points sur 560 en 2026 |
+| Aucun système de coordonnées n'est déclaré | les cinq campagnes |
+| `surface-admissible` est exprimée en **ares** | rapport médian 1,0000 sur 113 parcelles |
+| Le libellé de culture est absent : seul le code figure | les cinq campagnes |
+
+Et ce qui reste inexpliqué, écrit plutôt que taisé : sur le dossier 2026,
+**9 parcelles sur 113 portent une surface admissible supérieure à leur propre
+géométrie**, jusqu'à 1,08 ha pour l'une d'elles, alors qu'au niveau de l'îlot
+les deux totaux se rejoignent (548,57 ares mesurés contre 549 déclarés pour
+l'îlot 22). Faute de notice, la cause n'est pas établie. Parcelys ne signale
+donc **pas** cet écart comme une anomalie : le faire produirait une alerte sur
+des parcelles parfaitement déclarées, et c'est ainsi qu'on apprend à un
+utilisateur à ne plus lire les alertes.
+
+**Pour l'export graphique** (Shapefile), rien de tel : les noms de colonnes
+varient d'un producteur à l'autre. Conséquences :
 
 - la correspondance des colonnes est **proposée**, pas certifiée : vérifiez-la à
   chaque import ;

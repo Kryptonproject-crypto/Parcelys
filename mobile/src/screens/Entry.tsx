@@ -604,7 +604,7 @@ export function EntryScreen({
             ) : catalogState === 'unconfigured' ? (
               <Banner tone="warning">
                 Le catalogue E-Phy n&apos;a pas encore été synchronisé sur cette
-                instance. Rien ne peut être vérifié pour l&apos;instant.
+                serveur. Rien ne peut être vérifié pour l&apos;instant.
               </Banner>
             ) : catalogState === 'empty' ? (
               <p className="text-[13px] text-ink-3">

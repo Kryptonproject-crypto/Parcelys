@@ -152,7 +152,7 @@ export default async function HomePage() {
             </div>
 
             <p className="mt-4 text-[13.5px] text-ink-3">
-              Instance privée : la création de compte se fait sur invitation d&apos;un
+              Accès sur invitation : la création de compte se fait à l&apos;invitation d&apos;un
               administrateur.
             </p>
 
@@ -161,7 +161,11 @@ export default async function HomePage() {
                 ['PostGIS', 'Superficies calculées'],
                 ['E-Phy', 'Source officielle ANSES'],
                 ['PDF · Excel · CSV', 'Exports de registres'],
-                ['Auto-hébergé', 'Vos données chez vous'],
+                // La valeur reste — les données ne partent nulle part —, mais
+                // « auto-hébergé » nomme une manière de déployer, pas un
+                // bénéfice pour l'exploitant. Ce qui l'intéresse, c'est que
+                // ses registres ne soient revendus à personne.
+                ['Sans revente', 'Vos données restent les vôtres'],
               ].map(([value, label]) => (
                 <div key={label}>
                   <dt className="text-[15px] font-semibold text-ink">{value}</dt>

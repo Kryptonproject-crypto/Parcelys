@@ -137,8 +137,8 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
         {error ? <Alert tone="danger">{error}</Alert> : null}
 
         <Alert tone="info" icon={IconSecurity}>
-          Les inscriptions libres sont fermées sur cette instance. Un code délivré par un
-          administrateur est nécessaire pour créer un compte.
+          Les inscriptions libres sont fermées. Un code délivré par un administrateur
+          est nécessaire pour créer un compte.
         </Alert>
 
         <Field
@@ -182,9 +182,9 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       {bootstrap ? (
-        <Alert tone="warning" icon={IconSecurity} title="Premier compte de l'instance">
-          Aucun compte n&apos;existe encore : celui-ci sera administrateur de
-          l&apos;instance et pourra ensuite inviter les autres utilisateurs.
+        <Alert tone="warning" icon={IconSecurity} title="Premier compte">
+          Aucun compte n&apos;existe encore : celui-ci sera administrateur et pourra
+          ensuite inviter les autres utilisateurs.
         </Alert>
       ) : invitation ? (
         <div className="rounded-lg border border-champ-500/40 bg-champ-50/70 p-3.5 text-sm dark:bg-champ-900/25">
@@ -201,8 +201,8 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
                 ) : invitation.scope === 'ADMIN_ACCOUNT' ? (
                   <>
                     Vous créerez un compte d&apos;<strong>administration</strong>.
-                    Il gère l&apos;instance — comptes, experts, données de
-                    référence — et ne suit aucune exploitation.
+                    Il gère les comptes, les experts et les données de référence,
+                    et ne suit aucune exploitation.
                   </>
                 ) : invitation.scope === 'EXISTING_FARM' ? (
                   <>
@@ -218,7 +218,7 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
               </p>
               {invitation.grantsPlatformAdmin ? (
                 <Badge tone="blue" icon={IconSecurity} className="mt-2">
-                  Administrateur de l&apos;instance
+                  Administrateur
                 </Badge>
               ) : null}
             </div>

@@ -87,7 +87,7 @@ export default async function AdminMaintenancePage() {
       <PageHeader
         icon={IconMaintenance}
         title="Maintenance"
-        description="État de l'instance, mode maintenance et purges de données périmées."
+        description="État du service, mode maintenance et purges de données périmées."
       />
 
       <div className="grid gap-5 lg:grid-cols-2">

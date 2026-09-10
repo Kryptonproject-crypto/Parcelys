@@ -23,7 +23,7 @@ export default async function RegisterPage() {
       title={bootstrap ? "Créer le compte administrateur" : 'Créer mon compte'}
       subtitle={
         bootstrap
-          ? "Cette instance ne contient encore aucun compte. Le premier créé administre Parcelys et invite ensuite les autres utilisateurs."
+          ? "Aucun compte n’existe encore. Le premier créé administre Parcelys et invite ensuite les autres utilisateurs."
           : "Les inscriptions sont réservées aux personnes disposant d'un code d'invitation."
       }
       footer={

@@ -66,7 +66,7 @@ export default async function AdminOverviewPage() {
       <PageHeader
         icon={IconAdmin}
         title="Administration"
-        description={`Instance Parcelys — connecté en tant que ${auth.user.email}`}
+        description={`Connecté en tant que ${auth.user.email}`}
         actions={
           <>
             <LinkButton
@@ -138,7 +138,7 @@ export default async function AdminOverviewPage() {
         <Card>
           <CardHeader
             icon={IconInvitation}
-            title="Accès à l'instance"
+            title="Accès à Parcelys"
             description="Les inscriptions publiques sont fermées : un code est nécessaire."
           />
 
@@ -162,8 +162,8 @@ export default async function AdminOverviewPage() {
 
           <div className="mt-4 space-y-2 text-sm text-ink-2">
             <p>
-              <strong className="text-ink">{stats.users.admins}</strong> administrateur(s)
-              de l&apos;instance ·{' '}
+              <strong className="text-ink">{stats.users.admins}</strong>{' '}
+              administrateur(s) ·{' '}
               <strong className="text-ink">{stats.users.suspended}</strong> compte(s)
               suspendu(s) ·{' '}
               <strong className="text-ink">{stats.users.unverified}</strong> adresse(s)

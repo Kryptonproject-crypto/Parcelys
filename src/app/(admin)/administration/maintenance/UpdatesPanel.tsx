@@ -51,7 +51,7 @@ export function UpdatesPanel({ initial }: { initial: UpdateStatusView }) {
       toast.success(
         fresh.updateAvailable
           ? `Version ${fresh.latest?.version} disponible.`
-          : 'Cette instance est à jour.',
+          : 'Parcelys est à jour.',
       );
     } catch (error) {
       toast.error(
@@ -97,7 +97,7 @@ export function UpdatesPanel({ initial }: { initial: UpdateStatusView }) {
           l&apos;environnement du serveur (par exemple{' '}
           <code className="font-mono">kryptonproject-crypto/parcelys</code>) pour
           être averti des nouvelles versions. Tant que la variable est absente,
-          aucune requête ne sort de votre instance.
+          aucune requête ne sort de votre serveur.
         </p>
       ) : status.error ? (
         <div className="mt-4">
@@ -155,7 +155,7 @@ export function UpdatesPanel({ initial }: { initial: UpdateStatusView }) {
       ) : status.latest ? (
         <p className="mt-4 flex items-center gap-2 text-sm text-champ-700 dark:text-champ-400">
           <IconSuccess size={16} aria-hidden />
-          Cette instance exécute la dernière version publiée.
+          Vous utilisez la dernière version publiée.
         </p>
       ) : null}
 

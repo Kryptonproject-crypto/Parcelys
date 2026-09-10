@@ -270,7 +270,7 @@ export function ExpertsPanel({
                 </p>
               ) : assignableFarms.length === 0 ? (
                 <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-3">
-                  Cet expert suit déjà toutes les exploitations de l&apos;instance.
+                  Cet expert suit déjà toutes les exploitations.
                 </p>
               ) : (
                 <ul className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-line p-2">
@@ -327,7 +327,7 @@ export function ExpertsPanel({
         <CardHeader
           icon={IconUsers}
           title="Experts agronomiques"
-          description={`${experts.length} compte(s) expert sur cette instance.`}
+          description={`${experts.length} compte(s) expert.`}
         />
 
         {experts.length === 0 ? (

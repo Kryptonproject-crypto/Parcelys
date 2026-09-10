@@ -177,7 +177,7 @@ export function RecommendationDetail({
             {item.productSource === 'catalogue' ? (
               <Alert tone="success" icon={IconSecurity}>
                 Produit retrouvé dans le catalogue officiel <strong>E-Phy</strong>{' '}
-                importé sur cette instance
+                importé
                 {item.ephyProduct?.status
                   ? ` — état d'autorisation : ${item.ephyProduct.status}.`
                   : '.'}{' '}
@@ -188,7 +188,7 @@ export function RecommendationDetail({
               <Alert tone="warning" icon={IconWarning}>
                 <strong>Produit non vérifié au catalogue.</strong> Aucun numéro
                 d&apos;AMM n&apos;a pu être rapproché du catalogue officiel E-Phy
-                importé sur cette instance. Vérifiez l&apos;autorisation, l&apos;usage
+                importé. Vérifiez l&apos;autorisation, l&apos;usage
                 et la dose auprès de la source officielle avant toute application.
               </Alert>
             )}

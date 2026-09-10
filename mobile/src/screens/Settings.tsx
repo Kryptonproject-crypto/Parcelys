@@ -167,7 +167,7 @@ export function SettingsScreen({ context }: { context: AppContext }) {
 
         <p className="px-1 text-center text-[12.5px] leading-relaxed text-ink-3">
           Parcelys au champ — les données réglementaires proviennent de votre
-          instance. Aucune information phytosanitaire n&apos;est produite par
+          serveur. Aucune information phytosanitaire n&apos;est produite par
           l&apos;application.
         </p>
       </div>

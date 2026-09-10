@@ -233,7 +233,7 @@ export function RecommendationForm({
               ) : (
                 <Alert tone="warning" icon={IconSecurity}>
                   Le catalogue officiel E-Phy n&apos;est pas importé sur cette
-                  instance : la recherche de produit est indisponible. Le produit
+                  sur ce serveur : la recherche de produit est indisponible. Le produit
                   que vous saisirez sera transmis à l&apos;exploitation avec la
                   mention « non vérifié au catalogue ».
                 </Alert>
