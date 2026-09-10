@@ -105,10 +105,10 @@ export function LoginScreen({
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 text-center">
           <img
-            src="/marque.svg"
+            src="/marque.png"
             alt=""
             aria-hidden
-            className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-accent-soft p-2"
+            className="mx-auto mb-4 h-16 w-16 rounded-2xl shadow-sm"
           />
           <h1 className="text-[24px] font-bold tracking-tight text-ink">
             Parcelys au champ

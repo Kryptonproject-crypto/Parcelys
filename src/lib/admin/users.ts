@@ -67,3 +67,33 @@ export async function assertNotLastAdmin(
     throw new ApiError(409, message, 'LAST_ADMIN');
   }
 }
+
+/**
+ * Ce qu'un compte supprimé rend, et ce qu'il garde.
+ *
+ * La suppression par l'administration est **logique** : la ligne survit, parce
+ * que les interventions phytosanitaires et les apports pointent vers leur
+ * auteur. Effacer le compte effacerait la traçabilité d'un registre que
+ * l'exploitant doit conserver.
+ *
+ * Mais garder la ligne, c'était garder l'adresse : `email_normalized` est
+ * unique, et rien ne permettait de recréer un compte avec la même adresse —
+ * l'inscription répondait « un compte existe déjà », en parlant d'un compte
+ * supprimé et invisible. Impasse, et incompréhensible de l'extérieur.
+ *
+ * L'adresse est donc remplacée par une pierre tombale, à `.invalid` : ce
+ * domaine de premier niveau est réservé par la RFC 2606 et ne peut être ni
+ * enregistré ni routé, donc rien ne partira jamais vers cette adresse. L'unicité
+ * tient par l'identifiant du compte, et l'adresse d'origine reste dans le
+ * journal d'audit — c'est la trace qui compte, pas la ligne.
+ *
+ * Le téléphone part avec : un compte supprimé n'a plus à porter de coordonnées.
+ */
+export function tombstoneEmail(userId: string): string {
+  return `supprime+${userId}@parcelys.invalid`;
+}
+
+/** Reconnaît une adresse déjà libérée. */
+export function isTombstoneEmail(email: string): boolean {
+  return email.endsWith('@parcelys.invalid');
+}

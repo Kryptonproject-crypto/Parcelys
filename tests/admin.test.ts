@@ -532,6 +532,70 @@ describe('Administration', () => {
       expect(entry.entityId).toBe(member.id);
     });
 
+    it('rend l’adresse e-mail : on peut recréer un compte avec la même', async () => {
+      const { adminClient, admin, member } = await setup();
+      const adresse = member.email;
+
+      const suppression = await adminClient.delete(
+        `/api/admin/users/${member.id}?avecExploitations=1`,
+      );
+      expect(suppression.status).toBe(200);
+
+      // La ligne survit — les interventions phytosanitaires pointent vers leur
+      // auteur, et cette traçabilité ne se supprime pas.
+      const supprime = await prisma.user.findUniqueOrThrow({ where: { id: member.id } });
+      expect(supprime.deletedAt).not.toBeNull();
+      // …mais elle ne retient plus l'adresse.
+      expect(supprime.emailNormalized).not.toBe(adresse.toLowerCase());
+      expect(supprime.emailNormalized).toMatch(/@parcelys\.invalid$/);
+      expect(supprime.phone).toBeNull();
+
+      // L'adresse d'origine reste au journal : c'est la trace qui compte.
+      const trace = await prisma.auditLog.findFirstOrThrow({
+        where: { action: 'admin.user_deleted', entityId: member.id },
+      });
+      expect(JSON.stringify(trace.metadata)).toContain(adresse);
+
+      // Et le geste qui échouait auparavant : réinscrire la même adresse.
+      const invitation = await adminClient.post<{ code: string }>(
+        '/api/admin/invitations',
+        { email: adresse },
+      );
+      expect(invitation.status).toBe(201);
+
+      const reinscription = await new TestClient().post('/api/auth/register', {
+        ...REGISTRATION,
+        email: adresse,
+        farmName: 'Nouvelle Exploitation',
+        invitationCode: invitation.body.code,
+      });
+      expect(reinscription.status).toBe(201);
+
+      const recree = await prisma.user.findUniqueOrThrow({
+        where: { emailNormalized: adresse.toLowerCase() },
+      });
+      expect(recree.id).not.toBe(member.id);
+      expect(recree.deletedAt).toBeNull();
+      expect(admin.id).not.toBe(recree.id);
+    });
+
+    it('révoque les codes d’invitation encore ouverts sur l’adresse supprimée', async () => {
+      const { adminClient, member } = await setup();
+
+      const pendant = await adminClient.post<{ invitation: { id: string } }>(
+        '/api/admin/invitations',
+        { email: member.email },
+      );
+      expect(pendant.status).toBe(201);
+
+      await adminClient.delete(`/api/admin/users/${member.id}?avecExploitations=1`);
+
+      const code = await prisma.invitationCode.findUniqueOrThrow({
+        where: { id: pendant.body.invitation.id },
+      });
+      expect(code.revokedAt).not.toBeNull();
+    });
+
     it('supprime le compte et ses exploitations lorsque c’est demandé', async () => {
       const { adminClient, member } = await setup();
 

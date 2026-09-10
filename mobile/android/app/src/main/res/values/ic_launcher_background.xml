@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Fond de l'icône adaptative. Le premier plan est transparent hors du
+         dessin : sur blanc, la marque verte flottait dans un carré blanc, sans
+         rapport avec l'application. Ce vert est celui du logo. -->
+    <color name="ic_launcher_background">#05633A</color>
 </resources>

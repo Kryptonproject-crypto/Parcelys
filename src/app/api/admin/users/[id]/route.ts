@@ -7,6 +7,7 @@ import {
   assertNotLastAdmin,
   assertNotSelf,
   loadManagedUser,
+  tombstoneEmail,
 } from '@/lib/admin/users';
 import { revokeAllSessions } from '@/lib/auth/session';
 import { logAudit } from '@/lib/audit';
@@ -230,12 +231,31 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
         suspendedAt: now,
         suspendedReason: 'Compte supprimé par un administrateur',
         isPlatformAdmin: false,
+        // L'adresse est rendue : la ligne survit pour la traçabilité des
+        // registres, mais rien ne doit empêcher de recréer un compte avec la
+        // même adresse. L'originale reste au journal d'audit, ci-dessous.
+        email: tombstoneEmail(target.id),
+        emailNormalized: tombstoneEmail(target.id),
+        emailVerifiedAt: null,
+        phone: null,
       },
     });
     await tx.session.updateMany({
       where: { userId: target.id, revokedAt: null },
       data: { revokedAt: now },
     });
+
+    // Les codes d'invitation encore ouverts sur cette adresse n'ont plus
+    // d'objet : recréer le compte passe par un nouveau code.
+    await tx.invitationCode.updateMany({
+      where: { email: target.email.toLowerCase(), usedAt: null, revokedAt: null },
+      data: { revokedAt: now, revokedById: auth.user.id },
+    });
+
+    // Les codes de vérification et les jetons de réinitialisation pendants
+    // pointeraient vers un compte qui n'existe plus pour l'utilisateur.
+    await tx.emailVerificationCode.deleteMany({ where: { userId: target.id } });
+    await tx.passwordResetToken.deleteMany({ where: { userId: target.id } });
   });
 
   await logAudit({
