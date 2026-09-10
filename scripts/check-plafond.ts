@@ -21,7 +21,18 @@ function attendu(condition: boolean, quoi: string) {
 }
 
 async function main() {
-  const farm = await prisma.farm.findFirst({ where: { deletedAt: null }, select: { id: true, name: true } });
+  // Une exploitation qui a des parcelles, pas simplement la première venue.
+  //
+  // Les contrôles au navigateur créent des exploitations d'essai sans parcelle
+  // (dispatch d'expert, suppression). Prendre « la première » tombait sur
+  // l'une d'elles dès le second passage, et le script s'arrêtait sur « Aucune
+  // parcelle » — un message vrai, mais qui accusait la base plutôt que le
+  // choix.
+  const farm = await prisma.farm.findFirst({
+    where: { deletedAt: null, parcels: { some: { deletedAt: null } } },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'asc' },
+  });
   if (!farm) { console.error('Aucune exploitation. Lancez le seed.'); process.exit(1); }
   const parcel = await prisma.parcel.findFirst({
     where: { farmId: farm.id, deletedAt: null },

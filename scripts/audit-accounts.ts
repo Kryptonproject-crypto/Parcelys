@@ -86,8 +86,18 @@ async function main(): Promise<void> {
     where: { emailNormalized: normaliser(COMPTES.expert.email) },
     select: { id: true },
   });
+  // Une exploitation avec des parcelles **tracées**, pas la première venue.
+  //
+  // Les contrôles au navigateur laissent derrière eux des exploitations
+  // d'essai sans parcelle (dispatch d'expert, suppression). Y rattacher
+  // l'expert donnait un portefeuille sans rien à ouvrir, et le contrôle
+  // suivant expirait en attendant une carte qui ne pouvait pas s'afficher —
+  // un symptôme qui n'accusait pas la bonne cause.
   const farm = await prisma.farm.findFirst({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      parcels: { some: { deletedAt: null, geometries: { some: { isCurrent: true } } } },
+    },
     orderBy: { createdAt: 'asc' },
     select: { id: true, name: true },
   });

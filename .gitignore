@@ -41,3 +41,5 @@ yarn-error.log*
 /.build.log
 /.test.log
 /.server.log
+/.verif1.log
+/.verif2.log
