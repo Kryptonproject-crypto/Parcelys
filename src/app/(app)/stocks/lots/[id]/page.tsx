@@ -104,7 +104,6 @@ export default async function LotPage({
           </p>
         ) : (
           <TableWrapper className="mt-3">
-            <table className="w-full text-[13.5px]">
               <thead>
                 <tr>
                   <Th>Date</Th>
@@ -127,7 +126,6 @@ export default async function LotPage({
                   </Tr>
                 ))}
               </tbody>
-            </table>
           </TableWrapper>
         )}
       </Card>

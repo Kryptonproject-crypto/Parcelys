@@ -238,7 +238,6 @@ export default async function CropsPage({
           />
 
           <TableWrapper>
-            <table className="w-full text-[13.5px]">
               <thead>
                 <tr>
                   <Th>Parcelle</Th>
@@ -305,7 +304,6 @@ export default async function CropsPage({
                   );
                 })}
               </tbody>
-            </table>
           </TableWrapper>
 
           <p className="mt-3 text-[12.5px] leading-relaxed text-ink-3">

@@ -23,10 +23,24 @@ import { chromium, devices } from 'playwright';
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3000';
 const SHOTS = path.resolve('.preview/corrections');
 
+/**
+ * Comptes d'audit.
+ *
+ * Ceux que `npm run audit:comptes` provisionne, et rien d'autre. L'adresse
+ * `kevin@parcelys.fr` figurait ici alors qu'aucun script ne la crée : le
+ * contrôle échouait sur un délai d'attente à la connexion, ce qui ne désignait
+ * pas la cause. Deux scripts du dépôt ne doivent pas se contredire sur les
+ * comptes qu'ils supposent.
+ *
+ *     npm run audit:comptes   # à lancer avant ce contrôle
+ */
 const COMPTES = {
-  exploitant: { email: 'demo@parcelys.local', password: 'Demo1234!' },
+  exploitant: {
+    email: process.env.DEMO_SEED_EMAIL ?? 'demo@parcelys.local',
+    password: process.env.DEMO_SEED_PASSWORD ?? 'Demo1234!',
+  },
   expert: { email: 'expert@conseil.test', password: 'MotDePasse2026' },
-  admin: { email: 'kevin@parcelys.fr', password: 'MotDePasse2026' },
+  admin: { email: 'administration@parcelys.test', password: 'MotDePasse2026' },
 };
 
 await mkdir(SHOTS, { recursive: true });

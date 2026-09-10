@@ -948,6 +948,66 @@ describe('Application mobile et synchronisation', () => {
       expect(couvert.destructionMethod).toBe('MECANIQUE');
     });
 
+    it('note un couvert sur une parcelle relevée hors réseau, au second passage', async () => {
+      // Le scénario pour lequel l'application existe : on marche la limite au
+      // GPS, on note le couvert dans la foulée, on repart. Rien n'a de réseau.
+      //
+      // La parcelle n'a alors pas d'identifiant serveur. Au premier envoi, la
+      // file crée la parcelle et met le couvert en attente ; au second, elle
+      // remplace l'identifiant provisoire — **mais seulement dans le champ
+      // `parcelId`, pas dans le corps de la requête**, qu'elle ne relit pas.
+      //
+      // C'est ce second passage qu'on reproduit ici. Une route qui lirait la
+      // parcelle uniquement dans le corps y verrait toujours l'UUID de
+      // l'appareil et échouerait indéfiniment, à chaque nouvelle tentative.
+      const { native } = await setup();
+      const parcelClientId = randomUUID();
+
+      const premier = await native.post<{
+        results: Array<{ status: string; entityId?: string }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: parcelClientId,
+            kind: 'parcel.create',
+            payload: {
+              name: 'Relevée puis couverte',
+              geometry: testPolygon(1.95, 48.15),
+            },
+          },
+        ],
+      });
+      const parcelId = premier.body.results[0]?.entityId as string;
+      expect(parcelId).toBeTruthy();
+
+      const second = await native.post<{
+        applied: number;
+        results: Array<{ status: string; message?: string }>;
+      }>('/api/sync', {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'soilCover.create',
+            // Résolu par la file…
+            parcelId,
+            payload: {
+              // …et resté tel quel dans le corps.
+              parcelId: parcelClientId,
+              kind: 'CIPAN',
+              species: 'Moutarde',
+              sownOn: '2025-08-28',
+            },
+          },
+        ],
+      });
+
+      expect(second.body.results.map((r) => r.message ?? r.status)).toEqual([
+        'applied',
+      ]);
+      const couvert = await prisma.soilCover.findFirstOrThrow({ where: { parcelId } });
+      expect(couvert.species).toBe('Moutarde');
+    });
+
     it('refuse un couvert aux dates incohérentes, même venu du champ', async () => {
       // Le contrôle vit côté serveur, pas dans le formulaire : sans cela, tout
       // ce qui est saisi hors ligne passerait sans vérification — c'est-à-dire

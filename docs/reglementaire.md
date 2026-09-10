@@ -1,6 +1,6 @@
 # Le socle réglementaire de Parcelys
 
-Version 0.6.1. Ce document explique **comment Parcelys se comporte face à la
+Version 0.7.0. Ce document explique **comment Parcelys se comporte face à la
 réglementation**, et surtout ce qu'il refuse de faire.
 
 À lire avec [`docs/audit-reglementaire.md`](./audit-reglementaire.md), qui dit

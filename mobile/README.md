@@ -59,6 +59,24 @@ Un refus de mouvement de stock **n'annule jamais le traitement** : le registre
 phytosanitaire prime, un traitement réellement effectué doit y figurer. L'écart
 apparaît ensuite dans « utilisations non rattachées », côté web.
 
+### Une parcelle relevée puis complétée dans la foulée
+
+C'est le geste courant : on marche la limite au GPS, on note le couvert ou le
+traitement, on repart. La parcelle n'a alors **pas encore d'identifiant
+serveur** — elle porte un UUID produit par l'appareil.
+
+La file d'attente s'en occupe en deux temps : le premier envoi crée la parcelle
+et laisse les saisies qui la citent en attente (« En attente de la création de sa
+parcelle », affiché dans la file, pas une erreur) ; le second remplace
+l'identifiant provisoire par le vrai.
+
+Un détail décide que cela marche ou non : la file remplace l'identifiant dans le
+champ `parcelId` de l'entrée, **pas dans le corps de la requête**, qu'elle ne
+relit pas. Les routes lisent donc la parcelle dans le chemin quand il en porte
+une. Une route qui ne regarderait que le corps y verrait toujours l'UUID de
+l'appareil et échouerait indéfiniment, à chaque nouvelle tentative — un refus qui
+ne se résout jamais, sur une saisie pourtant valide.
+
 ---
 
 ## Comment fonctionne le mode hors ligne

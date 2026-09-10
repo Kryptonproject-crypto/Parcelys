@@ -12,6 +12,8 @@ import {
 } from '@/lib/regulatory/soil-cover';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
 
+type Ctx = { params: Promise<Record<string, string>> };
+
 /**
  * GET /api/soil-covers?year= — couverture des sols de l'exploitation.
  *
@@ -50,9 +52,22 @@ const Couvert = z.object({
  * d'autre** : les périodes autorisées relèvent du programme d'actions régional,
  * et inventer une contrainte serait pire que n'en poser aucune.
  */
-export const POST = route(async (request: NextRequest) => {
+export const POST = route(async (request: NextRequest, context: Ctx) => {
   const body = await parseBody(request, Couvert);
-  const { ctx } = await requireParcelAccess(body.parcelId, 'record:write');
+
+  // La parcelle vient du chemin quand il en porte une, du corps sinon.
+  //
+  // Ce n'est pas un détail de forme. Une parcelle relevée au GPS hors réseau
+  // n'a pas encore d'identifiant serveur : la file d'attente remplace le sien
+  // au moment du rejeu, mais **seulement dans le champ prévu pour cela**, pas
+  // dans le corps de la requête. Sans cette préférence, enchaîner « je relève
+  // la parcelle, j'y note le couvert » — exactement ce que l'application
+  // permet — échouerait au retour du réseau, avec « Parcelle introuvable »
+  // alors que la parcelle vient d'être créée.
+  const params = await context.params;
+  const parcelId = params.id || body.parcelId;
+
+  const { ctx } = await requireParcelAccess(parcelId, 'record:write');
 
   const problemes = incoherencesDates({
     sownOn: body.sownOn ?? null,
@@ -63,7 +78,7 @@ export const POST = route(async (request: NextRequest) => {
 
   if (body.cropYearId) {
     const campagne = await prisma.cropYear.findFirst({
-      where: { id: body.cropYearId, parcelId: body.parcelId },
+      where: { id: body.cropYearId, parcelId },
       select: { id: true },
     });
     if (!campagne) throw badRequest('Cette campagne n’appartient pas à cette parcelle.');
@@ -71,7 +86,7 @@ export const POST = route(async (request: NextRequest) => {
 
   const couvert = await prisma.soilCover.create({
     data: {
-      parcelId: body.parcelId,
+      parcelId,
       cropYearId: body.cropYearId ?? null,
       kind: body.kind,
       species: body.species ?? null,
@@ -93,7 +108,7 @@ export const POST = route(async (request: NextRequest) => {
     entity: 'soilCover',
     entityId: couvert.id,
     ipAddress: clientIp(request),
-    metadata: { kind: couvert.kind, parcelId: body.parcelId },
+    metadata: { kind: couvert.kind, parcelId },
   });
 
   return ok(couvert, 201);

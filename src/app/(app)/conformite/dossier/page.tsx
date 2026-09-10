@@ -119,7 +119,6 @@ export default async function ControlFilePage({
       <Card className="mb-5">
         <h2 className="text-[16px] font-semibold text-ink">Toutes les pièces</h2>
         <TableWrapper className="mt-3">
-          <table className="w-full text-[13.5px]">
             <thead>
               <tr>
                 <Th>Pièce</Th>
@@ -158,7 +157,6 @@ export default async function ControlFilePage({
                 </Tr>
               ))}
             </tbody>
-          </table>
         </TableWrapper>
       </Card>
 
@@ -180,7 +178,6 @@ export default async function ControlFilePage({
           </p>
         ) : (
           <TableWrapper className="mt-3">
-            <table className="w-full text-[13px]">
               <thead>
                 <tr>
                   <Th>Document</Th>
@@ -203,7 +200,6 @@ export default async function ControlFilePage({
                   </Tr>
                 ))}
               </tbody>
-            </table>
           </TableWrapper>
         )}
       </Card>

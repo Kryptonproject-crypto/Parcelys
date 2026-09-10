@@ -110,7 +110,6 @@ export default async function StocksPage() {
           </p>
 
           <TableWrapper className="mt-3">
-            <table className="w-full text-[13.5px]">
               <thead>
                 <tr>
                   <Th>Date</Th>
@@ -131,7 +130,6 @@ export default async function StocksPage() {
                   </Tr>
                 ))}
               </tbody>
-            </table>
           </TableWrapper>
         </Card>
       ) : null}
@@ -195,7 +193,6 @@ export default async function StocksPage() {
 
                 {article.lots.length > 0 ? (
                   <TableWrapper className="mt-3">
-                    <table className="w-full text-[13px]">
                       <thead>
                         <tr>
                           <Th>Lot</Th>
@@ -225,7 +222,6 @@ export default async function StocksPage() {
                           </Tr>
                         ))}
                       </tbody>
-                    </table>
                   </TableWrapper>
                 ) : (
                   <p className="mt-2 text-[13px] text-ink-3">

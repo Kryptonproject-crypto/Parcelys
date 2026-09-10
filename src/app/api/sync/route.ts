@@ -81,11 +81,10 @@ const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
   // n'existerait que dans le formulaire laisserait passer tout ce qui a été
   // saisi au champ, c'est-à-dire l'essentiel.
   //
-  // Nuance à connaître : contrairement aux autres, cette route lit la parcelle
-  // dans le **corps** de la requête, pas dans le chemin. L'autorisation reste
-  // correcte — `requireParcelAccess` vérifie ce `parcelId`-là contre les
-  // exploitations de l'utilisateur. Le `parcelId` de l'entrée de file ne sert
-  // donc qu'à refuser d'emblée une saisie qui n'en nomme aucune.
+  // La route lit la parcelle dans le chemin quand il en porte une, et dans le
+  // corps sinon. C'est ce qui permet d'enchaîner « je relève la parcelle au
+  // GPS, j'y note le couvert » hors réseau : la file remplace l'identifiant
+  // provisoire dans `parcelId`, pas dans le corps de la requête.
   'soilCover.create': {
     handler: createSoilCover as RouteHandler,
     target: 'parcel',

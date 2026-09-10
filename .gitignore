@@ -36,3 +36,8 @@ yarn-error.log*
 
 # aperçus d’exports générés localement
 /.preview
+
+# journaux de vérification écrits pendant une session de travail
+/.build.log
+/.test.log
+/.server.log
