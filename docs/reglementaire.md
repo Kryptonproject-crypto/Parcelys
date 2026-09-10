@@ -1,6 +1,6 @@
 # Le socle réglementaire de Parcelys
 
-Version 0.6.0. Ce document explique **comment Parcelys se comporte face à la
+Version 0.6.1. Ce document explique **comment Parcelys se comporte face à la
 réglementation**, et surtout ce qu'il refuse de faire.
 
 À lire avec [`docs/audit-reglementaire.md`](./audit-reglementaire.md), qui dit
@@ -239,6 +239,69 @@ Le catalogue vit dans `src/lib/regulatory/referentials.ts`. **Il ne contient
 aucune donnée** : il déclare quels jeux de données Parcelys sait utiliser et où
 les trouver. C'est une carte des sources, pas un cache de valeurs.
 
+### Trouver un référentiel : l'API data.gouv.fr
+
+Parcelys interroge l'API publique de data.gouv.fr
+(`https://www.data.gouv.fr/api/1/`, lecture sans authentification) pour
+**découvrir** les jeux de données plutôt que pour les deviner.
+
+```bash
+npm run referentiels -- chercher --code zones-vulnerables \
+    --territoire "Centre-Val de Loire"
+```
+
+```
+→ Recherche sur data.gouv.fr : « zones vulnérables nitrates Centre-Val de Loire »
+
+  ⚠ Aucun jeu national : des dizaines de jeux régionaux et départementaux,
+    de millésimes différents. Choisir CELUI de son territoire.
+
+  1. Zones vulnérables aux nitrates — Centre-Val de Loire
+     identifiant : 5bbb6d6cff66bd4dc17bfd5a
+     producteur  : DREAL Centre-Val de Loire
+     licence     : lov2
+     mise à jour : 15/11/2024
+     ressource   : zv_2024.geojson [geojson] — 4.2 Mo
+```
+
+Puis :
+
+```bash
+npm run referentiels -- importer-zonage --code zones-vulnerables \
+    --dataset 5bbb6d6cff66bd4dc17bfd5a --territoire 24
+```
+
+La **version est déduite** de la date de modification de la ressource
+(`2024-11-15`), le producteur et la licence sont conservés comme provenance, et
+l'URL retenue est `latest` — celle qui suit les rééditions.
+
+#### Pourquoi le programme ne choisit pas tout seul
+
+Deux constats, vérifiés et non supposés :
+
+1. **Il n'existe pas de jeu national « zones vulnérables ».** Il en existe des
+   dizaines, par région et par département, de millésimes différents (2007,
+   2015, 2016, 2021…). Retenir automatiquement « le premier résultat »
+   importerait le zonage d'une autre région : des parcelles seraient classées à
+   tort, d'autres ne le seraient pas, et rien ne le signalerait.
+
+2. **Les slugs ne sont pas stables.** La documentation de l'API le dit :
+   « utilisez les identifiants techniques dans les scripts de production, les
+   slugs peuvent changer ». Un slug écrit dans le code cesse un jour de
+   fonctionner — au mieux l'import échoue, au pire il ramène autre chose.
+
+Le catalogue ne contient donc que des **termes de recherche** et les formats
+exploitables. Le CLI montre les candidats avec leur producteur, leur licence et
+leur date ; l'exploitant reconnaît le sien ; l'identifiant technique retenu est
+conservé avec la version.
+
+#### Repérer une réédition
+
+`isNewerThan()` compare la date de la ressource distante à celle du dernier
+import. Cela sert à **prévenir** qu'un zonage a été réédité — jamais à le
+remplacer tout seul. Un référentiel qui changerait sans qu'on le sache
+modifierait rétroactivement le classement de parcelles déjà déclarées.
+
 ### Aucune URL codée en dur
 
 Les adresses des jeux officiels changent. Une URL périmée écrite dans le code
@@ -254,6 +317,13 @@ Chaque référentiel lit son adresse dans une variable d'environnement
 ```bash
 # Ce qui est importé, dans quelle version, et ce qui manque
 npm run referentiels -- etat
+
+# Chercher un jeu sur data.gouv.fr (ne choisit pas à votre place)
+npm run referentiels -- chercher --code zones-vulnerables --territoire "Bretagne"
+
+# Importer celui qu'on a retenu — la version vient de la ressource
+npm run referentiels -- importer-zonage --code zones-vulnerables \
+    --dataset <identifiant> --territoire 53
 
 # Un zonage, depuis un fichier ou une URL
 npm run referentiels -- importer-zonage --code zones-vulnerables \

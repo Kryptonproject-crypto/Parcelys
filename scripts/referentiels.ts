@@ -33,6 +33,14 @@ import {
 } from '@/lib/regulatory/referentials';
 import { importZoneCollection, type ZoneFeature } from '@/lib/regulatory/import-zones';
 import { recomputeFarmContexts } from '@/lib/regulatory/geography';
+import {
+  DatagouvError,
+  findCandidates,
+  getDataset,
+  pickResource,
+  versionOf,
+  type DatagouvResource,
+} from '@/lib/regulatory/datagouv';
 import type { ZoneKind } from '@prisma/client';
 
 type Args = Record<string, string | boolean>;
@@ -127,20 +135,76 @@ async function importerZonage(args: Args): Promise<void> {
     return;
   }
 
-  const version = String(args.version ?? '');
+  let version = String(args.version ?? '');
+  let url = typeof args.url === 'string' ? args.url : process.env[spec.envVar];
+  const fichier = typeof args.fichier === 'string' ? args.fichier : null;
+  let provenance = spec.sourceLabel;
+  let ressource: DatagouvResource | null = null;
+
+  // --- Résolution par l'API data.gouv.fr ----------------------------------
+  // `--dataset` prend le pas sur tout le reste : c'est le chemin recommandé,
+  // parce qu'il apporte aussi la date de publication — donc la version — et
+  // le producteur, qu'aucune URL nue ne porte.
+  if (typeof args.dataset === 'string') {
+    console.info(`→ Lecture du jeu de données ${args.dataset} sur data.gouv.fr`);
+    const dataset = await getDataset(args.dataset);
+
+    ressource =
+      typeof args.ressource === 'string'
+        ? (dataset.resources.find((r) => r.id === args.ressource) ?? null)
+        : pickResource(dataset, spec.datagouv?.formats);
+
+    if (!ressource) {
+      console.error(
+        `✗ Aucune ressource exploitable dans « ${dataset.title} ».\n` +
+          `  Formats présents : ${[...new Set(dataset.resources.map((r) => r.format))].join(', ') || '—'}\n` +
+          `  Formats attendus : ${(spec.datagouv?.formats ?? []).join(', ')}\n\n` +
+          '  Choisissez explicitement avec --ressource <identifiant>, ou téléchargez\n' +
+          '  le fichier et passez --fichier.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    console.info(`  jeu       : ${dataset.title}`);
+    console.info(`  producteur: ${dataset.organization?.name ?? '—'}`);
+    console.info(`  licence   : ${dataset.license ?? '—'}`);
+    console.info(`  ressource : ${ressource.title} [${ressource.format}]`);
+
+    // `latest` pointe toujours la dernière version du fichier ; `url` peut
+    // désigner un dépôt figé. On préfère `latest` quand il existe.
+    url = ressource.latest ?? ressource.url;
+    provenance = dataset.organization?.name
+      ? `${dataset.organization.name} — via data.gouv.fr`
+      : 'data.gouv.fr';
+
+    // La version se déduit de la date de la ressource : c'est ce qui distingue
+    // deux éditions d'un même zonage. On ne l'invente pas si elle manque.
+    if (!version) {
+      const deduite = versionOf(ressource);
+      if (!deduite) {
+        console.error(
+          '✗ La ressource ne porte pas de date de modification : impossible d’en\n' +
+            '  déduire une version. Passez --version explicitement.',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      version = deduite;
+      console.info(`  version   : ${version} (date de la ressource)`);
+    }
+  }
+
   if (!version) {
     console.error(
       '✗ --version est obligatoire.\n' +
         "  Sans version, impossible de savoir quelle édition a servi à classer une\n" +
-        '  parcelle, ni de rouvrir une campagne passée avec le bon zonage.',
+        '  parcelle, ni de rouvrir une campagne passée avec le bon zonage.\n\n' +
+        '  Avec --dataset, la version est déduite de la date de la ressource.',
     );
     process.exitCode = 1;
     return;
   }
-
-  const urlEnv = process.env[spec.envVar];
-  const url = typeof args.url === 'string' ? args.url : urlEnv;
-  const fichier = typeof args.fichier === 'string' ? args.fichier : null;
 
   if (!fichier && !url) {
     console.error(
@@ -151,8 +215,11 @@ async function importerZonage(args: Args): Promise<void> {
         '  Parcelys ne génère aucune donnée réglementaire : ce zonage doit venir',
         `  d'une source officielle (${spec.sourceLabel}).`,
         '',
-        `  1. Renseignez ${spec.envVar} dans .env, ou`,
-        '  2. passez --fichier ./zonage.geojson',
+        '  Trois chemins, du plus recommandé au moins :',
+        `    1. npm run referentiels -- chercher --code ${code} --territoire "votre région"`,
+        '       puis  --dataset <identifiant>',
+        `    2. renseignez ${spec.envVar} dans .env`,
+        '    3. passez --fichier ./zonage.geojson',
         '',
       ].join('\n'),
     );
@@ -200,7 +267,7 @@ async function importerZonage(args: Args): Promise<void> {
     kind,
     territory: typeof args.territoire === 'string' ? args.territoire : null,
     version,
-    sourceLabel: spec.sourceLabel,
+    sourceLabel: provenance,
     sourceUrl: typeof url === 'string' ? url : null,
     srid: args.srid ? Number(args.srid) : 4326,
     ...(typeof args['champ-libelle'] === 'string'
@@ -249,12 +316,131 @@ async function recalculerContextes(): Promise<void> {
   console.info(`\n✓ ${total} contexte(s) recalculé(s)\n`);
 }
 
+/**
+ * Cherche les jeux candidats sur data.gouv.fr, et les montre.
+ *
+ * **Ne choisit pas.** Une recherche « zones vulnérables » ramène des dizaines
+ * de jeux régionaux et départementaux, de millésimes différents. En retenir un
+ * automatiquement reviendrait à tirer au sort le zonage d'une région — et à
+ * classer des parcelles à tort sans que rien ne le signale.
+ *
+ * On affiche donc les candidats avec leur producteur, leur licence, leur
+ * dernière mise à jour et la ressource exploitable ; l'exploitant reconnaît le
+ * sien, et l'identifiant technique retenu est conservé à l'import.
+ */
+async function chercher(args: Args): Promise<void> {
+  const code = String(args.code ?? '');
+  const spec = findSpec(code);
+
+  if (!spec) {
+    console.error(
+      `✗ Référentiel inconnu : « ${code} ».\n  Connus : ${REFERENTIAL_CATALOG.map((s) => s.code).join(', ')}`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!spec.datagouv) {
+    console.error(
+      `✗ « ${code} » n'est pas publié sur data.gouv.fr sous une forme importable.\n` +
+        `  Source : ${spec.sourceLabel}`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Les termes du catalogue, affinés par le territoire quand il est donné :
+  // « zones vulnérables nitrates » + « Centre-Val de Loire ».
+  const territoire = typeof args.territoire === 'string' ? args.territoire : '';
+  const requete = [spec.datagouv.query, territoire].filter(Boolean).join(' ');
+
+  console.info(`\n→ Recherche sur data.gouv.fr : « ${requete} »\n`);
+  if (spec.datagouv.note) console.info(`  ⚠ ${spec.datagouv.note}\n`);
+
+  // Piste relevée à la rédaction du catalogue. On la vérifie plutôt que de
+  // l'annoncer : un slug peut avoir changé depuis, et l'afficher sans le
+  // contrôler enverrait vers un jeu qui n'existe plus.
+  if (spec.datagouv.slugConnu) {
+    try {
+      const connu = await getDataset(spec.datagouv.slugConnu);
+      const ressourceConnue = pickResource(connu, spec.datagouv.formats);
+      console.info('  Piste connue, vérifiée à l’instant :');
+      console.info(`    ${connu.title}`);
+      console.info(`    identifiant : ${connu.id}`);
+      console.info(`    producteur  : ${connu.organization?.name ?? '—'}`);
+      if (ressourceConnue) {
+        console.info(
+          `    ressource   : ${ressourceConnue.title} [${ressourceConnue.format}]` +
+            `${versionOf(ressourceConnue) ? ` — ${versionOf(ressourceConnue)}` : ''}`,
+        );
+      }
+      console.info('');
+    } catch (erreur) {
+      // Distinguer « le slug a disparu » de « on n'a pas pu demander ».
+      // Confondre les deux enverrait chercher un nouveau slug alors que le
+      // problème est le réseau — ou l'inverse.
+      const introuvable = erreur instanceof DatagouvError && erreur.status === 404;
+      console.info(
+        introuvable
+          ? `  (la piste « ${spec.datagouv.slugConnu} » n’existe plus — les slugs\n` +
+              '   changent, c’est pourquoi Parcelys cherche plutôt que de les coder.)\n'
+          : `  (piste « ${spec.datagouv.slugConnu} » non vérifiée —\n` +
+              `   ${erreur instanceof Error ? erreur.message : 'erreur inconnue'})\n`,
+      );
+    }
+  }
+
+  const candidats = await findCandidates({
+    query: requete,
+    formats: spec.datagouv.formats,
+    limit: Number(args.limite) || 10,
+  });
+
+  if (candidats.length === 0) {
+    console.info(
+      '  Aucun résultat. Élargissez les termes, ou cherchez directement sur\n' +
+        '  https://www.data.gouv.fr puis relancez avec --dataset <identifiant>.\n',
+    );
+    return;
+  }
+
+  for (const [index, c] of candidats.entries()) {
+    console.info(`  ${index + 1}. ${c.title}`);
+    console.info(`     identifiant : ${c.datasetId}`);
+    console.info(`     producteur  : ${c.organization ?? '—'}`);
+    console.info(`     licence     : ${c.license ?? '—'}`);
+    console.info(
+      `     mise à jour : ${c.lastUpdate ? new Date(c.lastUpdate).toLocaleDateString('fr-FR') : '—'}`,
+    );
+    if (c.resource) {
+      console.info(
+        `     ressource   : ${c.resource.title} [${c.resource.format}]` +
+          `${c.resource.filesize ? ` — ${(c.resource.filesize / 1024 / 1024).toFixed(1)} Mo` : ''}`,
+      );
+    } else {
+      console.info(
+        `     ressource   : aucune exploitable (formats présents : ${c.availableFormats.join(', ') || '—'})`,
+      );
+    }
+    console.info('');
+  }
+
+  console.info(
+    '  Pour importer celui qui correspond à VOTRE territoire :\n' +
+      `    npm run referentiels -- importer-zonage --code ${code} \\\n` +
+      '        --dataset <identifiant> --territoire <code INSEE>\n',
+  );
+}
+
 async function main(): Promise<void> {
   const { commande, args } = parseArgs(process.argv.slice(2));
 
   switch (commande) {
     case 'etat':
       await etat();
+      break;
+    case 'chercher':
+      await chercher(args);
       break;
     case 'importer-zonage':
       await importerZonage(args);
@@ -271,9 +457,18 @@ async function main(): Promise<void> {
           '  npm run referentiels -- etat',
           '      Ce qui est importé, dans quelle version, et ce qui manque.',
           '',
-          '  npm run referentiels -- importer-zonage --code <code> --version <v>',
-          '                          [--fichier f.geojson | --url https://…]',
-          '                          [--territoire 24] [--srid 2154]',
+          '  npm run referentiels -- chercher --code <code> [--territoire "Centre-Val de Loire"]',
+          '      Interroge data.gouv.fr et montre les jeux candidats.',
+          '      Ne choisit pas : les zonages sont régionaux, se tromper de',
+          '      région classerait des parcelles à tort.',
+          '',
+          '  npm run referentiels -- importer-zonage --code <code>',
+          '                          --dataset <identifiant data.gouv.fr>',
+          '                          [--ressource <id>] [--territoire 24] [--srid 2154]',
+          '      La version est déduite de la date de la ressource.',
+          '',
+          '      Sans data.gouv.fr :',
+          '                          --version <v> [--fichier f.geojson | --url https://…]',
           '',
           '  npm run referentiels -- recalculer-contextes',
           '      À lancer après chaque import de zonage.',

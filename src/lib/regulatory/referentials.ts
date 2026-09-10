@@ -22,6 +22,33 @@ import type { RegulatoryDomain, ReferentialStatus } from '@prisma/client';
  * une carte des sources, pas un cache de valeurs.
  */
 
+/**
+ * Comment trouver ce référentiel sur data.gouv.fr.
+ *
+ * Des **termes de recherche**, pas un identifiant. Deux raisons, vérifiées
+ * plutôt que supposées :
+ *
+ *  · il n'existe pas de jeu national « zones vulnérables » — il y en a des
+ *    dizaines, par région et par département, avec des millésimes différents.
+ *    Un identifiant en dur importerait le zonage d'une autre région ;
+ *  · la documentation de l'API le dit : « utilisez les identifiants techniques
+ *    dans les scripts de production, les slugs peuvent changer ».
+ *
+ * `slugConnu` n'est donc qu'une piste de départ, vérifiée à la rédaction et
+ * susceptible d'avoir bougé. Le CLI cherche, montre les candidats, et conserve
+ * l'identifiant technique de celui qu'on retient.
+ */
+export type DatagouvHint = {
+  /** Termes passés à `?q=` de l'API. */
+  query: string;
+  /** Formats exploitables, du plus commode au moins. */
+  formats: readonly string[];
+  /** Slug relevé à la rédaction. Une piste, pas une garantie. */
+  slugConnu?: string;
+  /** Ce qu'il faut savoir avant de choisir parmi les résultats. */
+  note?: string;
+};
+
 export type ReferentialSpec = {
   code: string;
   domain: RegulatoryDomain;
@@ -36,6 +63,8 @@ export type ReferentialSpec = {
   territorial: boolean;
   /** Ce que Parcelys ne peut pas faire tant qu'il manque. */
   degradedWithout: string;
+  /** Comment le découvrir sur data.gouv.fr, quand il y figure. */
+  datagouv?: DatagouvHint;
 };
 
 /**
@@ -59,6 +88,11 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: false,
     degradedWithout:
       'Aucune vérification de dose ni de ZNT : les produits sont saisis librement et signalés « non vérifiés ».',
+    datagouv: {
+      query: 'e-phy catalogue produits phytopharmaceutiques',
+      formats: ['zip'],
+      note: 'Retenir la publication de l’ANSES, et l’archive complète — pas un extrait.',
+    },
   },
   {
     code: 'ift-doses-reference',
@@ -70,6 +104,13 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: false,
     degradedWithout:
       'Aucun IFT calculé. Parcelys ne compte pas les passages à la place : un nombre de traitements n’est pas un IFT.',
+    datagouv: {
+      query: 'doses de référence indicateur de fréquence de traitements phytosanitaires',
+      formats: ['csv', 'xlsx'],
+      slugConnu: 'doses-de-reference-indicateur-de-frequence-de-traitements-phytosanitaires',
+      note:
+        'Les listes sont propres à chaque campagne culturale. Prendre celle de la campagne travaillée, pas la plus récente.',
+    },
   },
   {
     code: 'zones-vulnerables',
@@ -82,6 +123,12 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: true,
     degradedWithout:
       'Le classement de la parcelle reste indéterminé. Aucune règle nitrates n’est opposée, et l’interface le signale.',
+    datagouv: {
+      query: 'zones vulnérables nitrates',
+      formats: ['geojson', 'json', 'shp', 'zip'],
+      note:
+        'Aucun jeu national : des dizaines de jeux régionaux et départementaux, de millésimes différents. Choisir CELUI de son territoire — un autre classerait des parcelles à tort.',
+    },
   },
   {
     code: 'zones-action-renforcee',
@@ -92,6 +139,11 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     envVar: 'ZAR_URL',
     territorial: true,
     degradedWithout: 'Les prescriptions renforcées éventuelles ne sont pas opposées.',
+    datagouv: {
+      query: 'zones actions renforcées nitrates',
+      formats: ['geojson', 'json', 'shp', 'zip'],
+      note: 'Publiées par les DREAL régionales, à l’intérieur des zones vulnérables.',
+    },
   },
   {
     code: 'programme-actions-nitrates',
@@ -104,6 +156,12 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: true,
     degradedWithout:
       'Aucun calendrier d’épandage ni plafond n’est vérifié. Les apports sont enregistrés sans contrôle réglementaire.',
+    datagouv: {
+      query: 'programme actions régional nitrates',
+      formats: ['csv', 'json'],
+      note:
+        'Le programme est un arrêté, pas un jeu de données : ce qui circule en ouvert est partiel. Les règles se saisissent règle par règle, avec leur référence de texte.',
+    },
   },
   {
     code: 'gren',
@@ -116,6 +174,12 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: true,
     degradedWithout:
       'La dose prévisionnelle n’est pas calculée. Le plan reste saisissable à la main, et le bilan indique quelles valeurs manquent.',
+    datagouv: {
+      query: 'GREN référentiel régional calcul dose azote prévisionnelle',
+      formats: ['csv', 'xlsx'],
+      note:
+        'Souvent publié en PDF par les GREN régionaux, donc non importable tel quel. Sans version tabulaire, le besoin et la fourniture du sol se saisissent à la main — et le bilan dit d’où ils viennent.',
+    },
   },
   {
     code: 'captages',
@@ -126,6 +190,12 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     envVar: 'CAPTAGES_URL',
     territorial: true,
     degradedWithout: 'La proximité d’un captage n’est pas détectée.',
+    datagouv: {
+      query: 'captages aire alimentation captage périmètre protection',
+      formats: ['geojson', 'json', 'shp', 'zip'],
+      note:
+        'Un captage est souvent publié en points ; seules les aires et périmètres, qui sont des surfaces, permettent de calculer une part de parcelle concernée.',
+    },
   },
   {
     code: 'cours-eau',
@@ -137,6 +207,12 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     territorial: true,
     degradedWithout:
       'La proximité d’un cours d’eau n’est pas détectée : les ZNT restent affichées sans être rapportées au terrain.',
+    datagouv: {
+      query: 'cours d’eau police de l’eau BD TOPO hydrographie',
+      formats: ['geojson', 'json', 'shp', 'zip'],
+      note:
+        'Les cours d’eau sont des lignes : leur import sert au repérage, pas au calcul de surface concernée.',
+    },
   },
 ];
 

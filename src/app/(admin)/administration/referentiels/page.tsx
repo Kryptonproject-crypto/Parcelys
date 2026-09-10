@@ -74,12 +74,31 @@ export default async function ReferentialsPage() {
                   Variable : <code className="rounded bg-surface px-1">{ref.envVar}</code>{' '}
                   {ref.configured ? '(renseignée)' : '(absente du .env)'}
                 </p>
-                <p className="mt-1.5 text-[12.5px] text-ink-3">
-                  Import :{' '}
-                  <code className="rounded bg-surface px-1">
-                    npm run referentiels -- importer-zonage --code {ref.code} --version …
-                  </code>
-                </p>
+                {/* La découverte d'abord : les zonages sont régionaux, et
+                    l'identifiant du bon jeu ne se devine pas. */}
+                {ref.datagouv ? (
+                  <>
+                    <p className="mt-1.5 text-[12.5px] text-ink-3">
+                      Chercher :{' '}
+                      <code className="rounded bg-surface px-1">
+                        npm run referentiels -- chercher --code {ref.code}
+                        {ref.territorial ? ' --territoire "votre région"' : ''}
+                      </code>
+                    </p>
+                    {ref.datagouv.note ? (
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-ble-700 dark:text-ble-300">
+                        ⚠ {ref.datagouv.note}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="mt-1.5 text-[12.5px] text-ink-3">
+                    Import :{' '}
+                    <code className="rounded bg-surface px-1">
+                      npm run referentiels -- importer-zonage --code {ref.code} --version …
+                    </code>
+                  </p>
+                )}
               </li>
             ))}
           </ul>
