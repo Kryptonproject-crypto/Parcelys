@@ -55,10 +55,18 @@ export default async function ProfilePage() {
           {auth.memberships.map((membership) => (
             <li
               key={membership.farmId}
-              className="flex items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-2.5"
+              // Les pastilles ne se rétrécissent pas, et un nom d'exploitation
+              // peut être long : la ligne débordait de 14 px sur un écran de
+              // 320 px. Elles passent à la ligne plutôt que de pousser la page,
+              // et le nom se coupe entre les mots — le tronquer serait pire, on
+              // ne reconnaît pas une exploitation à ses quinze premières
+              // lettres.
+              className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border border-line px-3.5 py-2.5"
             >
-              <span className="font-medium text-ink">{membership.farmName}</span>
-              <div className="flex items-center gap-2">
+              <span className="min-w-0 break-words font-medium text-ink">
+                {membership.farmName}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
                 {membership.farmId === auth.activeFarmId ? (
                   <Badge tone="green">Active</Badge>
                 ) : null}

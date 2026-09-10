@@ -124,3 +124,25 @@ export const changePasswordSchema = z
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * Changement d'adresse e-mail.
+ *
+ * Le mot de passe est exigé dès la demande, pas à la confirmation : une session
+ * ouverte ne prouve pas l'identité de celui qui est devant l'écran, et
+ * l'adresse e-mail est l'identifiant de connexion.
+ */
+export const requestEmailChangeSchema = z.object({
+  newEmail: emailSchema,
+  currentPassword: z.string().min(1, 'Mot de passe actuel requis'),
+});
+
+export const confirmEmailChangeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Le code comporte 6 chiffres'),
+});
+
+export type RequestEmailChangeInput = z.infer<typeof requestEmailChangeSchema>;
+export type ConfirmEmailChangeInput = z.infer<typeof confirmEmailChangeSchema>;

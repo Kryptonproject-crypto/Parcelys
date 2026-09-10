@@ -12,6 +12,13 @@ export type AuditAction =
   | 'auth.password_reset_requested'
   | 'auth.password_reset'
   | 'auth.password_changed'
+  // Le changement d'adresse laisse trois traces plutôt qu'une : la demande,
+  // parce que c'est là qu'une tentative de détournement se voit, même si elle
+  // n'aboutit pas ; l'abandon, pour ne pas laisser une demande sans suite
+  // passer pour un changement effectué ; et le changement lui-même.
+  | 'auth.email_change_requested'
+  | 'auth.email_change_cancelled'
+  | 'auth.email_changed'
   | 'auth.account_locked'
   | 'account.deleted'
   | 'account.data_exported'

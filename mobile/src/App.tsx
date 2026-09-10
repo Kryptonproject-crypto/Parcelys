@@ -20,6 +20,7 @@ import { ParcelScreen } from './screens/Parcel';
 import { EntryScreen, type EntryKind } from './screens/Entry';
 import { QueueScreen } from './screens/Queue';
 import { SettingsScreen } from './screens/Settings';
+import { SecurityScreen } from './screens/Security';
 import { PortfolioScreen } from './screens/Portfolio';
 import { RecommendationsScreen } from './screens/Recommendations';
 import { RecommendationScreen } from './screens/Recommendation';
@@ -48,7 +49,8 @@ export type Screen =
   | { name: 'recommendation'; recommendationId: string }
   | { name: 'new-recommendation'; parcelId?: string }
   | { name: 'queue' }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'security' };
 
 export type AppContext = {
   session: Session;
@@ -302,6 +304,9 @@ export function App() {
 
     case 'settings':
       return <SettingsScreen context={context} />;
+
+    case 'security':
+      return <SecurityScreen context={context} />;
 
     default:
       return <ParcelsScreen context={context} />;

@@ -204,7 +204,14 @@ export default async function PhytosanitaryPage({
             </Select>
           </div>
 
-          <div className="flex items-end gap-2">
+          {/* Ces deux boutons partagent la dernière colonne de la grille.
+              « À compléter » ne se laisse pas rétrécir (whitespace-nowrap), et
+              la colonne fait environ 134 px sur une tablette en portrait : la
+              paire débordait de 14 px à 768 px — assez pour faire défiler toute
+              la page latéralement, et invisible sur téléphone comme sur écran
+              de bureau. Ils passent maintenant à la ligne plutôt que de forcer
+              la colonne. */}
+          <div className="flex flex-wrap items-end gap-2">
             <button
               type="submit"
               className="h-10 flex-1 rounded-lg bg-champ-600 px-4 text-sm font-medium text-white transition hover:bg-champ-700"

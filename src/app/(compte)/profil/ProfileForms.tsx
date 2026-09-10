@@ -17,6 +17,7 @@ import {
   formatDateFr,
 } from '@/components/ui';
 import { IconExport } from '@/components/ui/icons';
+import { EmailChangeCard } from './EmailChangeCard';
 
 type ProfileUser = {
   firstName: string;
@@ -237,10 +238,12 @@ export function ProfileForms({
             <Field
               label="Adresse e-mail"
               htmlFor="email"
+              // Un champ grisé sans explication laisse chercher. Celui-ci dit
+              // maintenant où se fait la modification, plus bas sur la page.
               hint={
-                user.emailVerifiedAt
-                  ? `Vérifiée le ${formatDateFr(user.emailVerifiedAt)}`
-                  : 'Non vérifiée'
+                (user.emailVerifiedAt
+                  ? `Vérifiée le ${formatDateFr(user.emailVerifiedAt)}. `
+                  : 'Non vérifiée. ') + 'Se modifie plus bas, section « Adresse e-mail ».'
               }
             >
               <Input id="email" value={user.email} disabled />
@@ -318,6 +321,8 @@ export function ProfileForms({
       </Card>
 
       {/* Sécurité */}
+      <EmailChangeCard email={user.email} />
+
       <Card>
         <CardHeader
           title="Changer de mot de passe"

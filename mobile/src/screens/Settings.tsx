@@ -7,7 +7,7 @@ import { Banner, Button, Card, Header } from '../components/ui';
 
 /** Réglages : état de la session, du cache, mises à jour et déconnexion. */
 export function SettingsScreen({ context }: { context: AppContext }) {
-  const { back, session, snapshot, online, pending, logout, refreshSnapshot, isExpert } =
+  const { back, navigate, session, snapshot, online, pending, logout, refreshSnapshot, isExpert } =
     context;
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -124,6 +124,14 @@ export function SettingsScreen({ context }: { context: AppContext }) {
             </div>
           </dl>
         </Card>
+
+        <Button
+          variant="secondary"
+          full
+          onClick={() => navigate({ name: 'security' })}
+        >
+          Compte et sécurité
+        </Button>
 
         <Button
           variant="secondary"

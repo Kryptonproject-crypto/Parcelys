@@ -138,3 +138,55 @@ export function notificationEmail(params: {
     ),
   };
 }
+
+/**
+ * Code de confirmation d'un changement d'adresse.
+ *
+ * Distinct du code de vérification ordinaire, et pas par coquetterie : celui-ci
+ * part vers une adresse que le destinataire n'a peut-être jamais associée à
+ * Parcelys. Il doit donc dire de quel compte il vient et vers quelle adresse il
+ * mène, faute de quoi il est indiscernable d'un hameçonnage — ou d'une erreur
+ * de frappe qu'on validerait sans s'en rendre compte.
+ */
+export function emailChangeCodeEmail(params: {
+  to: string;
+  firstName: string;
+  code: string;
+  ancienneAdresse: string;
+  expiresInMinutes: number;
+}): EmailMessage {
+  const { APP_NAME } = getEnv();
+  const text = [
+    `Bonjour ${params.firstName},`,
+    '',
+    `Une demande de changement d'adresse a été faite sur le compte ${APP_NAME}`,
+    `actuellement rattaché à ${params.ancienneAdresse}.`,
+    '',
+    `Code de confirmation : ${params.code}`,
+    '',
+    `Ce code expire dans ${params.expiresInMinutes} minutes.`,
+    "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message :",
+    "l'adresse du compte ne changera pas tant que ce code n'aura pas été saisi.",
+  ].join('\n');
+
+  return {
+    to: params.to,
+    subject: `${params.code} — confirmer votre nouvelle adresse ${APP_NAME}`,
+    text,
+    html: layout(
+      'Confirmer votre nouvelle adresse',
+      `<p>Bonjour ${escape(params.firstName)},</p>
+       <p>Une demande de changement d’adresse a été faite sur le compte
+          ${escape(APP_NAME)} actuellement rattaché à
+          <strong>${escape(params.ancienneAdresse)}</strong>.</p>
+       <p>Voici le code de confirmation :</p>
+       <p style="font-size:32px;font-weight:700;letter-spacing:8px;color:#2f6b34;
+                 background:#f2f7f0;border-radius:10px;padding:16px;text-align:center;">
+         ${escape(params.code)}
+       </p>
+       <p>Ce code expire dans <strong>${params.expiresInMinutes} minutes</strong>.</p>
+       <p>Si vous n’êtes pas à l’origine de cette demande, ignorez ce message :
+          l’adresse du compte ne changera pas tant que ce code n’aura pas été saisi.</p>`,
+    ),
+  };
+}

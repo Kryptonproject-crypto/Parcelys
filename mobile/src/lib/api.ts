@@ -387,3 +387,80 @@ export async function captureWeather(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Compte et sécurité
+//
+// Ces routes sont exactement celles du web : mêmes règles, mêmes délais, mêmes
+// messages. Une seconde implémentation « pour le mobile » finirait par diverger,
+// et c'est toujours la moins stricte qui l'emporterait — sur le point le plus
+// sensible du compte, l'identifiant de connexion.
+// ---------------------------------------------------------------------------
+
+export type EmailChangeState = {
+  email: string;
+  pending: { newEmail: string; expiresAt: string } | null;
+};
+
+/** La demande de changement d'adresse en cours, s'il y en a une. */
+export async function fetchEmailChange(session: Session): Promise<EmailChangeState> {
+  return request<EmailChangeState>(session.serverUrl, '/api/profile/email', {
+    token: session.token,
+  });
+}
+
+export type EmailChangeRequested = {
+  newEmail: string;
+  expiresInSeconds: number;
+  resendInSeconds: number;
+  message: string;
+};
+
+/** Demande le changement : un code part vers la nouvelle adresse. */
+export async function requestEmailChange(
+  session: Session,
+  newEmail: string,
+  currentPassword: string,
+): Promise<EmailChangeRequested> {
+  return request<EmailChangeRequested>(session.serverUrl, '/api/profile/email', {
+    method: 'POST',
+    token: session.token,
+    body: { newEmail, currentPassword },
+  });
+}
+
+/** Confirme le changement avec le code reçu. */
+export async function confirmEmailChange(
+  session: Session,
+  code: string,
+): Promise<{ email: string; message: string }> {
+  return request<{ email: string; message: string }>(session.serverUrl, '/api/profile/email', {
+    method: 'PUT',
+    token: session.token,
+    body: { code },
+  });
+}
+
+/** Abandonne la demande en cours. */
+export async function cancelEmailChange(
+  session: Session,
+): Promise<{ cancelled: boolean; message: string }> {
+  return request<{ cancelled: boolean; message: string }>(
+    session.serverUrl,
+    '/api/profile/email',
+    { method: 'DELETE', token: session.token },
+  );
+}
+
+/** Change le mot de passe. Les autres appareils sont déconnectés. */
+export async function changePassword(
+  session: Session,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  return request<{ message: string }>(session.serverUrl, '/api/profile/password', {
+    method: 'PUT',
+    token: session.token,
+    body: { currentPassword, newPassword, newPasswordConfirmation: newPassword },
+  });
+}
