@@ -56,6 +56,23 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
       operator: input.operator ?? null,
       durationHours:
         input.durationHours !== undefined ? new Prisma.Decimal(input.durationHours) : null,
+
+      // L'irrigation est un travail sur la parcelle, pas un objet à part : elle
+      // s'enregistre ici, avec la même date, le même opérateur et la même
+      // météo. Un second modèle en parallèle aurait fatalement divergé.
+      irrigationVolumeM3Ha:
+        input.irrigationVolumeM3Ha !== undefined
+          ? new Prisma.Decimal(input.irrigationVolumeM3Ha)
+          : null,
+      irrigationMm:
+        input.irrigationMm !== undefined ? new Prisma.Decimal(input.irrigationMm) : null,
+      waterSource: input.waterSource ?? null,
+      waterNitrateMgL:
+        input.waterNitrateMgL !== undefined
+          ? new Prisma.Decimal(input.waterNitrateMgL)
+          : null,
+      waterAnalysisOn: input.waterAnalysisOn ?? null,
+
       notes: input.notes ?? null,
       createdById: ctx.user.id,
     },

@@ -41,6 +41,8 @@ export type AuditAction =
   | 'operation.created'
   | 'operation.updated'
   | 'operation.deleted'
+  | 'soilCover.created'
+  | 'soilCover.deleted'
   | 'document.uploaded'
   | 'document.downloaded'
   | 'document.deleted'

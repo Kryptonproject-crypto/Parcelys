@@ -14,6 +14,7 @@
  *
  *     npm run check:stocks
  */
+import './load-env';
 import { prisma } from '@/lib/prisma';
 import {
   enregistrerMouvement,

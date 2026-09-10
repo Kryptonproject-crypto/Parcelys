@@ -4,6 +4,7 @@ import { computeFarmIft } from '@/lib/regulatory/ift';
 import { buildNitrogenBalance, comparePlanToActual } from '@/lib/regulatory/nitrogen';
 import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
+import { constatsCouverture } from '@/lib/regulatory/soil-cover';
 import type { FindingLevel, RegulatoryDomain } from '@prisma/client';
 
 /**
@@ -285,6 +286,29 @@ export async function buildComplianceReport(params: {
       title: 'Traitements sans numéro d’AMM',
       detail: `${sansAmm} traitement${sansAmm > 1 ? 's' : ''} enregistré${sansAmm > 1 ? 's' : ''} sans AMM : le registre est incomplet.`,
       action: 'Rattachez ces traitements au catalogue E-Phy, ou reportez l’AMM de l’étiquette.',
+    });
+  }
+
+  // --- Couverture des sols en interculture ----------------------------------
+  //
+  // Le module de couverture rend ses propres constats : les périodes et modes
+  // de destruction autorisés relèvent du programme d'actions régional, qu'il
+  // faut avoir importé. Sans lui, il répond « non vérifiable » — jamais
+  // « conforme ».
+  for (const constat of await constatsCouverture({
+    farmId: params.farmId,
+    campaignYear: params.campaignYear,
+  })) {
+    findings.push({
+      domain: 'COUVERTURE',
+      level: constat.level,
+      code: constat.code,
+      title: constat.title,
+      detail: constat.detail,
+      ...(constat.action ? { action: constat.action } : {}),
+      ...(constat.referentialCode ? { referentialCode: constat.referentialCode } : {}),
+      parcelId: constat.parcelId,
+      parcelName: constat.parcelName,
     });
   }
 

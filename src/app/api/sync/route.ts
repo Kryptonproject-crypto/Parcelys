@@ -11,6 +11,7 @@ import { POST as createParcel } from '@/app/api/parcels/route';
 import { POST as createFertilization } from '@/app/api/parcels/[id]/fertilization/route';
 import { POST as createPhyto } from '@/app/api/parcels/[id]/phytosanitary/route';
 import { POST as createOperation } from '@/app/api/parcels/[id]/operations/route';
+import { POST as createSoilCover } from '@/app/api/soil-covers/route';
 import { POST as createRecommendation } from '@/app/api/recommendations/route';
 import { POST as respondToRecommendation } from '@/app/api/recommendations/[id]/response/route';
 
@@ -74,6 +75,21 @@ const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
     handler: createOperation as RouteHandler,
     target: 'parcel',
     path: (op) => `/api/parcels/${op.parcelId}/operations`,
+  },
+  // La route appelée est la même qu'en ligne : c'est elle qui vérifie
+  // l'appartenance de la parcelle et la cohérence des dates. Un contrôle qui
+  // n'existerait que dans le formulaire laisserait passer tout ce qui a été
+  // saisi au champ, c'est-à-dire l'essentiel.
+  //
+  // Nuance à connaître : contrairement aux autres, cette route lit la parcelle
+  // dans le **corps** de la requête, pas dans le chemin. L'autorisation reste
+  // correcte — `requireParcelAccess` vérifie ce `parcelId`-là contre les
+  // exploitations de l'utilisateur. Le `parcelId` de l'entrée de file ne sert
+  // donc qu'à refuser d'emblée une saisie qui n'en nomme aucune.
+  'soilCover.create': {
+    handler: createSoilCover as RouteHandler,
+    target: 'parcel',
+    path: () => '/api/soil-covers',
   },
   // L'expert rédige au champ, sans réseau, et transmet au retour. La route
   // appelée est la même qu'en ligne : c'est elle qui vérifie la mission de

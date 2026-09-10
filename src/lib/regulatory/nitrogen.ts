@@ -362,7 +362,118 @@ export type PlanVsActual = {
     label: string;
     nKgHa: number | null;
   }>;
+  /**
+   * Irrigation réellement effectuée sur la campagne.
+   *
+   * Volontairement **hors** de `actualKgHa`, et ce n'est pas un détail : l'eau
+   * d'irrigation n'est pas un apport d'engrais, c'est une **fourniture** du
+   * bilan. La confondre avec un apport ferait apparaître un dépassement de
+   * fertilisation là où il n'y en a pas.
+   *
+   * Ce qu'elle sert à voir : un écart entre l'irrigation prévue au plan et
+   * celle réalisée signifie que la dose prévisionnelle reposait sur une
+   * fourniture qui n'a pas été celle-là.
+   */
+  irrigation: {
+    /** Nombre d'événements d'irrigation enregistrés sur la campagne. */
+    events: number;
+    volumeM3Ha: number | null;
+    nKgHa: number | null;
+    /** Ce qui empêche de chiffrer l'azote apporté, quand c'est le cas. */
+    missing: string | null;
+    /** Ce que le plan avait prévu, pour comparer. */
+    plannedNKgHa: number | null;
+  };
 };
+
+/**
+ * Azote réellement apporté par l'irrigation sur une campagne.
+ *
+ * S'appuie sur les opérations de type `IRRIGATION` enregistrées sur la
+ * parcelle — pas sur une saisie parallèle. C'est le même geste, au même
+ * endroit : un second modèle aurait fatalement divergé du premier.
+ *
+ * Rend `null` plutôt que zéro dès qu'une donnée manque, en disant laquelle.
+ * Zéro se lirait « l'eau n'apporte pas d'azote », ce qui est faux et pousse à
+ * sur-fertiliser.
+ */
+export async function irrigationRealisee(params: {
+  parcelId: string;
+  campaignYear: number;
+}): Promise<{
+  events: number;
+  volumeM3Ha: number | null;
+  nKgHa: number | null;
+  missing: string | null;
+}> {
+  const debut = new Date(Date.UTC(params.campaignYear - 1, 7, 1));
+  const fin = new Date(Date.UTC(params.campaignYear, 6, 31, 23, 59, 59));
+
+  const evenements = await prisma.agriculturalOperation.findMany({
+    where: {
+      parcelId: params.parcelId,
+      type: 'IRRIGATION',
+      performedOn: { gte: debut, lte: fin },
+    },
+    select: {
+      irrigationVolumeM3Ha: true,
+      irrigationMm: true,
+      waterNitrateMgL: true,
+    },
+  });
+
+  if (evenements.length === 0) {
+    return { events: 0, volumeM3Ha: null, nKgHa: null, missing: null };
+  }
+
+  let volume = 0;
+  let azote = 0;
+  let sansVolume = 0;
+  let sansTeneur = 0;
+
+  for (const e of evenements) {
+    // 1 mm sur 1 ha = 10 m³. Conversion purement dimensionnelle, comme celle
+    // du nitrate : elle ne suppose aucune donnée agronomique.
+    const m3Ha =
+      nombre(e.irrigationVolumeM3Ha) ??
+      (nombre(e.irrigationMm) !== null ? (nombre(e.irrigationMm) as number) * 10 : null);
+
+    if (m3Ha === null) {
+      sansVolume += 1;
+      continue;
+    }
+    volume += m3Ha;
+
+    const teneur = nombre(e.waterNitrateMgL);
+    if (teneur === null) {
+      sansTeneur += 1;
+      continue;
+    }
+    azote += irrigationNitrogenKgHa(teneur, m3Ha) ?? 0;
+  }
+
+  const manques: string[] = [];
+  if (sansVolume > 0) {
+    manques.push(`${sansVolume} irrigation(s) sans volume ni hauteur d’eau`);
+  }
+  if (sansTeneur > 0) {
+    manques.push(
+      `${sansTeneur} irrigation(s) sans analyse de l’eau (teneur en nitrate)`,
+    );
+  }
+
+  return {
+    events: evenements.length,
+    volumeM3Ha: volume > 0 ? Number(volume.toFixed(2)) : null,
+    // Un total partiel serait pris pour un total. On ne chiffre que si tout
+    // est renseigné.
+    nKgHa: manques.length === 0 ? Number(azote.toFixed(2)) : null,
+    missing:
+      manques.length === 0
+        ? null
+        : `${manques.join(' · ')} : l’azote apporté par l’eau n’est pas chiffrable.`,
+  };
+}
 
 export async function comparePlanToActual(planId: string): Promise<PlanVsActual | null> {
   const plan = await prisma.nitrogenPlan.findUnique({
@@ -370,7 +481,7 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
     include: {
       entries: { select: { efficientKgHa: true, totalKgHa: true } },
       deviations: { select: { id: true } },
-      cropYear: { select: { id: true, parcelId: true } },
+      cropYear: { select: { id: true, parcelId: true, campaignYear: true } },
     },
   });
   if (!plan) return null;
@@ -413,6 +524,11 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
 
   const deviationKgHa = Number((actualKgHa - plannedKgHa).toFixed(2));
 
+  const irrigation = await irrigationRealisee({
+    parcelId: plan.cropYear.parcelId,
+    campaignYear: plan.cropYear.campaignYear,
+  });
+
   return {
     plannedKgHa,
     actualKgHa,
@@ -420,5 +536,14 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
     exceeds: deviationKgHa > 0,
     justified: plan.deviations.length > 0,
     applications,
+    irrigation: {
+      ...irrigation,
+      plannedNKgHa: plan.irrigated
+        ? irrigationNitrogenKgHa(
+            nombre(plan.irrigationNitrateMgL),
+            nombre(plan.irrigationVolumeM3Ha),
+          )
+        : null,
+    },
   };
 }

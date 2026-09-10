@@ -9,6 +9,7 @@ import { getEnv } from '@/lib/env';
 import { buildHistory } from '@/lib/services/history';
 import { computeNutrientBalance } from '@/lib/services/fertilization';
 import { currentCampaignYear, PARCEL_STATUS_LABELS } from '@/lib/constants/agronomy';
+import { incoherencesDates } from '@/lib/regulatory/soil-cover';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
 import { computeParcelContext } from '@/lib/regulatory/geography';
@@ -57,6 +58,7 @@ export default async function ParcelPage({
     fertilizations,
     phytoTreatments,
     operations,
+    soilCovers,
     documents,
     history,
     crops,
@@ -84,6 +86,10 @@ export default async function ParcelPage({
     prisma.agriculturalOperation.findMany({
       where: { parcelId: id },
       orderBy: { performedOn: 'desc' },
+    }),
+    prisma.soilCover.findMany({
+      where: { parcelId: id },
+      orderBy: [{ sownOn: 'desc' }, { createdAt: 'desc' }],
     }),
     prisma.document.findMany({
       where: { parcelId: id },
@@ -294,6 +300,21 @@ export default async function ParcelPage({
           operator: o.operator,
           durationHours: o.durationHours?.toString() ?? null,
           notes: o.notes,
+          irrigationMm: o.irrigationMm?.toString() ?? null,
+          irrigationVolumeM3Ha: o.irrigationVolumeM3Ha?.toString() ?? null,
+          waterSource: o.waterSource,
+          waterNitrateMgL: o.waterNitrateMgL?.toString() ?? null,
+        }))}
+        soilCovers={soilCovers.map((c) => ({
+          id: c.id,
+          kind: c.kind,
+          species: c.species,
+          sownOn: c.sownOn?.toISOString() ?? null,
+          emergedOn: c.emergedOn?.toISOString() ?? null,
+          destroyedOn: c.destroyedOn?.toISOString() ?? null,
+          destructionMethod: c.destructionMethod,
+          areaHa: c.areaHa?.toString() ?? null,
+          incoherences: incoherencesDates(c),
         }))}
         documents={documents.map((d) => ({
           id: d.id,

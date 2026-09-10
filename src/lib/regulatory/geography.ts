@@ -350,3 +350,87 @@ export function zoneOf(
 ): ZoneIntersection | null {
   return context?.zones.find((zone) => zone.kind === kind) ?? null;
 }
+
+/**
+ * Département déduit d'un code INSEE de commune.
+ *
+ * Le code INSEE compte cinq caractères, et le département n'en occupe pas
+ * toujours deux :
+ *
+ *   · outre-mer — `97123` → `971`, trois chiffres ;
+ *   · Corse     — `2A004` → `2A`, une lettre.
+ *
+ * Prendre systématiquement les deux premiers caractères donnerait `97` pour
+ * toute l'outre-mer, et ferait chercher un programme d'actions dans un
+ * département qui n'existe pas.
+ */
+export function departementDepuisInsee(insee: string | null): string | null {
+  const code = (insee ?? '').trim().toUpperCase();
+  if (!/^(\d{5}|2[AB]\d{3})$/.test(code)) return null;
+  if (code.startsWith('97') || code.startsWith('98')) return code.slice(0, 3);
+  return code.slice(0, 2);
+}
+
+/**
+ * Territoires d'une parcelle, du plus précis au plus général.
+ *
+ * Sert à choisir la bonne version d'un référentiel territorialisé : un
+ * programme d'actions départemental prime sur le régional, qui prime sur le
+ * national.
+ *
+ * On ne prend que ce qui est **su** : le code INSEE de la parcelle, puis le
+ * département de l'exploitation. Rien n'est déduit d'une coordonnée ou d'un nom
+ * de commune — un rapprochement approximatif appliquerait le programme d'une
+ * région voisine sans que rien ne le signale.
+ */
+export async function territoiresDeLaParcelle(parcelId: string): Promise<string[]> {
+  const parcelle = await prisma.parcel.findUnique({
+    where: { id: parcelId },
+    select: { inseeCode: true, farm: { select: { department: true } } },
+  });
+  if (!parcelle) return [];
+
+  const territoires: string[] = [];
+
+  const depuisInsee = departementDepuisInsee(parcelle.inseeCode);
+  if (depuisInsee) territoires.push(depuisInsee);
+
+  const depuisExploitation = (parcelle.farm.department ?? '').trim().toUpperCase();
+  if (depuisExploitation && !territoires.includes(depuisExploitation)) {
+    territoires.push(depuisExploitation);
+  }
+
+  // « FR » ferme la liste : un référentiel national s'applique à défaut de
+  // territorial. `resolveReferential` essaie ensuite `null`, qui couvre les
+  // référentiels non territorialisés.
+  territoires.push('FR');
+  return territoires;
+}
+
+/**
+ * Trois états, jamais deux.
+ *
+ * `context.zones.some(z => z.kind === 'ZONE_VULNERABLE')` rend `false` aussi
+ * bien pour une parcelle hors zone vulnérable que pour une parcelle dont on
+ * n'a **aucune donnée de zonage** — référentiel non importé, contour non
+ * tracé. Les deux se lisent alors « pas concernée », et l'un des deux est un
+ * mensonge silencieux : c'est précisément ce que Parcelys s'interdit.
+ *
+ * `indetermine` force l'appelant à traiter le cas, et l'écran à le dire.
+ */
+export function statutZonage(
+  context: ParcelContext | null,
+  kind: ZoneKind,
+): 'dedans' | 'dehors' | 'indetermine' {
+  if (!context) return 'indetermine';
+  if (context.zones.some((zone) => zone.kind === kind)) return 'dedans';
+
+  // Un zonage attendu et non déterminé figure dans `unresolved` : le contour
+  // manque, ou le référentiel n'est pas importé. Dans les deux cas on ne sait
+  // pas — on ne conclut pas.
+  const attendu = ZONAGES_ATTENDUS.find((z) => z.kind === kind);
+  const nonResolu = context.unresolved.some(
+    (u) => u.what === attendu?.label || u.what === 'Contexte réglementaire',
+  );
+  return nonResolu ? 'indetermine' : 'dehors';
+}

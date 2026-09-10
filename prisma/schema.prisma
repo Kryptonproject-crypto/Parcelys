@@ -114,6 +114,7 @@ model User {
   phytoEntries          PhytosanitaryApplication[] @relation("PhytoAuthor")
   operationEntries      AgriculturalOperation[]    @relation("OperationAuthor")
   stockMovements        StockMovement[]            @relation("StockMovementAuthor")
+  soilCovers            SoilCover[]                @relation("SoilCoverAuthor")
   invitationsIssued     InvitationCode[]           @relation("InvitationIssuer")
   invitationsRevoked    InvitationCode[]           @relation("InvitationRevoker")
   invitationsUsed       InvitationCode[]           @relation("InvitationRecipient")
@@ -526,6 +527,7 @@ model Parcel {
   fertilizations  FertilizerApplication[]
   phytoTreatments PhytosanitaryApplication[]
   operations      AgriculturalOperation[]
+  soilCovers      SoilCover[]
   documents       Document[]
   weatherRecords  WeatherRecord[]
   pacFeatures     PacFeature[]
@@ -601,6 +603,7 @@ model CropYear {
   fertilizations  FertilizerApplication[]
   phytoTreatments PhytosanitaryApplication[]
   nitrogenPlan    NitrogenPlan?
+  soilCovers      SoilCover[]
 
   @@unique([parcelId, campaignYear, cropId])
   @@index([parcelId, campaignYear])
@@ -925,13 +928,33 @@ model AgriculturalOperation {
   weatherRainMm   Decimal?      @map("weather_rain_mm") @db.Decimal(6, 2)
   weatherSummary  String?       @map("weather_summary")
   weatherSource   String?       @map("weather_source")
+
+  /**
+   * Irrigation. Ces colonnes n'ont de sens que pour `type = IRRIGATION` ; elles
+   * vivent ici plutôt que dans un modèle séparé parce que l'irrigation **est**
+   * un travail sur la parcelle, et qu'un second modèle en parallèle
+   * dupliquerait parcelle, date, opérateur et météo.
+   *
+   * `waterNitrateMgL` est la teneur en **nitrate** (NO₃), telle que les
+   * analyses d'eau la rendent — pas la teneur en azote. Les confondre
+   * surestimerait la fourniture d'un facteur 4,4 et conduirait à
+   * sous-fertiliser.
+   */
+  irrigationVolumeM3Ha Decimal? @map("irrigation_volume_m3_ha") @db.Decimal(10, 2)
+  irrigationMm         Decimal? @map("irrigation_mm") @db.Decimal(8, 2)
+  waterSource          String?  @map("water_source")
+  waterNitrateMgL      Decimal? @map("water_nitrate_mg_l") @db.Decimal(8, 2)
+  waterAnalysisOn      DateTime? @map("water_analysis_on")
+  waterAnalysisDocId   String?  @map("water_analysis_doc_id")
+
   notes           String?
   createdById     String?       @map("created_by_id")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  parcel    Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  parcel          Parcel    @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  createdBy       User?     @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  waterAnalysisDoc Document? @relation("IrrigationWaterAnalysis", fields: [waterAnalysisDocId], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
   stockMovements  StockMovement[]
@@ -983,9 +1006,10 @@ model Document {
   parcel     Parcel? @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   uploadedBy User?   @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
 
-  deviations   NitrogenPlanDeviation[]
-  soilAnalyses SoilAnalysis[]
-  stockLots    StockLot[]
+  deviations         NitrogenPlanDeviation[]
+  soilAnalyses       SoilAnalysis[]
+  stockLots          StockLot[]
+  irrigationAnalyses AgriculturalOperation[] @relation("IrrigationWaterAnalysis")
 
   @@index([farmId])
   @@index([parcelId])
@@ -1925,4 +1949,88 @@ model StockMovement {
   @@index([phytoApplicationId])
   @@index([fertilizerApplicationId])
   @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Couverture des sols en interculture (0.7.0)
+//
+// En zone vulnérable, le programme d'actions nitrates impose une couverture des
+// sols pendant l'interculture. Les périodes, les espèces admises et les modes de
+// destruction autorisés relèvent du **programme d'actions régional** : ils
+// diffèrent d'une région à l'autre et changent d'un programme au suivant.
+//
+// Parcelys ne les code donc pas en dur. Il enregistre ce qui a été fait — semis,
+// levée, destruction, méthode — et confronte cela au référentiel régional
+// **quand il est importé**. Tant qu'il ne l'est pas, la couverture est
+// enregistrée et le contrôle de conformité répond « non vérifiable », jamais
+// « conforme » : c'est la règle générale du projet.
+// ---------------------------------------------------------------------------
+
+/// Nature du couvert. Le programme d'actions ne leur reconnaît pas les mêmes
+/// effets : une dérobée récoltée n'équivaut pas à un CIPAN laissé en place.
+enum SoilCoverKind {
+  /// Culture intermédiaire piège à nitrates.
+  CIPAN
+  /// Culture dérobée : implantée puis récoltée entre deux cultures principales.
+  DEROBEE
+  /// Repousses (colza, céréales) admises comme couvert dans certains programmes.
+  REPOUSSES
+  /// Maintien des résidus de récolte / mulch.
+  RESIDUS
+  /// Couvert permanent (enherbement, prairie).
+  COUVERT_PERMANENT
+  AUTRE
+}
+
+/// Comment le couvert a été détruit. Certains modes sont restreints selon les
+/// programmes régionaux — la destruction chimique en particulier.
+enum CoverDestructionMethod {
+  MECANIQUE
+  GEL
+  PATURAGE
+  ROULAGE
+  BROYAGE
+  CHIMIQUE
+  RECOLTE
+  AUTRE
+}
+
+/// Un couvert implanté sur une parcelle, pour une interculture donnée.
+model SoilCover {
+  id         String  @id @default(cuid())
+  parcelId   String  @map("parcel_id")
+  /// Campagne de rattachement, quand elle est connue.
+  cropYearId String? @map("crop_year_id")
+
+  kind SoilCoverKind
+  /// Espèces semées, en clair (« moutarde blanche, phacélie »). Le mélange
+  /// compte : certains programmes imposent une part de légumineuses ou
+  /// l'interdisent.
+  species String?
+
+  /// Dates réellement constatées. Toutes facultatives, et c'est voulu : un
+  /// couvert semé dont on n'a pas noté la levée reste un couvert semé. Une date
+  /// supposée serait une donnée inventée, et c'est justement ce que le contrôle
+  /// examinerait.
+  sownOn      DateTime? @map("sown_on")
+  emergedOn   DateTime? @map("emerged_on")
+  destroyedOn DateTime? @map("destroyed_on")
+
+  destructionMethod CoverDestructionMethod? @map("destruction_method")
+
+  /// Surface effectivement couverte, si elle diffère de la parcelle entière.
+  areaHa Decimal? @map("area_ha") @db.Decimal(12, 4)
+
+  notes       String?
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parcel    Parcel    @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  cropYear  CropYear? @relation(fields: [cropYearId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("SoilCoverAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([parcelId, sownOn])
+  @@index([cropYearId])
+  @@map("soil_covers")
 }

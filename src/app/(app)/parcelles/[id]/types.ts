@@ -84,6 +84,30 @@ export type OperationRow = {
   operator: string | null;
   durationHours: string | null;
   notes: string | null;
+  /** Renseigné pour `type === 'IRRIGATION'` seulement. */
+  irrigationMm: string | null;
+  irrigationVolumeM3Ha: string | null;
+  waterSource: string | null;
+  waterNitrateMgL: string | null;
+};
+
+/**
+ * Un couvert d'interculture.
+ *
+ * `incoherences` porte les erreurs de saisie repérées sans aucun référentiel —
+ * une destruction avant le semis. Rien de réglementaire n'y figure : les
+ * périodes obligatoires relèvent du programme d'actions régional.
+ */
+export type SoilCoverRow = {
+  id: string;
+  kind: string;
+  species: string | null;
+  sownOn: string | null;
+  emergedOn: string | null;
+  destroyedOn: string | null;
+  destructionMethod: string | null;
+  areaHa: string | null;
+  incoherences: string[];
 };
 
 export type DocumentRow = {
@@ -135,6 +159,7 @@ export type ParcelTabsProps = {
   balance: NutrientBalance;
   phytoTreatments: PhytoRow[];
   operations: OperationRow[];
+  soilCovers: SoilCoverRow[];
   documents: DocumentRow[];
   history: HistoryEvent[];
   referentials: Referentials;

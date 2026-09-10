@@ -37,6 +37,7 @@
     "email:test": "tsx --conditions=react-server scripts/email-test.ts",
     "check:corrections": "node scripts/check-corrections.mjs",
     "check:stocks": "tsx --conditions=react-server scripts/check-stocks.ts",
+    "check:couverture": "tsx --conditions=react-server scripts/check-couverture.ts",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts"

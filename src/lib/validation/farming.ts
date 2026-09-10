@@ -211,6 +211,23 @@ export const operationSchema = z.object({
   operator: optionalText(120),
   durationHours: optionalDecimal(1000),
   notes: optionalText(2000),
+
+  /**
+   * Irrigation. Ces champs n'ont de sens que pour `type: 'IRRIGATION'`, et le
+   * schéma ne l'impose pas : refuser un volume saisi sur un autre type
+   * n'apporterait rien, alors qu'une saisie perdue coûte une donnée.
+   *
+   * `waterNitrateMgL` est la teneur en **nitrate** (NO₃), telle que les
+   * analyses d'eau la rendent — pas la teneur en azote. Le libellé du
+   * formulaire le dit aussi : les confondre surestime la fourniture d'un
+   * facteur 4,4 et conduit à sous-fertiliser.
+   */
+  irrigationVolumeM3Ha: optionalDecimal(100_000),
+  irrigationMm: optionalDecimal(2000),
+  waterSource: optionalText(160),
+  waterNitrateMgL: optionalDecimal(1000),
+  waterAnalysisOn: dateSchema.optional(),
+
   ...weatherFields,
 });
 

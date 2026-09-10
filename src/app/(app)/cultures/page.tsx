@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
+import { successionsExploitation } from '@/lib/services/rotation';
 import {
   Badge,
   Card,
@@ -32,7 +33,7 @@ export default async function CropsPage({
   const ctx = await requirePageFarmAccess('record:read');
   const year = Number(params.annee) || currentCampaignYear();
 
-  const [parcels, cropYears, referential] = await Promise.all([
+  const [parcels, cropYears, referential, successions] = await Promise.all([
     prisma.parcel.findMany({
       where: { farmId: ctx.farmId, deletedAt: null },
       select: { id: true, name: true, internalNumber: true, areaHa: true, commune: true },
@@ -53,7 +54,13 @@ export default async function CropsPage({
       where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     }),
+    successionsExploitation({ farmId: ctx.farmId, jusqua: year, profondeur: 5 }),
   ]);
+
+  // Les parcelles sans aucune campagne enregistrée n'apprennent rien sur une
+  // rotation : les afficher ne ferait que diluer celles qui en ont une.
+  const rotations = successions.filter((s) => s.campagnes.length > 0);
+  const anneesRotation = Array.from({ length: 5 }, (_, i) => year - 4 + i);
 
   const byCrop = new Map<string, { areaHa: number; parcelCount: number }>();
   for (const cy of cropYears) {
@@ -221,6 +228,93 @@ export default async function CropsPage({
           </tbody>
         </TableWrapper>
       )}
+
+      {/* Rotation — lue des cultures déjà saisies, jamais ressaisie. */}
+      {rotations.length > 0 ? (
+        <Card className="mt-6">
+          <CardHeader
+            title="Rotation des cultures"
+            description={`Succession enregistrée sur ${anneesRotation[0]}–${year}. Parcelys ne juge pas une rotation : les règles de retour dépendent de la culture, de la PAC ou d’un cahier des charges, et aucune n’est universelle.`}
+          />
+
+          <TableWrapper>
+            <table className="w-full text-[13.5px]">
+              <thead>
+                <tr>
+                  <Th>Parcelle</Th>
+                  {anneesRotation.map((a) => (
+                    <Th key={a}>{a}</Th>
+                  ))}
+                  <Th>Retour le plus rapproché</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rotations.map((rotation) => {
+                  const parAnnee = new Map(
+                    rotation.campagnes.map((c) => [c.campaignYear, c]),
+                  );
+                  const retour = rotation.retours[0];
+
+                  return (
+                    <tr key={rotation.parcelId} className="border-t border-line">
+                      <Td>
+                        <Link
+                          href={`/parcelles/${rotation.parcelId}`}
+                          className="text-champ-700 underline-offset-2 hover:underline"
+                        >
+                          {rotation.parcelName}
+                        </Link>
+                      </Td>
+                      {anneesRotation.map((a) => {
+                        const campagne = parAnnee.get(a);
+                        return (
+                          <Td key={a}>
+                            {campagne ? (
+                              <>
+                                <span>{campagne.cropName}</span>
+                                {campagne.couverts.length > 0 ? (
+                                  <span
+                                    className="ml-1 text-[11.5px] text-ink-3"
+                                    title={campagne.couverts
+                                      .map((c) => c.species ?? c.kind)
+                                      .join(', ')}
+                                  >
+                                    + couvert
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              /* Une année sans culture saisie n'est pas une
+                                 jachère : c'est une saisie absente. */
+                              <span className="text-ink-3">—</span>
+                            )}
+                          </Td>
+                        );
+                      })}
+                      <Td>
+                        {retour ? (
+                          <Badge tone={retour.ecartMinimal <= 1 ? 'amber' : 'neutral'}>
+                            {retour.cropName} · {retour.ecartMinimal} an
+                            {retour.ecartMinimal > 1 ? 's' : ''}
+                          </Badge>
+                        ) : (
+                          <span className="text-ink-3">aucun</span>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableWrapper>
+
+          <p className="mt-3 text-[12.5px] leading-relaxed text-ink-3">
+            Un tiret signale une campagne <strong>sans culture enregistrée</strong>,
+            pas une jachère. Les deux se confondraient facilement, et l’un des
+            deux serait une conduite inventée.
+          </p>
+        </Card>
+      ) : null}
 
       {/* Référentiel */}
       <Card className="mt-6">

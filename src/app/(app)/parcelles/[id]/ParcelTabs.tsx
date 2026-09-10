@@ -15,6 +15,7 @@ import { ConfirmDialog, useConfirm } from '@/components/forms/ConfirmDialog';
 import { CropYearForm } from '@/components/forms/CropYearForm';
 import { FertilizationForm } from '@/components/forms/FertilizationForm';
 import { PhytoForm } from '@/components/forms/PhytoForm';
+import { SoilCoverForm } from '@/components/forms/SoilCoverForm';
 import { OperationForm } from '@/components/forms/OperationForm';
 import { DocumentUpload } from '@/components/forms/DocumentUpload';
 import {
@@ -52,7 +53,38 @@ const HISTORY_TONES: Record<string, 'green' | 'blue' | 'amber' | 'neutral'> = {
   DOCUMENT: 'neutral',
 };
 
-type ModalKind = 'crop' | 'fertilization' | 'phyto' | 'operation' | 'document' | null;
+/**
+ * Libellés des couverts. Les sigles ne parlent pas d'eux-mêmes hors du
+ * vocabulaire nitrates, et l'écran s'adresse d'abord à un exploitant.
+ */
+const SOIL_COVER_LABELS: Record<string, string> = {
+  CIPAN: 'CIPAN',
+  DEROBEE: 'Culture dérobée',
+  REPOUSSES: 'Repousses',
+  RESIDUS: 'Résidus de récolte',
+  COUVERT_PERMANENT: 'Couvert permanent',
+  AUTRE: 'Autre',
+};
+
+const COVER_DESTRUCTION_LABELS: Record<string, string> = {
+  MECANIQUE: 'mécanique',
+  GEL: 'gel',
+  PATURAGE: 'pâturage',
+  ROULAGE: 'roulage',
+  BROYAGE: 'broyage',
+  CHIMIQUE: 'chimique',
+  RECOLTE: 'récolte',
+  AUTRE: 'autre',
+};
+
+type ModalKind =
+  | 'crop'
+  | 'fertilization'
+  | 'phyto'
+  | 'operation'
+  | 'soilCover'
+  | 'document'
+  | null;
 
 export function ParcelTabs(props: ParcelTabsProps) {
   const {
@@ -65,6 +97,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
     balance,
     phytoTreatments,
     operations,
+    soilCovers,
     documents,
     history,
     referentials,
@@ -302,6 +335,87 @@ export function ParcelTabs(props: ParcelTabsProps) {
               </tbody>
             </TableWrapper>
           )}
+
+          {/*
+            Les couverts vivent dans l'onglet Culture, pas dans un onglet à
+            eux : une interculture suit une culture, et la lire à côté de la
+            succession est ce qui permet de voir un trou.
+          */}
+          <div className="rounded-lg border border-line bg-surface-2 px-3.5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[15px] font-medium text-ink">
+                  Couverts d’interculture
+                </p>
+                <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-3">
+                  Parcelys enregistre ce qui a été fait. Les périodes de
+                  couverture obligatoire relèvent du programme d’actions
+                  régional : sans lui, elles ne sont pas vérifiables — et
+                  Parcelys ne les invente pas.
+                </p>
+              </div>
+              {canWrite ? (
+                <Button variant="secondary" onClick={() => setModal('soilCover')}>
+                  + Couvert
+                </Button>
+              ) : null}
+            </div>
+
+            {soilCovers.length === 0 ? (
+              <p className="mt-3 text-[13.5px] text-ink-3">
+                Aucun couvert enregistré sur cette parcelle.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {soilCovers.map((couvert) => (
+                  <li
+                    key={couvert.id}
+                    className="rounded-md border border-line bg-surface px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-[14px] font-medium text-ink">
+                        {SOIL_COVER_LABELS[couvert.kind] ?? couvert.kind}
+                      </span>
+                      {couvert.species ? (
+                        <span className="text-[13px] text-ink-2">{couvert.species}</span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-[12.5px] text-ink-3">
+                      Semis {couvert.sownOn ? formatDateFr(couvert.sownOn) : '—'} ·
+                      Levée {couvert.emergedOn ? formatDateFr(couvert.emergedOn) : '—'} ·
+                      Destruction{' '}
+                      {couvert.destroyedOn ? formatDateFr(couvert.destroyedOn) : '—'}
+                      {couvert.destructionMethod
+                        ? ` (${COVER_DESTRUCTION_LABELS[couvert.destructionMethod] ?? couvert.destructionMethod})`
+                        : ''}
+                    </p>
+                    {couvert.incoherences.length > 0 ? (
+                      <p className="mt-1 text-[12.5px] text-brique-500">
+                        {couvert.incoherences.join(' ')}
+                      </p>
+                    ) : null}
+                    {canWrite ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          askRemove({
+                            endpoint: `/api/soil-covers/${couvert.id}`,
+                            title: 'Supprimer ce couvert',
+                            message:
+                              'Le couvert sera retiré de cette parcelle. Un couvert supprimé ne figurera plus dans le dossier de contrôle.',
+                            successMessage: 'Couvert supprimé',
+                          })
+                        }
+                        className="mt-1.5 text-[12.5px] text-brique-500 hover:underline"
+                      >
+                        Supprimer
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -592,7 +706,23 @@ export function ParcelTabs(props: ParcelTabsProps) {
                     <Td align="right">
                       {row.durationHours ? `${formatNumberFr(row.durationHours, 1)} h` : '—'}
                     </Td>
-                    <Td className="max-w-[260px] truncate">{row.notes ?? '—'}</Td>
+                    <Td className="max-w-[260px] truncate">
+                      {row.type === 'IRRIGATION' ? (
+                        <span className="text-ink-2">
+                          {row.irrigationMm
+                            ? `${formatNumberFr(row.irrigationMm, 1)} mm`
+                            : row.irrigationVolumeM3Ha
+                              ? `${formatNumberFr(row.irrigationVolumeM3Ha, 0)} m³/ha`
+                              : 'volume non renseigné'}
+                          {row.waterNitrateMgL
+                            ? ` · ${formatNumberFr(row.waterNitrateMgL, 1)} mg/L NO₃`
+                            : ' · analyse d’eau absente'}
+                          {row.notes ? ` — ${row.notes}` : ''}
+                        </span>
+                      ) : (
+                        (row.notes ?? '—')
+                      )}
+                    </Td>
                     {canWrite ? (
                       <Td align="right">
                         <button
@@ -812,6 +942,21 @@ export function ParcelTabs(props: ParcelTabsProps) {
         wide
       >
         <OperationForm parcelId={parcel.id} onDone={() => setModal(null)} />
+      </Modal>
+
+      <Modal
+        open={modal === 'soilCover'}
+        onClose={() => setModal(null)}
+        title="Enregistrer un couvert d’interculture"
+      >
+        <SoilCoverForm
+          parcelId={parcel.id}
+          cropYears={cropYears.map((cy) => ({
+            id: cy.id,
+            label: `${cy.campaignYear} — ${cy.cropName}`,
+          }))}
+          onDone={() => setModal(null)}
+        />
       </Modal>
 
       <Modal

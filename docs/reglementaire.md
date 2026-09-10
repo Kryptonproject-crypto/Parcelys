@@ -394,13 +394,98 @@ import diminué, et cela doit rester visible.
 
 ---
 
+## 7 bis. Couverture des sols, irrigation, rotation
+
+### Ce que Parcelys ne codera pas
+
+En zone vulnérable, le programme d'actions nitrates impose une couverture des
+sols pendant l'interculture. Mais **les périodes, les espèces admises et les
+modes de destruction autorisés relèvent du programme d'actions régional** : ils
+diffèrent d'une région à l'autre et changent d'un programme au suivant.
+
+Écrire « couverture obligatoire du 1er septembre au 15 novembre » serait
+inventer une règle. Elle serait fausse pour la plupart des régions, et — bien
+pire — fausse **silencieusement** : l'exploitant lirait un « conforme » qui ne
+vaut rien.
+
+Parcelys enregistre donc ce qui a été fait (nature, espèces, semis, levée,
+destruction, mode) et confronte au référentiel régional **quand il est
+importé**. Sans lui, le constat est `INDETERMINE`, avec la phrase de ce qui
+n'est pas vérifiable.
+
+### Ce qui est vérifié sans aucun référentiel
+
+La **cohérence des dates** : une destruction avant le semis, une levée avant le
+semis. Ce sont des erreurs de saisie, pas des questions réglementaires, et les
+signaler ne suppose aucune règle régionale. Elles sortent en `ANOMALIE`.
+
+Une parcelle en zone vulnérable sans aucun couvert saisi sort en
+`VERIFICATION`, formulée comme telle : Parcelys constate **une absence de
+saisie**, pas une absence de couvert.
+
+### Trois états pour un zonage, jamais deux
+
+`zones.some(z => z.kind === 'ZONE_VULNERABLE')` rend `false` aussi bien pour une
+parcelle hors zone que pour une parcelle dont on n'a **aucune donnée de
+zonage** — référentiel non importé, contour non tracé. Les deux se lisaient
+alors « pas concernée », et l'un des deux était un mensonge silencieux : une
+contrainte qui s'applique peut-être disparaissait de l'écran, sans un mot.
+
+`statutZonage()` rend donc `dedans`, `dehors` ou `indetermine`, et l'appelant
+doit traiter les trois.
+
+### Irrigation : un travail, pas un objet à part
+
+L'irrigation s'enregistre comme n'importe quel travail sur la parcelle
+(`AgriculturalOperation`, type `IRRIGATION`), avec sa date, son opérateur et sa
+météo. Un second modèle en parallèle aurait fatalement divergé du premier.
+
+S'y ajoutent le volume (hauteur d'eau en mm ou m³/ha — 1 mm sur 1 ha = 10 m³) et
+la teneur en **nitrate** de l'eau. La distinction n'est pas de vocabulaire : les
+analyses rendent des mg/L de NO₃, pas d'azote. Les confondre surestimerait la
+fourniture d'un facteur 4,4 et conduirait à sous-fertiliser.
+
+L'azote apporté par l'eau figure **hors** du réalisé de fertilisation, dans une
+ligne à lui : l'eau n'est pas un apport d'engrais, c'est une fourniture du
+bilan. Les confondre ferait apparaître un dépassement là où il n'y en a pas.
+Sans le volume **et** la teneur, rien n'est chiffré — et la raison est dite.
+
+### Rotation : lue, jamais ressaisie
+
+Une rotation n'est pas une donnée à saisir, c'est la succession des cultures
+déjà enregistrées. Un modèle « rotation » à remplir aurait produit une seconde
+vérité, divergente dès la première campagne mal tenue.
+
+La vue rotation est donc une lecture de `CropYear`, affichée sur la page
+Cultures existante. Elle signale une seule chose : le **retour de la même
+culture**, avec l'écart minimal en années. Elle ne dit pas si une rotation est
+bonne — les règles de retour relèvent de la PAC, d'un cahier des charges ou de
+l'agronomie régionale, et aucune n'est universelle.
+
+Un tiret dans le tableau signale une campagne **sans culture enregistrée**, pas
+une jachère.
+
+### Vérifier
+
+```bash
+npx vitest run tests/couverture.test.ts   # cohérence des dates, statut de zonage, INSEE
+npm run check:couverture                  # sur une vraie base, sans référentiel importé
+```
+
+Le second est le plus important : il vérifie que sur une base **sans** programme
+d'actions, aucun constat n'affirme une règle de période et la synthèse ne
+prononce aucune conformité. Un test unitaire ne peut pas le prouver.
+
+---
+
 ## 8. Ce qui n'est pas encore là
 
 Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
 
-**Priorité 2 (0.7.0)** — stocks et lots · couverture des sols (CIPAN/CINE) ·
-irrigation comme événement · rotations · plafond d'azote organique · dossier de
-contrôle · justificatifs typés · couches réglementaires sur la carte.
+**Priorité 2 (0.7.0)** — ~~stocks et lots~~ · ~~couverture des sols~~ ·
+~~irrigation comme événement~~ · ~~rotations~~ · plafond d'azote organique ·
+dossier de contrôle · justificatifs typés · couches réglementaires sur la
+carte.
 
 **Priorité 3 (0.8.0)** — détection automatique des nouvelles versions de
 référentiels · alertes avancées · registre phytosanitaire électronique lisible

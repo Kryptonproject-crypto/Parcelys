@@ -12,6 +12,12 @@ export const SYNC_OPERATION_KINDS = [
   'fertilization.create',
   'phyto.create',
   'operation.create',
+  /**
+   * Couvert d'interculture saisi au champ. Le semis d'un CIPAN se fait rarement
+   * à portée de réseau, et le noter le soir venu, c'est le noter de mémoire —
+   * donc parfois pas du tout.
+   */
+  'soilCover.create',
   /** Préconisation rédigée par l'expert au champ, transmise au retour du réseau. */
   'recommendation.create',
   /** Réponse de l'exploitation à une préconisation reçue. */
