@@ -91,6 +91,7 @@ export function ExpertShell({
             height={32}
             className="h-8 w-8 rounded-lg shadow-sm ring-1 ring-white/10"
             priority
+            unoptimized
           />
           Parcelys
         </Link>
@@ -238,7 +239,15 @@ export function ExpertShell({
             href="/portefeuille"
             className="flex items-center gap-2 font-semibold text-ink lg:hidden"
           >
-            <Image src="/icone.png" alt="" width={20} height={20} className="h-5 w-5" /> Parcelys
+            <Image
+              src="/icone.png"
+              alt=""
+              width={20}
+              height={20}
+              className="h-5 w-5"
+              unoptimized
+            />{' '}
+            Parcelys
           </Link>
 
           <div className="ml-auto flex items-center gap-1">

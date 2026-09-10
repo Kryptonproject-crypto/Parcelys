@@ -34,6 +34,7 @@ export function AuthShell({
             height={32}
             className="h-8 w-8 rounded-lg"
             priority
+            unoptimized
           />
           Parcelys
         </Link>

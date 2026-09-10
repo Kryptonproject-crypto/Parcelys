@@ -8,8 +8,9 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ## 0.7.0 — Priorité 2 du socle réglementaire
 
-Six manques annoncés en 0.6.0 sont comblés. Trois défauts ont été trouvés en
-vérifiant le travail sur une vraie base, et deux d'entre eux étaient antérieurs.
+Six manques annoncés en 0.6.0 sont comblés. Six défauts ont été trouvés en
+vérifiant le travail — sur une vraie base, puis au navigateur — et deux d'entre
+eux étaient antérieurs à cette version.
 
 ### Ce qui est nouveau
 
@@ -86,6 +87,17 @@ affichées. Trouvé par le script de vérification, pas par un test unitaire.
 
 **Deux tables imbriquées** cassaient l'hydratation React sur deux écrans :
 `TableWrapper` rend déjà un `<table>`.
+
+**Le logo pouvait disparaître jusqu'au redémarrage du service.** L'optimiseur
+d'images de Next garde en mémoire une promesse par variante (fichier, largeur,
+qualité, format). Un client qui se déconnecte pendant l'encodage — un téléphone
+qui perd le réseau au milieu d'un champ — laisse cette promesse sans réponse, et
+toutes les requêtes suivantes pour la même variante attendent indéfiniment.
+Constaté sur `/_next/image?url=/icone.png&w=48` : 70 ms sur un serveur neuf,
+jamais de réponse après une requête interrompue, alors que toutes les autres
+largeurs du même fichier continuaient de répondre. Ces icônes sont désormais
+servies telles quelles : à 20 ou 32 pixels, les optimiser économisait quelques
+kilo-octets et achetait ce mode de panne.
 
 **Deux scripts du dépôt se contredisaient** sur les comptes d'audit :
 `check-corrections` attendait une adresse qu'aucun script ne crée, et échouait

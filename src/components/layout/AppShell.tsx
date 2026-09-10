@@ -173,6 +173,24 @@ export function AppShell({
           href="/dashboard"
           className="-my-2 flex items-center gap-2.5 py-2 text-[17px] font-semibold tracking-tight text-white"
         >
+          {/*
+            `unoptimized` : l'optimiseur d'images de Next garde en mémoire une
+            promesse par variante (fichier, largeur, qualité, format). Un client
+            qui se déconnecte pendant l'encodage — un téléphone qui perd le
+            réseau au milieu d'un champ — laisse cette promesse sans réponse, et
+            **toutes** les requêtes suivantes pour la même variante attendent
+            indéfiniment. Le logo disparaît alors jusqu'au redémarrage du
+            service.
+
+            Constaté ici en 0.7.0 : `/_next/image?url=/icone.png&w=48` répondait
+            en 70 ms sur un serveur neuf, et plus jamais après une requête
+            interrompue — tandis que toutes les autres largeurs du même fichier
+            continuaient de répondre.
+
+            Ces icônes sont de petits PNG servis à 20 ou 32 pixels : les
+            optimiser économise quelques kilo-octets et achète ce risque. Servir
+            le fichier tel quel supprime le mode de panne.
+          */}
           <Image
             src="/icone.png"
             alt=""
@@ -180,6 +198,7 @@ export function AppShell({
             height={32}
             className="h-8 w-8 rounded-lg shadow-sm ring-1 ring-white/10"
             priority
+            unoptimized
           />
           Parcelys
         </Link>
@@ -439,7 +458,15 @@ export function AppShell({
             href="/dashboard"
             className="-my-2 flex min-h-11 items-center gap-2 py-2 font-semibold text-ink lg:hidden"
           >
-            <Image src="/icone.png" alt="" width={20} height={20} className="h-5 w-5" /> Parcelys
+            <Image
+              src="/icone.png"
+              alt=""
+              width={20}
+              height={20}
+              className="h-5 w-5"
+              unoptimized
+            />{' '}
+            Parcelys
           </Link>
 
           <div className="ml-auto flex items-center gap-1">
