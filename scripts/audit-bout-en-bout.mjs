@@ -397,7 +397,7 @@ async function main() {
       limite(
         'le contenu du catalogue E-Phy embarqué',
         'le référentiel E-Phy n’est pas importé dans cette base (data.gouv.fr est bloqué par le mandataire de l’environnement)',
-        'npm run ephy:import -- <fichier officiel>, puis relancer cet audit',
+        'npm run ephy:sync -- --zip <archive ANSES>, puis relancer cet audit',
       );
     } else {
       attendu(

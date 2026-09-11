@@ -7,6 +7,9 @@ réglementation**, et surtout ce qu'il refuse de faire.
 d'où l'on part, et [`docs/ephy.md`](./ephy.md), qui décrit le seul référentiel
 déjà pleinement opérationnel.
 
+Ce que l'audit de la 0.9.5 a constaté, corrigé, et laissé en dehors de sa
+portée : [`docs/audit-0.9.5.md`](./audit-0.9.5.md).
+
 ---
 
 ## 1. Le principe qui gouverne tout
