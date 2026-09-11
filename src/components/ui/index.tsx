@@ -8,6 +8,7 @@ import type {
 } from 'react';
 import Link from 'next/link';
 import { IconChevronDown, IconSpinner, type LucideIcon } from '@/components/ui/icons';
+import { FUSEAU_EXPLOITATION } from '@/lib/shared/campagne';
 
 export function cn(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(' ');
@@ -617,11 +618,31 @@ export function Skeleton({ className }: { className?: string }) {
 // Formatage
 // ---------------------------------------------------------------------------
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CHAQUE FORMATAGE DE DATE IMPOSE SON FUSEAU
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `toLocaleDateString('fr-FR')` sans `timeZone` lit la date dans le fuseau du
+ * **processus**. Ces fonctions tournent aux deux bouts : le serveur rend le
+ * HTML, le navigateur l'hydrate. Le serveur est en UTC, le navigateur de
+ * l'exploitant à l'heure de Paris.
+ *
+ * Un traitement enregistré le 11 septembre à 22 h 30 UTC s'affichait donc
+ * « 11/09/2026 » dans le HTML servi et « 12/09/2026 » après hydratation. React
+ * signalait l'écart (erreur #418, relevée par l'audit des pages sur
+ * /portefeuille), mais le vrai dommage est ailleurs : **le registre
+ * phytosanitaire est une pièce opposable**. Une date décalée d'un jour entre
+ * l'écran et l'export n'est pas un défaut d'affichage.
+ *
+ * Le fuseau de l'exploitation fait foi, partout, quelle que soit la machine.
+ */
+
 export function formatDateFr(value: string | Date | null | undefined): string {
   if (!value) return '—';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('fr-FR');
+  return date.toLocaleDateString('fr-FR', { timeZone: FUSEAU_EXPLOITATION });
 }
 
 export function formatDateLongFr(value: string | Date | null | undefined): string {
@@ -629,6 +650,7 @@ export function formatDateLongFr(value: string | Date | null | undefined): strin
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('fr-FR', {
+    timeZone: FUSEAU_EXPLOITATION,
     day: 'numeric',
     month: 'long',
     year: 'numeric',

@@ -14,6 +14,7 @@
  * manque, ni qu'un champ n'est pas atteignable.
  */
 import { chromium } from 'playwright';
+import { cheminDuNavigateur } from './lib/navigateur.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
 const EMAIL = process.env.DEMO_EMAIL ?? 'demo@parcelys.local';
@@ -39,7 +40,7 @@ async function connecter(page) {
 
 async function main() {
   const navigateur = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH ?? undefined,
+    executablePath: cheminDuNavigateur(),
   });
   const page = await navigateur.newPage({ viewport: { width: 1280, height: 900 } });
 

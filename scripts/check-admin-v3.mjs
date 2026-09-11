@@ -20,6 +20,8 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium, devices } from 'playwright';
+import { cheminDuNavigateur } from './lib/navigateur.mjs';
+import { verifierCompte } from './lib/compte.mjs';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3000';
 const ADMIN_EMAIL = process.env.DEMO_SEED_EMAIL ?? 'demo@parcelys.local';
@@ -42,8 +44,13 @@ const EXPERT = {
 
 await mkdir(SHOTS, { recursive: true });
 
+
+// Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
+// manifeste trente secondes plus tard par un délai d'attente dépassé.
+await verifierCompte(BASE, EMAIL, PASSWORD);
+
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? undefined,
+  executablePath: cheminDuNavigateur(),
 });
 
 let step = 0;

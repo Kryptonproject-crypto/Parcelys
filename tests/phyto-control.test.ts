@@ -67,6 +67,12 @@ describe('Contrôles phytosanitaires (dose, retrait, sol drainé)', () => {
               doseUnit: 'L/ha',
               status: 'Autorisé',
               zntAquaticM: '20.0',
+              // Les limites que le moteur ignorait : importées, stockées,
+              // transportées jusqu'au contrôle, et jamais opposées à la saisie.
+              maxApplications: '2',
+              minIntervalDays: '14',
+              preHarvestDelay: '35',
+              zntArthropodM: '5.0',
             },
             {
               // Usage retiré : il ne doit jamais servir de référence de dose.
@@ -87,6 +93,23 @@ describe('Contrôles phytosanitaires (dose, retrait, sol drainé)', () => {
               label:
                 'Condition: - SPe 2 : Pour protéger les organismes aquatiques, ne pas appliquer sur sol artificiellement drainé.',
               concernsDrainedSoil: true,
+            },
+            // Trois familles publiées par l'ANSES dans le même fichier, et que
+            // la requête du contrôle écartait dès la base : elle ne demandait
+            // que les conditions marquées « sol drainé ».
+            {
+              category: 'Délai de rentrée',
+              label: 'Délai de rentrée : 48 heures.',
+            },
+            {
+              category: 'Mentions abeilles',
+              label:
+                'Emploi autorisé durant la floraison et au cours des périodes de production d’exsudats, en dehors de la présence d’abeilles.',
+            },
+            {
+              category: 'Riverains',
+              label:
+                'Distance de sécurité de 5 m vis-à-vis des zones d’habitation et des lieux fréquentés.',
             },
           ],
         },
@@ -319,5 +342,247 @@ describe('Contrôles phytosanitaires (dose, retrait, sol drainé)', () => {
     const warnings = response.body.results[0]?.warnings ?? [];
     expect(warnings.some((w) => w.includes('Surdosage'))).toBe(true);
     expect(warnings.some((w) => w.includes('sol drainé'))).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // Les limites d'usage : applications, intervalle, délai avant récolte, ZNT
+  //
+  // Quatre informations réglementaires que l'import E-Phy enregistrait et que
+  // le contrôle transportait sans jamais les opposer à la saisie. Le produit
+  // d'essai autorise 2 applications, 14 jours d'intervalle et un délai avant
+  // récolte de 35 jours.
+  // -------------------------------------------------------------------------
+
+  /** La culture d'essai, créée une fois puis retrouvée. */
+  async function cultureDEssai() {
+    // `upsert` ne sait pas viser une clé dont une part est `NULL` : la
+    // contrainte (farmId, code) porte ici un `farmId` nul — une culture du
+    // référentiel commun. On cherche puis on crée.
+    const existante = await prisma.crop.findFirst({
+      where: { code: 'BLE_ESSAI' },
+      select: { id: true },
+    });
+    if (existante) return existante;
+    return prisma.crop.create({
+      data: { code: 'BLE_ESSAI', name: 'Blé', category: 'Céréales' },
+      select: { id: true },
+    });
+  }
+
+  /** Rattache un traitement à une culture, pour que la campagne soit connue. */
+  async function creerCulture(
+    parcelId: string,
+    options: { recolteReelle?: string; recoltePrevue?: string } = {},
+  ): Promise<string> {
+    // `resetDatabase` vide aussi le référentiel des cultures : on crée la
+    // sienne plutôt que de compter sur le seed, qui n'a pas lieu ici.
+    const crop = await cultureDEssai();
+    const cropYear = await prisma.cropYear.create({
+      data: {
+        parcelId,
+        cropId: crop.id,
+        campaignYear: 2026,
+        ...(options.recolteReelle
+          ? { actualHarvestDate: new Date(options.recolteReelle) }
+          : {}),
+        ...(options.recoltePrevue
+          ? { expectedHarvestDate: new Date(options.recoltePrevue) }
+          : {}),
+      },
+      select: { id: true },
+    });
+    return cropYear.id;
+  }
+
+  it('avertit au passage de trop, en disant lequel et combien sont autorisés', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId);
+
+    // Deux passages autorisés, espacés de plus de 14 jours : aucun reproche.
+    const premier = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-03-01',
+    });
+    expect(premier.warnings.some((w) => w.includes('Nombre maximal'))).toBe(false);
+
+    const second = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-01',
+    });
+    expect(second.warnings.some((w) => w.includes('Nombre maximal'))).toBe(false);
+
+    // Le troisième dépasse.
+    const troisieme = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-05-01',
+    });
+    const alerte = troisieme.warnings.find((w) => w.includes('Nombre maximal'));
+    expect(alerte).toBeDefined();
+    // La phrase doit porter la valeur constatée, la valeur autorisée et la base
+    // du décompte : un avertissement qu'on ne peut pas vérifier soi-même ne
+    // sert qu'à inquiéter.
+    expect(alerte).toContain('3ᵉ');
+    expect(alerte).toContain('2');
+    expect(alerte).toContain('2026');
+    // Et il est tout de même enregistré : le registre dit ce qui a eu lieu.
+    expect(troisieme.status).toBe(201);
+  });
+
+  it('avertit d’un intervalle trop court, et dit à partir de quand traiter', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId);
+
+    await enregistrer(parcelNonRenseigneeId, { cropYearId, appliedOn: '2026-04-01' });
+    const trop = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-08', // 7 jours, le catalogue en impose 14
+    });
+
+    const alerte = trop.warnings.find((w) => w.includes('Intervalle'));
+    expect(alerte).toBeDefined();
+    expect(alerte).toContain('7 jours');
+    expect(alerte).toContain('14 jours');
+    expect(alerte).toContain('15/04/2026'); // 1er avril + 14 jours
+  });
+
+  it('ne reproche rien quand l’intervalle est respecté', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId);
+    await enregistrer(parcelNonRenseigneeId, { cropYearId, appliedOn: '2026-04-01' });
+    const apres = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-16', // 15 jours
+    });
+    expect(apres.warnings.some((w) => w.includes('Intervalle'))).toBe(false);
+  });
+
+  it('avertit quand la récolte prévue tombe avant la fin du délai', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId, {
+      recoltePrevue: '2026-05-01T00:00:00Z',
+    });
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-15', // 16 jours avant récolte, le catalogue en exige 35
+    });
+
+    const alerte = warnings.find((w) => w.includes('Délai avant récolte'));
+    expect(alerte).toBeDefined();
+    expect(alerte).toContain('35 jours');
+    expect(alerte).toContain('est prévue');
+    expect(alerte).toContain('20/05/2026'); // 15 avril + 35 jours
+  });
+
+  it('distingue la récolte déjà faite de la récolte prévue', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId, {
+      recolteReelle: '2026-05-01T00:00:00Z',
+    });
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-15',
+    });
+    expect(warnings.find((w) => w.includes('Délai avant récolte'))).toContain('a eu lieu');
+  });
+
+  it('ne dit rien du délai avant récolte quand aucune récolte n’est connue', async () => {
+    const cropYearId = await creerCulture(parcelNonRenseigneeId);
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      appliedOn: '2026-04-15',
+    });
+    expect(warnings.some((w) => w.includes('Délai avant récolte'))).toBe(false);
+  });
+
+  it('rappelle les ZNT du catalogue, sans prétendre les mesurer', async () => {
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé' });
+    const znt = warnings.find((w) => w.includes('Zones non traitées'));
+    expect(znt).toBeDefined();
+    expect(znt).toContain('20.0 m');
+    expect(znt).toContain('5.0 m');
+    expect(znt).toContain('ne mesure pas');
+  });
+
+  it('remonte le délai de rentrée, les pollinisateurs et les riverains', async () => {
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé' });
+
+    const rentree = warnings.find((w) => w.startsWith('Délai de rentrée'));
+    const abeilles = warnings.find((w) => w.startsWith('Pollinisateurs'));
+    const riverains = warnings.find((w) => w.startsWith('Riverains'));
+
+    expect(rentree).toContain('48 heures');
+    expect(abeilles).toContain('abeilles');
+    expect(riverains).toContain('5 m');
+  });
+
+  it('n’oppose aucune limite quand le catalogue ne les chiffre pas', async () => {
+    // Un produit dont l'usage ne porte ni nombre d'applications, ni intervalle,
+    // ni délai : le silence du catalogue n'est ni une autorisation ni une
+    // infraction, et Parcelys n'a rien à en dire.
+    const muet = await prisma.phytosanitaryProduct.create({
+      data: {
+        amm: '9990003',
+        name: 'PRODUIT SANS LIMITE PUBLIÉE',
+        normalizedName: 'produit sans limite publiee',
+        status: 'AUTORISE',
+        usages: {
+          create: [
+            {
+              usageLabel: 'Blé*Trt Part.Aer.*Adventices',
+              cropLabel: 'Blé',
+              cropNormalized: 'ble',
+              doseValue: '2.0',
+              doseUnit: 'L/ha',
+              status: 'Autorisé',
+            },
+          ],
+        },
+      },
+      select: { id: true },
+    });
+
+    const cropYearId = await creerCulture(parcelNonRenseigneeId, {
+      recoltePrevue: '2026-04-20T00:00:00Z',
+    });
+    await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      productId: muet.id,
+      productName: 'PRODUIT SANS LIMITE PUBLIÉE',
+      appliedOn: '2026-04-01',
+    });
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId,
+      productId: muet.id,
+      productName: 'PRODUIT SANS LIMITE PUBLIÉE',
+      appliedOn: '2026-04-02',
+    });
+
+    for (const interdit of ['Nombre maximal', 'Intervalle', 'Délai avant récolte']) {
+      expect({ interdit, present: warnings.some((w) => w.includes(interdit)) }).toEqual({
+        interdit,
+        present: false,
+      });
+    }
+  });
+
+  it('compte les passages par campagne, pas depuis toujours', async () => {
+    const crop = await cultureDEssai();
+    const campagne2025 = await prisma.cropYear.create({
+      data: { parcelId: parcelNonRenseigneeId, cropId: crop.id, campaignYear: 2025 },
+      select: { id: true },
+    });
+    const campagne2026 = await creerCulture(parcelNonRenseigneeId);
+
+    // Deux passages en 2025 : la limite y est atteinte.
+    await enregistrer(parcelNonRenseigneeId, {
+      cropYearId: campagne2025.id,
+      appliedOn: '2025-03-01',
+    });
+    await enregistrer(parcelNonRenseigneeId, {
+      cropYearId: campagne2025.id,
+      appliedOn: '2025-04-01',
+    });
+
+    // Le premier passage de 2026 repart de zéro.
+    const nouvelle = await enregistrer(parcelNonRenseigneeId, {
+      cropYearId: campagne2026,
+      appliedOn: '2026-03-01',
+    });
+    expect(nouvelle.warnings.some((w) => w.includes('Nombre maximal'))).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 # Le socle réglementaire de Parcelys
 
-Version 0.7.0. Ce document explique **comment Parcelys se comporte face à la
+Version 0.9.5. Ce document explique **comment Parcelys se comporte face à la
 réglementation**, et surtout ce qu'il refuse de faire.
 
 À lire avec [`docs/audit-reglementaire.md`](./audit-reglementaire.md), qui dit
@@ -711,6 +711,100 @@ le poids reste transportable.
 
 ---
 
+## 7 quinquies. Avant d'épandre (0.9.5)
+
+### La question telle qu'elle se pose au champ
+
+« Est-ce que je peux épandre là, aujourd'hui, cette quantité ? »
+
+`POST /api/regulatory/spreading` y répond **sans rien écrire**. C'est une
+simulation : on la relance en changeant la date ou la dose autant de fois qu'on
+veut, sans laisser de trace. L'apport lui-même se saisit ailleurs, une fois
+épandu.
+
+Trois contrôles, chacun avec son propre verdict. Tous puisent dans le
+référentiel `programme-actions-nitrates` résolu pour le territoire de la
+parcelle — commune, puis département, puis région, puis national :
+
+| Contrôle | Règle recherchée |
+|---|---|
+| Période d'interdiction | `periode-interdiction-epandage` |
+| Distance aux cours d'eau | `distance-epandage-cours-eau`, croisée avec les zones `COURS_EAU` |
+| Distance aux habitations | `distance-epandage-habitation` |
+| Plafond d'azote organique | `plafondAzoteOrganique`, rapporté à la SAU concernée |
+
+Le contrôle du plafond ne se contente pas d'appeler `plafondAzoteOrganique` :
+celui-ci ne connaît que les parcelles ayant **déjà** reçu un apport organique,
+alors que la question posée ici est prospective. La parcelle visée est donc
+ajoutée à la surface quand elle n'a encore rien reçu.
+
+### Trois états, jamais deux
+
+`CONFORME` · `A_VERIFIER` · `NON_CONFORME`.
+
+La règle qui compte est celle du milieu : **si un seul contrôle n'a pas pu être
+fait, la réponse n'est jamais `CONFORME`.** Un référentiel absent produit
+`A_VERIFIER` avec le nom de ce qui manque, pas un feu vert par défaut.
+
+Et même tout au vert, le message dit « aucune anomalie détectée selon les
+données et référentiels actuellement disponibles » — pas « conforme ». La
+nuance est celle de la section 2, et elle tient ici aussi.
+
+### L'azote, quand il est calculable
+
+L'azote apporté vient de la teneur enregistrée pour le produit organique, par la
+formule qu'emploie déjà le bilan NPK (`dose × nContent × surface`, où `nContent`
+est une teneur **en kg d'azote par tonne ou par m³**, pas un pourcentage).
+
+Sans teneur renseignée — le cas habituel tant qu'aucune analyse n'a été faite —
+l'azote reste nul et le contrôle du plafond ressort indéterminé. Supposer une
+composition reviendrait à fabriquer le chiffre sur lequel repose tout le
+contrôle.
+
+### Vérifier
+
+```bash
+npm test -- tests/epandage.test.ts
+```
+
+Onze cas, qui posent leurs propres règles en base : période franchie, période
+qui enjambe le 1ᵉʳ janvier, plafond dépassé, référentiel absent, et le
+cloisonnement entre exploitations.
+
+---
+
+## 7 sexies. Les limites d'emploi d'un produit (0.9.5)
+
+E-Phy ne fournit pas que la dose. Chaque usage porte aussi le nombre maximal
+d'applications, l'intervalle minimal entre deux passages et le délai avant
+récolte. Jusqu'à 0.9.5, Parcelys les importait et les affichait sans jamais les
+opposer : seule la dose était vérifiée.
+
+`src/lib/ephy/limites.ts` les vérifie maintenant à la saisie, et ajoute les
+conditions d'emploi qui ne se calculent pas mais se rappellent — délai de
+rentrée, mentions abeilles, riverains.
+
+### Ce qui n'est pas deviné
+
+Le catalogue contient des valeurs qui ne sont pas des nombres : « 2 à 3 »,
+« selon la culture ». Elles ne sont pas interprétées — ni arrondies, ni prises
+au plus favorable. Le contrôle les ignore et le dit.
+
+### Un piège d'ordre d'exécution
+
+`buildPhytoWarnings` est appelé **après** l'écriture du traitement. L'historique
+du produit contenait donc le traitement en cours, et le deuxième passage d'un
+produit qui en autorise deux déclenchait l'alerte du troisième. La ligne qu'on
+vient d'écrire est désormais exclue du décompte.
+
+### Vérifier
+
+```bash
+npm test -- tests/phyto-control.test.ts
+```
+
+---
+
 ## 8. Ce qui n'est pas encore là
 
 Volontairement listé, pour qu'aucune absence ne passe pour une couverture.
@@ -728,3 +822,39 @@ par machine · assistance branchée sur le moteur (jamais sur sa propre mémoire
 l'étiquette d'un produit, ni à la décision d'autorisation en vigueur, ni au
 conseil d'un technicien. En cas de divergence, c'est la source officielle qui
 fait foi.
+
+### Deux domaines entiers qui ne sont pas modélisés (audit 0.9.5)
+
+L'audit 0.9.5 les a cherchés dans les 54 modèles du schéma. Ils n'y sont pas.
+C'est écrit ici pour qu'on ne le découvre pas en cherchant l'écran.
+
+**L'élevage et le classement ICPE.** Aucun modèle de cheptel, d'effectif
+animal, d'UGB, de bâtiment ni de régime ICPE. Parcelys tient le parcellaire ;
+il ne sait rien du troupeau.
+
+Ce qu'il en connaît malgré tout, c'est l'aval : les effluents une fois épandus.
+Le fumier et le lisier existent comme produits organiques, l'apport
+s'enregistre, et le plafond de 170 kg N/ha issu d'effluents d'élevage est
+opposé quand le référentiel du territoire est chargé
+(`src/lib/regulatory/organic-nitrogen.ts`).
+
+Conséquence directe : les effectifs animaux présents dans l'export TéléPAC ne
+sont pas repris — l'adaptateur le dit à l'import plutôt que de les laisser
+disparaître en silence (`src/lib/pac/telepac-xml.ts`). Un plan d'épandage
+dimensionné sur le cheptel ne peut donc pas être calculé par Parcelys : la
+production d'azote du troupeau n'y est pas connue.
+
+**La certification AB et les MAEC.** Aucun modèle d'engagement, de mesure
+souscrite, de période de conversion, d'organisme certificateur ni de cahier des
+charges. Un exploitant en bio saisit ses interventions comme un autre ; Parcelys
+n'oppose aucune règle propre à l'AB et ne vérifie aucun engagement MAEC.
+
+Ce n'est pas un manque discret : un produit interdit en AB ne sera pas signalé
+comme tel, parce que la notion n'existe pas dans le modèle. Le contrôle
+phytosanitaire raisonne sur le catalogue E-Phy — autorisation, dose, DAR, ZNT,
+conditions d'emploi — et sur rien d'autre.
+
+Les implanter demanderait, pour chacun, le même socle que le reste : un
+référentiel officiel, versionné, daté et territorialisé. Tant qu'il n'est pas
+là, la règle de la section 1 s'applique — mieux vaut l'absence qu'une règle
+inventée.

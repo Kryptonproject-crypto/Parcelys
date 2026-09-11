@@ -62,8 +62,9 @@ Parcelys lit **deux formats**, et l'un des deux suffit.
 ### A. Le dossier au format XML — le plus simple
 
 C'est le fichier que TéléPAC propose spontanément au téléchargement, nommé
-quelque chose comme `DossierPAC2026_dossier_003015584_20260910.xml`. Un seul
-fichier, rien à décompresser, rien à assortir.
+quelque chose comme `DossierPAC2026_dossier_000000000_20260910.xml` — les neuf
+chiffres du milieu sont votre numéro PACAGE. Un seul fichier, rien à
+décompresser, rien à assortir.
 
 Il contient les îlots, les parcelles, leurs géométries, les codes culture, les
 SNA et les ZDH. Déposez-le tel quel.

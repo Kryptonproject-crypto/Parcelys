@@ -191,6 +191,9 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     dose: input.dose,
     doseUnit: input.doseUnit,
     appliedOn: input.appliedOn,
+    // La ligne vient d'être écrite : sans cette exclusion, elle se compterait
+    // elle-même dans le nombre de passages de la campagne.
+    applicationId: created.id,
   });
 
   return ok(

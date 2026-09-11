@@ -6,6 +6,148 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.5 — Un audit qui cherche à échouer
+
+Cette version n'ajoute presque pas d'écrans. Elle vérifie ceux qui existent —
+et corrige ce que la vérification a trouvé.
+
+La règle suivie du début à la fin : **une fonctionnalité n'est pas fonctionnelle
+parce qu'elle figure dans le code ou à l'écran.** Chaque contrôle ajouté a été
+éprouvé en cassant volontairement ce qu'il surveille, pour s'assurer qu'il vire
+au rouge. Un contrôle qui ne peut pas échouer ne vérifie rien.
+
+### Une date pouvait s'afficher décalée d'un jour
+
+Le défaut le plus sérieux de cet audit, et le moins visible. Trouvé en suivant
+un avertissement React sur `/portefeuille` qui n'avait l'air de rien.
+
+`toLocaleDateString('fr-FR')` sans fuseau lit la date dans celui **du
+processus**. Le serveur tourne en UTC — celui de ce dépôt comme celui du
+Raspberry Pi tel qu'il est livré —, le navigateur à l'heure de Paris.
+
+Conséquence : un traitement enregistré le 11 septembre à 22 h 30 UTC
+s'affichait « 11/09/2026 » dans le HTML servi et « 12/09/2026 » après
+hydratation. Le registre phytosanitaire est une pièce opposable ; une date
+décalée d'un jour entre l'écran et l'export n'y est pas un détail d'affichage.
+
+Le même défaut atteignait la campagne culturale, et plus gravement :
+`campagneCourante` employait `getMonth()`, donc le fuseau de la machine. Le
+31 juillet à 23 h 00 UTC, il est déjà le 1ᵉʳ août en France — le serveur
+comptait une campagne, le navigateur l'autre. Une saisie faite ce soir-là
+atterrissait dans une campagne et s'affichait dans l'autre, ce que l'en-tête du
+module interdisait explicitement depuis 0.9.1.
+
+Le fuseau de l'exploitation (`Europe/Paris`) fait désormais foi partout, quelle
+que soit la machine qui calcule. Les bornes de campagne sont de vrais instants
+français, et non plus des minuits du fuseau du serveur — ce qui laissait dehors
+les saisies du 1ᵉʳ août entre minuit et deux heures.
+
+`tests/fuseau.test.ts` éprouve les deux, avec des instants pris juste avant
+minuit à Paris : c'est là, et seulement là, que les deux lectures divergeaient.
+
+### Le contrôle phytosanitaire ne lisait qu'un tiers du catalogue
+
+E-Phy fournit, pour chaque usage, le nombre maximal d'applications, l'intervalle
+minimal entre deux passages et le délai avant récolte. Parcelys les importait,
+les affichait — et ne s'en servait pas. Seule la dose était opposée.
+
+Les trois sont désormais vérifiés à la saisie (`src/lib/ephy/limites.ts`), avec
+les conditions d'emploi qui ne se calculent pas mais se rappellent : délai de
+rentrée, mentions abeilles, riverains.
+
+Un piège rencontré en chemin : `buildPhytoWarnings` est appelé **après**
+l'écriture du traitement, donc le traitement en cours était compté dans
+l'historique. Le deuxième passage d'un produit qui en autorise deux déclenchait
+l'alerte du troisième. Corrigé en excluant la ligne qu'on vient d'écrire.
+
+Les valeurs non numériques du catalogue — « 2 à 3 », « selon la culture » — ne
+sont pas devinées : elles sont ignorées, et le contrôle le dit.
+
+### Un contrôle avant épandage, qui ne conclut jamais à la légère
+
+« Est-ce que je peux épandre là, aujourd'hui, cette quantité ? »
+`POST /api/regulatory/spreading` répond sans rien écrire : on le relance autant
+qu'on veut en changeant la date ou la dose.
+
+Il vérifie la période d'interdiction, les distances aux cours d'eau et aux
+habitations, et le plafond d'azote organique. Surtout, il distingue trois états
+— et **ne dit jamais « conforme » quand une vérification n'a pas pu être faite**.
+Sans référentiel chargé, la réponse est « à vérifier », avec le nom de ce qui
+manque.
+
+L'azote apporté suit la formule déjà employée par le bilan NPK. En employer une
+autre aurait donné deux chiffres différents pour le même apport selon l'écran
+consulté — pire que pas de chiffre du tout.
+
+### Les pages d'erreur parlaient anglais
+
+Aucune page 404 ni 500 n'existait : Next.js servait les siennes, en anglais, au
+milieu d'un logiciel entièrement en français. Trois pages ajoutées, dont une qui
+n'utilise que des styles en ligne, parce qu'une erreur globale peut survenir
+avant que la feuille de style ne soit chargée.
+
+Une parcelle inexistante affichait de surcroît une page vide plutôt qu'un
+message : le garde-fou d'accès ne savait pas traduire « introuvable » en 404.
+
+### Le titre d'une page divulguait le nom d'une parcelle d'autrui
+
+L'onglet du navigateur affichait le nom de la parcelle avant que le contrôle
+d'accès n'ait rendu son verdict. Le titre est maintenant produit par le même
+contrôle que la page.
+
+### La restauration des sauvegardes n'avait jamais été essayée
+
+Un script de sauvegarde existait et vérifiait ce qu'il écrivait. Mais une
+archive relisible n'est pas une archive **restaurable** : un dump peut être
+complet et refuser de se rejouer.
+
+`scripts/restore.sh` fait donc l'essai à blanc par défaut, dans une base
+jetable, et compare le nombre de lignes de chaque table et l'empreinte des
+contours parcellaires — ce sont eux qui portent les superficies, donc les
+déclarations. `npm run check:sauvegarde` enchaîne le cycle complet et vérifie
+aussi qu'une archive tronquée est **refusée** avant toute restauration.
+
+### Outillage d'audit
+
+Quatre vérifications qui se lancent d'une commande — `npm run audit:tout` :
+47 pages sur trois profils, 76 routes d'API dont sept tentatives de franchir
+le cloisonnement, un parcours complet du compte vide à la synchronisation
+hors ligne, et un relevé de performance.
+
+Ce qui ne peut pas être vérifié ici est annoncé comme tel, avec la commande qui
+le vérifierait ailleurs — jamais transformé en coche verte.
+
+### Trois pièges de l'outillage, qui auraient fait de faux constats
+
+- Le serveur d'audit tuait le processus parent et laissait l'enfant tenir le
+  port : la vérification s'exécutait contre l'**ancien** build et signalait des
+  feuilles de style introuvables qui ne l'étaient pas.
+- Le navigateur de Playwright change de numéro de révision à chaque mise à jour
+  de la bibliothèque ; dix vérifications s'arrêtaient alors sur « installez le
+  navigateur ». Elles cherchent maintenant celui qui est présent
+  (`scripts/lib/navigateur.mjs`).
+- La suite de tests vide la base. Lancer `npm test` puis une vérification au
+  navigateur faisait expirer la connexion au bout de trente secondes, sans dire
+  pourquoi. Le compte est désormais éprouvé par l'API d'abord, et le message dit
+  quoi faire (`scripts/lib/compte.mjs`).
+
+### Un fichier statique manquant passait inaperçu
+
+L'audit des pages ne relevait que les erreurs serveur (5xx). Un fichier absent
+répond 404 — ou 400 pour une icône déclarée dans les métadonnées, comme l'a
+montré l'essai. Toute réponse qui n'est pas un succès sur un fichier statique
+est maintenant signalée.
+
+### Ce qui n'est pas là, écrit noir sur blanc
+
+L'audit a cherché l'élevage et le classement ICPE, la certification AB et les
+MAEC dans les 54 modèles du schéma. Ils n'y sont pas, et
+[`docs/reglementaire.md`](./docs/reglementaire.md) dit maintenant ce que cela
+empêche — notamment qu'un produit interdit en AB **ne sera pas signalé comme
+tel**, faute que la notion existe.
+
+---
+
 ## 0.9.1 — Une seule campagne, un nom qu'on retrouve, et une faille fermée
 
 ### Une exploitation pouvait écrire dans le parcellaire d'une autre

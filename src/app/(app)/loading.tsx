@@ -6,6 +6,29 @@ import { Card, Skeleton } from '@/components/ui';
  * Next l'affiche pendant le rendu serveur de la page demandée. Le gabarit
  * reprend la structure d'une page type (titre, indicateurs, contenu) pour que
  * la mise en page ne saute pas à l'arrivée des données.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE QU'IL COÛTE, ET POURQUOI ON LE GARDE QUAND MÊME
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Sa présence fait partir la coque de la page **immédiatement**. L'en-tête HTTP
+ * — donc le code 200 — est envoyé avant que le composant serveur n'ait fini.
+ * Quand celui-ci appelle ensuite `notFound()`, Next remplace bien l'affichage
+ * par la page « introuvable », mais ne peut plus changer le code : une parcelle
+ * inexistante répond **200 au lieu de 404**.
+ *
+ * Mesuré, en retirant puis remettant ce fichier : 404 sans lui, 200 avec.
+ *
+ * On le garde. Parcelys tourne sur un Raspberry Pi derrière une liaison
+ * Starlink ; sans ce gabarit, chaque navigation laisse un écran blanc le temps
+ * du rendu. C'est un coût à chaque page ouverte, contre un code HTTP dont rien
+ * ici ne dépend : la supervision interroge `/api/health`, qui répond
+ * correctement, et les pages de l'application sont derrière une
+ * authentification — aucun moteur de recherche ne les parcourt.
+ *
+ * Ce qui compte pour l'utilisateur est, lui, correct : la page « introuvable »
+ * s'affiche en français, et le titre de l'onglet ne divulgue plus le nom de la
+ * ressource demandée (cf. `parcelles/[id]/page.tsx`).
  */
 export default function AppLoading() {
   return (

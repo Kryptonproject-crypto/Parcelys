@@ -43,6 +43,96 @@
 /** Mois de bascule, en base 0 : 7 = août. */
 const MOIS_BASCULE = 7;
 
+/**
+ * Le fuseau de référence : celui de l'exploitation.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CE N'EST PAS UN DÉTAIL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `getMonth()` et `getFullYear()` lisent la date dans le fuseau **du
+ * processus**. Le serveur tourne en UTC, le navigateur de l'exploitant à
+ * l'heure de Paris. Les deux ne lisent donc pas toujours le même jour.
+ *
+ * Le 31 juillet 2027 à 23 h 00 UTC, il est déjà le 1ᵉʳ août à Saint-Étienne.
+ * Le serveur comptait la campagne 2027, le navigateur la campagne 2028 — pour
+ * le même instant, dans le même logiciel. Une saisie faite ce soir-là
+ * atterrissait dans une campagne, et s'affichait dans l'autre.
+ *
+ * C'est exactement ce que l'en-tête de ce module dit qu'il ne faut pas : « une
+ * saisie faite au champ ne doit pas atterrir dans une autre campagne que celle
+ * de l'écran de bureau ». La règle y était ; le calcul ne la tenait pas.
+ *
+ * Une campagne culturale française se compte donc à l'heure française, quelle
+ * que soit la machine qui fait le calcul.
+ *
+ * `Intl` est un objet global : ce module reste pur, sans import, comme
+ * `tests/cloisonnement-mobile.test.ts` l'exige — l'application de terrain
+ * l'utilise via `@commun/campagne` et doit compter pareil.
+ */
+export const FUSEAU_EXPLOITATION = 'Europe/Paris';
+
+const PARTIES = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: FUSEAU_EXPLOITATION,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+/** Le jour civil français d'un instant : année, mois (base 0), jour. */
+export function partiesFr(date: Date): {
+  annee: number;
+  mois: number;
+  jour: number;
+  heure: number;
+  minute: number;
+  seconde: number;
+} {
+  const p = Object.fromEntries(
+    PARTIES.formatToParts(date)
+      .filter((x) => x.type !== 'literal')
+      .map((x) => [x.type, Number(x.value)]),
+  ) as Record<string, number>;
+
+  return {
+    annee: p.year ?? 0,
+    mois: (p.month ?? 1) - 1,
+    jour: p.day ?? 1,
+    // À minuit, `hour12: false` rend « 24 » plutôt que « 0 » dans certaines
+    // versions d'ICU. Le ramener, sinon la journée déborde sur la suivante.
+    heure: (p.hour ?? 0) % 24,
+    minute: p.minute ?? 0,
+    seconde: p.second ?? 0,
+  };
+}
+
+/** L'écart du fuseau de l'exploitation à UTC, en millisecondes, à cet instant. */
+function decalageFr(date: Date): number {
+  const { annee, mois, jour, heure, minute, seconde } = partiesFr(date);
+  const commeUtc = Date.UTC(annee, mois, jour, heure, minute, seconde, date.getMilliseconds());
+  return commeUtc - date.getTime();
+}
+
+/**
+ * L'instant où commence une date civile française.
+ *
+ * `new Date(2026, 7, 1)` donne minuit **dans le fuseau du processus** : sur le
+ * serveur en UTC, cela tombe deux heures après le vrai début de la journée
+ * française. Une campagne bornée ainsi laissait dehors les saisies du 1ᵉʳ août
+ * entre 00 h 00 et 02 h 00.
+ */
+function instantFr(annee: number, mois: number, jour: number): Date {
+  const approche = Date.UTC(annee, mois, jour, 0, 0, 0, 0);
+  // Deux passes : la première peut tomber du mauvais côté d'un changement
+  // d'heure, la seconde se cale dessus.
+  const premier = approche - decalageFr(new Date(approche));
+  return new Date(approche - decalageFr(new Date(premier)));
+}
+
 /** Libellé de la convention, affiché tel quel à côté de la campagne. */
 export const CONVENTION_CAMPAGNE =
   'Campagne culturale : du 1ᵉʳ août au 31 juillet (usage des grandes cultures).';
@@ -54,14 +144,24 @@ export const CONVENTION_CAMPAGNE =
  * annuelle. Le 31 juillet 2027 rend 2027, le 1ᵉʳ août 2027 rend 2028.
  */
 export function campagneCourante(date = new Date()): number {
-  return date.getMonth() >= MOIS_BASCULE ? date.getFullYear() + 1 : date.getFullYear();
+  const { annee, mois } = partiesFr(date);
+  return mois >= MOIS_BASCULE ? annee + 1 : annee;
 }
 
-/** Premier et dernier jour de la campagne, aux bornes incluses. */
+/**
+ * Premier et dernier jour de la campagne, aux bornes incluses.
+ *
+ * `debut` est l'instant où commence le 1ᵉʳ août français ; `fin` celui où
+ * commence le 31 juillet français. Les deux sont des instants réels, pas des
+ * minuits du fuseau de la machine.
+ */
 export function periodeCampagne(annee: number): { debut: Date; fin: Date } {
+  // `mois: 7, jour: 0` = le dernier jour de juillet, sans avoir à savoir s'il
+  // en compte 30 ou 31.
+  const finParties = new Date(Date.UTC(annee, MOIS_BASCULE, 0));
   return {
-    debut: new Date(annee - 1, MOIS_BASCULE, 1),
-    fin: new Date(annee, MOIS_BASCULE, 0),
+    debut: instantFr(annee - 1, MOIS_BASCULE, 1),
+    fin: instantFr(annee, finParties.getUTCMonth(), finParties.getUTCDate()),
   };
 }
 
@@ -86,8 +186,8 @@ const MOIS = [
 ];
 
 function jourFr(date: Date): string {
-  const jour = date.getDate();
-  return `${jour === 1 ? '1ᵉʳ' : jour} ${MOIS[date.getMonth()]} ${date.getFullYear()}`;
+  const { annee, mois, jour } = partiesFr(date);
+  return `${jour === 1 ? '1ᵉʳ' : jour} ${MOIS[mois]} ${annee}`;
 }
 
 /**

@@ -27,17 +27,44 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Le titre de l'onglet — et pourquoi il passe par le contrôle d'accès.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE QUI FUYAIT
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Cette fonction lisait la parcelle par son seul identifiant, sans regarder à
+ * qui elle appartient. Le corps de la page, lui, était bien cloisonné : un
+ * exploitant qui ouvrait l'identifiant d'une parcelle voisine obtenait un
+ * « 404 — cette page n'existe pas ».
+ *
+ * Mais le `<title>`, lui, affichait **le nom de la parcelle du voisin**.
+ * Constaté au navigateur : corps « Erreur 404 », onglet « La parcelle du
+ * voisin · Parcelys ». Avec une liste d'identifiants, on récupérait ainsi le
+ * nom de chaque parcelle de l'instance, une par une.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE QUE LA CORRECTION APPORTE EN PLUS
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `generateMetadata` s'exécute **avant** que la réponse ne commence à partir.
+ * Appeler `notFound()` ici donne donc un vrai code HTTP 404, là où le même
+ * appel depuis le corps de la page arrivait trop tard : l'en-tête 200 était
+ * déjà envoyé (`dynamic = 'force-dynamic'` et le `loading.tsx` du groupe font
+ * partir la coque tout de suite), et Next ne remplaçait plus que l'affichage.
+ */
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const parcel = await prisma.parcel.findUnique({
-    where: { id },
-    select: { name: true },
-  });
-  return { title: parcel?.name ?? 'Parcelle' };
+
+  // Le même contrôle que le corps de la page : appartenance à une exploitation
+  // dont l'utilisateur est membre, parcelle non supprimée.
+  const { parcel } = await requirePageParcelAccess(id, 'parcel:read');
+  return { title: parcel.name };
 }
 
 export default async function ParcelPage({

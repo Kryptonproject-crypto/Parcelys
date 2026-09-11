@@ -1,6 +1,6 @@
 {
   "name": "parcelys",
-  "version": "0.9.1",
+  "version": "0.9.5",
   "private": true,
   "description": "Parcelys — logiciel de gestion parcellaire agricole (SaaS)",
   "engines": {
@@ -44,14 +44,21 @@
     "check:ecrans": "node scripts/check-ecrans-07.mjs",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
-    "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte",
+    "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte && npm run check:sauvegarde",
     "audit:debit": "tsx --conditions=react-server scripts/audit-reset-debit.ts",
     "verif:navigateur": "npm run audit:debit && npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:modales && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security && npm run audit:debit && npm run check:091",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts",
     "check:telepac": "tsx --conditions=react-server scripts/check-telepac-xml.ts",
     "check:pac": "tsx --conditions=react-server scripts/check-pac-import.ts",
     "check:modales": "node scripts/check-modales.mjs",
-    "check:091": "node scripts/check-0-9-1.mjs"
+    "check:091": "node scripts/check-0-9-1.mjs",
+    "audit:fixtures": "tsx --conditions=react-server scripts/audit-fixtures.ts",
+    "audit:complet": "node scripts/audit-complet.mjs",
+    "audit:api": "node scripts/audit-api.mjs",
+    "check:sauvegarde": "bash scripts/check-sauvegarde.sh",
+    "audit:e2e": "node scripts/audit-bout-en-bout.mjs",
+    "audit:tout": "bash scripts/audit-lancer.sh tout",
+    "audit:perf": "node scripts/audit-performance.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

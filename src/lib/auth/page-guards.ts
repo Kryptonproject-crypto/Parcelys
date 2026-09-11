@@ -1,5 +1,5 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ApiError } from '@/lib/api/errors';
 import {
   requireAgronomist,
@@ -19,8 +19,8 @@ import type { AuthContext } from '@/lib/auth/session';
  * attendu d'une route API, mais dans une page rendue côté serveur cela produit
  * une exception journalisée à chaque visite anonyme — du bruit qui finirait par
  * masquer les vraies erreurs. Ici, une absence de session ou une adresse non
- * vérifiée se traduit par une redirection ; les autres erreurs (403, 404)
- * continuent de remonter.
+ * vérifiée se traduit par une redirection, et une ressource introuvable par la
+ * page 404 ; le reste continue de remonter.
  */
 function handleAuthFailure(error: unknown, email?: string): never {
   if (error instanceof ApiError) {
@@ -33,6 +33,28 @@ function handleAuthFailure(error: unknown, email?: string): never {
       );
     }
     if (error.code === 'MAINTENANCE') redirect('/maintenance');
+
+    /*
+     * Ressource introuvable : la page 404, pas une exception.
+     *
+     * `NOT_FOUND` remontait telle quelle depuis un composant serveur. Next.js
+     * n'y voit alors qu'une exception non rattrapée : il rend
+     * « Application error: a server-side exception has occurred », **avec un
+     * code HTTP 200**, et journalise l'erreur comme si le serveur était en
+     * panne.
+     *
+     * Constaté en visitant `/parcelles/<identifiant inexistant>`. Le cas n'a
+     * rien d'exotique : un signet vers une parcelle supprimée, un lien
+     * partagé, un identifiant tapé de travers. L'exploitant voit un écran
+     * d'erreur inquiétant là où « page introuvable » suffisait.
+     *
+     * `requireParcelAccess` rend d'ailleurs 404 aussi bien pour une parcelle
+     * qui n'existe pas que pour celle d'une autre exploitation — c'est
+     * délibéré, et il faut que la page le reste : répondre 403 dans un cas et
+     * 404 dans l'autre dirait à un curieux lesquels de ses identifiants
+     * tombent juste.
+     */
+    if (error.code === 'NOT_FOUND') notFound();
   }
   throw error;
 }

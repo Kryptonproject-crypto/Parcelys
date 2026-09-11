@@ -17,6 +17,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium, devices } from 'playwright';
+import { cheminDuNavigateur } from './lib/navigateur.mjs';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3000';
 const SHOTS = path.resolve('.preview/audit');
@@ -94,7 +95,7 @@ const MARQUEURS = [
 ];
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? undefined,
+  executablePath: cheminDuNavigateur(),
 });
 
 const anomalies = [];

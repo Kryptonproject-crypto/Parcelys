@@ -24,6 +24,8 @@
  * Prérequis : une instance lancée et le compte de démonstration semé.
  */
 import { chromium, devices } from 'playwright';
+import { cheminDuNavigateur } from './lib/navigateur.mjs';
+import { verifierCompte } from './lib/compte.mjs';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3000';
 const EMAIL = process.env.DEMO_SEED_EMAIL ?? 'demo@parcelys.local';
@@ -69,8 +71,13 @@ const PAGES = [
   '/preconisations',
 ];
 
+
+// Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
+// manifeste trente secondes plus tard par un délai d'attente dépassé.
+await verifierCompte(BASE, EMAIL, PASSWORD);
+
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? undefined,
+  executablePath: cheminDuNavigateur(),
 });
 const context = await browser.newContext({ ...devices['iPhone 13'] });
 const page = await context.newPage();
@@ -168,7 +175,33 @@ if (expertEmail) {
   const expertPage = await expertContext.newPage();
   await expertPage.goto(`${BASE}/connexion-expert`, { waitUntil: 'domcontentloaded' });
   await expertPage.fill('#email', expertEmail);
-  await expertPage.fill('#password', 'MotDePasse1!');
+  /*
+   * Le mot de passe des comptes experts d'essai dépend de qui les a créés :
+   * `prisma/seed.ts` et `scripts/audit-fixtures.ts` n'emploient pas le même.
+   * Codé en dur, il faisait échouer la connexion en silence, et l'espace
+   * expert — trois pages à la coque et à la barre de navigation distinctes —
+   * n'était jamais mesuré : le message disait « non mesuré » et la
+   * vérification se terminait verte.
+   */
+  const MOTS_DE_PASSE_EXPERT = [
+    process.env.EXPERT_SEED_PASSWORD,
+    'MotDePasse1!',
+    'AuditParcelys1',
+  ].filter(Boolean);
+
+  let motDePasseExpert = MOTS_DE_PASSE_EXPERT[0];
+  for (const candidat of MOTS_DE_PASSE_EXPERT) {
+    const essai = await fetch(`${BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: expertEmail, password: candidat }),
+    });
+    if (essai.ok) {
+      motDePasseExpert = candidat;
+      break;
+    }
+  }
+  await expertPage.fill('#password', motDePasseExpert);
   await expertPage.click('button[type=submit]');
 
   try {

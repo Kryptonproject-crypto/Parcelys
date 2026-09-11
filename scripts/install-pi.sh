@@ -558,10 +558,18 @@ step "Sauvegardes"
 # tard : elles sont la seule chose qui distingue une panne d'un désastre.
 
 BACKUP_BIN=/usr/local/bin/parcelys-backup
+RESTORE_BIN=/usr/local/bin/parcelys-restore
 BACKUP_CONF=/etc/default/parcelys-backup
 
 if [ -f "$APP_DIR/scripts/backup.sh" ] || [ "$DRY_RUN" -eq 1 ]; then
   run install -m 755 "$APP_DIR/scripts/backup.sh" "$BACKUP_BIN"
+  # La restauration s'installe avec la sauvegarde, et pour la même raison :
+  # une procédure écrite dans un guide se recopie mal le jour où la carte SD a
+  # lâché. « sudo parcelys-restore » fait l'essai à blanc sans rien risquer ;
+  # « --remplacer » fait la vraie restauration.
+  if [ -f "$APP_DIR/scripts/restore.sh" ]; then
+    run install -m 755 "$APP_DIR/scripts/restore.sh" "$RESTORE_BIN"
+  fi
   run mkdir -p "$BACKUP_DIR"
   # Un dump contient tout : comptes, registres, empreintes de mots de passe.
   run chmod 700 "$BACKUP_DIR"
@@ -749,6 +757,8 @@ ${BOLD}Aide-mémoire${OFF}
   curl -s http://127.0.0.1:$PORT/api/health
 
   sudo parcelys-backup                 # sauvegarde immédiate
+  sudo parcelys-restore                # essai de restauration, sans risque
+  sudo parcelys-restore --remplacer    # vraie restauration, après incident
   ls -lh $BACKUP_DIR                   # ce qui est réellement sauvegardé
 
 FIN

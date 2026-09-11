@@ -10,7 +10,7 @@ apply plugin: 'com.android.application'
 // La signature n'est active que si un magasin de clés est fourni ; sinon
 // Gradle produit un APK non signé, à signer soi-même. Aucune clé n'est
 // stockée dans le dépôt.
-def parcelysVersionName = project.findProperty('parcelysVersionName') ?: '0.9.1'
+def parcelysVersionName = project.findProperty('parcelysVersionName') ?: '0.9.5'
 def parcelysVersionCode = (project.findProperty('parcelysVersionCode') ?: '1') as Integer
 def parcelysKeystore = project.findProperty('parcelysKeystore')
 

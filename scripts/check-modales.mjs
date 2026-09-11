@@ -27,6 +27,8 @@
  * Prérequis : une instance lancée et le compte de démonstration semé.
  */
 import { chromium } from 'playwright';
+import { cheminDuNavigateur } from './lib/navigateur.mjs';
+import { verifierCompte } from './lib/compte.mjs';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3000';
 const EMAIL = process.env.DEMO_SEED_EMAIL ?? 'demo@parcelys.local';
@@ -133,8 +135,13 @@ async function essayer(page, libelle, ouvrir) {
   return true;
 }
 
+
+// Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
+// manifeste trente secondes plus tard par un délai d'attente dépassé.
+await verifierCompte(BASE, EMAIL, PASSWORD);
+
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? undefined,
+  executablePath: cheminDuNavigateur(),
 });
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 
