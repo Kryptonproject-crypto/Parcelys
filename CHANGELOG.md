@@ -6,6 +6,70 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.8.1 — Deux défauts trouvés en déployant
+
+La 0.8.0 ne s'est pas installée. Les deux défauts ci-dessous ont la même
+racine : une vérification qui passait chez moi et ne pouvait pas passer
+ailleurs.
+
+### La compilation échouait sur un dépôt fraîchement cloné
+
+```
+./mobile/src/lib/db.ts:1:43
+Type error: Cannot find module 'idb'
+```
+
+Le `tsconfig.json` de la racine exclut `mobile/` — et un commentaire y explique
+précisément cette panne, pour l'avoir déjà payée une fois. Mais l'exclusion ne
+vaut que pour la collecte des fichiers : un fichier inclus qui **importe** un
+module mobile le rattrape dans le graphe de types malgré tout. Trois tests
+ajoutés en 0.8.0 importaient `../mobile/src/…`, et le graphe mobile mène à
+`idb`, dépendance déclarée dans `mobile/package.json`, absente à la racine.
+
+La compilation réussissait donc chez qui développe les deux côte à côte —
+`mobile/node_modules` est là — et échouait chez qui déploie. Le service est
+resté sur la version précédente, ce qui est le bon comportement du script de
+mise à jour, mais personne ne l'avait vu venir.
+
+La logique partagée a désormais un terrain commun que l'application compile par
+ses alias : `src/lib/ephy/catalogue-local.ts` et `src/lib/shared/sync-status.ts`.
+Un test de garde échoue si un fichier du serveur réimporte de `mobile/src/`, et
+un autre si le terrain commun se met à importer Prisma ou `server-only` — la
+même erreur en sens inverse ferait échouer la compilation de l'APK.
+
+Au passage, `OfflineCatalogueEntry` était défini deux fois, serveur et mobile,
+pour la même forme. Une seule définition désormais.
+
+### Le haut des fenêtres de saisie était hors d'atteinte
+
+Signalé sur le formulaire de traitement phytosanitaire : « l'onglet est plus
+grand et je ne vois pas tout ».
+
+Le dialogue était centré verticalement par `items-center`. Un dialogue plus haut
+que la fenêtre déborde alors des deux côtés à parts égales, et **le haut passe
+hors de portée du défilement**, qui ne remonte pas au-dessus de son origine.
+Mesuré sur un écran de 768 px : dialogue de 1 003 px, haut à −117 px, et il y
+restait après avoir remonté à fond. Le titre et les premiers champs étaient
+perdus.
+
+Le défaut ne se voyait pas sur téléphone, où le centrage ne s'appliquait pas —
+d'où un contrôle de mise en page qui mesurait sept largeurs mobiles sans rien
+trouver. Il touchait **quatre formulaires**, pas un : culture, couvert
+d'interculture, apport et traitement. Le phyto était le pire, avec 202 px perdus
+sur un écran de 600 px.
+
+Le centrage passe par des marges automatiques, qui se réduisent à zéro plutôt
+que de rogner. Le dialogue est en outre plafonné à la hauteur de la fenêtre :
+le titre reste visible et c'est le formulaire qui défile — sur un formulaire de
+quinze champs, faire défiler le tout fait perdre de vue ce qu'on remplit et sur
+quelle parcelle.
+
+`npm run check:modales` ouvre sept formulaires à quatre hauteurs d'écran, 28
+mesures, et vérifie qu'aucune partie n'est inatteignable. Sa capacité à
+détecter le défaut a été vérifiée en le remettant.
+
+---
+
 ## 0.8.0 — Le dossier TéléPAC, et le hors-ligne qui vérifie vraiment
 
 Cinq exports TéléPAC réels — les campagnes 2022 à 2026 d'une même

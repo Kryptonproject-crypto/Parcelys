@@ -4,8 +4,11 @@ import {
   ficheHorsLigne,
   provenanceHorsLigne,
   retiresMasques,
-} from '../mobile/src/lib/catalogue-local';
-import type { OfflineCatalogueEntry, Referential } from '../mobile/src/lib/types';
+} from '../src/lib/ephy/catalogue-local';
+import type {
+  CatalogueEmbarque,
+  OfflineCatalogueEntry,
+} from '../src/lib/ephy/catalogue-local';
 import { checkDose, usagesForCrop } from '../src/lib/ephy/dose';
 
 /**
@@ -62,15 +65,8 @@ function entree(partiel: Partial<OfflineCatalogueEntry> = {}): OfflineCatalogueE
   };
 }
 
-function referentiel(entrees: OfflineCatalogueEntry[]): Referential {
+function referentiel(entrees: OfflineCatalogueEntry[]): CatalogueEmbarque {
   return {
-    crops: [],
-    fertilizers: [],
-    organicInputs: [],
-    recentPhytoProducts: [],
-    doseUnits: ['L/ha'],
-    parcelTypes: [],
-    operationTypes: [],
     phytoCatalogue: entrees,
     phytoCatalogueSource: {
       label: 'Catalogue E-Phy (ANSES)',
@@ -78,7 +74,7 @@ function referentiel(entrees: OfflineCatalogueEntry[]): Referential {
       configured: true,
       omitted: 0,
     },
-  } as Referential;
+  };
 }
 
 describe('Catalogue embarqué', () => {
@@ -138,7 +134,7 @@ describe('Catalogue embarqué', () => {
       // Un appareil qui n'a pas resynchronisé depuis une version antérieure n'a
       // pas de catalogue embarqué : il doit continuer à fonctionner.
       expect(chercherHorsLigne(null, 'fongi')).toEqual([]);
-      expect(chercherHorsLigne({} as Referential, 'fongi')).toEqual([]);
+      expect(chercherHorsLigne({}, 'fongi')).toEqual([]);
     });
   });
 

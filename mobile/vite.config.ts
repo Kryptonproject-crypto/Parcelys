@@ -28,10 +28,22 @@ const { version } = JSON.parse(
  */
 const PARTAGE = fileURLToPath(new URL('../src/lib/ephy', import.meta.url));
 
+/**
+ * Second terrain commun : la logique partagée qui n'est pas réglementaire.
+ *
+ * Même raison que `@partage`, et une de plus. Un module qui vit dans `mobile/`
+ * ne peut pas être testé depuis la racine : un test qui l'importe rattrape tout
+ * le graphe mobile dans la compilation du serveur, où les dépendances de
+ * l'application ne sont pas installées — et `npm run build` échoue sur un dépôt
+ * fraîchement cloné. Ce qui doit être testé au même endroit que le reste vit
+ * donc ici.
+ */
+const COMMUN = fileURLToPath(new URL('../src/lib/shared', import.meta.url));
+
 export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(version) },
-  resolve: { alias: { '@partage': PARTAGE } },
+  resolve: { alias: { '@partage': PARTAGE, '@commun': COMMUN } },
   plugins: [react(), tailwindcss()],
   build: {
     outDir: 'dist',

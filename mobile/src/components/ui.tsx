@@ -1,3 +1,4 @@
+import type { SyncStatus } from '@commun/sync-status';
 import type { ReactNode, InputHTMLAttributes, SelectHTMLAttributes } from 'react';
 
 /**
@@ -308,12 +309,9 @@ export const today = (): string => {
  * Un tiers des hommes daltoniens ne distingue pas le rouge du vert, et c'est
  * une population surreprésentée dans le métier.
  */
-export type SyncTone =
-  | 'synchronise'
-  | 'en-cours'
-  | 'en-attente'
-  | 'erreur'
-  | 'hors-ligne';
+// Le même type que celui du calcul : une pastille dont la liste d'états
+// diverge de celle du moteur est une pastille qui finira par ne rien afficher.
+export type SyncTone = SyncStatus;
 
 const SYNC_LOOK: Record<SyncTone, { point: string; texte: string; libelle: string }> = {
   synchronise: {

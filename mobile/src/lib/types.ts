@@ -37,58 +37,13 @@ export type CachedParcel = {
   geometry: MultiPolygonGeometry | null;
 };
 
-/**
- * Un usage autorisé, tel que le catalogue officiel E-Phy le porte.
- *
- * Déclaré ici plutôt que dans le client d'API parce qu'il voyage désormais dans
- * l'instantané : le contrôle de dose doit fonctionner sans réseau, donc sans
- * passer par une requête.
- */
-export type CatalogUsage = {
-  id: string;
-  cropLabel: string | null;
-  targetLabel: string | null;
-  usageLabel: string | null;
-  doseValue: string | null;
-  doseUnit: string | null;
-  status: string | null;
-  preHarvestDelay: string | null;
-  maxApplications: string | null;
-  minIntervalDays: string | null;
-  zntAquaticM: string | null;
-  zntArthropodM: string | null;
-  zntPlantM: string | null;
-  conditions: string | null;
-};
+// Les formes du catalogue E-Phy vivent dans le terrain commun : une seule
+// définition pour le serveur et l'application. Deux copies d'un même type
+// finissent toujours par diverger, et le contrôle de dose du champ serait le
+// perdant.
+import type { OfflineCatalogueEntry } from '@partage/catalogue-local';
 
-/**
- * Fiche produit embarquée pour le hors-ligne.
- *
- * Même forme que la réponse en ligne : l'application applique le même contrôle
- * de dose aux deux sans savoir d'où vient la fiche. Deux formes différentes
- * finiraient par deux contrôles différents, et c'est celui du champ — donc
- * celui qui compte — qui serait le moins bon.
- */
-export type OfflineCatalogueEntry = {
-  amm: string;
-  productId: string;
-  name: string;
-  holder: string | null;
-  formulation: string | null;
-  productType: string | null;
-  /** Substances actives, telles qu'E-Phy les nomme. */
-  substances: string[];
-  status: string | null;
-  authorized: boolean;
-  withdrawnAt: string | null;
-  usages: CatalogUsage[];
-  crops: string[];
-  drainedSoilRestrictions: Array<{
-    category: string;
-    label: string;
-    severity: 'interdit' | 'a-verifier';
-  }>;
-};
+export type { CatalogUsage, OfflineCatalogueEntry } from '@partage/catalogue-local';
 
 export type Referential = {
   crops: Array<{ id: string; code: string; name: string; category: string | null }>;

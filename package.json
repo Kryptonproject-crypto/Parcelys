@@ -1,6 +1,6 @@
 {
   "name": "parcelys",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Parcelys — logiciel de gestion parcellaire agricole (SaaS)",
   "engines": {
@@ -46,10 +46,11 @@
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
     "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte",
     "audit:debit": "tsx --conditions=react-server scripts/audit-reset-debit.ts",
-    "verif:navigateur": "npm run audit:debit && npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security",
+    "verif:navigateur": "npm run audit:debit && npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:modales && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts",
     "check:telepac": "tsx --conditions=react-server scripts/check-telepac-xml.ts",
-    "check:pac": "tsx --conditions=react-server scripts/check-pac-import.ts"
+    "check:pac": "tsx --conditions=react-server scripts/check-pac-import.ts",
+    "check:modales": "node scripts/check-modales.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

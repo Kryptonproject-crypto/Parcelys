@@ -12,40 +12,14 @@ import {
 import { calculerSolde } from '@/lib/stock/balance';
 import { listRecommendations } from '@/lib/services/advisory';
 import { getEphySourceInfo, getProductUsages } from '@/lib/ephy/search';
+import type { OfflineCatalogueEntry } from '@/lib/ephy/catalogue-local';
 import type { FarmContext } from '@/lib/auth/rbac';
 
-/**
- * Un produit du catalogue officiel, embarqué pour l'usage hors ligne.
- *
- * La forme reprend exactement celle que rend `/api/phytosanitary/products/:id/
- * usages` : l'application applique le même contrôle de dose sur les deux, sans
- * savoir d'où vient la fiche. Deux formes différentes finiraient par deux
- * contrôles différents.
- */
-export type OfflineCatalogueEntry = {
-  amm: string;
-  productId: string;
-  name: string;
-  holder: string | null;
-  formulation: string | null;
-  productType: string | null;
-  /** Substances actives, telles qu'E-Phy les nomme. */
-  substances: string[];
-  status: string | null;
-  authorized: boolean;
-  withdrawnAt: string | null;
-  usages: Awaited<ReturnType<typeof getProductUsages>> extends infer R
-    ? R extends { usages: infer U }
-      ? U
-      : never
-    : never;
-  crops: string[];
-  drainedSoilRestrictions: Array<{
-    category: string;
-    label: string;
-    severity: 'interdit' | 'a-verifier';
-  }>;
-};
+// La forme d'une fiche embarquée est définie une seule fois, dans le terrain
+// commun que l'application compile aussi. Elle y était doublée : deux copies
+// d'un même type finissent toujours par diverger, et c'est le contrôle de dose
+// du champ qui serait le perdant.
+export type { OfflineCatalogueEntry } from '@/lib/ephy/catalogue-local';
 
 /**
  * Instantané destiné au cache de l'application mobile.

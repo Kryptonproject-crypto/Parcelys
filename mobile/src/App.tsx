@@ -11,7 +11,8 @@ import {
 } from './lib/storage';
 import { SERVER_URL } from './lib/config';
 import { fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
-import { synchronize, syncStatusFrom, type SyncReport } from './lib/sync';
+import { synchronize, type SyncReport } from './lib/sync';
+import { syncStatusFrom, type SyncStatus } from '@commun/sync-status';
 import { writeSnapshot } from './lib/db';
 import type { CachedParcel, Session, Snapshot } from './lib/types';
 import { LoginScreen } from './screens/Login';
@@ -53,28 +54,8 @@ export type Screen =
   | { name: 'settings' }
   | { name: 'security' };
 
-/**
- * État de la synchronisation, tel que l'exploitant doit pouvoir le lire d'un
- * coup d'œil, sans ouvrir d'écran.
- *
- * Quatre états et pas trois : « hors connexion » n'est pas une erreur, et les
- * confondre ferait passer une situation normale au champ — une parcelle sans
- * réseau — pour une panne. Inversement, « en attente » n'est pas
- * « synchronisé » : une saisie qui n'est pas partie n'existe que dans ce
- * téléphone, et c'est ce qu'il faut savoir avant de le laisser tomber dans une
- * cuve.
- */
-export type SyncStatus =
-  /** Rien en attente, réseau présent : tout est chez le serveur. */
-  | 'synchronise'
-  /** Envoi en cours. */
-  | 'en-cours'
-  /** Le dernier envoi a échoué, ou des saisies ont été refusées. */
-  | 'erreur'
-  /** Des saisies attendent, réseau présent : il reste à envoyer. */
-  | 'en-attente'
-  /** Pas de réseau. Ce n'est pas une panne. */
-  | 'hors-ligne';
+// `SyncStatus` vient du terrain commun : le voyant et son calcul vont ensemble.
+export type { SyncStatus };
 
 export type AppContext = {
   session: Session;

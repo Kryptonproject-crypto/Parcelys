@@ -19,8 +19,18 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@partage/*": ["../src/lib/ephy/*"]
+      "@partage/*": ["../src/lib/ephy/*"],
+      "@commun/*": ["../src/lib/shared/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "capacitor.config.ts", "../src/lib/ephy/dose.ts", "../src/lib/ephy/schema.ts", "../src/lib/ephy/conditions.ts"]
+  "include": [
+    "src",
+    "vite.config.ts",
+    "capacitor.config.ts",
+    "../src/lib/ephy/dose.ts",
+    "../src/lib/ephy/schema.ts",
+    "../src/lib/ephy/conditions.ts",
+    "../src/lib/ephy/catalogue-local.ts",
+    "../src/lib/shared/sync-status.ts"
+  ]
 }

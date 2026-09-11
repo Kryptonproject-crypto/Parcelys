@@ -1247,6 +1247,18 @@ cd /opt/parcelys && sudo bash scripts/update-pi.sh
 C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
 migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
 
+### Passer en 0.8.1
+
+Correctif. La 0.8.0 ne compilait pas sur le Pi : elle s'arrêtait sur
+`Cannot find module 'idb'`, et le script de mise à jour a fait ce qu'il fallait
+— il n'a pas redémarré le service, qui est resté sur la version précédente.
+Relancez simplement la mise à jour.
+
+Le formulaire de saisie d'un traitement était par ailleurs plus haut que
+l'écran sur un ordinateur portable, et son haut — titre compris — restait hors
+d'atteinte. Corrigé pour les quatre formulaires concernés : culture, couvert,
+apport et traitement.
+
 ### Passer en 0.8.0
 
 Une migration, qui élargit le type géométrique des entités PAC pour accepter les

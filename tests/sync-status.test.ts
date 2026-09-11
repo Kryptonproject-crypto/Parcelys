@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { syncStatusFrom } from '../mobile/src/lib/sync';
+import { syncStatusFrom } from '../src/lib/shared/sync-status';
 
 /**
  * Le voyant de synchronisation.

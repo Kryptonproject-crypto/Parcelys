@@ -19,7 +19,7 @@ import {
   ficheHorsLigne,
   provenanceHorsLigne,
   retiresMasques,
-} from '../lib/catalogue-local';
+} from '@partage/catalogue-local';
 import {
   ActionBar,
   Banner,

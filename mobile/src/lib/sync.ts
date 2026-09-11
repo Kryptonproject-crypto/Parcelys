@@ -164,33 +164,3 @@ export async function synchronize(
   return report;
 }
 
-/**
- * Le voyant de synchronisation, dérivé de ce qui est vrai.
- *
- * Fonction pure, et pas un état tenu à jour par écriture : un indicateur qu'on
- * met à jour à la main finit toujours par mentir, il suffit d'un chemin qui
- * oublie de le remettre à zéro. Celui-ci se recalcule du réseau, de la file et
- * du dernier envoi.
- *
- * L'ordre des cas n'est pas indifférent :
- *
- *  · l'envoi en cours passe avant tout — c'est la seule information qui
- *    demande de patienter plutôt que d'agir ;
- *  · l'absence de réseau passe avant l'erreur, sinon un échec constaté à
- *    l'entrée d'un bâtiment resterait rouge une fois le téléphone hors
- *    couverture, alors que la vraie raison n'est plus la même ;
- *  · l'erreur passe avant l'attente : une saisie refusée attend, elle aussi,
- *    mais elle ne partira pas toute seule.
- */
-export function syncStatusFrom(etat: {
-  online: boolean;
-  pending: number;
-  syncing: boolean;
-  error: string | null;
-}): 'synchronise' | 'en-cours' | 'en-attente' | 'erreur' | 'hors-ligne' {
-  if (etat.syncing) return 'en-cours';
-  if (!etat.online) return 'hors-ligne';
-  if (etat.error) return 'erreur';
-  if (etat.pending > 0) return 'en-attente';
-  return 'synchronise';
-}

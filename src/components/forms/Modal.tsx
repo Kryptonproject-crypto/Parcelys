@@ -38,7 +38,24 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+    // `items-start` et non `items-center`, y compris sur grand écran.
+    //
+    // Avec `items-center`, un dialogue plus haut que la fenêtre déborde des
+    // deux côtés à parts égales, et **le haut devient inatteignable** : le
+    // défilement ne remonte pas au-dessus de son origine. Mesuré sur le
+    // formulaire de traitement phytosanitaire, sur un écran d'ordinateur
+    // portable de 768 px : dialogue de 1 003 px, haut à −117 px, et il y
+    // restait même après avoir remonté le défilement à fond. Le titre et les
+    // premiers champs étaient perdus.
+    //
+    // Le défaut ne se voyait pas sur téléphone, où `items-start` s'appliquait
+    // déjà — d'où un contrôle de mise en page qui mesurait les largeurs
+    // mobiles sans jamais rien trouver.
+    //
+    // Le centrage vertical est rendu par `my-auto` sur le dialogue : des
+    // marges automatiques répartissent l'espace quand il y en a, et se
+    // réduisent à zéro quand il n'y en a pas, sans jamais rogner.
+    <div className="fixed inset-0 z-[1100] flex items-start justify-center overflow-y-auto p-4">
       <button
         type="button"
         aria-label="Fermer"
@@ -50,11 +67,16 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative my-4 w-full animate-fade-in rounded-xl border border-line bg-surface shadow-xl ${
+        // `max-h` + `flex-col` : le titre reste visible et c'est le
+        // formulaire qui défile, plutôt que le dialogue entier. Sur un
+        // formulaire long — le traitement phytosanitaire en compte une
+        // quinzaine de champs —, faire défiler le tout fait perdre de vue ce
+        // qu'on est en train de remplir et sur quelle parcelle.
+        className={`relative my-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col animate-fade-in rounded-xl border border-line bg-surface shadow-xl ${
           wide ? 'max-w-3xl' : 'max-w-lg'
         }`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-ink">{title}</h2>
             {description ? (
@@ -78,7 +100,10 @@ export function Modal({
           </button>
         </header>
 
-        <div className="px-5 py-4">{children}</div>
+        {/* `min-h-0` : sans lui, un enfant de flex refuse de se rétrécir
+            sous sa hauteur de contenu, et le `overflow-y-auto` ne sert à
+            rien — le dialogue déborderait à nouveau. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
   );
