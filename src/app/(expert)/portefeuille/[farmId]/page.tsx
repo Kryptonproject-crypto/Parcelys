@@ -9,6 +9,7 @@ import { listRecommendations } from '@/lib/services/advisory';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
 import type { MapParcel } from '@/components/map/ParcelsMap';
 import { RecommendationList } from '@/components/advisory/RecommendationList';
+import { ParcelFinder } from '@/components/parcels/ParcelFinder';
 import {
   Alert,
   Badge,
@@ -161,39 +162,25 @@ export default async function PortfolioFarmPage({
                 />
 
                 {/*
-                  Les parcelles nommées, sous la carte. Un polygone ne se
-                  cherche pas au doigt sur un téléphone, et rien ne disait
-                  jusqu'ici comment s'appellent les parcelles de cette
-                  exploitation — il fallait les deviner en tâtonnant.
+                  Les parcelles nommées, sous la carte, avec un champ de
+                  recherche. Un polygone ne se cherche pas au doigt sur un
+                  téléphone, et sur une exploitation de cent parcelles il
+                  fallait défiler plusieurs écrans pour trouver la bonne — quand
+                  on savait comment elle s'appelle.
                 */}
-                <ul className="mt-4 grid gap-1.5 sm:grid-cols-2">
-                  {parcels.map((parcel) => (
-                    <li key={parcel.id}>
-                      <Link
-                        href={`/portefeuille/${farm.id}/parcelles/${parcel.id}`}
-                        className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 transition-colors hover:border-champ-500/50 hover:bg-surface-2 sm:min-h-0"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-[13.5px] font-medium text-ink">
-                            {parcel.name}
-                          </span>
-                          <span className="block truncate text-[12.5px] text-ink-3">
-                            {[
-                              parcel.internalNumber,
-                              parcel.crop ?? 'sans culture déclarée',
-                              parcel.commune,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-ink-2">
-                          {formatNumberFr(parcel.areaHa, 2)} ha
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-4">
+                  <ParcelFinder
+                    parcels={parcels.map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      internalNumber: p.internalNumber,
+                      commune: p.commune,
+                      crop: p.crop,
+                      areaHa: p.areaHa,
+                    }))}
+                    hrefBase={`/portefeuille/${farm.id}/parcelles`}
+                  />
+                </div>
               </>
             ) : (
               <EmptyState

@@ -1,8 +1,42 @@
 import { useMemo, useState } from 'react';
 import type { AppContext } from '../App';
-import { formatAreaHa } from '../lib/geo';
+import {
+  dansLaParcelle,
+  distanceMeters,
+  formatAreaHa,
+  formatDistance,
+} from '../lib/geo';
+import { GeolocationDenied, currentPosition } from '../lib/geolocation';
+import type { CachedParcel, Position } from '../lib/types';
+
+/**
+ * Centre approximatif d'une géométrie, pour ne donner qu'un ordre de distance.
+ *
+ * La moyenne des sommets, pas le centroïde exact : on s'en sert pour dire « la
+ * plus proche est à 300 m », jamais pour décider dans quelle parcelle on est —
+ * cette décision-là passe par `dansLaParcelle`, qui ne se contente pas d'un
+ * à-peu-près.
+ */
+function centroidGeometrie(
+  geometry: { type: string; coordinates: unknown } | null,
+): Position | null {
+  const points: Array<[number, number]> = [];
+  const parcourir = (noeud: unknown): void => {
+    if (!Array.isArray(noeud)) return;
+    if (typeof noeud[0] === 'number' && typeof noeud[1] === 'number') {
+      points.push([noeud[0], noeud[1]]);
+      return;
+    }
+    for (const enfant of noeud) parcourir(enfant);
+  };
+  parcourir(geometry?.coordinates);
+  if (points.length === 0) return null;
+  const somme = points.reduce((a, [x, y]) => ({ x: a.x + x, y: a.y + y }), { x: 0, y: 0 });
+  return { lng: somme.x / points.length, lat: somme.y / points.length };
+}
 import {
   Badge,
+  Banner,
   Button,
   Card,
   EmptyState,
@@ -23,6 +57,62 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
   const { snapshot, online, pending, syncStatus, navigate, back, isExpert, readOnly } =
     context;
   const [search, setSearch] = useState('');
+  const [localisation, setLocalisation] = useState<'repos' | 'recherche' | 'erreur'>(
+    'repos',
+  );
+  const [messageLocalisation, setMessageLocalisation] = useState<string | null>(null);
+
+  /**
+   * Ouvre la parcelle où l'on se trouve.
+   *
+   * Trois réponses possibles, et toutes les trois doivent être dites : on est
+   * dans une parcelle, on n'est dans aucune, ou on ne sait pas. Ouvrir « la
+   * plus proche » quand on est sur la route serait la quatrième — celle qui
+   * ferait saisir un traitement sur la mauvaise parcelle.
+   */
+  async function ouLeSuisJe(): Promise<void> {
+    setLocalisation('recherche');
+    setMessageLocalisation(null);
+    try {
+      const position = await currentPosition();
+      const trouvee = (snapshot?.parcels ?? []).find((parcel) =>
+        dansLaParcelle(position, parcel.geometry),
+      );
+
+      if (trouvee) {
+        setLocalisation('repos');
+        navigate({ name: 'parcel', parcelId: trouvee.id });
+        return;
+      }
+
+      // Aucune parcelle ne contient le point : on le dit, et on donne la plus
+      // proche **à titre indicatif**, sans l'ouvrir.
+      const proche = (snapshot?.parcels ?? [])
+        .map((parcel) => {
+          const centre = centroidGeometrie(parcel.geometry);
+          return centre
+            ? { parcel, distance: distanceMeters(position, centre) }
+            : null;
+        })
+        .filter((x): x is { parcel: CachedParcel; distance: number } => x !== null)
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      setLocalisation('erreur');
+      setMessageLocalisation(
+        proche
+          ? `Vous n’êtes dans aucune de vos parcelles. La plus proche est ` +
+            `« ${proche.parcel.name} », à ${formatDistance(proche.distance)}.`
+          : 'Vous n’êtes dans aucune de vos parcelles.',
+      );
+    } catch (cause) {
+      setLocalisation('erreur');
+      setMessageLocalisation(
+        cause instanceof GeolocationDenied
+          ? cause.message
+          : 'Position introuvable. Sous les arbres ou en bâtiment, le GPS met du temps.',
+      );
+    }
+  }
 
   const waiting = (snapshot?.recommendations ?? []).filter(
     (item) => item.status === 'PROPOSED',
@@ -145,13 +235,40 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         ) : null}
 
         {snapshot ? (
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Rechercher une parcelle"
-            inputMode="search"
-            autoCapitalize="none"
-          />
+          <>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Rechercher une parcelle"
+              inputMode="search"
+              autoCapitalize="none"
+            />
+
+            {/*
+              « Où suis-je ? » — la question qu'on se pose vraiment au champ.
+              Chercher par le nom suppose qu'on le connaisse ; sur cent
+              parcelles importées d'un dossier PAC, les noms sont « Îlot 39 —
+              parcelle 3 » et personne ne les a en tête.
+
+              Le calcul se fait dans le téléphone, à partir des géométries déjà
+              en cache : la réponse arrive sans réseau, ce qui est précisément
+              la situation.
+            */}
+            <Button
+              variant="secondary"
+              full
+              loading={localisation === 'recherche'}
+              onClick={() => void ouLeSuisJe()}
+            >
+              Où suis-je ?
+            </Button>
+
+            {messageLocalisation ? (
+              <Banner tone={localisation === 'erreur' ? 'warning' : 'info'}>
+                {messageLocalisation}
+              </Banner>
+            ) : null}
+          </>
         ) : null}
 
         {!snapshot ? (

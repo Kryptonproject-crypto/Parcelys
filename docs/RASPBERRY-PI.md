@@ -1247,6 +1247,22 @@ cd /opt/parcelys && sudo bash scripts/update-pi.sh
 C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
 migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
 
+### Passer en 0.9.0
+
+**Réimportez vos dossiers PAC.** Les imports faits avant cette version n'ont pas
+rapporté la commune, le numéro d'îlot ni la culture déclarée — ils ne les
+lisaient pas. Réimporter le même dossier les ajoute sans rien perdre : vos
+traitements, apports et interventions ne bougent pas, et la campagne précédente
+non plus.
+
+Les cultures créées par l'import portent le **code du dossier** (« BTH »,
+« PPH »…) : il n'existe pas de correspondance officielle entre ce référentiel et
+celui de Parcelys, et Parcelys ne l'invente pas. Renommez-les une fois dans vos
+cultures — le rattachement vaudra pour toutes les campagnes suivantes.
+
+Le nom des communes demande un accès à internet au moment de l'import. Sans
+réseau, le code INSEE est écrit seul.
+
 ### Passer en 0.8.1
 
 Correctif. La 0.8.0 ne compilait pas sur le Pi : elle s'arrêtait sur

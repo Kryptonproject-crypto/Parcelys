@@ -276,6 +276,74 @@ async function findMatches(
   return resultats;
 }
 
+/**
+ * Rapprochement par **identité**, avant toute géométrie.
+ *
+ * Le dossier TéléPAC désigne chaque parcelle par son numéro d'îlot et son
+ * numéro dans cet îlot. C'est la clé que l'administration emploie, et un import
+ * précédent l'a déjà enregistrée : `pac_features` garde, pour chaque parcelle
+ * importée, l'îlot, le numéro et la parcelle Parcelys correspondante.
+ *
+ * Pourquoi ne pas s'en remettre à la géométrie seule
+ * ---------------------------------------------------
+ * C'est ce qui se faisait, et cela produisait des doublons. Réimporter le même
+ * dossier 2026 créait 8 parcelles en trop sur 140 — mesuré. Le rapprochement
+ * géométrique retient le meilleur recouvrement au-dessus de 0,30 : quand deux
+ * parcelles voisines se ressemblent, ou qu'un contour a bougé d'une campagne à
+ * l'autre, il se trompe de voisine ou ne trouve personne. L'identité, elle, ne
+ * se trompe pas : c'est la même parcelle déclarée sous le même numéro.
+ *
+ * La géométrie reste utile — pour un premier import, ou pour une parcelle
+ * renumérotée — mais en second rang.
+ */
+async function findMatchesByIdentity(
+  farmId: string,
+  identites: Array<{ ilot: string | null; numero: string | null }>,
+): Promise<Array<{ parcelId: string; parcelName: string; parcelAreaHa: number } | null>> {
+  const utiles = identites.filter((i) => i.ilot && i.numero);
+  if (utiles.length === 0) return identites.map(() => null);
+
+  // Une seule requête pour tout le dossier : une par parcelle ferait 134
+  // allers-retours sur le dossier 2026.
+  const connues = await prisma.pacFeature.findMany({
+    where: {
+      campaign: { farmId },
+      kind: 'PARCELLE',
+      parcelId: { not: null },
+      parcel: { deletedAt: null },
+    },
+    select: {
+      numero: true,
+      parcelId: true,
+      ilot: { select: { numero: true } },
+      campaign: { select: { year: true } },
+      parcel: { select: { name: true, areaHa: true } },
+    },
+    // La campagne la plus récente d'abord : si une parcelle a changé de main
+    // entre deux campagnes, c'est la dernière qui vaut.
+    orderBy: { campaign: { year: 'desc' } },
+  });
+
+  const parIdentite = new Map<
+    string,
+    { parcelId: string; parcelName: string; parcelAreaHa: number }
+  >();
+  for (const c of connues) {
+    if (!c.ilot?.numero || !c.numero || !c.parcelId || !c.parcel) continue;
+    const cle = `${c.ilot.numero}#${c.numero}`;
+    if (parIdentite.has(cle)) continue;
+    parIdentite.set(cle, {
+      parcelId: c.parcelId,
+      parcelName: c.parcel.name,
+      parcelAreaHa: Number(c.parcel.areaHa),
+    });
+  }
+
+  return identites.map((i) =>
+    i.ilot && i.numero ? (parIdentite.get(`${i.ilot}#${i.numero}`) ?? null) : null,
+  );
+}
+
 /** Analyse un dossier déjà lu, sans rien écrire. */
 export async function analyzeDossier(params: {
   farmId: string;
@@ -359,9 +427,39 @@ export async function analyzeDossier(params: {
     // les autres sont assemblées depuis leurs anneaux.
     const wkts = layer.features.map((f) => f.wkt ?? ringsToWkt(f.rings));
     const projetees = await projectAndMeasure(wkts, srid);
-    const correspondances = layer.isIlotLayer
+    // Identité d'abord, géométrie ensuite. Une parcelle déjà importée sous le
+    // même numéro est la même parcelle : aucun recouvrement à calculer.
+    const mapping0 = mapping;
+    const identites = layer.features.map((f) => ({
+      ilot: pickAttribute(f.attributes, mapping0.ilot),
+      numero: pickAttribute(f.attributes, mapping0.numero),
+    }));
+    const parIdentite = layer.isIlotLayer
+      ? identites.map(() => null)
+      : await findMatchesByIdentity(params.farmId, identites);
+
+    const parGeometrie = layer.isIlotLayer
       ? projetees.map(() => null)
       : await findMatches(params.farmId, projetees.map((p) => p.geojson));
+
+    // Une parcelle Parcelys ne peut être revendiquée qu'une fois : sans cette
+    // garde, deux entités du dossier se rapprochant de la même parcelle la
+    // mettraient toutes deux à jour, et la géométrie retenue dépendrait de
+    // l'ordre de lecture.
+    const revendiquees = new Set<string>();
+    const correspondances = layer.features.map((_, index) => {
+      const exact = parIdentite[index];
+      if (exact && !revendiquees.has(exact.parcelId)) {
+        revendiquees.add(exact.parcelId);
+        return { ...exact, overlap: 1, identite: true };
+      }
+      const approche = parGeometrie[index];
+      if (approche && !revendiquees.has(approche.parcelId)) {
+        revendiquees.add(approche.parcelId);
+        return { ...approche, identite: false };
+      }
+      return null;
+    });
 
     layer.features.forEach((f, index) => {
       const projete = projetees[index];
@@ -403,8 +501,12 @@ export async function analyzeDossier(params: {
         match: match
           ? {
               ...match,
-              reason:
-                match.overlap > 0.9
+              // Dire **sur quoi** repose le rapprochement : l'exploitant qui
+              // relit l'aperçu ne juge pas de la même façon un numéro
+              // identique et un recouvrement de 42 %.
+              reason: match.identite
+                ? 'Déjà importée sous ce numéro d’îlot et de parcelle.'
+                : match.overlap > 0.9
                   ? 'Même emprise que cette parcelle.'
                   : `Recouvre ${Math.round(match.overlap * 100)} % de cette parcelle.`,
               decision: 'update',

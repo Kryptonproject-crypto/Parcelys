@@ -44,7 +44,10 @@ async function etatAgronomique(farmId: string) {
     prisma.agriculturalOperation.count({ where: { parcel: { farmId } } }),
     prisma.phytosanitaryApplication.count({ where: { cropYear: { parcel: { farmId } } } }),
     prisma.fertilizerApplication.count({ where: { cropYear: { parcel: { farmId } } } }),
-    prisma.cropYear.count({ where: { parcel: { farmId } } }),
+    prisma.cropYear.findMany({
+      where: { parcel: { farmId } },
+      select: { id: true, cropId: true, campaignYear: true, parcelId: true },
+    }),
     prisma.parcelGeometry.count({ where: { parcel: { farmId } } }),
   ]);
   return { operations, phyto, fertilisation, cropYears, geometries };
@@ -134,7 +137,8 @@ async function main() {
   });
   console.info(
     `État avant : ${parcellesAvant} parcelles, ${avant.operations} interventions, ` +
-      `${avant.phyto} traitements, ${avant.fertilisation} apports, ${avant.cropYears} cultures.`,
+      `${avant.phyto} traitements, ${avant.fertilisation} apports, ` +
+      `${avant.cropYears.length} cultures.`,
   );
 
   const campagnes: number[] = [];
@@ -164,10 +168,31 @@ async function main() {
     'les apports de fertilisation sont intacts',
     `${avant.fertilisation} → ${apres.fertilisation}`,
   );
+  // L'import **ajoute** désormais la culture déclarée aux parcelles qui n'en
+  // avaient pas : le compte grandit, et c'est voulu. Ce qui ne doit pas
+  // bouger, c'est ce qui était déjà là — l'exploitant a pu corriger ce que la
+  // déclaration disait, et sa saisie prime.
+  const parId = new Map(apres.cropYears.map((c) => [c.id, c]));
+  const disparues = avant.cropYears.filter((c) => !parId.has(c.id));
+  const modifiees = avant.cropYears.filter((c) => {
+    const apresC = parId.get(c.id);
+    return (
+      apresC !== undefined &&
+      (apresC.cropId !== c.cropId ||
+        apresC.campaignYear !== c.campaignYear ||
+        apresC.parcelId !== c.parcelId)
+    );
+  });
   attendu(
-    apres.cropYears === avant.cropYears,
-    'les cultures déjà saisies sont intactes',
-    `${avant.cropYears} → ${apres.cropYears}`,
+    disparues.length === 0 && modifiees.length === 0,
+    'les cultures déjà saisies ne sont ni supprimées ni modifiées',
+    `${disparues.length} disparue(s), ${modifiees.length} modifiée(s) ` +
+      `sur ${avant.cropYears.length}`,
+  );
+  attendu(
+    apres.cropYears.length >= avant.cropYears.length,
+    'les cultures déclarées viennent s’ajouter',
+    `${avant.cropYears.length} → ${apres.cropYears.length}`,
   );
   attendu(
     apres.geometries >= avant.geometries,
@@ -232,15 +257,36 @@ async function main() {
       where: { campaign: { farmId: farm.id, year: campagnes[campagnes.length - 1] } },
     });
 
+    const parcellesAvantRejeu = await prisma.parcel.count({
+      where: { farmId: farm.id, deletedAt: null },
+    });
+
     console.info('\n▸ second import de la même campagne');
-    await importer(dernier, farm.id);
+    const rejeu = await importer(dernier, farm.id);
+    console.info(
+      `  ${rejeu.resultat.created} créée(s), ${rejeu.resultat.updated} mise(s) à jour, ` +
+        `${rejeu.resultat.ignored} ignorée(s)`,
+    );
+
+    const parcellesApresRejeu = await prisma.parcel.count({
+      where: { farmId: farm.id, deletedAt: null },
+    });
+    attendu(
+      parcellesApresRejeu === parcellesAvantRejeu,
+      'le second import ne crée pas de parcelle en double',
+      `${parcellesAvantRejeu} → ${parcellesApresRejeu}`,
+    );
 
     const apresRejeu = await etatAgronomique(farm.id);
     attendu(
       apresRejeu.operations === avantRejeu.operations &&
         apresRejeu.phyto === avantRejeu.phyto &&
-        apresRejeu.fertilisation === avantRejeu.fertilisation,
+        apresRejeu.fertilisation === avantRejeu.fertilisation &&
+        // La culture déclarée a déjà été rattachée au premier import : le
+        // second ne doit pas en créer une seconde pour la même campagne.
+        apresRejeu.cropYears.length === avantRejeu.cropYears.length,
       'un second import ne touche toujours pas aux données agronomiques',
+      `${avantRejeu.cropYears.length} → ${apresRejeu.cropYears.length} cultures`,
     );
 
     const entitesApres = await prisma.pacFeature.count({
@@ -270,6 +316,59 @@ async function main() {
       `${sauvegardes} sauvegarde(s)`,
     );
   }
+
+  // ---- Les données du dossier atteignent-elles la fiche parcelle ? -------
+  //
+  // Le dossier porte le code INSEE de la commune (sur l'îlot) et le code
+  // culture (sur la parcelle). Ils restaient dans les attributs sans jamais
+  // atteindre la parcelle : celle-ci arrivait sans commune et sans culture.
+  const parcellesPac = await prisma.parcel.findMany({
+    where: { farmId: farm.id, deletedAt: null, parcelType: 'PAC' },
+    select: {
+      id: true,
+      inseeCode: true,
+      commune: true,
+      internalNumber: true,
+      cropYears: { select: { campaignYear: true, crop: { select: { code: true } } } },
+    },
+  });
+
+  console.info(`\n▸ ce que les parcelles importées ont reçu (${parcellesPac.length})`);
+
+  const avecInsee = parcellesPac.filter((p) => p.inseeCode !== null);
+  attendu(
+    parcellesPac.length > 0 && avecInsee.length === parcellesPac.length,
+    'chaque parcelle importée porte le code INSEE de sa commune',
+    `${avecInsee.length}/${parcellesPac.length}`,
+  );
+
+  const avecNumero = parcellesPac.filter((p) => p.internalNumber !== null);
+  attendu(
+    avecNumero.length > 0,
+    'le numéro îlot-parcelle de la déclaration est repris',
+    `${avecNumero.length}/${parcellesPac.length}`,
+  );
+
+  const avecCulture = parcellesPac.filter((p) => p.cropYears.length > 0);
+  attendu(
+    avecCulture.length === parcellesPac.length,
+    'chaque parcelle importée porte la culture déclarée',
+    `${avecCulture.length}/${parcellesPac.length}`,
+  );
+
+  const codes = [
+    ...new Set(parcellesPac.flatMap((p) => p.cropYears.map((c) => c.crop.code))),
+  ].sort();
+  console.info(`  codes culture rattachés : ${codes.join(', ') || '(aucun)'}`);
+
+  // Le nom de la commune demande le réseau : son absence n'est pas un échec.
+  const avecCommune = parcellesPac.filter((p) => p.commune !== null);
+  console.info(
+    `  commune nommée : ${avecCommune.length}/${parcellesPac.length}` +
+      (avecCommune.length === 0
+        ? ' (géocodeur injoignable — le code INSEE part seul, rien n’est inventé)'
+        : ''),
+  );
 
   console.info(`\n${echecs === 0 ? '✓' : '✗'} import PAC : ${echecs} échec(s).`);
   await prisma.$disconnect();

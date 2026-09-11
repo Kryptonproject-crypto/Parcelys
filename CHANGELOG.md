@@ -6,6 +6,84 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.0 — Ce que l'import rapporte vraiment, et trouver sa parcelle
+
+### L'import PAC remplissait la carte, pas la fiche
+
+Le dossier TéléPAC porte le code INSEE de la commune (sur l'îlot), le numéro
+d'îlot et de parcelle, et le code culture (sur la parcelle). Aucun des trois
+n'atteignait la fiche : la parcelle importée arrivait avec un contour, une
+surface, et rien d'autre. Signalé après le premier import réel.
+
+Les trois remontent désormais. Sur le dossier 2026 : **141 parcelles sur 141**
+avec leur code INSEE et leur culture déclarée, 138 avec leur numéro d'îlot.
+
+Deux choses ne sont pas inventées pour autant :
+
+- **Le nom de la commune n'est pas dans le dossier.** Il est retrouvé par le
+  même géocodeur que la saisie manuelle, une requête par commune distincte, et
+  seulement s'il tombe d'accord avec le code INSEE déclaré. Sans réseau, le code
+  part seul.
+- **Le code culture PAC (« BTH ») et celui de Parcelys (« BLE_TENDRE ») sont
+  deux référentiels distincts**, sans correspondance officielle dans le dossier.
+  Une culture portant le code déclaré est donc créée, et vous la renommez une
+  fois : le rattachement vaut ensuite pour toutes les campagnes, puisque c'est
+  le code qui fait la clé.
+
+La culture créée par un import porte une note qui dit d'où elle vient. Une
+déclaration corrigée peut ainsi corriger ce qu'un import précédent avait écrit,
+**sans jamais toucher** à une culture que vous avez saisie ou corrigée — la
+note disparaît dès qu'on modifie la ligne.
+
+### Réimporter créait des parcelles en double
+
+Trouvé en vérifiant le point précédent : réimporter le même dossier 2026 créait
+**8 parcelles en trop sur 140**. Le rapprochement se faisait uniquement par
+géométrie — meilleur recouvrement au-dessus de 0,30 —, et quand deux parcelles
+voisines se ressemblent ou qu'un contour a bougé, il se trompe de voisine ou ne
+trouve personne.
+
+Le dossier désigne pourtant chaque parcelle par son numéro d'îlot et son numéro
+dans cet îlot. C'est la clé que l'administration emploie, et un import précédent
+l'a déjà enregistrée. Le rapprochement se fait donc par **identité** d'abord, la
+géométrie ne servant plus que de repli — pour un premier import, ou une parcelle
+renumérotée. Résultat mesuré : 0 doublon, 134 parcelles rapprochées par leur
+numéro. L'aperçu dit maintenant sur quoi repose chaque rapprochement.
+
+Une parcelle ne peut par ailleurs plus être revendiquée deux fois : sans cette
+garde, deux entités du dossier se rapprochant de la même parcelle la mettaient
+toutes deux à jour, et la géométrie retenue dépendait de l'ordre de lecture.
+
+### Trouver sa parcelle
+
+**L'espace expert n'avait aucune recherche.** Sur une exploitation de cent
+parcelles, il fallait deviner en tâtonnant sur la carte. Un champ filtre
+maintenant la liste à la frappe, sans recharger la page — une recherche qui
+coûte une seconde par lettre sur une liaison de campagne ne sert à personne.
+Nom, numéro d'îlot, commune, lieu-dit, culture : les cinq façons dont on désigne
+une parcelle.
+
+**« Où suis-je ? » sur l'application.** Chercher par le nom suppose qu'on le
+connaisse ; sur cent parcelles importées d'un dossier PAC, elles s'appellent
+« Îlot 39 — parcelle 3 » et personne ne les a en tête. Le bouton ouvre la
+parcelle où l'on se trouve, calculé dans le téléphone à partir des géométries en
+cache — donc sans réseau, ce qui est la situation.
+
+Trois réponses, jamais quatre : on est dans une parcelle, on n'est dans aucune —
+et la plus proche est alors nommée sans être ouverte —, ou la position est
+introuvable. Ouvrir « la plus proche » quand on roule sur la route qui la borde
+ferait saisir un traitement sur la mauvaise parcelle. Les trous comptent : une
+mare au milieu d'une parcelle n'est pas la parcelle.
+
+### Le retour à la liste perdait tout
+
+Depuis une fiche parcelle, « ← Retour aux parcelles » pointait sur `/parcelles`
+en dur : recherche, filtre, vue et campagne étaient perdus. Sur 140 parcelles,
+cela veut dire refaire la recherche à chaque aller-retour — et on n'en fait pas
+deux. Le contexte de la liste voyage désormais avec le lien et revient avec lui.
+
+---
+
 ## 0.8.1 — Deux défauts trouvés en déployant
 
 La 0.8.0 ne s'est pas installée. Les deux défauts ci-dessous ont la même

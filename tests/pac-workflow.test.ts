@@ -178,16 +178,83 @@ describe('Parcours PAC / TéléPAC', () => {
       });
     }
 
-    // Un nouvel import de 2026 ne doit rien emporter.
+    // Un nouvel import de 2026 ne doit rien emporter — et doit rattacher la
+    // culture que la déclaration porte pour cette campagne-là.
     await importer(user.farmId, user.id, [
       { num: '1', ilot: '10', culture: 'TRN', x: 650000, y: 6860000, cote: 400 },
     ]);
 
     const annees = await prisma.cropYear.findMany({
       where: { parcelId: parcelle.id },
+      include: { crop: { select: { code: true } } },
       orderBy: { campaignYear: 'asc' },
     });
-    expect(annees.map((a) => a.campaignYear)).toEqual([2024, 2025]);
+
+    // 2024 et 2025 intacts : c'est ce que ce test protège depuis le début.
+    expect(annees.map((a) => a.campaignYear)).toEqual([2024, 2025, 2026]);
+    expect(annees.slice(0, 2).map((a) => a.crop.code)).toEqual(['BTH', 'BTH']);
+
+    // Et 2026 porte le code déclaré. Auparavant l'import n'en créait aucune :
+    // une parcelle importée arrivait sans culture, alors que le dossier la
+    // déclare — et c'est elle qui commande le contrôle de dose, le bilan azoté
+    // et le registre.
+    expect(annees[2]?.crop.code).toBe('TRN');
+  });
+
+  it('respecte la culture corrigée à la main, mais corrige la sienne', async () => {
+    // Deux règles qui se ressemblent et ne doivent pas être confondues :
+    //
+    //  · une déclaration corrigée doit pouvoir corriger ce qu'un import
+    //    précédent avait écrit — sinon réimporter ne sert à rien ;
+    //  · une culture saisie par l'exploitant prime toujours — il a pu corriger
+    //    ce que la déclaration disait, et l'écraser serait perdre son travail.
+    //
+    // Elles se distinguent par la note posée à la création : elle disparaît dès
+    // que quelqu'un modifie la ligne.
+    const user = await createUserWithFarm({ email: 'pac11@ferme.test', farmName: 'GAEC PAC' });
+
+    await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+      { num: '2', ilot: '10', culture: 'BTH', x: 651000, y: 6860000, cote: 400 },
+    ]);
+
+    const parcelles = await prisma.parcel.findMany({
+      where: { farmId: user.farmId, deletedAt: null },
+      orderBy: { name: 'asc' },
+    });
+    expect(parcelles).toHaveLength(2);
+
+    // L'exploitant corrige la première : le dossier disait blé, c'était orge.
+    const orge = await prisma.crop.create({
+      data: { farmId: user.farmId, code: 'ORGE_SAISIE', name: 'Orge d’hiver' },
+    });
+    const corrigee = await prisma.cropYear.findFirstOrThrow({
+      where: { parcelId: parcelles[0]!.id, campaignYear: 2026 },
+    });
+    await prisma.cropYear.update({
+      where: { id: corrigee.id },
+      // Modifier la ligne efface la marque : c'est ce que fait l'interface.
+      data: { cropId: orge.id, notes: null },
+    });
+
+    // La déclaration est corrigée de son côté, et réimportée.
+    await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'TRN', x: 650000, y: 6860000, cote: 400 },
+      { num: '2', ilot: '10', culture: 'TRN', x: 651000, y: 6860000, cote: 400 },
+    ]);
+
+    const apres = await prisma.cropYear.findMany({
+      where: { parcel: { farmId: user.farmId }, campaignYear: 2026 },
+      include: { crop: { select: { code: true } }, parcel: { select: { id: true } } },
+    });
+
+    const surCorrigee = apres.find((a) => a.parcel.id === parcelles[0]!.id);
+    const surIntacte = apres.find((a) => a.parcel.id === parcelles[1]!.id);
+
+    // La saisie de l'exploitant tient.
+    expect(surCorrigee?.crop.code).toBe('ORGE_SAISIE');
+    // Celle que l'import avait écrite suit la nouvelle déclaration.
+    expect(surIntacte?.crop.code).toBe('TRN');
   });
 
   it('garde la géométrie précédente au lieu de l’écraser', async () => {

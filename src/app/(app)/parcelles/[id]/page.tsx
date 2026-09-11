@@ -44,9 +44,25 @@ export default async function ParcelPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ onglet?: string }>;
+  searchParams: Promise<{ onglet?: string; retour?: string }>;
 }) {
   const { id } = await params;
+
+  /**
+   * Le contexte de la liste, rapporté tel qu'il en venait.
+   *
+   * Le lien de retour pointait sur `/parcelles` en dur : recherche, filtre,
+   * vue et campagne étaient perdus à chaque aller-retour. Sur une exploitation
+   * de 140 parcelles, cela suffit à ne plus s'en servir.
+   *
+   * Le paramètre est reconstruit par `URLSearchParams` plutôt que recollé tel
+   * quel : une chaîne venue de l'adresse ne doit pas se retrouver dans un
+   * `href` sans avoir été relue.
+   */
+  const { retour } = await searchParams;
+  const retourListe = retour
+    ? `/parcelles?${new URLSearchParams(retour).toString()}`
+    : '/parcelles';
   const { onglet } = await searchParams;
 
   const { ctx } = await requirePageParcelAccess(id, 'parcel:read');
@@ -155,7 +171,10 @@ export default async function ParcelPage({
       <PageHeader
         title={parcel.name}
         breadcrumb={
-          <Link href="/parcelles" className="hover:text-champ-700 dark:hover:text-champ-400">
+          <Link
+            href={retourListe}
+            className="hover:text-champ-700 dark:hover:text-champ-400"
+          >
             ← Retour aux parcelles
           </Link>
         }

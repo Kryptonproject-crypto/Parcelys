@@ -128,3 +128,8 @@ export function formatAreaHa(hectares: number): string {
     maximumFractionDigits: 2,
   })} ha`;
 }
+
+// `dansLaParcelle` vit désormais dans le terrain commun (`@commun/geometrie`) :
+// elle doit pouvoir être testée avec le reste, et un module mobile ne peut pas
+// l'être sans casser la compilation du serveur.
+export { dansLaParcelle } from '@commun/geometrie';

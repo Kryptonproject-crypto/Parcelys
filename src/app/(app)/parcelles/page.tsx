@@ -59,6 +59,27 @@ export default async function ParcelsPage({
   const env = getEnv();
 
   const year = Number(params.annee) || currentCampaignYear();
+
+  /**
+   * Le contexte de la liste, transporté jusqu'à la fiche et rapporté au retour.
+   *
+   * Sans lui, « ← Retour aux parcelles » ramenait à la liste **nue** : filtre,
+   * recherche, vue (liste / tableau / carte) et campagne, tout était perdu. Sur
+   * une exploitation de 140 parcelles, cela veut dire refaire la recherche à
+   * chaque aller-retour — et on n'en fait pas deux.
+   *
+   * Un seul paramètre plutôt que de recopier chaque filtre : la fiche n'a pas à
+   * connaître la liste des critères de la liste, qui changera.
+   */
+  const contexteListe = new URLSearchParams(
+    Object.entries(params).filter(
+      (entree): entree is [string, string] => typeof entree[1] === 'string' && entree[1] !== '',
+    ),
+  ).toString();
+  const lienFiche = (id: string) =>
+    contexteListe
+      ? `/parcelles/${id}?retour=${encodeURIComponent(contexteListe)}`
+      : `/parcelles/${id}`;
   const view = params.vue === 'carte' ? 'carte' : params.vue === 'tableau' ? 'tableau' : 'liste';
 
   const where: Prisma.ParcelWhereInput = {
@@ -346,7 +367,7 @@ export default async function ParcelsPage({
                     <Td className="text-ink-3">{parcel.internalNumber ?? '—'}</Td>
                     <Td>
                       <Link
-                        href={`/parcelles/${parcel.id}`}
+                        href={lienFiche(parcel.id)}
                         className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                       >
                         {parcel.name}
@@ -390,7 +411,7 @@ export default async function ParcelsPage({
               {parcels.map((parcel) => (
                 <Link
                   key={parcel.id}
-                  href={`/parcelles/${parcel.id}`}
+                  href={lienFiche(parcel.id)}
                   className="rounded-xl border border-line bg-surface p-4 transition hover:border-champ-300 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2">
