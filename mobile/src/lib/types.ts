@@ -25,6 +25,11 @@ export type CachedParcel = {
   name: string;
   internalNumber: string | null;
   commune: string | null;
+  /**
+   * Lieu-dit. Renseigné à la saisie ou repris de la déclaration, c'est l'une
+   * des façons dont une parcelle se désigne — la recherche le cherche aussi.
+   */
+  lieuDit: string | null;
   areaHa: number;
   status: string;
   cropName: string | null;
@@ -207,6 +212,7 @@ export type Snapshot = {
 /** Type d'opération que la file d'attente sait rejouer. */
 export type OperationKind =
   | 'parcel.create'
+  | 'parcel.rename'
   | 'fertilization.create'
   | 'phyto.create'
   | 'operation.create'
@@ -216,6 +222,7 @@ export type OperationKind =
 
 export const OPERATION_LABELS: Record<OperationKind, string> = {
   'parcel.create': 'Nouvelle parcelle',
+  'parcel.rename': 'Parcelle renommée',
   'fertilization.create': 'Apport',
   'phyto.create': 'Traitement',
   'operation.create': 'Travail',

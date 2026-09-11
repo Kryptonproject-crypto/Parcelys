@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getEnv } from '@/lib/env';
 import { badRequest } from '@/lib/api/errors';
@@ -159,6 +159,35 @@ export async function deleteDocument(storageKey: string): Promise<void> {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== 'ENOENT') throw error;
   }
+}
+
+/**
+ * Efface le dossier de stockage d'une exploitation, fichiers compris.
+ *
+ * Appelé par la suppression définitive : les pièces jointes d'une exploitation
+ * vivent toutes sous `UPLOAD_DIR/<farmId>/`, et effacer leurs lignes en base
+ * sans effacer les fichiers laisserait sur le disque des factures, des analyses
+ * de sol et des photos de parcelles qu'on a promis d'avoir détruites.
+ *
+ * `resolveStoragePath` s'applique aussi ici : l'identifiant vient de la base,
+ * mais un chemin qui s'échappe de la racine ne doit jamais être effaçable, quel
+ * qu'en soit l'auteur.
+ *
+ * Rend le nombre d'entrées trouvées dans le dossier avant effacement, pour que
+ * l'administration puisse dire ce qui a été détruit plutôt que l'affirmer.
+ */
+export async function deleteFarmStorage(farmId: string): Promise<number> {
+  const dossier = resolveStoragePath(farmId);
+  let entrees = 0;
+  try {
+    entrees = (await readdir(dossier)).length;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return 0;
+    throw error;
+  }
+  await rm(dossier, { recursive: true, force: true });
+  return entrees;
 }
 
 export { formatBytes } from '@/lib/storage/format';

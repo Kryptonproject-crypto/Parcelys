@@ -204,6 +204,19 @@ export async function listAdminFarms(): Promise<AdminFarmRow[]> {
     },
   });
 
+  // Les enregistrements du registre phytosanitaire, par exploitation.
+  //
+  // Ils ne servent pas à décorer la liste : c'est le nombre que l'écran
+  // d'effacement définitif affiche avant de détruire. Annoncer « des
+  // registres » sans dire combien ne laisse pas mesurer ce qu'on perd.
+  const registres = await prisma.$queryRaw<Array<{ farm_id: string; n: bigint }>>`
+    SELECT p.farm_id, count(*)::bigint AS n
+    FROM phytosanitary_applications a
+    JOIN parcels p ON p.id = a.parcel_id
+    GROUP BY p.farm_id
+  `;
+  const phytoParFerme = new Map(registres.map((r) => [r.farm_id, Number(r.n)]));
+
   return farms.map((farm) => ({
     id: farm.id,
     name: farm.name,
@@ -214,6 +227,7 @@ export async function listAdminFarms(): Promise<AdminFarmRow[]> {
     createdAt: farm.createdAt.toISOString(),
     members: farm._count.members,
     parcels: farm.parcels.length,
+    phytoRecords: phytoParFerme.get(farm.id) ?? 0,
     areaHa: farm.parcels.reduce((sum, p) => sum + Number(p.areaHa), 0),
     owners: farm.members.map((m) => m.user.email),
   }));

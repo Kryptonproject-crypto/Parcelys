@@ -16,6 +16,7 @@ import { computeParcelContext } from '@/lib/regulatory/geography';
 import { couchesPourExploitation } from '@/lib/regulatory/map-layers';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
 import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
+import { RenameParcel } from '@/app/(app)/parcelles/[id]/RenameParcel';
 import {
   Badge,
   Card,
@@ -201,9 +202,21 @@ export default async function ParcelPage({
         actions={
           <>
             {canEditParcel ? (
-              <LinkButton href={`/parcelles/${id}/modifier`} variant="outline">
-                Modifier
-              </LinkButton>
+              <>
+                {/* Renommer d'abord : c'est le geste que l'on fait cent fois
+                    après un import, quand « Îlot 39 — parcelle 3 » doit
+                    devenir « La Croix Rouge ». « Modifier » ouvre l'assistant
+                    complet, contour compris — ce n'est pas le même besoin. */}
+                <RenameParcel
+                  parcelId={id}
+                  name={parcel.name}
+                  internalNumber={parcel.internalNumber}
+                  lieuDit={parcel.lieuDit}
+                />
+                <LinkButton href={`/parcelles/${id}/modifier`} variant="outline">
+                  Modifier
+                </LinkButton>
+              </>
             ) : null}
             {canDeleteParcel ? (
               <ParcelActions parcelId={id} parcelName={parcel.name} />

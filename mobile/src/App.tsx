@@ -76,6 +76,22 @@ export type AppContext = {
   readOnly: boolean;
   refreshPending: () => Promise<void>;
   refreshSnapshot: () => Promise<void>;
+  /**
+   * Renomme une parcelle dans l'instantané local, tout de suite.
+   *
+   * Le renommage part par la file d'attente comme toute saisie, et la file
+   * peut attendre des heures avant de trouver du réseau. Sans cette écriture
+   * locale, on renomme au champ et l'écran continue d'afficher « Îlot 39 —
+   * parcelle 3 » : on croit que ça n'a pas marché, et on recommence.
+   *
+   * Ce que ce n'est pas : une vérité. Le serveur reste seul juge — il peut
+   * refuser un numéro interne déjà pris —, et le prochain instantané écrase
+   * cette valeur locale par la sienne.
+   */
+  renommerLocalement: (
+    parcelId: string,
+    valeurs: { name: string; internalNumber: string | null; lieuDit: string | null },
+  ) => Promise<void>;
   selectFarm: (farmId: string) => Promise<void>;
   navigate: (screen: Screen) => void;
   back: () => void;
@@ -244,6 +260,26 @@ export function App() {
     [session, snapshot],
   );
 
+  const renommerLocalement = useCallback(
+    async (
+      parcelId: string,
+      valeurs: { name: string; internalNumber: string | null; lieuDit: string | null },
+    ) => {
+      if (!snapshot) return;
+      const suivant = {
+        ...snapshot,
+        parcels: snapshot.parcels.map((parcel) =>
+          parcel.id === parcelId ? { ...parcel, ...valeurs } : parcel,
+        ),
+      };
+      // Écrit sur le disque autant qu'en mémoire : redémarrer l'application
+      // hors réseau ne doit pas faire réapparaître l'ancien nom.
+      await writeSnapshot(suivant);
+      setSnapshot(suivant);
+    },
+    [snapshot],
+  );
+
   const logout = useCallback(async () => {
     if (session) await apiLogout(session);
     await Promise.all([
@@ -301,6 +337,7 @@ export function App() {
     readOnly: snapshot?.advisory ?? false,
     refreshPending,
     refreshSnapshot,
+    renommerLocalement,
     selectFarm,
     navigate,
     back,

@@ -13,6 +13,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { GEOJSON_DECIMALES } from '@/lib/geo/repository';
 import type { PacFeatureKind } from '@prisma/client';
 import type { DossierLayer } from '@/lib/pac/dossier';
 import {
@@ -181,7 +182,11 @@ async function projectAndMeasure(wkts: Array<string | null>, srid: number): Prom
       SELECT
         i,
         CASE WHEN gv IS NULL THEN NULL
-             ELSE ST_AsGeoJSON(ST_Transform(gv, 4326))
+             -- Pleine précision : ce GeoJSON est ce que l'import écrira en
+             -- base. À neuf décimales, l'arrondi suffisait à replier deux
+             -- sommets voisins l'un sur l'autre et à rendre invalide une
+             -- géométrie que le fichier portait valide.
+             ELSE ST_AsGeoJSON(ST_Transform(gv, 4326), ${GEOJSON_DECIMALES}::int)
         END AS geojson,
         CASE WHEN gv IS NULL THEN NULL
              ELSE ST_Area(ST_Transform(gv, 4326)::geography) / 10000.0

@@ -9,6 +9,19 @@ import { z } from 'zod';
  */
 export const SYNC_OPERATION_KINDS = [
   'parcel.create',
+  /**
+   * Renommer une parcelle depuis le terrain.
+   *
+   * C'est là qu'on sait comment elle s'appelle : devant elle. Un import
+   * TéléPAC la nomme « Îlot 39 — parcelle 3 », et le nom qu'on lui donne
+   * vraiment vient au moment où l'on y est, rarement à la maison le soir.
+   *
+   * La seule modification que la file accepte, et elle ne porte que sur des
+   * libellés : ni contour, ni surface, ni rien de ce que la déclaration a
+   * apporté. Renommer deux fois avec le même nom donne le même résultat —
+   * l'opération est idempotente par nature, ce qui la rend sûre à rejouer.
+   */
+  'parcel.rename',
   'fertilization.create',
   'phyto.create',
   'operation.create',

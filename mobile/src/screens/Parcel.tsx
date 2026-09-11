@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type { AppContext } from '../App';
 import type { CachedParcel } from '../lib/types';
 import { formatAreaHa } from '../lib/geo';
-import { Badge, Card, Header } from '../components/ui';
+import { enqueue } from '../lib/db';
+import { Badge, Banner, Button, Card, Field, Header, Input } from '../components/ui';
 
 /**
  * Fiche d'une parcelle : ce qu'on en sait, et ce qu'on peut y saisir.
@@ -21,7 +23,65 @@ export function ParcelScreen({
   context: AppContext;
   parcel: CachedParcel;
 }) {
-  const { back, navigate, readOnly } = context;
+  const { back, navigate, readOnly, refreshPending, renommerLocalement } = context;
+
+  /**
+   * Renommer la parcelle, depuis le champ.
+   *
+   * C'est là qu'on sait comment elle s'appelle : devant elle. Un import
+   * TéléPAC la nomme « Îlot 39 — parcelle 3 » ; le nom qu'on lui donne
+   * vraiment vient au moment où l'on y est, pas le soir à la maison.
+   *
+   * L'expert en mission de conseil ne renomme pas : le parcellaire appartient
+   * à l'exploitation. Le serveur le refuserait de toute façon — cette
+   * condition-ci évite seulement de proposer un geste voué à l'échec.
+   */
+  const [renommage, setRenommage] = useState(false);
+  const [nom, setNom] = useState(parcel.name);
+  const [numero, setNumero] = useState(parcel.internalNumber ?? '');
+  const [lieu, setLieu] = useState(parcel.lieuDit ?? '');
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+
+  function ouvrirRenommage(): void {
+    setNom(parcel.name);
+    setNumero(parcel.internalNumber ?? '');
+    setLieu(parcel.lieuDit ?? '');
+    setErreur(null);
+    setRenommage(true);
+  }
+
+  async function enregistrerNom(): Promise<void> {
+    const propre = nom.trim();
+    if (!propre) {
+      setErreur('Donnez un nom à la parcelle.');
+      return;
+    }
+    setEnvoi(true);
+    try {
+      const valeurs = {
+        name: propre,
+        internalNumber: numero.trim() || null,
+        lieuDit: lieu.trim() || null,
+      };
+      // Comme toute saisie : par la file d'attente, réseau ou pas. Un seul
+      // chemin de code, donc un seul comportement à vérifier.
+      await enqueue({
+        clientId: crypto.randomUUID(),
+        kind: 'parcel.rename',
+        parcelId: parcel.id,
+        label: `Parcelle « ${propre} »`,
+        capturedAt: new Date().toISOString(),
+        attempts: 0,
+        payload: valeurs,
+      });
+      await renommerLocalement(parcel.id, valeurs);
+      await refreshPending();
+      setRenommage(false);
+    } finally {
+      setEnvoi(false);
+    }
+  }
 
   const ADVISOR_ACTIONS = [
     {
@@ -107,13 +167,76 @@ export function ParcelScreen({
       <Header
         title={parcel.name}
         subtitle={
-          [parcel.internalNumber, parcel.commune].filter(Boolean).join(' · ') ||
-          undefined
+          [parcel.internalNumber, parcel.lieuDit, parcel.commune]
+            .filter(Boolean)
+            .join(' · ') || undefined
         }
         onBack={back}
+        action={
+          readOnly || renommage ? undefined : (
+            <button
+              type="button"
+              onClick={ouvrirRenommage}
+              className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-accent-ink"
+            >
+              Renommer
+            </button>
+          )
+        }
       />
 
       <div className="flex-1 space-y-4 px-4 py-4">
+        {renommage ? (
+          <Card>
+            <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ink-3">
+              Renommer la parcelle
+            </h2>
+            <div className="space-y-3">
+              {erreur ? <Banner tone="danger">{erreur}</Banner> : null}
+
+              <Field label="Nom de la parcelle" required>
+                <Input
+                  value={nom}
+                  onChange={(event) => setNom(event.target.value)}
+                  placeholder="La Croix Rouge"
+                  autoFocus
+                />
+              </Field>
+
+              <Field label="Numéro interne">
+                <Input
+                  value={numero}
+                  onChange={(event) => setNumero(event.target.value)}
+                  placeholder="39-3"
+                  inputMode="text"
+                />
+              </Field>
+
+              <Field label="Lieu-dit">
+                <Input
+                  value={lieu}
+                  onChange={(event) => setLieu(event.target.value)}
+                  placeholder="Les Sauvattes"
+                />
+              </Field>
+
+              <p className="text-[12px] leading-snug text-ink-3">
+                Le nom que vous employez sur l’exploitation. Il ne change rien à votre
+                déclaration PAC, et part à la synchronisation comme vos autres saisies.
+              </p>
+
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setRenommage(false)} disabled={envoi}>
+                  Annuler
+                </Button>
+                <Button onClick={() => void enregistrerNom()} disabled={envoi}>
+                  {envoi ? 'Enregistrement…' : 'Enregistrer'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
         <Card>
           <div className="flex items-start justify-between gap-4">
             <div>

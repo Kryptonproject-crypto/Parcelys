@@ -6,6 +6,7 @@ import {
   formatAreaHa,
   formatDistance,
 } from '../lib/geo';
+import { contientSansAccent } from '@commun/texte';
 import { GeolocationDenied, currentPosition } from '../lib/geolocation';
 import type { CachedParcel, Position } from '../lib/types';
 
@@ -118,14 +119,30 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
     (item) => item.status === 'PROPOSED',
   ).length;
 
+  /**
+   * La recherche, telle qu'on tape au champ.
+   *
+   * Elle comparait en minuscules seulement : « cote » ne trouvait pas
+   * « La Côte », « chene » ne trouvait pas « Le Chêne ». Les parcelles portent
+   * des noms de lieux français, et personne ne met les accents sur un clavier
+   * de téléphone, une main sur le volant. `contientSansAccent` vient du
+   * terrain commun — c'est la même règle que le site, et un test confronte les
+   * deux implémentations, celle-ci et celle de la base.
+   *
+   * Le lieu-dit s'ajoute aux quatre champs déjà cherchés : c'est souvent par
+   * lui qu'on désigne une parcelle à quelqu'un.
+   */
   const parcels = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = search.trim();
     const all = snapshot?.parcels ?? [];
     if (!term) return all;
     return all.filter((parcel) =>
-      [parcel.name, parcel.internalNumber, parcel.commune, parcel.cropName]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(term)),
+      contientSansAccent(
+        [parcel.name, parcel.internalNumber, parcel.commune, parcel.lieuDit, parcel.cropName]
+          .filter(Boolean)
+          .join(' '),
+        term,
+      ),
     );
   }, [snapshot, search]);
 

@@ -32,6 +32,15 @@ export type AuditAction =
   // laissent une trace, même si la suppression reste logique.
   | 'farm.deleted_by_admin'
   | 'farm.restored_by_admin'
+  /**
+   * Suppression définitive d'une exploitation par un administrateur.
+   *
+   * La ligne survit à ce qu'elle décrit : `AuditLog.farmId` passe à `NULL` avec
+   * la cascade, et le nom de l'exploitation ainsi que le décompte de ce qui a
+   * été détruit sont recopiés dans les métadonnées. Effacer les données d'une
+   * exploitation ne doit pas effacer la trace qu'on l'a fait.
+   */
+  | 'farm.purged_by_admin'
   | 'parcel.created'
   | 'parcel.updated'
   | 'parcel.geometry_updated'

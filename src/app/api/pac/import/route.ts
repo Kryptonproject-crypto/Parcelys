@@ -165,8 +165,23 @@ export const PUT = route(async (request: NextRequest) => {
       {
         ...resultat,
         message:
-          `${resultat.created} parcelle(s) créée(s), ${resultat.updated} mise(s) à jour. ` +
-          "Une sauvegarde a été prise avant l'import.",
+          `${resultat.created} parcelle(s) créée(s), ${resultat.updated} mise(s) à jour, ` +
+          `${resultat.crops} culture(s) rattachée(s). ` +
+          "Une sauvegarde a été prise avant l'import." +
+          // TéléPAC réattribue les numéros libérés d'une campagne à l'autre.
+          // Quand deux parcelles distinctes revendiquent le même, Parcelys ne
+          // les fond pas et suffixe le numéro interne de la seconde — mieux
+          // vaut le dire que le laisser découvrir dans une colonne.
+          (resultat.renumerotees.length > 0
+            ? ` ${resultat.renumerotees.length} numéro(s) de parcelle étaient déjà ` +
+              `employés par d’autres parcelles (${resultat.renumerotees
+                .slice(0, 3)
+                .map((r) => `${r.declare} → ${r.attribue}`)
+                .join(', ')}` +
+              `${resultat.renumerotees.length > 3 ? '…' : ''}) : ` +
+              'le numéro interne a été complété pour rester unique. Vous pouvez ' +
+              'renommer ces parcelles depuis leur fiche.'
+            : ''),
       },
       201,
     );

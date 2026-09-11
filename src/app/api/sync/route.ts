@@ -8,6 +8,7 @@ import { getChangesSince } from '@/lib/services/mobile';
 import { badRequest } from '@/lib/api/errors';
 
 import { POST as createParcel } from '@/app/api/parcels/route';
+import { PUT as updateParcel } from '@/app/api/parcels/[id]/route';
 import { POST as createFertilization } from '@/app/api/parcels/[id]/fertilization/route';
 import { POST as createPhyto } from '@/app/api/parcels/[id]/phytosanitary/route';
 import { POST as createOperation } from '@/app/api/parcels/[id]/operations/route';
@@ -43,6 +44,13 @@ type RouteHandler = (
 type OperationSpec = {
   handler: RouteHandler;
   /**
+   * Méthode portée par la requête interne. Toutes les opérations créaient
+   * jusqu'ici ; le renommage d'une parcelle modifie, et la requête doit le
+   * dire — les routes ne s'en servent pas pour s'aiguiller, mais une requête
+   * qui annonce POST là où elle met à jour égare quiconque lit le journal.
+   */
+  method?: 'POST' | 'PUT';
+  /**
    * Ressource que l'opération vise, et dont l'identifiant doit accompagner la
    * saisie : la parcelle où l'on est intervenu, la préconisation à laquelle on
    * répond. `none` pour une création qui ne dépend de rien d'existant.
@@ -60,6 +68,21 @@ const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
     handler: createParcel as RouteHandler,
     target: 'none',
     path: () => '/api/parcels',
+  },
+  /**
+   * Renommer une parcelle depuis le terrain.
+   *
+   * La route appelée est celle du site : c'est elle qui vérifie que la
+   * parcelle appartient bien à l'exploitation connectée, et qui refuse un
+   * numéro interne déjà pris. Le corps envoyé ne porte que des libellés — le
+   * schéma de la route accepte d'autres champs, mais l'application n'en met
+   * aucun, et ce que le téléphone n'envoie pas, la route ne modifie pas.
+   */
+  'parcel.rename': {
+    handler: updateParcel as RouteHandler,
+    method: 'PUT',
+    target: 'parcel',
+    path: (op) => `/api/parcels/${op.parcelId}`,
   },
   'fertilization.create': {
     handler: createFertilization as RouteHandler,
@@ -132,6 +155,7 @@ function subRequest(
   path: string,
   body: unknown,
   idempotencyKey: string,
+  method: 'POST' | 'PUT' = 'POST',
 ): NextRequest {
   const headers = new Headers({ 'content-type': 'application/json' });
   for (const name of FORWARDED_HEADERS) {
@@ -141,7 +165,7 @@ function subRequest(
   headers.set(IDEMPOTENCY_HEADER, idempotencyKey);
 
   return new NextRequest(new URL(path, original.nextUrl.origin), {
-    method: 'POST',
+    method,
     headers,
     body: JSON.stringify(body ?? {}),
   });
@@ -194,7 +218,13 @@ export const POST = route(async (request: NextRequest) => {
     }
 
     const response = await spec.handler(
-      subRequest(request, spec.path(operation), operation.payload, operation.clientId),
+      subRequest(
+        request,
+        spec.path(operation),
+        operation.payload,
+        operation.clientId,
+        spec.method ?? 'POST',
+      ),
       { params: Promise.resolve({ id: targetId(operation) }) },
     );
 

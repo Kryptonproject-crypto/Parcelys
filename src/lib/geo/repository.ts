@@ -2,6 +2,7 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { badRequest } from '@/lib/api/errors';
+import { campagneCourante } from '@/lib/shared/campagne';
 import {
   closeRings,
   toMultiPolygon,
@@ -16,6 +17,36 @@ import {
  * SQL — toujours en requêtes paramétrées (`$queryRaw` en template balisé), donc
  * insensibles à l'injection.
  */
+
+/**
+ * Décimales à conserver quand une géométrie transite en GeoJSON.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CE NOMBRE N'EST PAS LAISSÉ AU HASARD
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `ST_AsGeoJSON` arrondit à neuf décimales par défaut. En degrés, la neuvième
+ * décimale vaut environ 0,1 mm : largement assez pour afficher une carte, et
+ * pas assez pour faire l'aller-retour.
+ *
+ * Constaté sur le dossier TéléPAC 2022 réel, îlot 28 parcelle 40 : 55 sommets,
+ * géométrie **valide** dans le fichier, valide après `ST_MakeValid`, valide
+ * après projection en 4326 — et invalide dès qu'elle passait par le GeoJSON à
+ * neuf décimales, l'arrondi ramenant deux sommets voisins au même point.
+ * PostGIS renvoyait alors `Self-intersection`, et l'import de toute la campagne
+ * s'arrêtait là. La donnée n'avait rien : c'est le format de transport qui la
+ * cassait.
+ *
+ * Quinze décimales suffisent à retrouver un `double` sans perte (un flottant
+ * IEEE 754 porte quinze à dix-sept chiffres significatifs). Vérifié sur cette
+ * parcelle-là : invalide à 9, valide à 12, valide à 15, pour 2 140 octets au
+ * lieu de 1 516 — le prix d'une géométrie qui survit à son propre transport.
+ *
+ * À employer partout où une géométrie **revient en base** : analyse d'import,
+ * sauvegarde avant import, lecture pour modification. Pas pour l'affichage,
+ * où la charge utile compte davantage que le dixième de millimètre.
+ */
+export const GEOJSON_DECIMALES = 15;
 
 export type GeometryMetrics = {
   areaHa: number;
@@ -129,7 +160,10 @@ export async function getParcelGeometry(
   parcelId: string,
 ): Promise<MultiPolygonGeometry | null> {
   const rows = await prisma.$queryRaw<Array<{ geojson: string }>>`
-    SELECT ST_AsGeoJSON(geom) AS geojson
+    -- Pleine précision : cette géométrie est relue par l'assistant de
+    -- modification, puis réenregistrée telle quelle. Un arrondi au passage
+    -- ferait dériver le contour à chaque ouverture de la fiche.
+    SELECT ST_AsGeoJSON(geom, ${GEOJSON_DECIMALES}::int) AS geojson
     FROM parcel_geometries
     WHERE parcel_id = ${parcelId} AND is_current = true
     LIMIT 1
@@ -148,6 +182,8 @@ export type ParcelFeature = {
     name: string;
     internalNumber: string | null;
     commune: string | null;
+    /** Lieu-dit : l'une des façons dont on désigne une parcelle, donc cherchable. */
+    lieuDit: string | null;
     areaHa: number;
     status: string;
     crop: string | null;
@@ -165,7 +201,15 @@ export async function getFarmParcelsGeoJSON(
   farmId: string,
   campaignYear?: number,
 ): Promise<{ type: 'FeatureCollection'; features: ParcelFeature[] }> {
-  const year = campaignYear ?? new Date().getFullYear();
+  /*
+   * La campagne, pas l'année civile.
+   *
+   * Ce défaut prenait `getFullYear()` alors que tout le reste du site emploie
+   * la campagne culturale : le 11 septembre 2026, cette fonction cherchait la
+   * culture de 2026 quand la page affichait 2027. Une seule définition
+   * désormais, celle de `@/lib/shared/campagne`.
+   */
+  const year = campaignYear ?? campagneCourante();
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -173,6 +217,7 @@ export async function getFarmParcelsGeoJSON(
       name: string;
       internal_number: string | null;
       commune: string | null;
+      lieu_dit: string | null;
       area_ha: string;
       status: string;
       crop_name: string | null;
@@ -185,6 +230,7 @@ export async function getFarmParcelsGeoJSON(
       p.name,
       p.internal_number,
       p.commune,
+      p.lieu_dit,
       p.area_ha::text AS area_ha,
       p.status::text  AS status,
       p.drained_soil,
@@ -217,6 +263,7 @@ export async function getFarmParcelsGeoJSON(
         name: row.name,
         internalNumber: row.internal_number,
         commune: row.commune,
+        lieuDit: row.lieu_dit,
         areaHa: Number(row.area_ha),
         status: row.status,
         crop: row.crop_name,

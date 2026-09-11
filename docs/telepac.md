@@ -155,11 +155,30 @@ rappelle à chaque import.
 - 🔴 *n* géométries invalides
 
 **Le détail.** Chaque ligne indique l'îlot, le numéro, la culture, la surface
-mesurée, et le rapprochement proposé avec le pourcentage de recouvrement.
+mesurée, et le rapprochement proposé — avec **sur quoi il repose**, ce qui n'est
+pas la même chose selon les cas :
 
-Le rapprochement compare les emprises réelles : deux découpages du même champ se
-reconnaissent, deux parcelles voisines non. En dessous de 30 % de recouvrement,
-Parcelys considère qu'il s'agit d'une parcelle différente.
+- *« Déjà importée sous ce numéro d'îlot et de parcelle. »* — le rapprochement
+  se fait d'abord par **identité déclarée**. C'est la clé que l'administration
+  emploie, et un import précédent l'a déjà enregistrée : elle ne se trompe pas.
+- *« Même emprise que cette parcelle. »* ou *« Recouvre 42 % de cette
+  parcelle. »* — à défaut d'identité connue, Parcelys compare les emprises
+  réelles. En dessous de 30 % de recouvrement, il considère qu'il s'agit d'une
+  parcelle différente.
+
+La géométrie ne sert donc plus qu'en second rang : pour un premier import, ou
+pour une parcelle renumérotée. C'est ce qui empêche un réimport de créer des
+doublons quand un contour a bougé d'une campagne à l'autre.
+
+**Après l'import**, le message peut signaler des numéros complétés. TéléPAC
+réattribue les numéros libérés : un champ est l'îlot 13 parcelle 72 en 2022,
+l'îlot 13 parcelle 10 en 2024, et le numéro 72 revient ensuite à un autre champ.
+Quand deux parcelles distinctes revendiquent « 13-72 », Parcelys **ne les fond
+pas** — ce serait déplacer un registre phytosanitaire sur le mauvais champ — et
+complète le numéro interne de la seconde en « 13-72 (2025) ». Ce numéro-là est
+interne à Parcelys : les numéros d'îlot et de parcelle déclarés, eux, restent
+intacts dans les entités PAC, et ce sont ceux-là qu'un contrôle regarde. Vous
+pouvez renommer ces parcelles depuis leur fiche.
 
 Si tout est cohérent : **Importer**.
 
@@ -171,6 +190,19 @@ Une parcelle importée depuis TéléPAC est **une parcelle Parcelys comme les
 autres**. Elle apparaît sur la carte, dans la liste, et vous y accédez à tout ce
 que Parcelys sait faire : culture, fertilisation, phytosanitaire,
 interventions, semis, récolte, rendement, historique.
+
+**Donnez-lui son vrai nom.** L'import la nomme d'après la déclaration —
+« Îlot 39 — parcelle 3 » —, ce qui est juste et inutilisable au quotidien. Le
+bouton **Renommer**, sur la fiche, ouvre un formulaire qui ne porte que le nom,
+le numéro interne et le lieu-dit : ni carte, ni contour, ni rien de ce que la
+déclaration a apporté. Le même bouton existe dans l'application de terrain,
+où il fonctionne sans réseau — c'est devant la parcelle qu'on sait comment elle
+s'appelle.
+
+Ce nom est ensuite celui que la recherche trouve, **sans qu'il faille taper les
+accents** : « cote » trouve « La Côte », « chene » trouve « Le Chêne ». La
+recherche porte aussi sur le numéro interne, la commune, le lieu-dit et la
+culture.
 
 Le module PAC n'est pas un espace séparé : il alimente le parcellaire, puis
 s'efface.
@@ -326,6 +358,24 @@ l'export avec ce que demande la notice de la campagne, disponible sur TéléPAC.
 Si elles diffèrent, dites-le : ajouter un adaptateur de campagne est une petite
 modification (voir [section 11](#11-pour-les-développeurs)).
 
+### La renumérotation d'une campagne à l'autre n'est pas résolue, elle est signalée
+
+Constaté sur les cinq campagnes réelles 2022→2026 d'une même exploitation :
+TéléPAC renumérote, et réattribue les numéros libérés. Un champ est l'îlot 13
+parcelle 72 en 2022 et l'îlot 13 parcelle 10 en 2024 ; le numéro 72 revient
+ensuite à un autre champ.
+
+Il n'existe aucune information, dans le dossier, qui dise qu'un ancien numéro et
+un nouveau désignent le même champ. Parcelys ne l'invente donc pas : quand deux
+parcelles distinctes revendiquent le même numéro, il **crée la seconde** plutôt
+que de fondre les deux — fusionner à tort déplacerait un registre
+phytosanitaire sur le mauvais champ, ce qui est bien pire qu'une parcelle en
+trop.
+
+Sur le parcellaire éprouvé, cela représente 6 parcelles sur 150. Elles portent
+un numéro interne complété (« 13-72 (2025) »), le message d'import les signale,
+et vous les renommez ou les supprimez depuis leur fiche.
+
 ### Ce qui n'est pas géré
 
 - **Les SNA et ZDH** sont importées, conservées et distinguées des parcelles,
@@ -399,11 +449,30 @@ même parcelle. Les surfaces sont mesurées par `ST_Area(geom::geography)`, jama
 lues dans le fichier — la surface déclarée est affichée à côté quand elle
 diffère, comme information.
 
+### Précision du GeoJSON de transport
+
+`GEOJSON_DECIMALES` (`src/lib/geo/repository.ts`) vaut **15**, et doit être
+employé partout où une géométrie **revient en base** : analyse d'import,
+sauvegarde avant import, lecture pour modification.
+
+Ce n'est pas de la coquetterie. `ST_AsGeoJSON` arrondit à neuf décimales par
+défaut, soit un dixième de millimètre en degrés. Sur le dossier 2022 réel, îlot
+28 parcelle 40, 55 sommets : la géométrie était **valide** dans le fichier,
+valide après `ST_MakeValid`, valide après projection en 4326 — et invalide dès
+qu'elle repassait par un GeoJSON à neuf décimales, l'arrondi repliant deux
+sommets voisins l'un sur l'autre. PostGIS renvoyait `Self-intersection`, et
+l'import de toute la campagne s'arrêtait là.
+
+L'affichage, lui, garde le défaut : neuf décimales suffisent à une carte, et la
+charge utile compte davantage sur un téléphone.
+
 ### Tests
 
 ```bash
-npx vitest run tests/pac-shapefile.test.ts   # conformité du format
-npx vitest run tests/pac-workflow.test.ts    # parcours complet
+npx vitest run tests/pac-shapefile.test.ts      # conformité du format
+npx vitest run tests/pac-workflow.test.ts       # parcours complet
+npx vitest run tests/cloisonnement-pac.test.ts  # cloisonnement et campagnes
+npm run check:pac -- DossierPAC2022.xml …       # de bout en bout, vraie base
 ```
 
 `pac-shapefile.test.ts` relit nos fichiers avec le paquet `shapefile`,
@@ -413,3 +482,14 @@ prouverait rien, deux erreurs symétriques se compensant.
 `pac-workflow.test.ts` couvre le parcours entier — import, rapprochement,
 modification, contrôle, export, réimport — et vérifie notamment que les surfaces
 ne dérivent pas d'un aller-retour à l'autre.
+
+`cloisonnement-pac.test.ts` rejoue une attaque réelle : un import lancé depuis
+une exploitation, avec l'identifiant d'une parcelle d'une autre glissé dans les
+décisions. Elle réécrivait cette parcelle-là avant correction. Le fichier couvre
+aussi l'indépendance des campagnes, l'absence de doublons quand un contour a
+bougé, et la concordance entre la surface affichée et celle que mesure PostGIS.
+
+`check:pac` importe de vrais dossiers dans une vraie base et contrôle ce qui
+reste après coup : registres intacts, campagnes conservées, aucun doublon,
+totaux déclarés et mesurés concordants. C'est le seul contrôle qui puisse le
+dire — aucun test unitaire ne porte sur l'état de la base.

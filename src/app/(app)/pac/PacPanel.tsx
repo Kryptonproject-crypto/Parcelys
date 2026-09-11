@@ -74,6 +74,10 @@ type ControlReport = {
 
 export type PacDashboard = {
   year: number;
+  /** « 1ᵉʳ août 2025 → 31 juillet 2026 » — de quelle année on parle. */
+  periode: string;
+  /** Pourquoi cette campagne-là s'est ouverte ; `null` si l'utilisateur l'a choisie. */
+  raisonDefaut: string | null;
   ilotCount: number;
   parcelCount: number;
   areaHa: number;
@@ -81,8 +85,23 @@ export type PacDashboard = {
   lastExportAt: string | null;
   changesSinceImport: number;
   snapshots: Array<{ id: string; label: string; parcelCount: number; createdAt: string }>;
-  availableYears: number[];
+  campagnes: Array<{
+    year: number;
+    ilots: number;
+    entites: number;
+    parcellesAvecCulture: number;
+    importee: boolean;
+  }>;
 };
+
+/** « 2026 — 39 îlots, 141 parcelles » : ce que la campagne contient, dans la liste. */
+function libelleCampagne(c: PacDashboard['campagnes'][number]): string {
+  const parties: string[] = [];
+  if (c.ilots > 0) parties.push(`${c.ilots} îlot${c.ilots > 1 ? 's' : ''}`);
+  if (c.parcellesAvecCulture > 0) parties.push(`${c.parcellesAvecCulture} culture(s)`);
+  if (parties.length === 0) return `${c.year} — vide`;
+  return `${c.year} — ${parties.join(', ')}`;
+}
 
 const LIBELLES: Record<string, string> = {
   externalId: 'Identifiant',
@@ -241,7 +260,17 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
         <CardHeader
           icon={IconArea}
           title={`Campagne ${dashboard.year}`}
-          description="État du dossier PAC de cette exploitation."
+          description={
+            /*
+             * De quelle année on parle, et pourquoi celle-ci.
+             *
+             * Cette page annonçait « Campagne 2026 » le jour où la liste des
+             * parcelles affichait « Campagne 2027 » : deux définitions de la
+             * campagne coexistaient, et aucun écran ne disait laquelle il
+             * employait. Il n'y en a plus qu'une, et elle est écrite.
+             */
+            `${dashboard.periode}${dashboard.raisonDefaut ? ` · ${dashboard.raisonDefaut}` : ''}`
+          }
           action={<Badge tone={etatDossier.tone}>{etatDossier.texte}</Badge>}
         />
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -281,19 +310,32 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Campagne" htmlFor="pac-year">
+            {/*
+             * Le sélecteur de campagne commande toute la page, pas seulement
+             * l'import.
+             *
+             * Il ne changeait qu'une variable locale : on pouvait choisir 2025,
+             * importer dans 2025, et lire au-dessus « Campagne 2026 » avec les
+             * chiffres de 2026. Deux campagnes à l'écran en même temps, dont
+             * une fausse. Il recharge maintenant la page sur la campagne
+             * choisie — une seule campagne affichée à la fois, celle qu'on a
+             * demandée.
+             */}
+            <Field label="Campagne" htmlFor="pac-year" hint={dashboard.periode}>
               <Select
                 id="pac-year"
                 value={year}
                 onChange={(e) => {
-                  setYear(Number(e.target.value));
+                  const choisie = Number(e.target.value);
+                  setYear(choisie);
                   setAnalysis(null);
                   setControl(null);
+                  router.push(`/pac?annee=${choisie}`);
                 }}
               >
-                {dashboard.availableYears.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
+                {dashboard.campagnes.map((c) => (
+                  <option key={c.year} value={c.year}>
+                    {libelleCampagne(c)}
                   </option>
                 ))}
               </Select>
@@ -302,14 +344,21 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
             <Field
               label="Fichiers"
               htmlFor="pac-files"
-              hint="Archive ZIP, ou les fichiers .shp, .shx, .dbf et .prj ensemble."
+              hint="L’export XML de TéléPAC, une archive ZIP, ou les fichiers .shp, .shx, .dbf et .prj ensemble."
             >
               <input
                 id="pac-files"
                 ref={champFichiers}
                 type="file"
                 multiple
-                accept=".zip,.shp,.shx,.dbf,.prj,.cpg"
+                /*
+                 * `.xml` en tête : c'est le format que TéléPAC donne
+                 * réellement (« DossierPAC2026_dossier_<pacage>_….xml »).
+                 * Il manquait de cette liste, et le sélecteur de fichiers du
+                 * navigateur grisait donc le seul fichier que l'exploitant
+                 * possède.
+                 */
+                accept=".xml,.zip,.shp,.shx,.dbf,.prj,.cpg"
                 onChange={(e) => {
                   setFiles(Array.from(e.target.files ?? []));
                   setAnalysis(null);

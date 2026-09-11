@@ -78,6 +78,13 @@ export type AdminFarmRow = {
   createdAt: string;
   members: number;
   parcels: number;
+  /**
+   * Enregistrements du registre phytosanitaire.
+   *
+   * Affiché avant un effacement définitif : c'est ce chiffre-là qui dit ce
+   * qu'on s'apprête à détruire. « Des registres » ne se mesure pas.
+   */
+  phytoRecords: number;
   areaHa: number;
   owners: string[];
 };

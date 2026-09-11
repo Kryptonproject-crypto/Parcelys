@@ -216,6 +216,36 @@ Supprimer un compte qui est **l'unique propriétaire** d'une exploitation demand
 un second geste : l'écran nomme les exploitations concernées et propose soit de
 désigner un autre propriétaire, soit de les supprimer avec le compte.
 
+### Supprimer une exploitation, et l'effacer pour de bon
+
+**Administration → Exploitations** offre deux gestes qui ne sont pas le même.
+
+**Supprimer** est réversible : l'exploitation disparaît de l'application, les
+experts qui la suivaient perdent l'accès, et rien n'est effacé. C'est ce qu'il
+faut la plupart du temps — une exploitation porte des registres phytosanitaires
+et des bilans de fertilisation, des pièces que l'exploitant doit conserver et
+qu'un clic ne doit pas pouvoir détruire. Elle se rétablit telle quelle.
+
+**Effacer définitivement** ne se défait pas. Tout est détruit : parcelles et
+contours, cultures, apports, traitements, travaux, campagnes PAC, documents, et
+**les fichiers correspondants sur le disque** — que la base ne connaît pas et
+qui resteraient sans cela sous `UPLOAD_DIR/<exploitation>/`. C'est ce qu'il faut
+pour honorer une demande d'effacement.
+
+Trois verrous, parce qu'un seul ne suffit pas à une action sans retour :
+
+1. l'exploitation doit **déjà être supprimée** — on n'efface pas en un geste
+   depuis la liste ;
+2. son **nom exact doit être retapé** ; le bouton reste inerte tant qu'il ne
+   correspond pas ;
+3. ce qui va être détruit est **compté et annoncé** avant d'agir, et rapporté
+   après.
+
+Deux choses survivent, délibérément : le **journal d'administration**, qui garde
+la trace de l'effacement, son auteur, le nom disparu et le décompte de ce qui a
+été détruit ; et les **comptes des membres**, qui subsistent sans exploitation —
+un utilisateur n'appartient pas à une exploitation, il en est membre.
+
 ### Monter la version
 
 La version vit à **quatre endroits** — `package.json`, `package-lock.json`,

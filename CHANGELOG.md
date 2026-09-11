@@ -6,6 +6,152 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.1 — Une seule campagne, un nom qu'on retrouve, et une faille fermée
+
+### Une exploitation pouvait écrire dans le parcellaire d'une autre
+
+Trouvé en auditant le cloisonnement des modèles PAC, qui sont arrivés après les
+55 contrôles de sécurité existants et n'y figuraient pas.
+
+L'aperçu d'import permet de désigner soi-même la parcelle qu'une entité du
+dossier doit mettre à jour, quand la correspondance proposée ne convient pas.
+Cet identifiant vient du navigateur, et il était employé tel quel :
+`parcel.update({ where: { id } })` ne regarde pas à qui la parcelle appartient.
+
+Mesuré sur la base avant correction : un import lancé depuis l'exploitation A,
+avec l'identifiant d'une parcelle de l'exploitation B glissé dans les décisions,
+**réécrivait cette parcelle-là** — type, code INSEE, `pacId`, superficie
+(12,3456 ha devenus 2,6702), plus une géométrie et une culture créées chez le
+voisin. Aucune des deux exploitations n'en voyait rien.
+
+Deux garde-fous, parce qu'ils ne protègent pas la même chose : la demande est
+refusée et le dit, et l'écriture elle-même est bornée à l'exploitation, de sorte
+que la base refuse la ligne étrangère même si un futur chemin de code
+contournait la vérification. Les deux ont été éprouvés séparément, en
+débranchant l'un puis l'autre.
+
+`tests/cloisonnement-pac.test.ts` rejoue cette attaque, et couvre le reste du
+domaine PAC : sauvegardes, campagnes, îlots, entités.
+
+### Deux campagnes différentes, le même jour, sur le même écran
+
+La page PAC prenait l'année civile ; tout le reste du site prenait la campagne
+culturale, qui bascule au 1ᵉʳ août. Le 11 septembre 2026, Parcelys affichait
+donc « Campagne 2026 » sur la page PAC et « Campagne 2027 » sur la liste des
+parcelles, sans qu'un mot explique l'écart.
+
+Ce n'était pas qu'une gêne. Un dossier TéléPAC 2026 importé ce jour-là rattache
+ses cultures à la campagne 2026 ; la liste des parcelles, qui affiche la
+campagne en cours, montrait alors 141 parcelles « sans culture déclarée ». Les
+cultures étaient bien en base — c'est l'écran qui regardait ailleurs.
+
+Une seule définition désormais (`src/lib/shared/campagne.ts`), partagée avec
+l'application mobile. Et surtout, les écrans **disent** de quoi ils parlent :
+
+- la période est écrite sous chaque sélecteur — « 1ᵉʳ août 2026 → 31 juillet 2027 » ;
+- chaque campagne proposée dit ce qu'elle contient : « 2026 — 141 culture(s), 47 îlots PAC » ;
+- quand la campagne affichée est vide et qu'une autre ne l'est pas, un bandeau
+  le signale et offre le lien. Il ne bascule pas tout seul : une saisie qui
+  atterrirait dans une campagne qu'on n'a pas choisie serait pire que la liste
+  vide qu'on corrige.
+
+La campagne s'incrémente d'elle-même chaque 1ᵉʳ août — 2027, puis 2028 —, sans
+tâche annuelle ni bascule à la main. Le 1ᵉʳ août est un **usage** des grandes
+cultures, pas une date réglementaire, et Parcelys ne le présente jamais comme
+telle.
+
+Sur la page PAC, le sélecteur commande enfin toute la page : il ne changeait
+qu'une variable locale, si bien qu'on pouvait choisir 2025, importer dans 2025,
+et lire au-dessus « Campagne 2026 » avec les chiffres de 2026.
+
+### Le dossier 2022 ne pouvait pas être importé
+
+Constaté en rejouant les cinq campagnes réelles de bout en bout : l'import de
+2022 s'arrêtait sur `Self-intersection`, et toute la campagne était perdue.
+
+La géométrie n'avait rien. Îlot 28 parcelle 40, 55 sommets : **valide** dans le
+fichier, valide après réparation, valide après projection — et invalide dès
+qu'elle passait par le GeoJSON qui la transporte jusqu'à la base. `ST_AsGeoJSON`
+arrondit à neuf décimales par défaut, soit un dixième de millimètre, et
+l'arrondi repliait deux sommets voisins l'un sur l'autre.
+
+Quinze décimales partout où une géométrie **revient en base** : analyse
+d'import, sauvegarde avant import, lecture pour modification. Les cinq campagnes
+2022→2026 s'importent désormais sans un échec.
+
+### Donner un nom à sa parcelle, et la retrouver avec
+
+Un import TéléPAC nomme les parcelles d'après la déclaration : « Îlot 39 —
+parcelle 3 ». C'est juste, et inutilisable au quotidien.
+
+**Renommer** se faisait jusqu'ici par l'assistant complet — la carte, le
+contour, le type de sol — pour changer trois mots. Un bouton « Renommer » ouvre
+maintenant un formulaire qui ne porte que le nom, le numéro interne et le
+lieu-dit, sur le site comme dans l'application de terrain, où il part par la
+file d'attente comme toute saisie et s'affiche aussitôt, réseau ou pas.
+
+**Chercher** ne trouvait pas ce qu'on tapait : la recherche était insensible à
+la casse, pas aux accents. « cote » ne trouvait pas « La Côte », « chene » ne
+trouvait pas « Le Chêne ». Or on tape sans accent, au champ, sur un téléphone —
+c'est précisément là que la recherche sert.
+
+La comparaison se fait des deux côtés sans accent, dans la base comme dans
+l'application. Deux implémentations, donc un risque de divergence :
+`tests/recherche-parcelles.test.ts` les confronte sur des noms réels. Il a
+d'ailleurs servi tout de suite, en attrapant une table SQL qui rendait
+« vallee de l'auf » là où le JavaScript rendait « vallee de l'œuf ».
+
+### Doublons, hectares, indépendance des campagnes
+
+Vérifié sur les cinq dossiers réels 2022→2026, importés l'un après l'autre dans
+une vraie base :
+
+- **aucun doublon** : ni deux parcelles pour un même couple îlot/parcelle, ni
+  deux fois la même parcelle déclarée dans une campagne ;
+- **les hectares concordent** : la surface affichée est celle que mesure
+  PostGIS à moins d'un demi-mètre carré sur 150 parcelles, et le total mesuré
+  rejoint le total déclaré à 0,00 % sur chacune des cinq campagnes
+  (431,87 / 431,75 / 543,18 / 544,54 / 542,80 ha) ;
+- **les campagnes sont indépendantes** : 58 parcelles portent des cultures
+  différentes selon l'année, et importer une campagne ne touche pas aux
+  précédentes.
+
+Un défaut au passage : TéléPAC réattribue les numéros libérés d'une campagne à
+l'autre, et quand deux parcelles distinctes revendiquaient « 13-72 », la seconde
+restait **sans aucun numéro interne** — 6 parcelles sur 150, introuvables en
+tapant leur numéro, et rien ne le disait. Parcelys ne fond toujours pas les deux
+parcelles, ce serait déplacer un registre phytosanitaire sur le mauvais champ ;
+mais le numéro est désormais complété (« 13-72 (2025) ») et le fait est
+**annoncé** à la fin de l'import.
+
+### L'administrateur peut effacer une exploitation pour de bon
+
+La suppression était uniquement logique : `deleted_at` renseigné, rien d'effacé.
+C'est ce qu'il faut la plupart du temps — les registres se conservent — mais pas
+pour honorer une demande d'effacement.
+
+« Effacer définitivement » détruit tout : parcelles et contours, registres,
+apports, travaux, campagnes PAC, documents, **jusqu'aux fichiers sur le disque**,
+que la base ne connaît pas et qui seraient restés sans cela.
+
+Trois verrous, parce qu'un seul ne suffit pas à une action sans retour :
+l'exploitation doit déjà être supprimée, son nom exact doit être retapé, et ce
+qui va être détruit est compté et annoncé avant d'agir. Le journal
+d'administration, lui, survit — avec le nom disparu et le décompte.
+
+Les comptes des membres ne sont pas supprimés : ils subsistent sans
+exploitation. C'est dit à l'écran.
+
+### Aussi
+
+- Le dépôt PAC acceptait `.zip` et les fichiers Shapefile, mais **pas `.xml`** —
+  le seul format que TéléPAC donne réellement. Le sélecteur de fichiers grisait
+  donc le fichier que l'exploitant possède.
+- La recherche de l'application de terrain porte aussi sur le lieu-dit.
+- `npm run check:091` rejoue au navigateur ce que cette version promet.
+
+---
+
 ## 0.9.0 — Ce que l'import rapporte vraiment, et trouver sa parcelle
 
 ### L'import PAC remplissait la carte, pas la fiche

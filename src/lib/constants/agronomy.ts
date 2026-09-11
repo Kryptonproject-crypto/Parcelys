@@ -215,7 +215,18 @@ export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
   AUTRE: 'Autre',
 };
 
-/** Campagne culturale : bascule au 1er août (usage courant en grandes cultures). */
-export function currentCampaignYear(date = new Date()): number {
-  return date.getMonth() >= 7 ? date.getFullYear() + 1 : date.getFullYear();
-}
+/**
+ * Campagne culturale.
+ *
+ * La définition vit dans `@/lib/shared/campagne`, d'où l'application mobile la
+ * tire aussi : deux implémentations, c'était deux campagnes affichées le même
+ * jour. Le nom historique est conservé — il est employé dans une trentaine de
+ * fichiers, et le renommer n'apporterait rien qu'un diff.
+ */
+export {
+  campagneCourante as currentCampaignYear,
+  campagnesProposees,
+  periodeCampagne,
+  periodeCampagneLabel,
+  CONVENTION_CAMPAGNE,
+} from '@/lib/shared/campagne';

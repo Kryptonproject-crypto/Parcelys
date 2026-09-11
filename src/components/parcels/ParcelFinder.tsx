@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Input, formatNumberFr } from '@/components/ui';
 import { IconSearch } from '@/components/ui/icons';
+import { contientSansAccent } from '@/lib/shared/texte';
 
 /**
  * Trouver une parcelle dans une liste qui en compte cent.
@@ -39,13 +40,6 @@ export type ParcelleTrouvable = {
   areaHa: number;
 };
 
-/** Comparaison insensible à la casse, aux accents et à la ponctuation. */
-function normaliser(valeur: string): string {
-  return valeur
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
-}
 
 export function ParcelFinder({
   parcels,
@@ -60,15 +54,21 @@ export function ParcelFinder({
 }) {
   const [terme, setTerme] = useState('');
 
+  /*
+   * La même règle de comparaison que la base et que l'application mobile —
+   * `@/lib/shared/texte`, confrontée à la fonction SQL par un test. Ce
+   * composant en portait sa propre copie ; trois copies d'une même règle, ce
+   * sont trois occasions de diverger sans que personne s'en aperçoive.
+   */
   const filtrees = useMemo(() => {
-    const cherche = normaliser(terme.trim());
-    if (!cherche) return parcels;
+    if (!terme.trim()) return parcels;
     return parcels.filter((p) =>
-      normaliser(
+      contientSansAccent(
         [p.name, p.internalNumber, p.commune, p.lieuDit, p.crop]
           .filter(Boolean)
           .join(' '),
-      ).includes(cherche),
+        terme,
+      ),
     );
   }, [parcels, terme]);
 

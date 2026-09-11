@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
+import { CampagneChamp } from '@/components/campagne/CampagneChamp';
+import { resumeCampagnes } from '@/lib/services/campagnes';
 import { EphyExplorer } from '@/app/(app)/phytosanitaire/EphyExplorer';
 import {
   Alert,
@@ -40,6 +42,7 @@ export default async function PhytosanitaryPage({
   const params = await searchParams;
   const ctx = await requirePageFarmAccess('record:read');
   const year = Number(params.annee) || currentCampaignYear();
+  const campagnes = await resumeCampagnes(ctx.farmId);
 
   const parcels = await prisma.parcel.findMany({
     where: { farmId: ctx.farmId, deletedAt: null },
@@ -96,7 +99,6 @@ export default async function PhytosanitaryPage({
     ? new Date(source.lastSyncAt).toLocaleDateString('fr-FR')
     : null;
 
-  const years = Array.from({ length: 8 }, (_, i) => currentCampaignYear() + 1 - i);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -168,22 +170,7 @@ export default async function PhytosanitaryPage({
             />
           </div>
 
-          <div>
-            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
-              Campagne
-            </label>
-            <Select
-              id="annee"
-              name="annee"
-              defaultValue={String(year)}
-            >
-              {years.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <CampagneChamp campagnes={campagnes} annee={year} />
 
           <div>
             <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">

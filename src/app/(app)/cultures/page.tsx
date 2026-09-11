@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
+import { periodeCampagneLabel } from '@/lib/shared/campagne';
+import { CampagneBanniere, CampagneChamp } from '@/components/campagne/CampagneChamp';
+import { campagneARecommander, resumeCampagnes } from '@/lib/services/campagnes';
 import { successionsExploitation } from '@/lib/services/rotation';
 import {
   Badge,
@@ -11,7 +14,6 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
-  Select,
   TableWrapper,
   Td,
   Th,
@@ -32,6 +34,7 @@ export default async function CropsPage({
   const params = await searchParams;
   const ctx = await requirePageFarmAccess('record:read');
   const year = Number(params.annee) || currentCampaignYear();
+  const campagnes = await resumeCampagnes(ctx.farmId);
 
   const [parcels, cropYears, referential, successions] = await Promise.all([
     prisma.parcel.findMany({
@@ -74,13 +77,12 @@ export default async function CropsPage({
   const coveredIds = new Set(cropYears.map((cy) => cy.parcel.id));
   const uncovered = parcels.filter((p) => !coveredIds.has(p.id));
 
-  const years = Array.from({ length: 8 }, (_, i) => currentCampaignYear() + 1 - i);
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Cultures et assolement"
-        description={`Campagne ${year} — ${cropYears.length} parcelle(s) renseignée(s) sur ${parcels.length}`}
+        description={`Campagne ${year} (${periodeCampagneLabel(year)}) — ${cropYears.length} parcelle(s) renseignée(s) sur ${parcels.length}`}
         actions={
           <LinkButton href={`/exports?dataset=cultures&year=${year}`} variant="outline">
             Exporter
@@ -88,24 +90,17 @@ export default async function CropsPage({
         }
       />
 
+      {/* Une campagne vide alors qu'une autre ne l'est pas : le dire, et
+          offrir le lien plutôt que de basculer à la place de l'exploitant. */}
+      <CampagneBanniere
+        annee={year}
+        recommandee={campagneARecommander(campagnes, year)}
+        lien={(cible) => `/cultures?annee=${cible}`}
+      />
+
       <Card className="mb-5">
         <form method="get" className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
-              Campagne
-            </label>
-            <Select
-              id="annee"
-              name="annee"
-              defaultValue={String(year)}
-            >
-              {years.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <CampagneChamp campagnes={campagnes} annee={year} />
           <button
             type="submit"
             className="h-10 rounded-lg bg-champ-600 px-4 text-sm font-medium text-white transition hover:bg-champ-700"

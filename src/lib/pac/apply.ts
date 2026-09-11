@@ -20,7 +20,8 @@
 
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
-import { saveParcelGeometry } from '@/lib/geo/repository';
+import { notFound } from '@/lib/api/errors';
+import { GEOJSON_DECIMALES, saveParcelGeometry } from '@/lib/geo/repository';
 import { reverseGeocode } from '@/lib/geo/geocode';
 import type { AnalyzedFeature, MatchDecision } from '@/lib/pac/analyze';
 
@@ -53,6 +54,16 @@ export type ApplyResult = {
   crops: number;
   /** Parcelles présentes dans Parcelys mais absentes du dossier importé. */
   orphans: Array<{ id: string; name: string; areaHa: number }>;
+  /**
+   * Parcelles dont le numéro déclaré était déjà porté par une autre.
+   *
+   * TéléPAC renumérote d'une campagne à l'autre, et réattribue les numéros
+   * libérés. Quand deux parcelles distinctes revendiquent `13-72`, Parcelys ne
+   * les fond pas — ce serait déplacer un registre sur la mauvaise parcelle — et
+   * suffixe le numéro interne de la seconde. Le fait est rapporté ici plutôt
+   * que laissé à découvrir dans une colonne.
+   */
+  renumerotees: Array<{ declare: string; attribue: string }>;
 };
 
 /** État des parcelles, figé avant que l'import n'y touche. */
@@ -68,7 +79,10 @@ async function takeSnapshot(
   >`
     SELECT p.id, p.name, p.pac_id,
            ST_Area(pg.geom::geography) / 10000.0 AS area,
-           ST_AsGeoJSON(pg.geom) AS geojson
+           -- Pleine précision : cette sauvegarde sert à rétablir le
+           -- parcellaire, donc à réécrire ces contours en base. Une
+           -- sauvegarde arrondie rendrait autre chose que ce qu'elle a pris.
+           ST_AsGeoJSON(pg.geom, ${GEOJSON_DECIMALES}::int) AS geojson
     FROM parcels p
     LEFT JOIN parcel_geometries pg ON pg.parcel_id = p.id AND pg.is_current = true
     WHERE p.farm_id = ${farmId} AND p.deleted_at IS NULL
@@ -318,6 +332,60 @@ export async function applyImport(params: {
         return nom ? { inseeCode: insee, commune: nom } : { inseeCode: insee };
       };
 
+      /**
+       * Les parcelles que cet import a le droit de viser.
+       *
+       * ───────────────────────────────────────────────────────────────────
+       * POURQUOI CETTE LISTE EXISTE
+       * ───────────────────────────────────────────────────────────────────
+       *
+       * `decisions[].parcelId` vient du navigateur : c'est la parcelle que
+       * l'utilisateur a désignée dans l'aperçu quand la correspondance
+       * proposée ne lui convenait pas. Elle était employée telle quelle, et
+       * `tx.parcel.update({ where: { id } })` ne regarde pas à qui la parcelle
+       * appartient.
+       *
+       * Conséquence, mesurée sur la base avant correction : un import fait
+       * depuis l'exploitation A, avec l'identifiant d'une parcelle de
+       * l'exploitation B glissé dans les décisions, réécrivait cette
+       * parcelle-là — code INSEE, type, `pacId`, superficie (12,3456 ha
+       * devenus 2,6702), une géométrie et une culture créées chez le voisin.
+       * Aucune des deux exploitations n'en voyait rien.
+       *
+       * Deux garde-fous plutôt qu'un, parce qu'ils ne protègent pas la même
+       * chose :
+       *   · celui-ci refuse la demande et le dit — une décision qui ne porte
+       *     pas sur le parcellaire de l'exploitation n'est pas une erreur de
+       *     saisie, c'est une requête qui n'aurait pas dû être formée ;
+       *   · l'écriture elle-même est bornée à `farmId` (`updateMany`), de
+       *     sorte que la base refuse la ligne étrangère même si un futur
+       *     chemin de code contournait la vérification.
+       *
+       * L'analyse ne propose jamais qu'une parcelle de l'exploitation, non
+       * supprimée : ce filtre-ci est exactement le même, aucun rapprochement
+       * légitime n'y perd quoi que ce soit.
+       */
+      const parcellesAutorisees = new Set(
+        (
+          await tx.parcel.findMany({
+            where: { farmId, deletedAt: null },
+            select: { id: true },
+          })
+        ).map((p) => p.id),
+      );
+
+      const cibleAutorisee = (id: string | null): string | null => {
+        if (id === null) return null;
+        if (!parcellesAutorisees.has(id)) {
+          throw notFound(
+            'Une des parcelles visées par cet import est introuvable dans cette ' +
+              "exploitation. Relancez l'analyse du dossier : le parcellaire a pu " +
+              "changer depuis l'aperçu.",
+          );
+        }
+        return id;
+      };
+
       // Numéros internes déjà employés sur l'exploitation : la contrainte
       // d'unicité est (farmId, internalNumber), et un import qui la violerait
       // ferait échouer toute la transaction — donc tout l'import — pour un
@@ -361,6 +429,7 @@ export async function applyImport(params: {
       let updated = 0;
       let ignored = 0;
       const touchees = new Set<string>();
+      const renumerotees: ApplyResult['renumerotees'] = [];
 
       for (const feature of params.features) {
         if (params.ilotLayers.includes(feature.layer)) continue;
@@ -396,16 +465,23 @@ export async function applyImport(params: {
         let parcelId: string | null = null;
 
         if (feature.kind === 'PARCELLE') {
-          const cible = parDecision.get(cle)?.parcelId ?? feature.match?.parcelId ?? null;
+          const cible = cibleAutorisee(
+            parDecision.get(cle)?.parcelId ?? feature.match?.parcelId ?? null,
+          );
 
           if (decision === 'update' && cible) {
             const avant = await tx.$queryRaw<Array<{ area: number | null; geojson: string | null }>>`
-              SELECT ST_Area(geom::geography) / 10000.0 AS area, ST_AsGeoJSON(geom) AS geojson
+              SELECT ST_Area(geom::geography) / 10000.0 AS area,
+                     ST_AsGeoJSON(geom, ${GEOJSON_DECIMALES}::int) AS geojson
               FROM parcel_geometries WHERE parcel_id = ${cible} AND is_current = true
             `;
 
-            await tx.parcel.update({
-              where: { id: cible },
+            // `updateMany` et non `update` : la clause porte alors sur
+            // `farmId` autant que sur l'identifiant, et c'est la base qui
+            // refuse une parcelle étrangère, sans dépendre de la vérification
+            // faite plus haut.
+            const ecrites = await tx.parcel.updateMany({
+              where: { id: cible, farmId, deletedAt: null },
               data: {
                 pacId: feature.externalId ?? feature.numero ?? undefined,
                 parcelType: 'PAC',
@@ -416,6 +492,12 @@ export async function applyImport(params: {
                 ...(localisation(feature) ?? {}),
               },
             });
+            if (ecrites.count !== 1) {
+              throw notFound(
+                'Une des parcelles visées par cet import est introuvable dans ' +
+                  "cette exploitation. Relancez l'analyse du dossier.",
+              );
+            }
 
             if (feature.geojson) {
               await saveParcelGeometry(
@@ -446,8 +528,52 @@ export async function applyImport(params: {
             touchees.add(cible);
             updated += 1;
           } else {
-            const numeroInterne =
+            /**
+             * Le numéro interne, même quand la place est déjà prise.
+             *
+             * ───────────────────────────────────────────────────────────────
+             * CE QUI SE PASSAIT
+             * ───────────────────────────────────────────────────────────────
+             *
+             * Quand `13-72` était déjà porté par une autre parcelle, le champ
+             * restait **vide**. Mesuré sur les cinq campagnes réelles
+             * 2022→2026 : 6 parcelles sur 150 sans aucun numéro interne. Une
+             * parcelle sans numéro ne se retrouve pas en tapant son numéro,
+             * n'affiche rien dans la colonne, et rien ne disait pourquoi.
+             *
+             * D'où vient la collision : TéléPAC renumérote. Un même champ est
+             * l'îlot 13 parcelle 72 en 2022 et l'îlot 13 parcelle 10 en 2024 ;
+             * le numéro 72 est ensuite réattribué à un autre champ. Deux
+             * parcelles finissent par revendiquer `13-72`, et Parcelys refuse
+             * — à raison — de les fondre en une seule : ce serait déplacer un
+             * registre phytosanitaire sur la mauvaise parcelle.
+             *
+             * ───────────────────────────────────────────────────────────────
+             * CE QUI EST FAIT
+             * ───────────────────────────────────────────────────────────────
+             *
+             * Le numéro est suffixé de la campagne qui l'apporte : `13-72`
+             * puis `13-72 (2025)`. Ce n'est pas une valeur inventée en
+             * remplacement d'une donnée déclarée — le numéro d'îlot et le
+             * numéro de parcelle restent intacts dans les entités PAC, qui
+             * font foi en contrôle. C'est un libellé interne à Parcelys, que
+             * l'exploitant remplace d'un clic par « la Croix Rouge ».
+             */
+            const numeroDeclare =
               feature.ilot && feature.numero ? `${feature.ilot}-${feature.numero}` : null;
+
+            let numeroInterne = numeroDeclare;
+            if (numeroDeclare && numerosPris.has(numeroDeclare)) {
+              const candidat = `${numeroDeclare} (${year})`;
+              let suffixe = candidat;
+              let rang = 2;
+              while (numerosPris.has(suffixe)) {
+                suffixe = `${candidat}-${rang}`;
+                rang += 1;
+              }
+              numeroInterne = suffixe;
+              renumerotees.push({ declare: numeroDeclare, attribue: suffixe });
+            }
 
             const nom =
               feature.numero && feature.ilot
@@ -467,10 +593,9 @@ export async function applyImport(params: {
                 // Le numéro interne reprend la numérotation de la déclaration
                 // — c'est celle que l'exploitant a en tête et qu'un contrôle
                 // emploiera. Jamais au prix d'un doublon : la contrainte
-                // d'unicité est vérifiée avant, et le champ reste vide sinon.
-                ...(numeroInterne && !numerosPris.has(numeroInterne)
-                  ? { internalNumber: numeroInterne }
-                  : {}),
+                // d'unicité porte sur (farmId, internalNumber), et le numéro a
+                // été rendu unique juste au-dessus.
+                ...(numeroInterne ? { internalNumber: numeroInterne } : {}),
               },
               select: { id: true },
             });
@@ -598,6 +723,7 @@ export async function applyImport(params: {
             updated,
             ignored,
             orphans: orphelines.map((o) => ({ id: o.id, name: o.name })),
+            renumerotees,
           } as unknown as Prisma.InputJsonValue,
           snapshotId: snapshot.id,
           createdById: userId,
@@ -624,6 +750,7 @@ export async function applyImport(params: {
           name: o.name,
           areaHa: Number(o.areaHa),
         })),
+        renumerotees,
       };
     },
     // Un dossier PAC peut compter plusieurs centaines de parcelles, chacune

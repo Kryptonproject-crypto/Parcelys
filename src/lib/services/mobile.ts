@@ -250,6 +250,7 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       name: feature.properties.name,
       internalNumber: feature.properties.internalNumber,
       commune: feature.properties.commune,
+      lieuDit: feature.properties.lieuDit,
       areaHa: feature.properties.areaHa,
       status: feature.properties.status,
       cropName: feature.properties.crop,
@@ -337,6 +338,7 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
         name: true,
         internalNumber: true,
         commune: true,
+        lieuDit: true,
         areaHa: true,
         status: true,
         centroidLat: true,
@@ -367,6 +369,7 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
       name: parcel.name,
       internalNumber: parcel.internalNumber,
       commune: parcel.commune,
+      lieuDit: parcel.lieuDit,
       areaHa: Number(parcel.areaHa),
       status: parcel.status,
       centroid:

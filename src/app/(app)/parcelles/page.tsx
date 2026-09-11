@@ -14,6 +14,9 @@ import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
 import { couchesPourExploitation } from '@/lib/regulatory/map-layers';
 import type { MapParcel } from '@/components/map/ParcelsMap';
 import { ParcelsViewSwitch } from '@/app/(app)/parcelles/ParcelsViewSwitch';
+import { CampagneBanniere, CampagneChamp } from '@/components/campagne/CampagneChamp';
+import { campagneARecommander, resumeCampagnes } from '@/lib/services/campagnes';
+import { identifiantsParcellesTrouvees } from '@/lib/services/recherche-parcelles';
 import {
   Badge,
   Card,
@@ -82,23 +85,27 @@ export default async function ParcelsPage({
       : `/parcelles/${id}`;
   const view = params.vue === 'carte' ? 'carte' : params.vue === 'tableau' ? 'tableau' : 'liste';
 
+  /**
+   * La recherche par nom, accents compris.
+   *
+   * `contains` en mode insensible à la casse ne l'était pas aux accents :
+   * « cote » ne trouvait pas « La Côte ». Les parcelles portent des noms de
+   * lieux français, et on les tape sans accent au champ. La correspondance
+   * passe donc par une fonction SQL qui compare les deux côtés dépouillés de
+   * leurs accents ; elle rend des identifiants, que la requête Prisma
+   * ci-dessous croise avec les autres filtres.
+   */
+  const trouvees = params.q
+    ? await identifiantsParcellesTrouvees(ctx.farmId, params.q)
+    : null;
+
   const where: Prisma.ParcelWhereInput = {
     farmId: ctx.farmId,
     deletedAt: null,
     ...(params.statut ? { status: params.statut as Prisma.EnumParcelStatusFilter['equals'] } : {}),
     ...(params.type ? { parcelType: params.type } : {}),
     ...(params.commune ? { commune: { equals: params.commune, mode: 'insensitive' } } : {}),
-    ...(params.q
-      ? {
-          OR: [
-            { name: { contains: params.q, mode: 'insensitive' } },
-            { internalNumber: { contains: params.q, mode: 'insensitive' } },
-            { commune: { contains: params.q, mode: 'insensitive' } },
-            { lieuDit: { contains: params.q, mode: 'insensitive' } },
-            { cadastralRef: { contains: params.q, mode: 'insensitive' } },
-          ],
-        }
-      : {}),
+    ...(trouvees ? { id: { in: trouvees } } : {}),
     ...(params.culture
       ? { cropYears: { some: { cropId: params.culture, campaignYear: year } } }
       : {}),
@@ -108,7 +115,7 @@ export default async function ParcelsPage({
       : {}),
   };
 
-  const [parcels, crops, communes, geojson, totalCount, couches] = await Promise.all([
+  const [parcels, crops, communes, geojson, totalCount, campagnes, couches] = await Promise.all([
     prisma.parcel.findMany({
       where,
       include: {
@@ -139,6 +146,7 @@ export default async function ParcelsPage({
     }),
     getFarmParcelsGeoJSON(ctx.farmId, year),
     prisma.parcel.count({ where: { farmId: ctx.farmId, deletedAt: null } }),
+    resumeCampagnes(ctx.farmId),
     // Couches réglementaires, restreintes à l'emprise des parcelles : envoyer
     // un zonage régional entier rendrait la carte inutilisable au champ.
     couchesPourExploitation({ farmId: ctx.farmId }),
@@ -183,6 +191,25 @@ export default async function ParcelsPage({
         />
       ) : (
         <>
+          {/*
+           * « Vos cultures ont disparu. »
+           *
+           * Elles n'ont pas disparu : la campagne affichée n'est pas celle où
+           * elles sont. Le cas se produit tout seul chaque 1ᵉʳ août, et après
+           * chaque import d'un dossier PAC dont la campagne n'est pas la
+           * campagne en cours. Le bandeau le dit et offre le lien ; il
+           * s'efface dès que la campagne regardée porte quelque chose.
+           */}
+          <CampagneBanniere
+            annee={year}
+            recommandee={campagneARecommander(campagnes, year)}
+            lien={(cible) => {
+              const suite = new URLSearchParams(contexteListe);
+              suite.set('annee', String(cible));
+              return `/parcelles?${suite.toString()}`;
+            }}
+          />
+
           {/* Filtres */}
           <Card className="mb-5">
             <form method="get" className="grid gap-3 md:grid-cols-5">
@@ -235,24 +262,7 @@ export default async function ParcelsPage({
                 </Select>
               </div>
 
-              <div>
-                <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
-                  Campagne
-                </label>
-                <Select
-                  id="annee"
-                  name="annee"
-                  defaultValue={String(year)}
-                >
-                  {Array.from({ length: 8 }, (_, i) => currentCampaignYear() + 1 - i).map(
-                    (value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ),
-                  )}
-                </Select>
-              </div>
+              <CampagneChamp campagnes={campagnes} annee={year} />
 
               <div className="md:col-span-2">
                 <label htmlFor="type" className="mb-1 block text-xs font-medium text-ink-2">

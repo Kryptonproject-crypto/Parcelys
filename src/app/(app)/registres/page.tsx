@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
+import { CampagneChamp } from '@/components/campagne/CampagneChamp';
+import { resumeCampagnes } from '@/lib/services/campagnes';
 import { PrintButton } from '@/app/(app)/registres/PrintButton';
 import {
   Card,
@@ -40,6 +42,7 @@ export default async function RegistersPage({
   const params = await searchParams;
   const ctx = await requirePageFarmAccess('record:read');
   const year = Number(params.annee) || currentCampaignYear();
+  const campagnes = await resumeCampagnes(ctx.farmId);
 
   const [farm, parcels, source] = await Promise.all([
     prisma.farm.findUniqueOrThrow({
@@ -81,7 +84,6 @@ export default async function RegistersPage({
     take: 2000,
   });
 
-  const years = Array.from({ length: 8 }, (_, i) => currentCampaignYear() + 1 - i);
   const lastSync = source.lastSyncAt
     ? new Date(source.lastSyncAt).toLocaleDateString('fr-FR')
     : null;
@@ -112,22 +114,7 @@ export default async function RegistersPage({
 
         <Card className="mb-5">
           <form method="get" className="grid gap-3 sm:grid-cols-5">
-            <div>
-              <label htmlFor="annee" className="mb-1 block text-xs font-medium text-ink-2">
-                Campagne
-              </label>
-              <Select
-                id="annee"
-                name="annee"
-                defaultValue={String(year)}
-              >
-                {years.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <CampagneChamp campagnes={campagnes} annee={year} />
 
             <div>
               <label htmlFor="parcelle" className="mb-1 block text-xs font-medium text-ink-2">
