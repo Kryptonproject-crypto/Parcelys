@@ -119,6 +119,7 @@ const ROUTES_LECTURE = [
   '/api/account',
   '/api/documents',
   '/api/stocks',
+  '/api/stocks/importables',
   '/api/stocks/lots',
   '/api/stocks/mouvements',
   '/api/soil-covers',
@@ -289,6 +290,24 @@ async function main() {
           date: `${d.campagne}-04-20`,
           quantite: 20,
           unite: 't/ha',
+        },
+      },
+      /*
+       * L'import en stock d'un produit désigné par identifiant.
+       *
+       * Le catalogue E-Phy est public, mais un engrais peut être **propre à une
+       * exploitation**. Sans contrôle d'appartenance, le voisin ferait entrer
+       * chez lui le mélange maison d'autrui — et en apprendrait le nom.
+       *
+       * L'identifiant employé ici est celui d'une parcelle, donc introuvable au
+       * référentiel : la réponse attendue est un refus, pas une création. Une
+       * réponse 2xx ici signifierait que la route crée sans vérifier.
+       */
+      {
+        chemin: '/api/stocks/importables',
+        methode: 'POST',
+        corps: {
+          selections: [{ source: 'engrais', refId: d.parcelId, unit: 'kg' }],
         },
       },
     ];

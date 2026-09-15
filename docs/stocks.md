@@ -88,6 +88,64 @@ par diverger.
 
 ---
 
+## 5 bis. Démarrer le suivi sans rien ressaisir
+
+### Le problème du premier jour
+
+Les utilisations non rattachées ne voient que les produits **déjà suivis** :
+elles partent des articles existants. Sur une exploitation qui saisit depuis
+deux ans sans tenir de stock, il n'y en a aucun — donc rien à signaler, et
+l'écran des stocks s'ouvrait sur une page blanche.
+
+Commencer voulait alors dire ressaisir à la main des produits que Parcelys
+connaissait déjà, chacun nommé dans un traitement ou un apport. Avec le risque
+qui va avec : deux orthographes du même bidon ne se rapprochent plus jamais.
+
+### Ce que l'import propose
+
+Le bouton **« Importer les produits déjà employés »** liste les produits
+rattachés au référentiel qu'aucun article ne suit, avec le nombre de fois qu'ils
+ont servi et la date du dernier emploi. Cocher, valider : les articles sont
+créés, **rattachés au référentiel**, et les utilisations non rattachées
+commencent dès lors à faire leur travail.
+
+Un produit saisi en texte libre — sans identifiant au catalogue — n'y figure
+pas : il n'y a rien à rapprocher. Il reste à créer à la main.
+
+### L'unité n'est pas devinée
+
+L'unité proposée est celle que les saisies portent déjà : `quantityUnit` pour un
+traitement, `totalUnit` pour un apport. Ce sont des quantités absolues — surtout
+pas `doseUnit`, qui est une dose **par hectare** : un stock tenu en « kg/ha »
+n'a aucun sens.
+
+Quand les saisies ne s'accordent pas — le même produit noté tantôt en litres,
+tantôt en kilos —, aucune n'est retenue d'office. La case reste à cocher et
+l'écran énumère les unités rencontrées avec leur nombre d'occurrences. Prendre
+la plus fréquente reviendrait à trancher une question de densité que Parcelys
+refuse de trancher (section 4), et le solde serait faux sans que personne ne
+l'ait décidé.
+
+### Ce que l'import ne fait pas
+
+Il crée le **suivi**, pas le stock. Le solde reste à zéro tant qu'aucune entrée
+n'est saisie — un achat, ou un inventaire de départ. L'écran le dit, parce
+qu'une liste qui se remplit donne facilement l'impression d'un local inventorié.
+
+### Deux cas particuliers, traités plutôt que subis
+
+**Un article saisi à la main avant l'import** porte déjà le bon nom mais aucun
+rattachement. Il est **rattaché**, pas dupliqué : sinon l'exploitation se
+retrouve avec deux lignes pour le même bidon, dont l'une porte l'historique et
+l'autre le référentiel.
+
+**Un import dont rien n'aboutit** répond en erreur, pas en succès vide. Un lot
+partiellement appliqué reste un succès et le détail par produit dit ce qui est
+passé ; mais quand toutes les demandes sont refusées, un code 200 mentirait à
+qui ne lit que le statut.
+
+---
+
 ## 6. Ce qui est refusé, et ce qui ne l'est pas
 
 **Refusé** — tout ce qui rendrait le solde faux ou trompeur :
@@ -133,6 +191,14 @@ npx vitest run tests/stock.test.ts
 # Le chemin complet sur une vraie base : achat → lot → traitement → parcelle,
 # cloisonnement entre exploitations, refus, alertes
 npm run check:stocks
+
+# L'import des produits déjà employés : ce qui est proposé, l'unité qui n'est
+# pas devinée, le doublon refusé, le cloisonnement
+npx vitest run tests/stock-import.test.ts
+
+# Le même import, mais vu du navigateur : le panneau s'ouvre, la liste se
+# remplit, et l'article apparaît dans la page
+npm run check:import-stock
 ```
 
 Le second compte autant que le premier. Les tests unitaires prouvent que le

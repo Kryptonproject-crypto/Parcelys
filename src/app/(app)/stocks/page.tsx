@@ -15,6 +15,8 @@ import {
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { UNITES_COURANTES } from '@/lib/stock/units';
+import { ImporterProduits } from './ImporterProduits';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Stocks' };
@@ -134,13 +136,22 @@ export default async function StocksPage() {
         </Card>
       ) : null}
 
+      {/*
+        L'import vient avant les articles, et reste disponible même quand il y
+        en a déjà : on ne commence pas forcément son suivi d'un coup, et un
+        produit employé pour la première fois cette semaine est à importer comme
+        les autres.
+      */}
+      <ImporterProduits unitesCourantes={UNITES_COURANTES} />
+
       {articles.length === 0 ? (
         <EmptyState
           title="Aucun article suivi"
           description={
             'Le suivi des stocks est facultatif. Il devient utile pour répondre à ' +
             'une question que pose un contrôle : quel lot a été appliqué sur quelle ' +
-            'parcelle. Créez un article depuis un produit de votre registre.'
+            'parcelle. Le bouton ci-dessus reprend les produits déjà nommés dans ' +
+            'vos traitements et vos apports : rien à ressaisir.'
           }
         />
       ) : null}

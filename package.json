@@ -58,7 +58,8 @@
     "check:sauvegarde": "bash scripts/check-sauvegarde.sh",
     "audit:e2e": "node scripts/audit-bout-en-bout.mjs",
     "audit:tout": "bash scripts/audit-lancer.sh tout",
-    "audit:perf": "node scripts/audit-performance.mjs"
+    "audit:perf": "node scripts/audit-performance.mjs",
+    "check:import-stock": "node scripts/check-import-stock.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

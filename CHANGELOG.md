@@ -6,6 +6,42 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## Non publié
+
+### Stocks : importer les produits déjà employés
+
+L'écran des stocks était en **lecture seule**. Le modèle savait rattacher un
+article au catalogue E-Phy ou au référentiel des engrais depuis le début, l'API
+aussi — mais aucun écran ne l'appelait. Commencer à suivre son local voulait dire
+tout ressaisir à la main, alors que chaque traitement et chaque apport nomme déjà
+son produit.
+
+Le bouton **« Importer les produits déjà employés »** liste ce qui est employé et
+qu'aucun article ne suit, avec le nombre d'utilisations et la date du dernier
+emploi. Cocher, valider : les articles sont créés et rattachés au référentiel —
+et les « utilisations non rattachées », qui ne voyaient jusqu'ici que les
+produits déjà suivis, commencent dès lors à faire leur travail.
+
+**L'unité n'est pas devinée.** Celle qui est proposée est celle des saisies —
+`quantityUnit` pour un traitement, `totalUnit` pour un apport —, jamais
+`doseUnit`, qui est une dose *par hectare* : un stock tenu en « kg/ha » n'a aucun
+sens. Et quand les saisies ne s'accordent pas, le même produit étant noté tantôt
+en litres tantôt en kilos, aucune n'est retenue d'office : l'écran les énumère
+avec leur nombre d'occurrences et laisse trancher. Prendre la plus fréquente
+reviendrait à décider d'une densité que Parcelys refuse de décider.
+
+Importer crée le **suivi**, pas le stock : le solde reste à zéro tant qu'aucune
+entrée n'est saisie, et l'écran le dit — une liste qui se remplit donne
+facilement l'impression d'un local inventorié.
+
+Deux cas traités plutôt que subis : un article saisi à la main avant l'import est
+**rattaché** et non dupliqué ; et un import dont rien n'aboutit répond en erreur,
+pas en succès vide — c'est l'audit de cloisonnement qui l'a relevé, une tentative
+d'importer le produit d'une autre exploitation « aboutissant » en 200 alors
+qu'elle n'avait rien créé.
+
+---
+
 ## 0.9.5 — Un audit qui cherche à échouer
 
 Cette version n'ajoute presque pas d'écrans. Elle vérifie ceux qui existent —

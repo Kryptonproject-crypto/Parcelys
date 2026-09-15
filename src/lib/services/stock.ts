@@ -9,7 +9,12 @@ import {
   type AlerteStock,
   type SoldeStock,
 } from '@/lib/stock/balance';
-import { convertirQuantite, expliquerConversion, uniteConnue } from '@/lib/stock/units';
+import {
+  convertirQuantite,
+  expliquerConversion,
+  normaliserUnite,
+  uniteConnue,
+} from '@/lib/stock/units';
 
 /**
  * Stocks et lots.
@@ -524,4 +529,243 @@ export async function tracabiliteLot(
       motif: m.reason,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Importer en stock ce que l'exploitation emploie déjà
+// ---------------------------------------------------------------------------
+
+/**
+ * Un produit employé dans des saisies, mais qui n'est suivi par aucun article
+ * de stock.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CETTE LISTE EXISTE
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `utilisationsNonRattachees()` répond à « vous suivez ce produit en stock, et
+ * vous l'avez employé sans rien décompter ». Elle part donc des articles
+ * existants, et ne voit rien de ce qui n'en a pas.
+ *
+ * Or c'est exactement le point de départ d'une exploitation : les traitements
+ * et les apports sont saisis depuis des mois, chacun nommant son produit, et le
+ * local phyto n'est suivi nulle part. Ouvrir l'écran des stocks demandait alors
+ * de ressaisir à la main des produits que Parcelys connaît déjà — avec le
+ * risque de les nommer autrement, donc de ne plus pouvoir les rapprocher.
+ *
+ * Cette liste est le pont : ce que vous employez, prêt à être suivi.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * L'UNITÉ N'EST JAMAIS DEVINÉE
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * L'unité proposée est celle que **les saisies portent déjà** : `quantityUnit`
+ * pour un traitement, `totalUnit` pour un apport. Ce sont des quantités
+ * absolues — surtout pas `doseUnit`, qui est une dose **par hectare** : un
+ * stock en « kg/ha » n'a aucun sens.
+ *
+ * Quand les saisies ne s'accordent pas — le même produit noté tantôt en litres,
+ * tantôt en kilos —, `unite` vaut `null` et `unitesRencontrees` les énumère.
+ * Choisir la plus fréquente reviendrait à trancher une question de densité que
+ * Parcelys ne sait pas trancher (`src/lib/stock/units.ts`), et le solde serait
+ * faux sans que personne ne l'ait décidé. C'est donc à l'exploitant de dire.
+ */
+export type ProduitImportable = {
+  source: 'phyto' | 'engrais' | 'organique';
+  /** Identifiant au référentiel : produit E-Phy, engrais, ou produit organique. */
+  refId: string;
+  label: string;
+  /** Numéro d'AMM, pour un produit phytosanitaire au catalogue. */
+  amm: string | null;
+  categorie: StockCategory;
+  /** L'unité des saisies, quand elles s'accordent toutes. Sinon `null`. */
+  unite: string | null;
+  /** Les unités rencontrées et leur nombre d'occurrences, la plus fréquente d'abord. */
+  unitesRencontrees: Array<{ unite: string; occurrences: number }>;
+  nombreUtilisations: number;
+  premiereUtilisationLe: Date;
+  derniereUtilisationLe: Date;
+};
+
+/** Regroupe les saisies d'un même produit et en tire une proposition d'article. */
+type Accumulateur = {
+  source: ProduitImportable['source'];
+  refId: string;
+  label: string;
+  amm: string | null;
+  categorie: StockCategory;
+  unites: Map<string, { affichage: string; occurrences: number }>;
+  nombre: number;
+  premiere: Date;
+  derniere: Date;
+};
+
+function retenir(
+  acc: Map<string, Accumulateur>,
+  cle: string,
+  base: Omit<Accumulateur, 'unites' | 'nombre' | 'premiere' | 'derniere'>,
+  saisie: { unite: string; le: Date },
+): void {
+  const existant = acc.get(cle);
+  const courant =
+    existant ??
+    ({ ...base, unites: new Map(), nombre: 0, premiere: saisie.le, derniere: saisie.le });
+
+  courant.nombre += 1;
+  if (saisie.le < courant.premiere) courant.premiere = saisie.le;
+  if (saisie.le > courant.derniere) courant.derniere = saisie.le;
+
+  // Regroupées sur la forme normalisée : « L » et « l » sont la même unité, et
+  // les compter séparément ferait croire à un désaccord qui n'existe pas.
+  const normale = normaliserUnite(saisie.unite);
+  const vue = courant.unites.get(normale);
+  if (vue) vue.occurrences += 1;
+  else courant.unites.set(normale, { affichage: saisie.unite.trim(), occurrences: 1 });
+
+  acc.set(cle, courant);
+}
+
+function finaliser(acc: Map<string, Accumulateur>): ProduitImportable[] {
+  return [...acc.values()]
+    .map((a) => {
+      const unites = [...a.unites.values()]
+        .map((u) => ({ unite: u.affichage, occurrences: u.occurrences }))
+        .sort((x, y) => y.occurrences - x.occurrences);
+
+      return {
+        source: a.source,
+        refId: a.refId,
+        label: a.label,
+        amm: a.amm,
+        categorie: a.categorie,
+        // Une seule unité rencontrée : on la propose. Plusieurs : on ne tranche
+        // pas (voir l'en-tête de `ProduitImportable`).
+        unite: unites.length === 1 ? (unites[0]?.unite ?? null) : null,
+        unitesRencontrees: unites,
+        nombreUtilisations: a.nombre,
+        premiereUtilisationLe: a.premiere,
+        derniereUtilisationLe: a.derniere,
+      };
+    })
+    .sort(
+      (x, y) =>
+        y.nombreUtilisations - x.nombreUtilisations ||
+        x.label.localeCompare(y.label, 'fr'),
+    );
+}
+
+/**
+ * Les produits employés par l'exploitation et qu'aucun article de stock ne suit.
+ *
+ * Seuls les produits **rattachés au référentiel** sont proposés : un traitement
+ * saisi en texte libre n'a pas d'identifiant, donc rien à rapprocher. Il reste
+ * saisissable à la main, comme avant.
+ */
+export async function produitsImportables(
+  farmId: string,
+  options: { depuis?: Date } = {},
+): Promise<ProduitImportable[]> {
+  const depuis = options.depuis ?? null;
+
+  const [dejaSuivis, traitements, apports] = await Promise.all([
+    prisma.stockItem.findMany({
+      where: { farmId },
+      select: { phytoProductId: true, fertilizerId: true, organicInputId: true },
+    }),
+    prisma.phytosanitaryApplication.findMany({
+      where: {
+        parcel: { farmId },
+        productId: { not: null },
+        ...(depuis ? { appliedOn: { gte: depuis } } : {}),
+      },
+      select: {
+        appliedOn: true,
+        productId: true,
+        productName: true,
+        amm: true,
+        quantityUnit: true,
+        product: { select: { name: true, amm: true } },
+      },
+    }),
+    prisma.fertilizerApplication.findMany({
+      where: {
+        parcel: { farmId },
+        OR: [{ fertilizerId: { not: null } }, { organicInputId: { not: null } }],
+        ...(depuis ? { appliedOn: { gte: depuis } } : {}),
+      },
+      select: {
+        appliedOn: true,
+        fertilizerId: true,
+        organicInputId: true,
+        productLabel: true,
+        totalUnit: true,
+        fertilizer: { select: { name: true } },
+        organicInput: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  /*
+   * Les articles archivés comptent comme « déjà suivis ».
+   *
+   * La contrainte d'unicité porte sur `(farmId, category, name)` sans tenir
+   * compte de `archivedAt` : reproposer un produit archivé mènerait droit à une
+   * violation de contrainte au moment de la création. Mieux vaut ne pas le
+   * proposer que proposer un bouton qui échoue.
+   */
+  const suivis = new Set<string>();
+  for (const s of dejaSuivis) {
+    if (s.phytoProductId) suivis.add(`phyto:${s.phytoProductId}`);
+    if (s.fertilizerId) suivis.add(`engrais:${s.fertilizerId}`);
+    if (s.organicInputId) suivis.add(`organique:${s.organicInputId}`);
+  }
+
+  const acc = new Map<string, Accumulateur>();
+
+  for (const t of traitements) {
+    if (!t.productId) continue;
+    const cle = `phyto:${t.productId}`;
+    if (suivis.has(cle)) continue;
+    retenir(
+      acc,
+      cle,
+      {
+        source: 'phyto',
+        refId: t.productId,
+        // Le nom du catalogue prime sur celui recopié dans la saisie : c'est
+        // lui qui fera foi dans le registre.
+        label: t.product?.name ?? t.productName,
+        amm: t.product?.amm ?? t.amm,
+        categorie: 'PHYTOSANITAIRE',
+      },
+      { unite: t.quantityUnit, le: t.appliedOn },
+    );
+  }
+
+  for (const a of apports) {
+    const organique = a.organicInputId !== null;
+    const refId = organique ? a.organicInputId : a.fertilizerId;
+    if (!refId) continue;
+
+    const cle = `${organique ? 'organique' : 'engrais'}:${refId}`;
+    if (suivis.has(cle)) continue;
+
+    retenir(
+      acc,
+      cle,
+      {
+        source: organique ? 'organique' : 'engrais',
+        refId,
+        label: (organique ? a.organicInput?.name : a.fertilizer?.name) ?? a.productLabel,
+        amm: null,
+        // Un produit organique — fumier, lisier — est un amendement, pas un
+        // engrais minéral. Les ranger ensemble mélangerait deux logiques
+        // réglementaires distinctes sur l'écran.
+        categorie: organique ? 'AMENDEMENT' : 'ENGRAIS',
+      },
+      { unite: a.totalUnit, le: a.appliedOn },
+    );
+  }
+
+  return finaliser(acc);
 }
