@@ -93,10 +93,35 @@ async function main() {
     couvertureDansRapport.every((f) => f.level !== 'OK'),
     'aucun constat de couverture ne se prononce favorablement sans référentiel',
   );
-  attendu(
-    p.zoneVulnerable === 'indetermine',
-    `sans zonage importé, la zone vulnérable est indéterminée — pas « hors zone » (obtenu : ${p.zoneVulnerable})`,
-  );
+  /*
+   * Ce contrôle porte sur l'ABSENCE de zonage : sans référentiel, le statut
+   * doit être « indéterminé », jamais « hors zone ». Il n'a donc de sens que si
+   * aucun zonage n'est chargé.
+   *
+   * Or la base de développement en garde facilement un : la suite de tests
+   * n'efface ses lignes qu'au **début** de chaque cas, si bien que le dernier
+   * exécuté laisse les siennes derrière lui. Enchaîner `npm test` puis
+   * `npm run verif:sans-navigateur` faisait alors rougir ce contrôle pour une
+   * raison étrangère au code — un faux défaut, qui use la confiance qu'on
+   * accorde aux autres.
+   *
+   * On ne supprime pas le référentiel pour autant : ce script peut tourner sur
+   * le Pi, où le zonage chargé est celui de l'exploitation. On constate, et on
+   * dit ce qu'on n'a pas pu vérifier.
+   */
+  const zonageCharge = await prisma.regulatoryZone.count();
+  if (zonageCharge === 0) {
+    attendu(
+      p.zoneVulnerable === 'indetermine',
+      `sans zonage importé, la zone vulnérable est indéterminée — pas « hors zone » (obtenu : ${p.zoneVulnerable})`,
+    );
+  } else {
+    console.info(
+      `◌ « sans zonage importé, la zone vulnérable est indéterminée » — non vérifié : ` +
+        `${zonageCharge} zone(s) sont chargées dans cette base (statut obtenu : ${p.zoneVulnerable}).\n` +
+        `    Pour le vérifier : videz les zonages, ou relancez après « npm run db:seed ».`,
+    );
+  }
   attendu(
     !/conforme/i.test(rapport.summary) || /Aucune anomalie détectée/i.test(rapport.summary),
     `la synthèse ne prononce pas de conformité : « ${rapport.summary} »`,

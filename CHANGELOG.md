@@ -8,6 +8,65 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ## Non publié
 
+### Après un redémarrage, Parcelys revient — vraiment
+
+Le service était bien activé au démarrage. Cela ne suffisait pas.
+
+Au démarrage du Pi, PostgreSQL et Parcelys partent **ensemble**, et sur carte SD
+la base met plusieurs secondes à ouvrir sa socket. Parcelys arrivait le premier,
+le contrôle avant démarrage ne trouvait pas la base, et le service échouait :
+après une coupure de courant, la machine était allumée et le site éteint.
+
+Le réflexe — ordonner Parcelys après PostgreSQL — ne règle rien, pour deux
+raisons qui tiennent à Debian :
+
+1. **`postgresql.service` ne démarre rien.** C'est une méta-unité dont
+   l'`ExecStart` est `/bin/true` ; son propre fichier le dit. `After=` et
+   `Requires=` sur elle n'ordonnent et ne garantissent rien.
+2. **L'unité réelle ignore ses propres échecs.** `postgresql@16-main.service`
+   lance le cluster avec `ExecStart=-…` — le tiret signifie « ignorer l'échec »,
+   et le commentaire Debian l'explique : *recovery might take arbitrarily long*.
+
+Aucun ordonnancement systemd ne peut donc garantir qu'une requête passera. Le
+démarrage **attend** désormais que la base réponde pour de bon — jusqu'à trois
+minutes, un essai toutes les deux secondes — puis échoue avec un message lisible
+si elle ne revient jamais (`preflight.mjs --attendre`).
+
+Trois autres corrections vont avec :
+
+- `Restart=always` et **aucune limite de tentatives**. Par défaut systemd
+  abandonne après cinq échecs en dix secondes et laisse le service en panne
+  *définitivement* : sur la machine d'une exploitation qui redémarre sans
+  personne devant l'écran, c'est le pire comportement possible.
+- Les chemins de `node` et `npm` sont **résolus à l'installation**. Ils étaient
+  codés en dur vers `/usr/bin`, ce qui est faux dès que Node vient d'ailleurs —
+  l'unité pointait alors vers un fichier inexistant. L'installateur acceptait
+  pourtant un Node déjà présent sans regarder où.
+- `postgresql` et `cloudflared` sont activés au démarrage, et le `start.conf` du
+  cluster est vérifié : en `manual`, la base ne se lève jamais.
+
+**L'unité ne vivait que dans `install-pi.sh`, et `update-pi.sh` n'y touchait
+pas.** Une machine installée il y a six mois gardait donc la sienne
+indéfiniment : aucune correction de démarrage ne lui serait parvenue, pas même
+celle-ci. Elle est maintenant dans `scripts/service-systemd.sh`, appelé par
+l'installation, par chaque mise à jour, et lu par le contrôle.
+
+`npm run check:demarrage` vérifie tout cela sans redémarrer ; `--sur-la-machine`
+ajoute l'état réel des unités sur le Pi, et `--couper-la-base` éprouve l'attente
+en arrêtant réellement PostgreSQL. Les dix contrôles ont été falsifiés un à un.
+
+### Un contrôle rougissait pour une raison étrangère au code
+
+`check:couverture` vérifie que, **sans zonage importé**, une zone vulnérable
+ressort « indéterminée ». Mais la suite de tests n'efface ses lignes qu'au début
+de chaque cas : le dernier exécuté laisse les siennes. Enchaîner `npm test` puis
+`npm run verif:sans-navigateur` faisait donc échouer ce contrôle sans qu'aucun
+défaut n'existe.
+
+Il constate désormais l'état de la base et dit ce qu'il n'a pas pu vérifier,
+plutôt que d'échouer à tort. Il ne supprime pas les zonages : sur le Pi, ce sont
+ceux de l'exploitation.
+
 ### Stocks : importer les produits déjà employés
 
 L'écran des stocks était en **lecture seule**. Le modèle savait rattacher un

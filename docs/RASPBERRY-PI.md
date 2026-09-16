@@ -1218,9 +1218,81 @@ Les vraies réponses, dans l'ordre de bon sens :
 
 ### Redémarrages et coupures de courant
 
-Les deux services démarrent tout seuls (`systemctl enable`), et le tunnel se
-rétablit dès que la liaison revient. Un onduleur, même petit, évite au Pi les
+Les services sont activés au démarrage (`systemctl enable`), le tunnel se
+rétablit dès que la liaison revient, et un onduleur même petit évite au Pi les
 extinctions brutales — PostgreSQL n'aime pas ça.
+
+#### Pourquoi `systemctl enable` ne suffisait pas
+
+Cette page affirmait jusqu'ici que « les deux services démarrent tout seuls ».
+C'était vrai de l'intention, pas du résultat : au démarrage, PostgreSQL et
+Parcelys partent **ensemble**, et sur carte SD la base met plusieurs secondes à
+ouvrir sa socket. Parcelys arrivait le premier, ne trouvait pas la base, et le
+service échouait. Après une coupure de courant, le Pi était allumé et le site
+éteint.
+
+Le réflexe — « il suffit d'ordonner Parcelys après PostgreSQL » — ne règle rien,
+pour deux raisons qui tiennent à Debian et non à Parcelys :
+
+1. **`postgresql.service` ne démarre rien.** C'est une méta-unité dont
+   l'`ExecStart` est `/bin/true` ; son propre fichier le dit. Un
+   `After=postgresql.service` n'ordonne donc strictement rien.
+2. **L'unité réelle ignore ses propres échecs.** `postgresql@16-main.service`
+   lance le cluster avec `ExecStart=-…`, le tiret signifiant « ignorer
+   l'échec », et le commentaire Debian l'explique : *recovery might take
+   arbitrarily long*. systemd la déclare démarrée alors que la base peut encore
+   être en recouvrement.
+
+**Aucun ordonnancement systemd ne peut donc garantir qu'une requête passera.**
+Le démarrage de Parcelys **attend** maintenant que la base réponde vraiment —
+jusqu'à trois minutes, en réessayant toutes les deux secondes — avant de se
+déclarer en panne. Et si elle ne revient jamais, le journal le dit en clair
+plutôt que de laisser un service bloqué.
+
+Deux autres réglages vont avec :
+
+- `Restart=always` et **aucune limite de tentatives**. Par défaut, systemd
+  abandonne après cinq échecs en dix secondes et laisse le service en panne
+  *définitivement*, jusqu'à une intervention manuelle. Sur la machine d'une
+  exploitation, qui redémarre sans personne devant l'écran, c'est le pire
+  comportement possible.
+- Les chemins de `node` et `npm` sont **résolus à l'installation**. systemd n'a
+  pas de PATH : un chemin codé en dur vers `/usr/bin` est faux dès que Node
+  vient d'ailleurs, et l'unité pointe alors vers un fichier inexistant.
+
+#### Le vérifier sans redémarrer
+
+```bash
+cd /opt/parcelys
+npm run check:demarrage                                   # l'unité et ses garanties
+sudo bash scripts/check-demarrage.sh --sur-la-machine     # + l'état réel des unités
+```
+
+Le second contrôle regarde ce qui compte vraiment sur le Pi : que `parcelys`,
+`postgresql` et `cloudflared` soient activés, et que le `start.conf` du cluster
+dise bien `auto` — en `manual`, la base ne se lève jamais et Parcelys attend en
+vain.
+
+Pour éprouver l'attente elle-même, en coupant réellement la base :
+
+```bash
+sudo bash scripts/check-demarrage.sh --couper-la-base
+```
+
+À ne pas lancer pendant que quelqu'un travaille : il arrête PostgreSQL quelques
+secondes.
+
+#### Si votre Pi a été installé avant cette correction
+
+L'unité systemd n'était écrite que par l'installation ; les mises à jour n'y
+touchaient pas. Une seule commande la rafraîchit, sans toucher au code ni à la
+base :
+
+```bash
+sudo bash /opt/parcelys/scripts/service-systemd.sh
+```
+
+`update-pi.sh` le fait désormais à chaque mise à jour.
 
 ### Surveiller depuis l'extérieur
 

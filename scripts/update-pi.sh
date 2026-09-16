@@ -313,14 +313,36 @@ as_service sh -c "printf '%s' '$APRES' > '$TEMOIN'"
 
 ok "Application compilée"
 
-# --- 6. Redémarrage ---------------------------------------------------------
+# --- 6. Unité systemd --------------------------------------------------------
+#
+# Réécrire l'unité à chaque mise à jour, et pas seulement à l'installation.
+#
+# Elle n'était écrite que par `install-pi.sh`. Une machine installée il y a six
+# mois gardait donc la sienne indéfiniment : aucune correction touchant au
+# démarrage ne lui parvenait, pas même celle qui la fait revenir après une
+# coupure de courant. Mettre à jour le code sans mettre à jour la façon dont il
+# démarre laissait la moitié du travail sur l'étagère.
+#
+# Le script est idempotent : réécrire une unité déjà correcte ne change rien.
+
+step "Unité systemd et démarrage automatique"
+
+if [ -x "$APP_DIR/scripts/service-systemd.sh" ] || [ -f "$APP_DIR/scripts/service-systemd.sh" ]; then
+  bash "$APP_DIR/scripts/service-systemd.sh" \
+    --dir "$APP_DIR" --user "$SERVICE_USER" --port "$PORT"
+else
+  warn "scripts/service-systemd.sh absent de cette version : l'unité systemd
+    n'a pas été rafraîchie."
+fi
+
+# --- 7. Redémarrage ---------------------------------------------------------
 
 step "Redémarrage"
 
 systemctl restart "$SERVICE" || die "Le service n'a pas redémarré : journalctl -u $SERVICE -n 40"
 ok "Service redémarré"
 
-# --- 7. Vérification --------------------------------------------------------
+# --- 8. Vérification --------------------------------------------------------
 
 step "Vérification"
 

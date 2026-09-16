@@ -45,6 +45,79 @@ function warn(what) {
   console.log(`  ! ${what}`);
 }
 
+/**
+ * Attendre que la base réponde, plutôt que de constater qu'elle ne répond pas.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI CETTE ATTENTE EXISTE
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Au démarrage du Raspberry Pi, PostgreSQL et Parcelys partent ensemble. Sur
+ * carte SD, la base met plusieurs secondes — parfois plus — à ouvrir sa socket.
+ * Ce contrôle, qui s'exécute en `ExecStartPre`, la trouvait alors injoignable et
+ * le service échouait : après un redémarrage, Parcelys était éteint.
+ *
+ * L'ordonnancement systemd ne règle pas le problème, et ce n'est pas une
+ * négligence de notre part :
+ *
+ *   - sur Debian, `postgresql.service` est une **méta-unité** dont le
+ *     `ExecStart` est `/bin/true`. S'ordonner après elle n'ordonne rien ;
+ *   - l'unité réelle, `postgresql@16-main.service`, démarre le cluster avec un
+ *     `ExecStart=-…`, le tiret signifiant « ignorer l'échec ». Debian l'explique
+ *     dans son propre commentaire : « recovery might take arbitrarily long ».
+ *     systemd la déclare donc démarrée alors que la base peut encore être en
+ *     recouvrement.
+ *
+ * Aucun `After=` ne peut donc garantir qu'une requête passera. La seule réponse
+ * fiable est d'essayer, et de réessayer.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI UNE BORNE, ET PAS UNE ATTENTE INFINIE
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Une base qui ne revient jamais — disque plein, cluster corrompu — doit finir
+ * par produire une erreur lisible dans le journal, pas un service bloqué qui
+ * semble démarrer. Passé le délai, on échoue avec le message habituel.
+ */
+async function attendreLaBase(url, secondes) {
+  const { PrismaClient: Client } = await import('@prisma/client');
+  const limite = Date.now() + secondes * 1000;
+  let derniere = null;
+  let essais = 0;
+
+  console.log(`\nAttente de la base (jusqu'à ${secondes} s)`);
+
+  while (Date.now() < limite) {
+    essais += 1;
+    const prisma = new Client({ datasources: { db: { url } } });
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      await prisma.$disconnect();
+      ok(`base joignable après ${essais} essai(s)`);
+      return true;
+    } catch (cause) {
+      derniere = cause;
+      await prisma.$disconnect().catch(() => {});
+      // Deux secondes : assez court pour ne pas retarder un démarrage sain,
+      // assez long pour ne pas marteler une base en cours de recouvrement.
+      await new Promise((resoudre) => setTimeout(resoudre, 2000));
+    }
+  }
+
+  // Prisma commence ses messages par une ligne vide : prendre la première
+  // ligne non vide, sinon le journal affiche un tiret suivi de rien.
+  const detail =
+    derniere instanceof Error
+      ? (derniere.message.split('\n').find((l) => l.trim() !== '') ?? '').trim()
+      : '';
+
+  console.log(
+    `  ✗ base toujours injoignable après ${secondes} s et ${essais} essai(s)` +
+      (detail ? ` — ${detail}` : ''),
+  );
+  return false;
+}
+
 // --- 1. Configuration -------------------------------------------------------
 console.log('\nConfiguration');
 
@@ -159,6 +232,32 @@ for (const [label, dir] of [
 }
 
 // --- 4. Base de données -----------------------------------------------------
+
+/*
+ * `--attendre <secondes>` : laisser à PostgreSQL le temps de se lever.
+ *
+ * Sans l'option, le comportement est inchangé — un contrôle immédiat, ce qui
+ * est ce qu'on veut en ligne de commande. C'est l'unité systemd qui la passe,
+ * parce qu'elle seule démarre en même temps que la base.
+ */
+const ATTENDRE = (() => {
+  const i = process.argv.indexOf('--attendre');
+  if (i === -1) return 0;
+  const valeur = Number(process.argv[i + 1]);
+  return Number.isFinite(valeur) && valeur > 0 ? Math.min(valeur, 900) : 0;
+})();
+
+if (DATABASE_URL && ATTENDRE > 0) {
+  const prete = await attendreLaBase(DATABASE_URL, ATTENDRE);
+  if (!prete) {
+    fail(
+      `base injoignable après ${ATTENDRE} s d'attente`,
+      'Vérifiez PostgreSQL : sudo systemctl status postgresql@*-main, puis ' +
+        'sudo journalctl -u postgresql@*-main -b.',
+    );
+  }
+}
+
 if (DATABASE_URL) {
   console.log('\nBase de données');
   const prisma = new PrismaClient({ datasources: { db: { url: DATABASE_URL } } });

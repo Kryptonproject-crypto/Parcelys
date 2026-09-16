@@ -44,7 +44,7 @@
     "check:ecrans": "node scripts/check-ecrans-07.mjs",
     "audit:comptes": "tsx --conditions=react-server scripts/audit-accounts.ts",
     "audit": "npm run audit:comptes && node scripts/audit-pages.mjs",
-    "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte && npm run check:sauvegarde",
+    "verif:sans-navigateur": "npm run check:stocks && npm run check:couverture && npm run check:plafond && npm run check:dossier && npm run check:carte && npm run check:sauvegarde && npm run check:demarrage",
     "audit:debit": "tsx --conditions=react-server scripts/audit-reset-debit.ts",
     "verif:navigateur": "npm run audit:debit && npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:modales && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security && npm run audit:debit && npm run check:091",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts",
@@ -59,7 +59,8 @@
     "audit:e2e": "node scripts/audit-bout-en-bout.mjs",
     "audit:tout": "bash scripts/audit-lancer.sh tout",
     "audit:perf": "node scripts/audit-performance.mjs",
-    "check:import-stock": "node scripts/check-import-stock.mjs"
+    "check:import-stock": "node scripts/check-import-stock.mjs",
+    "check:demarrage": "bash scripts/check-demarrage.sh"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

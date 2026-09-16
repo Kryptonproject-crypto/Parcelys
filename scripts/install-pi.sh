@@ -494,60 +494,28 @@ fi
 ok "Application compilée"
 
 # --- Service ----------------------------------------------------------------
+#
+# L'unité vit dans `scripts/service-systemd.sh`, et pas ici.
+#
+# Elle y a été déplacée parce qu'`update-pi.sh` ne réécrivait jamais l'unité :
+# une machine installée il y a six mois gardait la sienne indéfiniment, et
+# aucune correction de démarrage ne lui parvenait. Les deux scripts appellent
+# désormais le même fichier — le dépôt vient d'être cloné, il est donc là.
 
 if [ "$INSTALL_SERVICE" -eq 1 ]; then
-  step "Service systemd"
+  step "Service systemd et démarrage automatique"
 
   if [ "$DRY_RUN" -eq 0 ]; then
-    cat > "$SERVICE_FILE" <<UNIT
-[Unit]
-Description=Parcelys — gestion parcellaire agricole
-After=network-online.target postgresql.service
-Wants=network-online.target
-Requires=postgresql.service
-
-[Service]
-Type=simple
-User=$SERVICE_USER
-Group=$SERVICE_USER
-WorkingDirectory=$APP_DIR
-EnvironmentFile=$ENV_FILE
-Environment=PORT=$PORT
-Environment=HOSTNAME=127.0.0.1
-
-# Refuse de démarrer sur une instance mal configurée, plutôt que de servir une
-# application qui semble saine et tombera au premier utilisateur.
-ExecStartPre=/usr/bin/npm run preflight
-ExecStart=/usr/bin/npm run start
-
-Restart=on-failure
-RestartSec=5
-
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ProtectKernelTunables=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-ReadWritePaths=$DATA_DIR $APP_DIR/.next
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+    bash "$APP_DIR/scripts/service-systemd.sh" \
+      --dir "$APP_DIR" --data "$DATA_DIR" --user "$SERVICE_USER" --port "$PORT"
     if [ "$HAS_SYSTEMD" -eq 1 ]; then
-      systemctl daemon-reload
-      systemctl enable --quiet parcelys
-      systemctl restart parcelys
-      ok "Service installé et démarré"
-    else
-      warn "Unité écrite dans $SERVICE_FILE, mais systemd n'est pas actif ici :
-    elle démarrera au prochain amorçage de la machine."
+      systemctl restart parcelys && ok "Service démarré"
     fi
   else
-    ok "Service installé et démarré"
+    ok "Service installé, activé au démarrage, et démarré"
   fi
 fi
+
 
 # --- Sauvegardes ------------------------------------------------------------
 
