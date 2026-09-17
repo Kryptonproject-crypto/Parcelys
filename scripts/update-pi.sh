@@ -60,6 +60,49 @@ as_service() { sudo -u "$SERVICE_USER" "$@"; }
 
 [ "$(id -u)" -eq 0 ] || die "À lancer avec sudo."
 [ -d "$APP_DIR/.git" ] || die "$APP_DIR n'est pas un dépôt Parcelys."
+
+# --- Se mettre à l'abri avant de toucher au dépôt ----------------------------
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# POURQUOI CE SCRIPT COMMENCE PAR SE RECOPIER
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Ce script fait un `git pull` sur le dépôt **qui le contient**. Il se réécrit
+# donc lui-même, en cours d'exécution.
+#
+# Bash ne charge pas un script en mémoire : il le lit au fur et à mesure, en
+# retenant sa **position en octets**. Quand le fichier change sous lui, il
+# reprend à la même position dans un contenu devenu différent — au milieu d'une
+# autre ligne, ou après la fin.
+#
+# Ce n'est pas une inquiétude de principe : reproduit ici en remplaçant
+# l'ancienne version de ce fichier par la nouvelle à l'endroit du `git pull`,
+# bash a enchaîné sur des lignes du nouveau fichier, produit
+# « step: command not found » et « die: command not found », sauté plusieurs
+# étapes — puis affiché « Mise à jour terminée » et rendu **le code 0**.
+#
+# Autrement dit : exactement la panne que l'en-tête de ce script dit vouloir
+# éviter — « on redémarre l'ancienne version en croyant avoir mis à jour, et
+# rien ne le signale ». Et de façon **intermittente**, selon la taille du
+# fichier et l'endroit modifié : une mise à jour qui s'est bien passée ne prouve
+# rien sur la suivante.
+#
+# La parade tient en trois lignes : travailler depuis une copie, hors du dépôt.
+# Le dépôt peut alors changer autant qu'il veut, le script exécuté ne bouge pas.
+
+if [ "${PARCELYS_COPIE_SURE:-0}" != 1 ]; then
+  # Résolu avant tout `cd` : `$0` est souvent relatif.
+  SOURCE=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+  COPIE=$(mktemp /tmp/parcelys-update.XXXXXX.sh)
+  cat "$SOURCE" > "$COPIE"
+  export PARCELYS_COPIE_SURE=1
+  export PARCELYS_COPIE_FICHIER="$COPIE"
+  exec bash "$COPIE" "$@"
+fi
+
+# La copie s'efface à la sortie, quelle qu'en soit la cause.
+trap 'rm -f "${PARCELYS_COPIE_FICHIER:-}"' EXIT
+
 cd "$APP_DIR"
 
 # --- 0. Le service peut-il seulement travailler dans son dossier ? -----------

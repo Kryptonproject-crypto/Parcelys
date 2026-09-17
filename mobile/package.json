@@ -1,6 +1,6 @@
 {
   "name": "parcelys-mobile",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "description": "Parcelys au champ — application mobile hors ligne (Capacitor)",
   "type": "module",

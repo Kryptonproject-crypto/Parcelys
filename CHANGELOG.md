@@ -6,7 +6,32 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
-## Non publié
+## 0.9.6 — Le Pi se relève, et les stocks démarrent tout seuls
+
+### La mise à jour pouvait sauter des étapes en annonçant un succès
+
+Trouvé en répondant à une question simple : « comment je fais la mise à jour,
+maintenant que le script a changé ? »
+
+`update-pi.sh` fait un `git pull` sur le dépôt **qui le contient** : il se
+réécrit lui-même en cours d'exécution. Or bash ne charge pas un script en
+mémoire — il le lit au fur et à mesure en retenant sa **position en octets**.
+Quand le fichier change sous lui, il reprend à la même position dans un contenu
+devenu différent.
+
+Reproduit en remplaçant l'ancienne version du fichier par la nouvelle à
+l'endroit du `git pull` : bash a enchaîné sur des lignes du nouveau fichier,
+produit « step: command not found » et « die: command not found », sauté
+plusieurs étapes, puis affiché « Mise à jour terminée » et rendu **le code 0**.
+
+C'est exactement la panne que l'en-tête du script dit vouloir éviter — « on
+redémarre l'ancienne version en croyant avoir mis à jour, et rien ne le
+signale ». Et de façon **intermittente**, selon la taille du fichier et
+l'endroit modifié : une mise à jour réussie ne prouvait rien sur la suivante.
+
+Le script commence désormais par se recopier hors du dépôt et se relancer
+depuis cette copie. Le dépôt peut alors changer autant qu'il veut.
+
 
 ### Après un redémarrage, Parcelys revient — vraiment
 
