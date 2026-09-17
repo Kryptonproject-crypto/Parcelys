@@ -13,7 +13,14 @@
  *   package.json                       version servie par le site
  *   package-lock.json                  sinon « npm ci » se plaint d'un décalage
  *   mobile/package.json                version de l'application de terrain
+ *   mobile/package-lock.json           idem, côté application
  *   mobile/android/app/build.gradle    repli quand le workflow n'impose rien
+ *
+ * `mobile/package-lock.json` manquait à cette liste, et était resté à 0.1.0
+ * — la version du squelette initial — pendant que tout le reste montait. Sans
+ * conséquence à la compilation (`npm ci` ne regarde pas ce champ, vérifié), mais
+ * un fichier de version faux dans un script dont le seul métier est de les tenir
+ * ensemble finit par tromper quelqu'un.
  *
  * Il affiche l'ancienne et la nouvelle version, et refuse d'écrire si l'une des
  * quatre ne portait pas déjà la version attendue : mieux vaut s'arrêter que
@@ -28,6 +35,7 @@ const FICHIERS = {
   paquet: path.join(RACINE, 'package.json'),
   verrou: path.join(RACINE, 'package-lock.json'),
   mobile: path.join(RACINE, 'mobile', 'package.json'),
+  verrouMobile: path.join(RACINE, 'mobile', 'package-lock.json'),
   gradle: path.join(RACINE, 'mobile', 'android', 'app', 'build.gradle'),
 };
 
@@ -85,6 +93,9 @@ if (lireJson(FICHIERS.mobile).version !== actuelle) {
 if (lireJson(FICHIERS.verrou).version !== actuelle) {
   desaccords.push(`package-lock.json : ${lireJson(FICHIERS.verrou).version}`);
 }
+if (lireJson(FICHIERS.verrouMobile).version !== actuelle) {
+  desaccords.push(`mobile/package-lock.json : ${lireJson(FICHIERS.verrouMobile).version}`);
+}
 if (gradleVersion !== actuelle) {
   desaccords.push(`build.gradle : ${gradleVersion ?? 'introuvable'}`);
 }
@@ -108,10 +119,12 @@ const mobile = lireJson(FICHIERS.mobile);
 mobile.version = suivante;
 ecrireJson(FICHIERS.mobile, mobile);
 
-const verrou = lireJson(FICHIERS.verrou);
-verrou.version = suivante;
-if (verrou.packages?.['']) verrou.packages[''].version = suivante;
-ecrireJson(FICHIERS.verrou, verrou);
+for (const cle of ['verrou', 'verrouMobile']) {
+  const verrou = lireJson(FICHIERS[cle]);
+  verrou.version = suivante;
+  if (verrou.packages?.['']) verrou.packages[''].version = suivante;
+  ecrireJson(FICHIERS[cle], verrou);
+}
 
 writeFileSync(
   FICHIERS.gradle,

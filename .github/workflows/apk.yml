@@ -55,7 +55,26 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # `packages` est précisé, et ce n'est pas un détail de confort.
+      #
+      # Par défaut, cette action installe « tools platform-tools ». Or Google a
+      # retiré `tools` — les anciens « SDK Tools », remplacés depuis longtemps
+      # par les « cmdline-tools » — du dépôt Android. sdkmanager répond alors :
+      #
+      #     Warning: Failed to find package 'tools'
+      #     Error: The process '…/sdkmanager' failed with exit code 1
+      #
+      # et la compilation s'arrête au bout de trente secondes, avant même
+      # d'installer les dépendances. Rien dans Parcelys n'avait changé : le même
+      # workflow réussissait le 11 septembre et échouait le 15, sur un dépôt
+      # Android devenu différent.
+      #
+      # On ne demande donc que `platform-tools`. Le reste — la plateforme
+      # android-35 et les build-tools — est téléchargé par le greffon Gradle
+      # d'Android lui-même, les licences étant déjà acceptées par cette action.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Version à publier
         id: version
