@@ -43,3 +43,7 @@ yarn-error.log*
 /.server.log
 /.verif1.log
 /.verif2.log
+
+# Python (modèle docs/aurora)
+__pycache__/
+*.pyc

@@ -1,0 +1,249 @@
+
+==============================================================================
+MODÈLE AURORA — objectifs de conception (pas des mesures)
+==============================================================================
+Incertitude avant RTL : environ +/-25 % sur l'IPC, +/-30 % sur la
+puissance. Toutes les hypothèses sont dans le code source.
+
+==============================================================================
+1. Construction de l'IPC du cœur P
+==============================================================================
+Contribution                                                 gain   IPC cumulé
+------------------------------------------------------------------------------
+Base : TT-Ascalon (annoncé)                                     —        2.300
+Fetch découplé + prédicteur 3 niveaux (MPKI 4,0 -> 2,5)    +5.5%        2.426
+Fusion contractuelle 18-22 % (doc. 1 §1.7)                 +7.0%        2.596
+Largeur 8 au lieu de 6                                     +5.0%        2.726
+ROB 512 + 384 registres physiques                          +3.5%        2.822
+3 chargements/cycle + store-set 4 K entrées                +3.5%        2.920
+Préchargement à précision contrôlée + Xaurdma              +4.5%        3.052
+SLC 3D : latence LLC 48 -> 35 cycles                       +3.5%        3.159
+Élimination au renommage (mv, idiomes zéro)                +2.0%        3.222
+Threads découplés Xaurdt (charges à pointeurs)             +1.5%        3.270
+Files d'émission distribuées (perte d'optimalité)          -1.5%        3.221
+Absence de cache d'µops (bulles de décodage résiduelles)   -1.0%        3.189
+Décote de recouvrement (1re génération)                   -10.0%        2.870
+------------------------------------------------------------------------------
+IPC cible du cœur P (SPECint2017/GHz)                                     2.87
+IPC cœur E (62 %)                                                         1.78
+IPC cœur L (28 %)                                                         0.80
+
+SPECint2017 mono-cœur estimé : 12.1 (à 4.2 GHz)
+
+==============================================================================
+2. Points de fonctionnement et efficacité
+==============================================================================
+Référence des colonnes relatives : cœur P en boost = 100 %.
+
+Aurora-P :
+point           GHz      V    P_dyn   P_fuite    total  perf rel.  effic. rel.
+boost          4.20   1.00    3.99W     0.55W    4.54W      100%        100%
+nominal        3.40   0.82    2.17W     0.25W    2.42W       81%        152%
+efficace       2.40   0.68    1.05W     0.13W    1.18W       57%        219%
+minimal        1.20   0.60    0.41W     0.09W    0.50W       29%        261%
+
+Aurora-E :
+point           GHz      V    P_dyn   P_fuite    total  perf rel.  effic. rel.
+max            2.80   0.78    0.58W     0.06W    0.64W       41%        294%
+efficace       1.20   0.55    0.12W     0.02W    0.14W       18%        562%
+minimal        0.60   0.48    0.05W     0.01W    0.06W        9%        664%
+
+4 cœurs E (surface d'un cœur P) contre 1 cœur P en boost :
+  débit    :   165% de celui du cœur P
+  puissance:    56%
+  perf/W   :   294%
+
+==============================================================================
+3. Budgets de puissance par configuration
+==============================================================================
+
+Aurora-M (mobile, 15 W)  —  procédé N2P, enveloppe visée 15 W
+  (scénario : bureautique mixte, navigateur, vidéo, un peu d'inférence locale)
+------------------------------------------------------------------------------
+  cœurs P                                      2.62 W     23.8%
+  affichage                                    2.10 W     19.1%
+  GPU (hors matrice)                           1.81 W     16.4%
+  E/S                                          1.10 W     10.0%
+  DRAM + PHY                                   1.03 W      9.3%
+  unités matricielles                          0.69 W      6.3%
+  cœurs E                                      0.65 W      5.9%
+  horloges, PLL, régulation                    0.62 W      5.7%
+  SLC                                          0.16 W      1.4%
+  NoC                                          0.15 W      1.4%
+  liaisons 3D                                  0.07 W      0.6%
+  cœurs L                                      0.02 W      0.1%
+------------------------------------------------------------------------------
+  TOTAL modélisé                              11.01 W
+  écart à la cible                           -26.6%   marge disponible
+  déplacement hors cœur                        1.40 W     12.7%
+  déplacement intra-cœur (estimé, déjà compté)     2.32 W     21.0%
+  >> déplacement total de données              3.72 W     33.7%
+
+Aurora-D (desktop, 95 W)  —  procédé N2P, enveloppe visée 95 W
+  (scénario : compilation + rendu 3D simultanés, CPU et GPU tous deux chargés)
+------------------------------------------------------------------------------
+  cœurs P                                     29.03 W     33.2%
+  GPU (hors matrice)                          28.08 W     32.1%
+  cœurs E                                     10.23 W     11.7%
+  unités matricielles                          5.94 W      6.8%
+  horloges, PLL, régulation                    4.95 W      5.7%
+  DRAM + PHY                                   3.92 W      4.5%
+  E/S                                          3.80 W      4.3%
+  SLC                                          0.60 W      0.7%
+  NoC                                          0.57 W      0.7%
+  liaisons 3D                                  0.26 W      0.3%
+  cœurs L                                      0.02 W      0.0%
+------------------------------------------------------------------------------
+  TOTAL modélisé                              87.39 W
+  écart à la cible                            -8.0%   dans l'enveloppe
+  déplacement hors cœur                        5.35 W      6.1%
+  déplacement intra-cœur (estimé, déjà compté)    29.32 W     33.5%
+  >> déplacement total de données             34.67 W     39.7%
+
+Aurora-S (serveur/IA, 420 W)  —  procédé A16, enveloppe visée 420 W
+  (scénario : entraînement / inférence IA. Les cœurs CPU alimentent les accélérateurs, ils ne font pas du SPEC.)
+------------------------------------------------------------------------------
+  unités matricielles                        158.84 W     41.5%
+  DRAM + PHY                                  61.88 W     16.2%
+  cœurs P                                     53.89 W     14.1%
+  horloges, PLL, régulation                   21.65 W      5.7%
+  E/S                                         16.00 W      4.2%
+  L4                                          15.47 W      4.0%
+  SLC                                         13.61 W      3.6%
+  GPU (hors matrice)                          13.03 W      3.4%
+  NoC                                         13.01 W      3.4%
+  cœurs E                                      9.35 W      2.4%
+  liaisons 3D                                  5.81 W      1.5%
+  cœurs L                                      0.03 W      0.0%
+------------------------------------------------------------------------------
+  TOTAL modélisé                             382.56 W
+  écart à la cible                            -8.9%   dans l'enveloppe
+  déplacement hors cœur                      109.77 W     28.7%
+  déplacement intra-cœur (estimé, déjà compté)    94.05 W     24.6%
+  >> déplacement total de données            203.83 W     53.3%
+
+==============================================================================
+4. Débit de calcul
+==============================================================================
+
+Aurora-M (mobile, 15 W)
+  GPU FP32            :     2.46 TFLOP/s
+  GPU FP16            :     4.92 TFLOP/s
+  GPU MXFP4           :    78.64 TFLOP/s
+  Matrice CPU MXFP4   :    39.32 TFLOP/s
+  CPU agrégé (indice SPECint2017 cumulé, indicatif) :       62
+
+Aurora-D (desktop, 95 W)
+  GPU FP32            :    14.75 TFLOP/s
+  GPU FP16            :    29.49 TFLOP/s
+  GPU MXFP4           :   471.86 TFLOP/s
+  Matrice CPU MXFP4   :   167.12 TFLOP/s
+  CPU agrégé (indice SPECint2017 cumulé, indicatif) :      214
+
+Aurora-S (serveur/IA, 420 W)
+  GPU FP32            :    29.49 TFLOP/s
+  GPU FP16            :    58.98 TFLOP/s
+  GPU MXFP4           :   943.72 TFLOP/s
+  Matrice CPU MXFP4   :   891.29 TFLOP/s
+  CPU agrégé (indice SPECint2017 cumulé, indicatif) :      818
+
+==============================================================================
+5a. Régime limité par le calcul (GEMM de grande taille)
+==============================================================================
+Repère publié (meilleur prototype de recherche) : 4.07 TOPS/W en MXFP4
+Une cible très au-delà de ce repère ne serait pas défendable.
+
+Aurora-M (mobile, 15 W)
+  TOPS crête                         117.96 TOPS
+  TOPS soutenus                       73.14 TOPS
+  puissance calcul (W)                11.34 W
+  puissance mémoire (W)                2.38 W
+  TOPS/W soutenus                      5.33 TOPS/W
+  TOPS/W au niveau système             6.64 TOPS/W   (sur 11 W de SoC)
+
+Aurora-D (desktop, 95 W)
+  TOPS crête                         638.98 TOPS
+  TOPS soutenus                      396.17 TOPS
+  puissance calcul (W)                61.41 W
+  puissance mémoire (W)               12.88 W
+  TOPS/W soutenus                      5.33 TOPS/W
+  TOPS/W au niveau système             4.53 TOPS/W   (sur 87 W de SoC)
+
+Aurora-S (serveur/IA, 420 W)
+  TOPS crête                        1835.01 TOPS
+  TOPS soutenus                     1137.70 TOPS
+  puissance calcul (W)               176.34 W
+  puissance mémoire (W)               25.60 W
+  TOPS/W soutenus                      5.63 TOPS/W
+  TOPS/W au niveau système             2.97 TOPS/W   (sur 383 W de SoC)
+
+
+==============================================================================
+5b. Régime limité par la mémoire (décodage LLM, 7 Md MXFP4)
+==============================================================================
+C'est ici que la hiérarchie mémoire décide de tout.
+
+Aurora-M (mobile, 15 W)
+  poids à lire par token                 3.50 Go
+  énergie/token — chemin naïf           93.70 mJ
+  énergie/token — étagement L4          93.70 mJ   (x1.0)
+  énergie/token — GEMV near-memory      71.09 mJ   (x1.3)
+  énergie/token — L4 + near-memory      71.09 mJ   (x1.3)
+  débit plafond (bande passante)           66 tok/s
+
+Aurora-D (desktop, 95 W)
+  poids à lire par token                 3.50 Go
+  énergie/token — chemin naïf           93.70 mJ
+  énergie/token — étagement L4          93.70 mJ   (x1.0)
+  énergie/token — GEMV near-memory      71.09 mJ   (x1.3)
+  énergie/token — L4 + near-memory      71.09 mJ   (x1.3)
+  débit plafond (bande passante)          131 tok/s
+
+Aurora-S (serveur/IA, 420 W)
+  poids à lire par token                 3.50 Go
+  énergie/token — chemin naïf           71.82 mJ
+  énergie/token — étagement L4          27.52 mJ   (x2.6)
+  énergie/token — GEMV near-memory      49.22 mJ   (x1.5)
+  énergie/token — L4 + near-memory       8.20 mJ   (x8.8)
+  débit plafond (bande passante)         2286 tok/s
+
+
+==============================================================================
+6. Ce que coûte un octet, selon d'où il vient
+==============================================================================
+niveau             pJ / accès 64 o     x vs L1     MAC équivalents
+------------------------------------------------------------------------------
+L1                             2.0          1x                   2
+tuile                          6.0          3x                   6
+L2                            20.0         10x                  20
+SLC                           60.0         30x                  60
+L4                           150.0         75x                 150
+LPDDR6                      1300.0        650x                1300
+HBM4                         900.0        450x                 900
+
+==============================================================================
+7. Propagation d'incertitude (20000 tirages)
+==============================================================================
+grandeur                                         p05     médiane         p95
+------------------------------------------------------------------------------
+IPC (SPECint2017/GHz)                           2.71        2.87        3.03
+Fréquence boost (GHz)                           3.67        4.06        4.30
+SPECint2017 mono-cœur                          10.40       11.62       12.65
+Puissance cœur P en boost (W)                   3.17        3.87        4.77
+
+==============================================================================
+8. Falsifiabilité
+==============================================================================
+Chaque cible ci-dessus est réfutable par une mesure précise :
+
+  IPC              -> simulateur cycle-accurate calibré sur RTL (jalon M14).
+                      Sous 2,6 SPECint2017/GHz, l'architecture est à revoir.
+  Fréquence        -> navette MPW à M24. Sous 3,8 GHz, revoir le pipeline.
+  Puissance        -> extraction post-layout + mesure sur MPW.
+                      Au-delà de +30 %, revoir le mix de Vt et les marges.
+  Traduction x86   -> prototype sur simulateur à M18.
+                      Au-delà de 35 % de surcoût, renforcer Xaurx86.
+  Efficacité IA    -> noyaux GEMM réels sur FPGA à M26.
+
+Un objectif sans condition de réfutation n'est pas un objectif d'ingénierie.
+
