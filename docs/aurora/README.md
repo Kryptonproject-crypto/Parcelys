@@ -118,6 +118,24 @@ Une seule architecture, trois assemblages de chiplets :
 | 9 | [Vérification et implémentation](09-verification-implementation.md) | Flot RTL, vérification formelle, émulation, DFT, physical design, bring-up |
 | 10 | [Feuille de route et budget](10-feuille-de-route-budget.md) | 5 ans, jalons, équipes, coûts, risques, stratégie de mise sur le marché |
 | 11 | [Modèle de performance](11-modele-performance.md) | Méthode d'estimation, hypothèses, résultats chiffrés, limites, falsifiabilité |
+| 12 | [**Plans de construction**](12-plans-de-construction.md) | Plans de masse cotés, pile 3D, budget de connexion, PDN, horloge, thermique, package, assemblage, nomenclature et coût unitaire |
+
+### Les schémas
+
+Neuf plans en SVG, versionnés dans [`schemas/`](schemas/), lisibles dans le
+navigateur comme dans un diff :
+
+| Schéma | Ce qu'il démontre |
+|---|---|
+| [Coupe du package](schemas/01-coupe-package.svg) | pourquoi le chemin de données est vertical, et où passe l'alimentation |
+| [Plan de masse CCD-P](schemas/02-floorplan-ccd-p.svg) | où va la surface, et pourquoi les unités matricielles sont au centre |
+| [Plan de masse du die de base](schemas/03-floorplan-die-base.svg) | chaque régulateur à l'aplomb de sa charge |
+| [Pipeline du cœur P](schemas/04-pipeline-coeur-p.svg) | le prédicteur court devant la récupération |
+| [Immédiat contre TBDR](schemas/05-tbdr-vs-immediat.svg) | le trafic mémoire qui disparaît |
+| [Chemin des poids d'un LLM](schemas/06-chemin-donnees-llm.svg) | pourquoi ×2,6 et ×1,5 donnent ×8,8 |
+| [Arbre d'alimentation](schemas/07-arbre-alimentation.svg) | 4 points de rendement échangés contre 200× d'agilité |
+| [Pile thermique](schemas/08-pile-thermique.svg) | le point chaud que la moyenne cache |
+| [Flot d'assemblage](schemas/09-flot-assemblage.svg) | pourquoi le tri des bons dies décide de l'économie |
 
 Le modèle exécutable vit dans [`modele/aurora_model.py`](modele/aurora_model.py)
 (bibliothèque standard uniquement, aucune dépendance) :
@@ -144,6 +162,8 @@ modification du modèle apparaisse dans le diff.
 | Efficacité matricielle MXFP4 (système complet) | 3,0 à 6,6 TOPS/W selon la classe | — | [§11.7](11-modele-performance.md) |
 | Énergie par token, décodage LLM 7 Md | **8,2 mJ** au lieu de 71,8 (×8,8) | — | [§11.7](11-modele-performance.md) |
 | Surcoût traduction x86 | < 25 % | ~40 % (état de l'art logiciel seul) | [§1.6](01-isa-aurora.md) |
+| Coût de fabrication Aurora-D | **≈ 341 $** (silicium 247 $) | — | [§12.10](12-plans-de-construction.md) |
+| Coût de fabrication Aurora-S | ≈ 3 283 $, dont **49 % de HBM4** | — | [§12.10](12-plans-de-construction.md) |
 
 Ces cibles sont **falsifiables** : le document 11 dit précisément quelle mesure,
 à quelle étape du projet, invaliderait chacune d'elles. Une architecture qui ne

@@ -4,6 +4,9 @@
 
 ## 5.1 Le die de base actif : la décision centrale
 
+![Coupe du package Aurora-D](schemas/01-coupe-package.svg)
+
+
 La plupart des architectures à chiplets juxtaposent des dies sur un interposeur
 **passif** et les relient latéralement (UCIe, Infinity Fabric). Aurora fait
 l'inverse : un **die de base actif**, sur lequel tous les chiplets logiques
@@ -57,7 +60,7 @@ document 9 traite ces points.
 
 | Paramètre | Valeur |
 |---|---|
-| Topologie | maille 2D, 6 × 6 (Aurora-D), 8 × 10 (Aurora-S) |
+| Topologie | maille 2D, 4 × 4 (Aurora-D), 6 × 6 par quadrant (Aurora-S) |
 | Largeur de lien | 512 bits par direction |
 | Fréquence | 2,0 GHz |
 | Bande passante par lien | 128 Go/s par direction |
@@ -86,24 +89,35 @@ cette plage avec un seul design.
 
 ## 5.3 Catalogue de chiplets
 
-| Chiplet | Contenu | Procédé | Surface estimée |
-|---|---|---|---|
-| **CCD-P** | 8 cœurs P, 16 Mo L2, 4 unités matricielles | N2P | ~62 mm² |
-| **CCD-E** | 16 cœurs E, 4 Mo L2, 4 unités matricielles | N2P | ~38 mm² |
-| **GCD-4** | 4 Slices GPU | N2P | ~78 mm² |
-| **BASE-M** | SLC 32 Mo, NoC, 4 ctrl. LPDDR6, near-memory | N6 | ~95 mm² |
-| **BASE-D** | SLC 64 Mo, NoC, 8 ctrl. LPDDR6 | N6 | ~150 mm² |
-| **BASE-S** | SLC 256 Mo, NoC, 8 ctrl. HBM4 | N5 | ~310 mm² |
-| **L4** | 512 Mo de SRAM | N6 | ~180 mm² |
-| **IOD** | PCIe 6, CXL 3.1, USB4v2, réseau, affichage, sécurité | N6 | ~70 mm² |
+| Chiplet | Contenu | Procédé | Cotes | Surface |
+|---|---|---|---|---|
+| **CCD-P** | 8 cœurs P, 16 Mo L2, 4 unités matricielles | N2P | 8,60 × 7,20 mm | 61,9 mm² |
+| **CCD-E** | 16 cœurs E, 4 Mo L2, 4 unités matricielles | N2P | 9,50 × 4,00 mm | 38,0 mm² |
+| **GCD-4** | 4 Slices GPU | N2P | 9,40 × 8,30 mm | 78,0 mm² |
+| **BASE-M** | SLC 32 Mo, NoC 3 × 3, 4 ctrl. LPDDR6, near-memory | N6 | 11,40 × 11,40 mm | 130 mm² |
+| **BASE-D** | SLC 64 Mo, NoC 4 × 4, 8 ctrl. LPDDR6, 16 IVR | N6 | 20,50 × 20,50 mm | 420 mm² |
+| **BASE-S** | SLC 128 Mo, NoC 6 × 6, 4 ctrl. HBM4, 24 IVR | N5 | 21,90 × 21,90 mm | 480 mm² |
+| **L4** | 512 Mo de SRAM | N6 | 13,40 × 13,40 mm | 180 mm² |
+| **IOD** | PCIe 6, CXL 3.1, USB4v2, réseau, affichage, sécurité | N6 | 9,60 × 7,30 mm | 70 mm² |
 
 ### Compositions produit
 
-| Produit | Assemblage |
-|---|---|
-| Aurora-M | 1 BASE-M + 1 demi-CCD-P (4P) + 1 demi-CCD-E (8E) + 1 GCD-2 |
-| Aurora-D | 1 BASE-D + 1 CCD-P + 1 CCD-E + 2 GCD-4 + 1 IOD |
-| Aurora-S | 1 BASE-S + 8 CCD-P + 2 CCD-E + 4 GCD-4 + L4 + 2 IOD |
+| Produit | Assemblage | Silicium logique porté |
+|---|---|---|
+| Aurora-M | 1 BASE-M + 1 CCD-P trié à 4P + 1 CCD-E trié à 8E + 1 GCD-2 | 89 mm² |
+| Aurora-D | 1 BASE-D + **2 CCD-P** + 1 CCD-E + 2 GCD-4 + 1 IOD | 318 mm² |
+| Aurora-S | **2 × BASE-S**, chacun + 4 CCD-P + 1 CCD-E + 2 GCD-4 + 1 L4 + 1 IOD | 884 mm² |
+
+**La taille du die de base n'est pas un choix.** Il doit être au moins aussi
+grand que la somme des chiplets qu'il porte : c'est ce qui fixe BASE-D à
+420 mm², et non les 150 mm² que le contenu fonctionnel suggérerait. Pour
+Aurora-S, 884 mm² de chiplets dépassent la limite de réticule, d'où **deux
+quadrants** sur interposeur CoWoS-L, reliés par un pont UCIe-A — ce qui fait
+d'Aurora-S une machine NUMA à deux nœuds. Les plans cotés sont au
+[document 12](12-plans-de-construction.md).
+
+Les SKU à 12 cœurs P d'Aurora-D sont obtenus par **tri** de deux CCD-P dont
+deux cœurs sont désactivés chacun, pas par un CCD-P unique.
 
 ### Ce que les chiplets rapportent vraiment
 
@@ -162,10 +176,29 @@ la marge, donc de fonctionner plus bas en tension nominale.
 | Intégration verticale | hybrid bonding (type SoIC), pas ~6–9 µm |
 | Substrat | CoWoS-L pour Aurora-S, substrat organique + pont pour M et D |
 | Mémoire | sur package (Aurora-M), LPCAMM3 (Aurora-D), HBM4 sur interposeur (Aurora-S) |
-| Alimentation | backside power delivery sur les chiplets logiques |
-| Régulation | IVR par domaine, dans le die de base |
+| Alimentation | **par la liaison hybride, depuis le die de base** (voir ci-dessous) |
+| Régulation | IVR par domaine, dans le die de base, à l'aplomb de la charge |
+
+### Pas de backside power delivery sur les chiplets empilés — et c'est un gain
+
+Un chiplet collé **face à face** au die de base a sa face avant en bas et sa
+face arrière contre le dissipateur. Y faire passer un réseau d'alimentation par
+l'arrière s'interposerait dans le chemin thermique : le BSPD et cet empilement
+sont incompatibles.
+
+Ce n'est pas une concession. L'objectif du BSPD est de retirer le réseau
+d'alimentation des couches de routage de signal ; ici, le réseau n'est pas sur
+le chiplet **du tout** — il est dans le die de base, avec son régulateur à
+~60 µm de la charge, contre plusieurs centimètres pour un régulateur de carte.
+Le die de base fait donc ce que fait le BSPD, en mieux.
+
+Le Super Power Rail d'A16 reste employé **à l'intérieur du die de base** et sur
+les variantes non empilées. Le détail est au
+[§12.3](12-plans-de-construction.md).
 
 ### Le problème thermique de l'empilement, traité de front
+
+![Pile thermique et point chaud local](schemas/08-pile-thermique.svg)
 
 Empiler crée un problème réel : le die logique chaud est thermiquement couplé
 au die de base, et la chaleur doit traverser l'ensemble pour atteindre le

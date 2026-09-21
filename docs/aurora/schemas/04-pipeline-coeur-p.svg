@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 660" role="img"
+     aria-label="Pipeline du cœur Aurora-P en quatorze étages : le prédicteur de branchement court devant la récupération et remplit une file de cibles, ce qui lui permet de déclencher un préchargement exact du cache d'instructions et de continuer à travailler pendant un défaut de cache.">
+  <title>Aurora-P — pipeline et fetch découplé</title>
+  <desc>Quatorze étages répartis en deux rangées. Le front-end va du prédicteur de branchement au renommage ; le back-end du dispatch à la validation, en passant par quatre files d'émission distribuées. La file de cibles de récupération sépare le prédicteur de la récupération : le prédicteur prend de l'avance, déclenche un préchargement exact du cache d'instructions, et n'est pas arrêté par un défaut de cache. La pénalité de mauvaise prédiction est de treize cycles.</desc>
+
+  <rect width="1080" height="660" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3C3C38"/>
+    </marker>
+    <marker id="a4o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#BF4E2C"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Aurora-P — pipeline 14 étages, et le mécanisme qui le nourrit</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">4,2 GHz · 8 de large · pénalité de mauvaise prédiction : 13 cycles</text>
+
+  <!-- ===== FRONT-END ===== -->
+  <text x="40" y="92" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#6E6E68">FRONT-END</text>
+
+  <rect x="40"  y="102" width="118" height="62" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="99" y="128" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">BP</text>
+  <text x="99" y="144" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">prédiction</text>
+  <text x="99" y="157" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">2 cy</text>
+
+  <!-- FTQ dessinée comme une file -->
+  <rect x="178" y="102" width="96" height="62" fill="#BF4E2C" fill-opacity="0.14" stroke="#BF4E2C" stroke-width="2.2"/>
+  <g fill="#BF4E2C" opacity="0.75">
+    <rect x="186" y="110" width="80" height="7"/><rect x="186" y="120" width="80" height="7"/>
+    <rect x="186" y="130" width="52" height="7"/>
+  </g>
+  <text x="226" y="155" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#1B1B19" text-anchor="middle">FTQ — 64 blocs</text>
+
+  <rect x="294" y="102" width="110" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="349" y="128" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">IFU</text>
+  <text x="349" y="144" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">64 o/cycle</text>
+  <text x="349" y="157" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">3 cy</text>
+
+  <rect x="424" y="102" width="110" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="479" y="128" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">DEC</text>
+  <text x="479" y="144" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">8 décodeurs identiques</text>
+  <text x="479" y="157" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <rect x="554" y="102" width="110" height="62" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="609" y="128" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">FUS</text>
+  <text x="609" y="144" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">−18 à −22 % d'µops</text>
+  <text x="609" y="157" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <rect x="684" y="102" width="110" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="739" y="128" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">RNM</text>
+  <text x="739" y="144" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">8/cy · élimine mv, zéro</text>
+  <text x="739" y="157" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <g stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a4)" fill="none">
+    <line x1="158" y1="133" x2="176" y2="133"/>
+    <line x1="274" y1="133" x2="292" y2="133"/>
+    <line x1="404" y1="133" x2="422" y2="133"/>
+    <line x1="534" y1="133" x2="552" y2="133"/>
+    <line x1="664" y1="133" x2="682" y2="133"/>
+  </g>
+
+  <!-- détail du prédicteur -->
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">
+    <text x="40" y="184">µBTB 64 — 0 cy</text>
+    <text x="40" y="198">BTB L1 8 K · BTB L2 64 K</text>
+    <text x="40" y="212">TAGE-SC-L 64 Ko · ITTAGE 4 K</text>
+    <text x="40" y="226">RAS 64 — cible &lt; 2,5 MPKI</text>
+  </g>
+
+  <!-- préchargement exact issu de la FTQ -->
+  <path d="M250 164 L250 212 L470 212" stroke="#BF4E2C" stroke-width="2.2" fill="none" marker-end="url(#a4o)"/>
+  <rect x="474" y="196" width="330" height="32" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.4"/>
+  <text x="639" y="216" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">préchargement L1I <tspan font-weight="700">exact</tspan> — ce que le prédicteur a prédit</text>
+
+  <!-- wrap -->
+  <path d="M794 133 L836 133 L836 250 L60 250 L60 292" stroke="#3C3C38" stroke-width="1.8" fill="none" marker-end="url(#a4)"/>
+
+  <!-- ===== BACK-END ===== -->
+  <text x="40" y="286" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#6E6E68">BACK-END</text>
+
+  <rect x="40" y="296" width="86" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="83" y="322" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">DIS</text>
+  <text x="83" y="338" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">8/cy</text>
+  <text x="83" y="351" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <!-- 4 files distribuées -->
+  <rect x="146" y="266" width="164" height="30" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.5"/>
+  <text x="228" y="286" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">file ALU / BR — 64</text>
+  <rect x="146" y="300" width="164" height="30" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.5"/>
+  <text x="228" y="320" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">file MÉMOIRE — 56</text>
+  <rect x="146" y="334" width="164" height="30" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.5"/>
+  <text x="228" y="354" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">file FP / VEC — 48</text>
+  <rect x="146" y="368" width="164" height="30" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.5"/>
+  <text x="228" y="388" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">file MATRICE — 16</text>
+  <text x="228" y="416" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#2E6B5E" text-anchor="middle" font-weight="700">4 files au lieu d'une : énergie de réveil ÷ 4</text>
+
+  <g stroke="#3C3C38" stroke-width="1.6" marker-end="url(#a4)" fill="none">
+    <line x1="126" y1="327" x2="144" y2="281"/>
+    <line x1="126" y1="327" x2="144" y2="315"/>
+    <line x1="126" y1="327" x2="144" y2="349"/>
+    <line x1="126" y1="327" x2="144" y2="383"/>
+  </g>
+
+  <rect x="330" y="296" width="80" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="370" y="322" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">ISS</text>
+  <text x="370" y="341" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <rect x="430" y="296" width="80" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="470" y="322" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">RF</text>
+  <text x="470" y="341" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <rect x="530" y="272" width="180" height="110" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="620" y="292" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">EXE — 1 à 6 cy</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">
+    <text x="620" y="310">6 ALU · 2 BR · 2 MUL</text>
+    <text x="620" y="325">3 AGU charge · 2 AGU store</text>
+    <text x="620" y="340">4 FMA 256 b · 2 permut.</text>
+    <text x="620" y="355">1 crypto / post-quantique</text>
+    <text x="620" y="372" font-weight="700" fill="#BF4E2C">1 matrice partagée (2 cœurs)</text>
+  </g>
+
+  <rect x="730" y="296" width="80" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="770" y="322" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">WB</text>
+  <text x="770" y="341" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">1 cy</text>
+
+  <rect x="830" y="296" width="118" height="62" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="889" y="318" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">CMT</text>
+  <text x="889" y="334" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">ROB 512</text>
+  <text x="889" y="348" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">2 cy</text>
+
+  <g stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a4)" fill="none">
+    <line x1="310" y1="327" x2="328" y2="327"/>
+    <line x1="410" y1="327" x2="428" y2="327"/>
+    <line x1="510" y1="327" x2="528" y2="327"/>
+    <line x1="710" y1="327" x2="728" y2="327"/>
+    <line x1="810" y1="327" x2="828" y2="327"/>
+  </g>
+
+  <!-- retour mauvaise prédiction -->
+  <path d="M620 382 L620 452 L22 452 L22 133 L36 133" stroke="#BF4E2C" stroke-width="2.4" fill="none"
+        stroke-dasharray="8 4" marker-end="url(#a4o)"/>
+  <rect x="268" y="440" width="188" height="24" fill="#FAF9F7"/>
+  <text x="362" y="457" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#BF4E2C" text-anchor="middle">mauvaise prédiction : 13 cycles</text>
+
+  <!-- notes -->
+  <line x1="40" y1="478" x2="1040" y2="478" stroke="#C9C7C1" stroke-width="1"/>
+
+  <text x="40" y="502" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Ce que la FTQ change, et qu'aucune liste de tailles de structures ne montre</text>
+  <text x="40" y="522" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Sans elle, le prédicteur et la récupération avancent du même pas : un défaut de cache d'instructions arrête les deux, et le préchargement</text>
+  <text x="40" y="539" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">ne peut être que statistique. Avec elle, le prédicteur prend des dizaines de branchements d'avance, la file absorbe l'irrégularité du débit, et</text>
+  <text x="40" y="556" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">le préchargement devient <tspan font-weight="700">exact</tspan> : on va chercher ce qui a été prédit, pas ce qu'un compteur suppose. Une ligne préchargée pour rien, ce n'est</text>
+  <text x="40" y="573" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">pas seulement de la bande passante perdue, c'est ~200 pJ jetés. Coût de la structure : environ 0,05 mm².</text>
+
+  <text x="40" y="606" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Pourquoi 14 étages et 4,2 GHz, plutôt que 20 étages et 5,5 GHz</text>
+  <text x="40" y="626" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Parce que la puissance dynamique varie en f × V², et que monter la fréquence oblige à monter la tension. Un pipeline court réduit en plus</text>
+  <text x="40" y="643" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">le travail spéculatif jeté à chaque mauvaise prédiction — c'est-à-dire de l'énergie dépensée pour un résultat qui sera effacé.</text>
+</svg>

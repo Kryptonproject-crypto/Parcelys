@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" role="img"
+     aria-label="Pile thermique d'Aurora-D : la résistance thermique de chaque couche, du point chaud jusqu'à l'air ambiant, montre que le dissipateur représente à lui seul 78 pour cent du total, et que l'amincissement du die améliore le chemin vertical tout en dégradant l'étalement latéral de la chaleur.">
+  <title>Aurora-D — pile thermique et point chaud local</title>
+  <desc>À 95 watts et 35 degrés ambiants, la température de jonction moyenne atteint 59 degrés. Le dissipateur représente 0,20 kelvin par watt sur un total de 0,256 : c'est lui qui domine, pas le package. Mais une unité matricielle concentrant 2,5 watts sur 0,85 millimètre carré ajoute localement 18 degrés, parce qu'un die aminci à 25 micromètres étale mal la chaleur latéralement.</desc>
+
+  <rect width="1000" height="620" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#BF4E2C"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Aurora-D — pile thermique, du point chaud à l'air</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">95 W · ambiant 35 °C · surface de chiplets 318 mm² · la largeur des barres est proportionnelle à la résistance thermique</text>
+
+  <!-- colonnes d'en-tête -->
+  <text x="60" y="94" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#6E6E68">COUCHE</text>
+  <text x="330" y="94" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#6E6E68">Rth (K/W)</text>
+  <text x="430" y="94" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#6E6E68">PART DU TOTAL</text>
+  <text x="860" y="94" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#6E6E68">T (°C)</text>
+  <line x1="40" y1="102" x2="960" y2="102" stroke="#9B998F" stroke-width="1"/>
+
+  <!-- rangées : y de haut (jonction) en bas (ambiant) -->
+  <!-- Jonction -->
+  <rect x="60" y="114" width="250" height="34" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="72" y="130" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19">Jonction (transistors)</text>
+  <text x="72" y="143" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">face avant du chiplet logique</text>
+  <text x="890" y="136" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#BF4E2C" text-anchor="end">59,3</text>
+
+  <!-- Si aminci -->
+  <rect x="60" y="156" width="250" height="34" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+  <text x="72" y="172" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">Silicium aminci — 25 µm</text>
+  <text x="72" y="185" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">k = 130 W/m·K</text>
+  <text x="380" y="176" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38" text-anchor="end">0,0006</text>
+  <rect x="430" y="166" width="2" height="16" fill="#3C3C38"/>
+  <text x="440" y="178" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">0,2 %</text>
+  <text x="890" y="178" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38" text-anchor="end">59,3</text>
+
+  <!-- TIM1 -->
+  <rect x="60" y="198" width="250" height="34" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+  <text x="72" y="214" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">TIM1 — soudure indium, 25 µm</text>
+  <text x="72" y="227" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">k = 50 W/m·K</text>
+  <text x="380" y="218" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38" text-anchor="end">0,0157</text>
+  <rect x="430" y="208" width="24" height="16" fill="#3C3C38"/>
+  <text x="462" y="220" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">6,1 %</text>
+  <text x="890" y="220" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38" text-anchor="end">57,8</text>
+
+  <!-- IHS -->
+  <rect x="60" y="240" width="250" height="34" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+  <text x="72" y="256" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">Répartiteur cuivre 2 mm + étalement</text>
+  <text x="72" y="269" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">318 mm² → 1 600 mm²</text>
+  <text x="380" y="260" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38" text-anchor="end">0,0357</text>
+  <rect x="430" y="250" width="54" height="16" fill="#3C3C38"/>
+  <text x="492" y="262" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">13,9 %</text>
+  <text x="890" y="262" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38" text-anchor="end">54,4</text>
+
+  <!-- TIM2 -->
+  <rect x="60" y="282" width="250" height="34" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+  <text x="72" y="298" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">TIM2 — pâte, 50 µm</text>
+  <text x="72" y="311" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">k = 8 W/m·K</text>
+  <text x="380" y="302" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38" text-anchor="end">0,0039</text>
+  <rect x="430" y="292" width="6" height="16" fill="#3C3C38"/>
+  <text x="444" y="304" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">1,5 %</text>
+  <text x="890" y="304" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38" text-anchor="end">54,0</text>
+
+  <!-- dissipateur -->
+  <rect x="60" y="324" width="250" height="34" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.8"/>
+  <text x="72" y="340" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19">Dissipateur à air + ventilateur</text>
+  <text x="72" y="353" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68">tour caloducs, 1 200 tr/min</text>
+  <text x="380" y="344" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#2E6B5E" text-anchor="end">0,2000</text>
+  <rect x="430" y="334" width="304" height="16" fill="#2E6B5E"/>
+  <text x="742" y="346" font-family="Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" fill="#2E6B5E">78,2 %</text>
+  <text x="890" y="346" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38" text-anchor="end">35,0</text>
+
+  <line x1="40" y1="370" x2="960" y2="370" stroke="#9B998F" stroke-width="1"/>
+  <text x="72" y="392" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Total jonction → ambiant</text>
+  <text x="380" y="392" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="end">0,256</text>
+  <text x="430" y="392" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">ΔT = 24,3 K à 95 W — le package n'est pas le goulot, le dissipateur l'est</text>
+
+  <!-- flèche de flux -->
+  <line x1="332" y1="340" x2="332" y2="128" stroke="#BF4E2C" stroke-width="2.6" marker-end="url(#a8)" stroke-dasharray="6 4"/>
+  <text x="344" y="238" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" transform="rotate(-90 344 238)">flux de chaleur</text>
+
+  <!-- encart point chaud -->
+  <rect x="540" y="114" width="420" height="244" fill="#FFFFFF" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="556" y="138" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">Le point chaud que la moyenne cache</text>
+
+  <text x="556" y="162" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">Densités de puissance mesurées sur le plan de masse :</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">
+    <text x="568" y="184">Cœur P en boost</text><text x="936" y="184" text-anchor="end">0,65 W/mm²</text>
+    <text x="568" y="204">Slice GPU en rendu</text><text x="936" y="204" text-anchor="end">0,18 W/mm²</text>
+    <text x="568" y="224" font-weight="700" fill="#BF4E2C">Unité matricielle en charge IA</text><text x="936" y="224" text-anchor="end" font-weight="700" fill="#BF4E2C">2,9 W/mm²</text>
+  </g>
+
+  <text x="556" y="252" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">2,5 W concentrés sur 0,85 mm², dans un die aminci qui</text>
+  <text x="556" y="269" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">étale mal : résistance d'étalement locale ≈ 7,4 K/W.</text>
+  <rect x="556" y="280" width="388" height="30" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.2"/>
+  <text x="568" y="300" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">+18 K localement → jonction à 77 °C, pas 59 °C</text>
+  <text x="556" y="330" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">D'où la règle de plan de masse : les quatre unités</text>
+  <text x="556" y="347" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">matricielles sont réparties, jamais accolées.</text>
+
+  <!-- note -->
+  <line x1="40" y1="424" x2="960" y2="424" stroke="#C9C7C1" stroke-width="1"/>
+  <text x="40" y="448" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Le compromis de l'amincissement, dans les deux sens</text>
+  <text x="40" y="468" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Amincir le die logique à 25 µm est indispensable pour le hybrid bonding, et cela rend le chemin thermique <tspan font-style="italic">vertical</tspan> quasiment gratuit :</text>
+  <text x="40" y="485" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">0,2 % de la résistance totale. Mais la même finesse dégrade l'étalement <tspan font-style="italic">latéral</tspan>, car il n'y a plus d'épaisseur de silicium pour diffuser la</text>
+  <text x="40" y="502" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">chaleur autour d'un point chaud. Un die épais fait l'inverse. C'est pourquoi le plan de masse du CCD-P disperse les unités matricielles au</text>
+  <text x="40" y="519" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">lieu de les regrouper, alors qu'un design monolithique aurait intérêt à les rassembler pour partager leur chemin de données.</text>
+
+  <text x="40" y="552" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Pour Aurora-S (420 W)</text>
+  <text x="40" y="572" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">La même pile avec une plaque froide à liquide direct donne Rth ≈ 0,10 K/W : ΔT = 42 K, jonction à 77 °C avec un liquide à 35 °C. Le</text>
+  <text x="40" y="589" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">refroidissement à air n'est pas une option à cette puissance : il faudrait Rth &lt; 0,13 K/W, hors de portée d'une tour, même surdimensionnée.</text>
+  <text x="40" y="606" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">La contrainte n'est donc pas le silicium mais l'infrastructure de la salle : c'est une exigence à porter au cahier des charges du client.</text>
+</svg>

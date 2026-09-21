@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 700" role="img"
+     aria-label="Trois chemins possibles pour les poids d'un modèle de sept milliards de paramètres pendant le décodage : le chemin naïf traverse la mémoire, le cache système, le réseau et les liaisons verticales ; l'étagement en cache L4 supprime la lecture mémoire ; combiné au calcul près de la mémoire, les poids ne quittent jamais le die de base et l'énergie par token est divisée par 8,8.">
+  <title>Décodage d'un LLM — les trois chemins possibles pour les poids</title>
+  <desc>À chaque token, 3,5 gigaoctets de poids doivent être relus. Le chemin naïf coûte 20,5 picojoules par octet, soit 71,8 millijoules par token. L'étagement en cache L4 ramène ce coût à 7,9 picojoules par octet, soit 27,5 millijoules. Exécuter la multiplication matrice-vecteur directement dans le die de base, où se trouve déjà le L4, ramène le coût à 2,34 picojoules par octet, soit 8,2 millijoules : les poids ne traversent plus ni le cache système, ni le réseau sur puce, ni les liaisons verticales.</desc>
+
+  <rect width="1080" height="700" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3C3C38"/>
+    </marker>
+    <marker id="a6g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E6B5E"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Décodage d'un LLM — le trajet des poids décide de tout</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">Modèle 7 milliards de paramètres en MXFP4 = 3,5 Go de poids à relire <tspan font-style="italic">à chaque token</tspan>. Le calcul est négligeable ; seul le trajet compte.</text>
+
+  <!-- ===== A ===== -->
+  <text x="40" y="96" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">A — Chemin naïf</text>
+
+  <rect x="40"  y="108" width="150" height="58" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.6"/>
+  <text x="115" y="132" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">HBM4</text>
+  <text x="115" y="150" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#BF4E2C" text-anchor="middle" font-weight="700">14,06 pJ/o</text>
+
+  <rect x="230" y="108" width="150" height="58" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="305" y="132" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">SLC</text>
+  <text x="305" y="150" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#BF4E2C" text-anchor="middle" font-weight="700">0,94 pJ/o</text>
+
+  <rect x="420" y="108" width="190" height="58" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="515" y="130" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">NoC 8 sauts + liaison 3D</text>
+  <text x="515" y="150" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#BF4E2C" text-anchor="middle" font-weight="700">5,52 pJ/o</text>
+
+  <rect x="650" y="108" width="170" height="58" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="735" y="132" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">Unités matricielles</text>
+  <text x="735" y="150" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#6E6E68" text-anchor="middle">dans le GCD, tout en haut</text>
+
+  <g stroke="#3C3C38" stroke-width="2" marker-end="url(#a6)">
+    <line x1="190" y1="137" x2="228" y2="137"/>
+    <line x1="380" y1="137" x2="418" y2="137"/>
+    <line x1="610" y1="137" x2="648" y2="137"/>
+  </g>
+
+  <!-- ===== B ===== -->
+  <text x="40" y="226" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">B — Étagement en cache L4</text>
+
+  <rect x="40" y="238" width="150" height="58" fill="#E6E5E1" stroke="#9B998F" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="115" y="262" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#9B998F" text-anchor="middle">HBM4</text>
+  <text x="115" y="279" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#9B998F" text-anchor="middle">1× par lot, amorti</text>
+
+  <rect x="230" y="238" width="150" height="58" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.8"/>
+  <text x="305" y="262" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">L4 — 1 Go de SRAM</text>
+  <text x="305" y="280" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2E6B5E" text-anchor="middle" font-weight="700">2,34 pJ/o</text>
+
+  <rect x="420" y="238" width="190" height="58" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="515" y="260" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">NoC 8 sauts + liaison 3D</text>
+  <text x="515" y="280" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#BF4E2C" text-anchor="middle" font-weight="700">5,52 pJ/o — subsiste</text>
+
+  <rect x="650" y="238" width="170" height="58" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="735" y="268" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">Unités matricielles</text>
+
+  <g stroke="#3C3C38" stroke-width="2" marker-end="url(#a6)">
+    <line x1="190" y1="267" x2="228" y2="267"/>
+    <line x1="380" y1="267" x2="418" y2="267"/>
+    <line x1="610" y1="267" x2="648" y2="267"/>
+  </g>
+
+  <!-- ===== C ===== -->
+  <text x="40" y="356" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">C — L4 + GEMV près de la mémoire <tspan fill="#2E6B5E">(point de conception Aurora-S)</tspan></text>
+
+  <rect x="36" y="368" width="580" height="96" fill="#E0EBE7" fill-opacity="0.45" stroke="#2E6B5E" stroke-width="2.4"/>
+  <text x="48" y="388" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#2E6B5E">DIE DE BASE — les poids ne franchissent aucune frontière</text>
+
+  <rect x="56" y="396" width="150" height="54" fill="#FFFFFF" stroke="#2E6B5E" stroke-width="1.6"/>
+  <text x="131" y="419" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">L4 — 1 Go</text>
+  <text x="131" y="437" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2E6B5E" text-anchor="middle" font-weight="700">2,34 pJ/o</text>
+
+  <rect x="256" y="396" width="200" height="54" fill="#FFFFFF" stroke="#2E6B5E" stroke-width="1.6"/>
+  <text x="356" y="419" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">GEMV near-memory</text>
+  <text x="356" y="437" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">sous le contrôleur mémoire</text>
+
+  <line x1="206" y1="423" x2="254" y2="423" stroke="#2E6B5E" stroke-width="2.4" marker-end="url(#a6g)"/>
+
+  <rect x="506" y="396" width="94" height="54" fill="#FFFFFF" stroke="#9B998F" stroke-width="1.2"/>
+  <text x="553" y="417" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38" text-anchor="middle">vecteur de</text>
+  <text x="553" y="431" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38" text-anchor="middle">sortie</text>
+  <text x="553" y="445" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">quelques Ko</text>
+  <line x1="456" y1="423" x2="504" y2="423" stroke="#9B998F" stroke-width="1.6" marker-end="url(#a6)"/>
+
+  <rect x="650" y="396" width="170" height="54" fill="#EFEBE4" stroke="#9B998F" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="735" y="419" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#9B998F" text-anchor="middle">Unités matricielles</text>
+  <text x="735" y="437" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#9B998F" text-anchor="middle">non sollicitées ici</text>
+  <line x1="600" y1="423" x2="648" y2="423" stroke="#9B998F" stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#a6)"/>
+
+  <!-- ===== barres d'énergie ===== -->
+  <text x="860" y="96" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">Énergie par token</text>
+
+  <rect x="860" y="112" width="180" height="54" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="950" y="136" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="700" fill="#1B1B19" text-anchor="middle">71,8 mJ</text>
+  <text x="950" y="156" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#6E6E68" text-anchor="middle">20,52 pJ/o — référence</text>
+
+  <rect x="860" y="242" width="180" height="54" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.4"/>
+  <text x="950" y="266" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="700" fill="#1B1B19" text-anchor="middle">27,5 mJ</text>
+  <text x="950" y="286" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2E6B5E" text-anchor="middle" font-weight="700">×2,6</text>
+
+  <rect x="860" y="396" width="180" height="54" fill="#2E6B5E" stroke="#2E6B5E" stroke-width="1.6"/>
+  <text x="950" y="420" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="700" fill="#FAF9F7" text-anchor="middle">8,2 mJ</text>
+  <text x="950" y="440" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#FAF9F7" text-anchor="middle" font-weight="700">×8,8</text>
+
+  <!-- barres proportionnelles -->
+  <text x="40" y="508" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#6E6E68">À l'échelle</text>
+  <rect x="120" y="496" width="560" height="18" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.2"/>
+  <text x="692" y="510" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38">A — 71,8 mJ</text>
+  <rect x="120" y="520" width="215" height="18" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.2"/>
+  <text x="347" y="534" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38">B — 27,5 mJ</text>
+  <rect x="120" y="544" width="64" height="18" fill="#2E6B5E"/>
+  <text x="196" y="558" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38">C — 8,2 mJ</text>
+
+  <!-- note -->
+  <line x1="40" y1="588" x2="1040" y2="588" stroke="#C9C7C1" stroke-width="1"/>
+  <text x="40" y="612" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Le gain combiné dépasse le produit des gains isolés — et ce n'est pas un artefact de calcul</text>
+  <text x="40" y="632" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Pris séparément, le L4 rapporte ×2,6 et le near-memory ×1,5 : deux décisions qui paraîtraient chacune peu rentables. Ensemble elles</text>
+  <text x="40" y="649" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">rapportent ×8,8, parce qu'elles vivent au même endroit. Le L4 supprime la lecture HBM, le near-memory supprime le trajet de retour ;</text>
+  <text x="40" y="666" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">il ne reste que la lecture SRAM locale. C'est l'argument décisif en faveur du die de base actif — et il est invisible tant qu'on évalue</text>
+  <text x="40" y="683" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">chaque mécanisme séparément, ce que font la plupart des études de rentabilité par bloc.</text>
+</svg>

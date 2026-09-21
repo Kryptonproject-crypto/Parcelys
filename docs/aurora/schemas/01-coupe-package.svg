@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 640" role="img"
+     aria-label="Coupe du package Aurora-D : les chiplets logiques amincis sont empilés face à face sur un die de base actif par hybrid bonding ; la chaleur sort par le haut, l'alimentation vient des régulateurs situés dans le die de base, et seule la liaison vers l'IOD reste latérale.">
+  <title>Aurora-D — coupe du package</title>
+  <desc>Cinq chiplets logiques amincis à 25 micromètres sont liés par hybrid bonding à 9 micromètres de pas sur un die de base qui contient le cache système, le réseau sur puce, les régulateurs intégrés et les contrôleurs mémoire. La chaleur remonte vers le dissipateur ; l'alimentation descend des régulateurs du die de base ; la liaison UCIe vers le die d'entrées-sorties est la seule qui reste latérale, à un coût par bit cinq fois supérieur.</desc>
+
+  <rect width="940" height="640" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#BF4E2C"/>
+    </marker>
+    <marker id="arDark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E6B5E"/>
+    </marker>
+    <pattern id="tim" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#8A8A82" stroke-width="2"/>
+    </pattern>
+    <pattern id="tsv" width="14" height="10" patternUnits="userSpaceOnUse">
+      <line x1="7" y1="0" x2="7" y2="10" stroke="#BF4E2C" stroke-width="2.5"/>
+    </pattern>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Aurora-D — coupe du package</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">Épaisseurs non à l'échelle ; les cotes sont annotées. Les largeurs des chiplets sont, elles, proportionnelles à leur surface.</text>
+
+  <!-- dissipateur -->
+  <rect x="80" y="76" width="650" height="28" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.4"/>
+  <text x="405" y="95" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#1B1B19" text-anchor="middle">Répartiteur thermique cuivre — 2,0 mm</text>
+
+  <!-- TIM1 -->
+  <rect x="80" y="104" width="650" height="12" fill="url(#tim)" stroke="#3C3C38" stroke-width="1.2"/>
+  <text x="742" y="114" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#6E6E68">TIM1 — 25 µm</text>
+
+  <!-- chiplets logiques -->
+  <rect x="96"  y="122" width="116" height="42" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.4"/>
+  <rect x="218" y="122" width="116" height="42" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.4"/>
+  <rect x="340" y="122" width="71"  height="42" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.4"/>
+  <rect x="417" y="122" width="146" height="42" fill="#E0EBE7" stroke="#3C3C38" stroke-width="1.4"/>
+  <rect x="569" y="122" width="146" height="42" fill="#E0EBE7" stroke="#3C3C38" stroke-width="1.4"/>
+  <text x="154" y="140" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">CCD-P</text>
+  <text x="154" y="155" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">62 mm² · N2P</text>
+  <text x="276" y="140" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">CCD-P</text>
+  <text x="276" y="155" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">62 mm²</text>
+  <text x="375" y="140" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">CCD-E</text>
+  <text x="375" y="155" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">38 mm²</text>
+  <text x="490" y="140" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">GCD-4</text>
+  <text x="490" y="155" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">78 mm²</text>
+  <text x="642" y="140" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">GCD-4</text>
+  <text x="642" y="155" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">78 mm²</text>
+
+  <!-- callout 1 : chaleur -->
+  <line x1="762" y1="143" x2="722" y2="143" stroke="#BF4E2C" stroke-width="1.6" marker-end="url(#ar)"/>
+  <circle cx="774" cy="143" r="10" fill="#BF4E2C"/>
+  <text x="774" y="147" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">1</text>
+  <text x="790" y="140" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">silicium aminci</text>
+  <text x="790" y="154" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">à 25 µm</text>
+
+  <!-- flèche chaleur montante -->
+  <line x1="120" y1="122" x2="120" y2="80" stroke="#BF4E2C" stroke-width="2.2" marker-end="url(#ar)" stroke-dasharray="5 3"/>
+  <rect x="128" y="88" width="56" height="16" fill="#E6E5E1"/>
+  <text x="130" y="100" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#BF4E2C" font-weight="700">chaleur</text>
+
+  <!-- interface hybrid bonding -->
+  <rect x="88" y="170" width="634" height="14" fill="#BF4E2C" fill-opacity="0.18" stroke="#BF4E2C" stroke-width="1.6"/>
+  <g stroke="#BF4E2C" stroke-width="1.6">
+    <line x1="106" y1="170" x2="106" y2="184"/><line x1="134" y1="170" x2="134" y2="184"/>
+    <line x1="162" y1="170" x2="162" y2="184"/><line x1="190" y1="170" x2="190" y2="184"/>
+    <line x1="230" y1="170" x2="230" y2="184"/><line x1="258" y1="170" x2="258" y2="184"/>
+    <line x1="286" y1="170" x2="286" y2="184"/><line x1="314" y1="170" x2="314" y2="184"/>
+    <line x1="352" y1="170" x2="352" y2="184"/><line x1="380" y1="170" x2="380" y2="184"/>
+    <line x1="430" y1="170" x2="430" y2="184"/><line x1="458" y1="170" x2="458" y2="184"/>
+    <line x1="486" y1="170" x2="486" y2="184"/><line x1="514" y1="170" x2="514" y2="184"/>
+    <line x1="542" y1="170" x2="542" y2="184"/><line x1="582" y1="170" x2="582" y2="184"/>
+    <line x1="610" y1="170" x2="610" y2="184"/><line x1="638" y1="170" x2="638" y2="184"/>
+    <line x1="666" y1="170" x2="666" y2="184"/><line x1="694" y1="170" x2="694" y2="184"/>
+  </g>
+  <circle cx="774" cy="177" r="10" fill="#BF4E2C"/>
+  <text x="774" y="181" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">2</text>
+  <line x1="762" y1="177" x2="726" y2="177" stroke="#BF4E2C" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="790" y="174" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">hybrid bonding</text>
+  <text x="790" y="188" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19">pas 9 µm</text>
+
+  <!-- die de base -->
+  <rect x="80" y="190" width="650" height="120" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.8"/>
+  <text x="722" y="207" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="end">DIE DE BASE — 420 mm², N6</text>
+
+  <rect x="200" y="214" width="272" height="26" fill="#FAF9F7" stroke="#6E6E68" stroke-width="1"/>
+  <text x="336" y="231" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">SLC 64 Mo — 16 tranches</text>
+
+  <rect x="480" y="214" width="240" height="26" fill="#FAF9F7" stroke="#6E6E68" stroke-width="1"/>
+  <text x="600" y="231" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">NoC maillé 4 × 4 · répertoire</text>
+
+  <rect x="92" y="246" width="200" height="26" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.2"/>
+  <circle cx="106" cy="259" r="9" fill="#2E6B5E"/>
+  <text x="106" y="263" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#FAF9F7" text-anchor="middle" font-weight="700">3</text>
+  <text x="202" y="263" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">IVR — un par domaine</text>
+
+  <rect x="300" y="246" width="180" height="26" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.2"/>
+  <text x="390" y="263" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">unités near-memory</text>
+
+  <rect x="488" y="246" width="232" height="26" fill="#FAF9F7" stroke="#6E6E68" stroke-width="1"/>
+  <text x="604" y="263" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">8 contrôleurs + PHY LPDDR6</text>
+
+  <rect x="92" y="278" width="628" height="22" fill="url(#tsv)" stroke="#6E6E68" stroke-width="1"/>
+  <rect x="216" y="280" width="380" height="18" fill="#EFEBE4"/>
+  <text x="406" y="294" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">TSV d'alimentation et de signal vers le substrat</text>
+
+  <!-- flèche alimentation montante -->
+  <line x1="150" y1="246" x2="150" y2="192" stroke="#2E6B5E" stroke-width="2.2" marker-end="url(#arDark)"/>
+  <rect x="156" y="222" width="42" height="16" fill="#EFEBE4"/>
+  <text x="158" y="234" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2E6B5E" font-weight="700">0,82 V</text>
+
+  <!-- IOD -->
+  <rect x="752" y="206" width="112" height="104" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.6"/>
+  <text x="808" y="248" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">IOD</text>
+  <text x="808" y="264" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">PCIe 6 · CXL</text>
+  <text x="808" y="278" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">70 mm² · N6</text>
+
+  <!-- UCIe latéral -->
+  <line x1="730" y1="226" x2="752" y2="226" stroke="#BF4E2C" stroke-width="2.6"/>
+  <circle cx="741" cy="196" r="10" fill="#BF4E2C"/>
+  <text x="741" y="200" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">4</text>
+  <line x1="741" y1="208" x2="741" y2="220" stroke="#BF4E2C" stroke-width="1.6"/>
+
+  <!-- substrat -->
+  <rect x="40" y="322" width="860" height="26" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.4"/>
+  <text x="470" y="339" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">Substrat organique — 14 couches, âme 800 µm</text>
+  <rect x="40" y="348" width="860" height="18" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.2"/>
+  <text x="470" y="361" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#6E6E68" text-anchor="middle">couches de redistribution</text>
+
+  <!-- LGA -->
+  <g fill="#3C3C38">
+    <circle cx="70" cy="378" r="6"/><circle cx="118" cy="378" r="6"/><circle cx="166" cy="378" r="6"/>
+    <circle cx="214" cy="378" r="6"/><circle cx="262" cy="378" r="6"/><circle cx="310" cy="378" r="6"/>
+    <circle cx="358" cy="378" r="6"/><circle cx="406" cy="378" r="6"/><circle cx="454" cy="378" r="6"/>
+    <circle cx="502" cy="378" r="6"/><circle cx="550" cy="378" r="6"/><circle cx="598" cy="378" r="6"/>
+    <circle cx="646" cy="378" r="6"/><circle cx="694" cy="378" r="6"/><circle cx="742" cy="378" r="6"/>
+    <circle cx="790" cy="378" r="6"/><circle cx="838" cy="378" r="6"/><circle cx="886" cy="378" r="6"/>
+  </g>
+  <rect x="40" y="390" width="860" height="10" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.2"/>
+  <text x="470" y="414" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#6E6E68" text-anchor="middle">Carte mère — LGA 2400, pas 0,85 mm, substrat 52 × 48 mm</text>
+
+  <!-- notes -->
+  <line x1="40" y1="438" x2="900" y2="438" stroke="#C9C7C1" stroke-width="1"/>
+
+  <circle cx="52" cy="462" r="10" fill="#BF4E2C"/>
+  <text x="52" y="466" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">1</text>
+  <text x="72" y="460" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#1B1B19" font-weight="700">Le logique est au-dessus, aminci à 25 µm.</text>
+  <text x="72" y="476" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Rien ne s'interpose entre les points chauds et le dissipateur. Le die de base, moins dense en puissance, est en dessous.</text>
+
+  <circle cx="52" cy="506" r="10" fill="#BF4E2C"/>
+  <text x="52" y="510" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">2</text>
+  <text x="72" y="504" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#1B1B19" font-weight="700">~72 000 connexions par CCD-P, à 9 µm de pas — 0,05 pJ/bit, &gt; 2,5 To/s.</text>
+  <text x="72" y="520" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">24 000 de signal, 48 000 d'alimentation et de masse. C'est le chemin de données principal de toute l'architecture.</text>
+
+  <circle cx="52" cy="550" r="10" fill="#2E6B5E"/>
+  <text x="52" y="554" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">3</text>
+  <text x="72" y="548" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#1B1B19" font-weight="700">Le die de base remplace le backside power delivery — et fait mieux.</text>
+  <text x="72" y="564" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Le régulateur est à ~60 µm de la charge au lieu de plusieurs centimètres. Empiler face à face interdit le BSPD sur ces chiplets : ce n'est pas une perte.</text>
+
+  <circle cx="52" cy="594" r="10" fill="#BF4E2C"/>
+  <text x="52" y="598" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#FAF9F7" text-anchor="middle" font-weight="700">4</text>
+  <text x="72" y="592" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#1B1B19" font-weight="700">UCIe 3.0 latéral : 0,25 pJ/bit, soit 5× le coût vertical.</text>
+  <text x="72" y="608" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Réservé à ce qui ne peut pas être empilé — ici les E/S, dont le trafic est deux ordres de grandeur sous celui des cœurs.</text>
+</svg>

@@ -62,6 +62,8 @@ dépendant de l'exécution.
 
 ## 3.3 Décision n°2 : rendu par tuiles, hybride
 
+![Comparaison du rendu immédiat et du rendu par tuiles](schemas/05-tbdr-vs-immediat.svg)
+
 ### Le calcul qui tranche
 
 Un rendu 4K en immédiat écrit et relit le tampon de profondeur et le tampon de

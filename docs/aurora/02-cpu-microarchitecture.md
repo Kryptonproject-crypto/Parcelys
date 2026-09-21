@@ -24,6 +24,12 @@ de l'ordre de ±25 %.
 
 ## 2.1 Aurora-P : vue d'ensemble du pipeline
 
+![Pipeline du cœur Aurora-P et mécanisme de fetch découplé](schemas/04-pipeline-coeur-p.svg)
+
+*Le schéma montre ce qu'une liste de tailles de structures ne peut pas montrer :
+le prédicteur court devant la récupération, et c'est la file de cibles qui le
+lui permet.*
+
 ```
  ┌──────────────── FRONT-END (découplé) ────────────────┐
  │  BP  →  FTQ  →  IFU  →  DEC  →  FUS  →  RNM          │
@@ -360,6 +366,9 @@ l'hétérogénéité réellement exploitable.
 ---
 
 ## 2.12 Budget de surface (estimation, N2P)
+
+![Plan de masse coté du CCD-P](schemas/02-floorplan-ccd-p.svg)
+
 
 | Bloc | Surface | Part |
 |---|---|---|

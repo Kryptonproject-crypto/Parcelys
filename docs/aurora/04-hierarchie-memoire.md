@@ -219,6 +219,8 @@ Sous chaque contrôleur mémoire du die de base, une **unité de proximité** :
 
 ### Le cas qui justifie le bloc
 
+![Les trois chemins possibles pour les poids pendant le décodage](schemas/06-chemin-donnees-llm.svg)
+
 **Le décodage autorégressif d'un LLM.** À chaque token, il faut lire tous les
 poids du modèle et effectuer essentiellement une GEMV. Le rapport calcul/octet
 est proche de 1 : c'est un problème de **bande passante pure**, où les unités

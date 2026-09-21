@@ -39,6 +39,9 @@ régulièrement :
 
 ## 6.2 Domaines d'alimentation
 
+![Arbre d'alimentation d'Aurora-D](schemas/07-arbre-alimentation.svg)
+
+
 | Domaine | Régulation | Plage | Granularité |
 |---|---|---|---|
 | Chaque cœur P | IVR (LDO numérique) | 0,60–1,05 V | par cœur |
@@ -200,7 +203,8 @@ Gain : suppression d'environ **5 % de marge de tension**, soit ~10 % de
 puissance dynamique. C'est l'un des meilleurs rapports gain/complexité du
 dossier.
 
-Le backside power delivery d'A16 contribue au même objectif par un autre
+Le backside power delivery d'A16, employé dans le die de base (§12.3),
+contribue au même objectif par un autre
 chemin : en réduisant la résistance du réseau d'alimentation, il réduit le
 droop à la source.
 

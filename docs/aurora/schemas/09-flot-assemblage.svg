@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 600" role="img"
+     aria-label="Séquence de fabrication et d'assemblage d'Aurora-D : deux flux de wafers convergent vers un collage hybride die-to-wafer, avec quatre portes de test dont la plus importante est le tri des bons dies avant empilement, puisqu'un seul die défectueux détruit toute la pile.">
+  <title>Aurora-D — flot de fabrication, d'assemblage et de test</title>
+  <desc>Les chiplets logiques sont fabriqués en N2P et le die de base et l'IOD en N6. Après sondage sur wafer, les chiplets logiques sont amincis à 25 micromètres, préparés par polissage, puis triés : seuls les bons dies sont collés. Le collage hybride die-to-wafer est suivi d'un recuit, d'une découpe, d'un test de pile, du report sur substrat, de l'underfill, de la pose du répartiteur thermique et du test final. Le rendement composé d'assemblage est de 94 pour cent.</desc>
+
+  <rect width="1060" height="600" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3C3C38"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Aurora-D — flot de fabrication et d'assemblage</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">Les blocs orange sont des portes de test. Celle du tri (porte 2) est celle dont dépend l'économie entière du produit.</text>
+
+  <!-- flux A : chiplets logiques -->
+  <text x="40" y="92" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#6E6E68">FLUX A — CHIPLETS LOGIQUES</text>
+
+  <rect x="40" y="102" width="140" height="56" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="110" y="124" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Wafers N2P</text>
+  <text x="110" y="140" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">CCD-P · CCD-E · GCD-4</text>
+  <text x="110" y="152" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">~25 000 $ le wafer</text>
+
+  <rect x="200" y="102" width="118" height="56" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="259" y="120" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" text-anchor="middle">PORTE 1</text>
+  <text x="259" y="136" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">sondage wafer</text>
+  <text x="259" y="151" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">scan + MBIST, 98 %</text>
+
+  <rect x="338" y="102" width="132" height="56" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="404" y="120" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Amincissement</text>
+  <text x="404" y="136" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38" text-anchor="middle">775 µm → 25 µm</text>
+  <text x="404" y="151" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">+ CMP, rugosité &lt; 0,5 nm</text>
+
+  <rect x="490" y="102" width="118" height="56" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="2.4"/>
+  <text x="549" y="120" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" text-anchor="middle">PORTE 2</text>
+  <text x="549" y="136" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#1B1B19" text-anchor="middle">tri — bons dies</text>
+  <text x="549" y="151" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">at-speed, 91 % gardés</text>
+
+  <g stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a9)">
+    <line x1="180" y1="130" x2="198" y2="130"/>
+    <line x1="318" y1="130" x2="336" y2="130"/>
+    <line x1="470" y1="130" x2="488" y2="130"/>
+  </g>
+
+  <!-- flux B -->
+  <text x="40" y="206" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#6E6E68">FLUX B — DIE DE BASE ET IOD</text>
+
+  <rect x="40" y="216" width="140" height="56" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="110" y="238" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Wafers N6</text>
+  <text x="110" y="254" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">BASE-D · IOD</text>
+  <text x="110" y="266" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">~10 000 $ le wafer</text>
+
+  <rect x="200" y="216" width="118" height="56" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="259" y="234" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" text-anchor="middle">PORTE 1 bis</text>
+  <text x="259" y="250" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">sondage wafer</text>
+  <text x="259" y="265" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">SLC réparé par redondance</text>
+
+  <rect x="338" y="216" width="132" height="56" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="404" y="238" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Préparation de surface</text>
+  <text x="404" y="256" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38" text-anchor="middle">le wafer reste entier</text>
+
+  <g stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a9)">
+    <line x1="180" y1="244" x2="198" y2="244"/>
+    <line x1="318" y1="244" x2="336" y2="244"/>
+  </g>
+
+  <!-- convergence -->
+  <path d="M608 130 L650 130 L650 176" stroke="#3C3C38" stroke-width="1.8" fill="none" marker-end="url(#a9)"/>
+  <path d="M470 244 L650 244 L650 212" stroke="#3C3C38" stroke-width="1.8" fill="none" marker-end="url(#a9)"/>
+
+  <rect x="560" y="178" width="180" height="36" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="2.2"/>
+  <text x="650" y="196" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">Collage hybride D2W</text>
+  <text x="650" y="209" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#2E6B5E" text-anchor="middle">Cu-Cu direct, 9 µm, 5 dies posés</text>
+
+  <!-- suite -->
+  <rect x="770" y="178" width="118" height="36" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="829" y="196" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">Recuit</text>
+  <text x="829" y="209" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">250 °C, 2 h</text>
+
+  <rect x="908" y="178" width="112" height="36" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="964" y="196" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">Découpe</text>
+  <text x="964" y="209" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">laser + lame</text>
+
+  <line x1="740" y1="196" x2="768" y2="196" stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a9)"/>
+  <line x1="888" y1="196" x2="906" y2="196" stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a9)"/>
+
+  <path d="M964 214 L964 250 L110 250 L110 300" stroke="#3C3C38" stroke-width="1.8" fill="none" marker-end="url(#a9)" stroke-dasharray="0"/>
+
+  <!-- rangée finale -->
+  <rect x="40" y="304" width="140" height="52" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="110" y="322" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" text-anchor="middle">PORTE 3</text>
+  <text x="110" y="338" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">test de pile</text>
+  <text x="110" y="351" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">liaisons hybrides, 96 %</text>
+
+  <rect x="200" y="304" width="140" height="52" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="270" y="326" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">Report flip-chip</text>
+  <text x="270" y="343" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">substrat 14 couches</text>
+
+  <rect x="360" y="304" width="140" height="52" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="430" y="326" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">Underfill + IOD</text>
+  <text x="430" y="343" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">puis liaison UCIe</text>
+
+  <rect x="520" y="304" width="140" height="52" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="590" y="326" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">TIM1 + répartiteur</text>
+  <text x="590" y="343" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">soudure indium</text>
+
+  <rect x="680" y="304" width="150" height="52" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.8"/>
+  <text x="755" y="322" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#BF4E2C" text-anchor="middle">PORTE 4</text>
+  <text x="755" y="338" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">test final + tri</text>
+  <text x="755" y="351" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">f/V, thermique, 99 %</text>
+
+  <rect x="850" y="304" width="170" height="52" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.8"/>
+  <text x="935" y="326" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19" text-anchor="middle">SKU + marquage</text>
+  <text x="935" y="343" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#6E6E68" text-anchor="middle">16P full · 12P trié</text>
+
+  <g stroke="#3C3C38" stroke-width="1.8" marker-end="url(#a9)">
+    <line x1="180" y1="330" x2="198" y2="330"/>
+    <line x1="340" y1="330" x2="358" y2="330"/>
+    <line x1="500" y1="330" x2="518" y2="330"/>
+    <line x1="660" y1="330" x2="678" y2="330"/>
+    <line x1="830" y1="330" x2="848" y2="330"/>
+  </g>
+
+  <!-- encart KGD -->
+  <rect x="40" y="386" width="490" height="180" fill="#FFFFFF" stroke="#BF4E2C" stroke-width="2"/>
+  <text x="56" y="410" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">Pourquoi la porte 2 décide de tout</text>
+  <text x="56" y="432" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">Coller un die défectueux sur un die de base sain détruit les deux. Le</text>
+  <text x="56" y="449" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">die de base est le composant le plus cher du produit (102 $) : le</text>
+  <text x="56" y="466" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">perdre pour un CCD-P à 28 $ est une perte nette de 130 $.</text>
+  <text x="56" y="492" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">Un point de couverture de test gagné à la porte 2 vaut donc</text>
+  <text x="56" y="509" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">davantage qu'un point de rendement gagné en lithographie —</text>
+  <text x="56" y="526" font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">un arbitrage contre-intuitif qui oriente le budget DFT.</text>
+  <text x="56" y="552" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#BF4E2C">C'est la raison du 99 % de couverture visé au §9.4.</text>
+
+  <!-- encart rendement -->
+  <rect x="550" y="386" width="470" height="180" fill="#FFFFFF" stroke="#2E6B5E" stroke-width="1.6"/>
+  <text x="566" y="410" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#1B1B19">Rendement composé d'assemblage</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#3C3C38">
+    <text x="566" y="434">Collage, par die (5 dies posés)</text><text x="1000" y="434" text-anchor="end">99,2 % → 96,1 %</text>
+    <text x="566" y="454">Report sur substrat</text><text x="1000" y="454" text-anchor="end">99,3 %</text>
+    <text x="566" y="474">Underfill et répartiteur</text><text x="1000" y="474" text-anchor="end">99,5 %</text>
+    <text x="566" y="494">Test final</text><text x="1000" y="494" text-anchor="end">99,0 %</text>
+  </g>
+  <line x1="566" y1="506" x2="1000" y2="506" stroke="#9B998F" stroke-width="1"/>
+  <text x="566" y="528" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Rendement d'assemblage</text>
+  <text x="1000" y="528" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#2E6B5E" text-anchor="end">94,0 %</text>
+  <text x="566" y="552" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#6E6E68">Hypothèse de ligne mûre. En démarrage, compter 85 à 88 %.</text>
+</svg>

@@ -147,6 +147,12 @@ roulement, engagements de capacité chez le fondeur), la distribution, le
 support client. Il faut prévoir 300 à 600 M$ supplémentaires pour passer du
 premier silicium à un produit livré en volume.
 
+Le **coût de revient unitaire** — nomenclature, rendements par die, assemblage,
+test — est établi au [§12.10](12-plans-de-construction.md) : environ 341 $ pour
+Aurora-D et 3 283 $ par socket Aurora-S, dont 49 % de HBM4. C'est ce dernier
+chiffre qui détermine la marge, et il dépend d'un marché mémoire que le
+programme ne contrôle pas.
+
 ---
 
 ## 10.5 Financement et modèle économique

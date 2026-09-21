@@ -128,6 +128,9 @@ atténuations logicielles coûteuses.
 
 ## 9.4 Design for Test (DFT)
 
+![Flot de fabrication, d'assemblage et de test](schemas/09-flot-assemblage.svg)
+
+
 | Mécanisme | Couverture visée |
 |---|---|
 | Chaînes de balayage (scan) compressées | > 99 % de défauts collés |
@@ -150,7 +153,7 @@ die à ~98 % de couverture avant assemblage, et on retente le test complet aprè
 | Nœud | N2P (logique), N6/N5 (die de base) |
 | Bibliothèques de cellules | hauteur mixte : 6 pistes pour les chemins critiques, 5 pistes pour la densité |
 | Vt | ULVT sur les chemins critiques, SVT par défaut, HVT partout où le timing le permet |
-| Alimentation | backside power delivery (A16), face avant sur N2P |
+| Alimentation | chiplets empilés : par la liaison hybride depuis le die de base (§12.3) ; BSPD A16 dans le die de base et sur les variantes non empilées |
 | Horloge | arbres maillés pour les cœurs, H-tree pour le NoC |
 | Signoff timing | 5 coins de procédé × 3 températures × 3 tensions |
 | Objectif de densité | > 72 % d'utilisation |

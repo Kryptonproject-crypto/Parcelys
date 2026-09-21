@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 790" role="img"
+     aria-label="Plan de masse coté du chiplet CCD-P : huit cœurs P avec leur cache L2 répartis en deux rangées de part et d'autre d'une épine centrale qui porte les quatre unités matricielles, la mémoire de tuile et l'interface vers le die de base.">
+  <title>CCD-P — plan de masse coté</title>
+  <desc>Le chiplet mesure 8,60 sur 7,20 millimètres, soit 61,9 millimètres carrés. Huit cœurs P et leurs caches L2 privés de 2 mégaoctets occupent deux rangées de quatre. Entre les deux rangées, une épine centrale porte quatre unités matricielles partagées chacune par deux cœurs, un mégaoctet de mémoire de tuile, l'interface vers le die de base, l'arbre d'horloge et les structures de test. La matrice de connexion hybride couvre toute la face du die avec un pas de 9 micromètres.</desc>
+
+  <rect width="980" height="790" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="dim" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6E6E68"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">CCD-P — plan de masse coté</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">8,60 × 7,20 mm = 61,9 mm² · N2P · échelle 70 px/mm · surfaces des blocs proportionnelles aux estimations du §2.12</text>
+
+  <!-- contour du die -->
+  <rect x="150" y="110" width="602" height="504" fill="#F3F1EC" stroke="#1B1B19" stroke-width="2.2"/>
+  <rect x="158" y="118" width="586" height="488" fill="none" stroke="#9B998F" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="166" y="131" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68">anneau de garde 0,35 mm</text>
+
+  <!-- rangée du haut : 4 cellules cœur + L2 -->
+  <g>
+    <rect x="207" y="140" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="333" y="140" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="459" y="140" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="585" y="140" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="207" y="228" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="333" y="228" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="459" y="228" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="585" y="228" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle">
+    <text x="261" y="176" font-weight="700">Cœur P 0</text>
+    <text x="387" y="176" font-weight="700">Cœur P 1</text>
+    <text x="513" y="176" font-weight="700">Cœur P 2</text>
+    <text x="639" y="176" font-weight="700">Cœur P 3</text>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68" text-anchor="middle">
+    <text x="261" y="192">+ L1 64+64 Ko</text>
+    <text x="387" y="192">+ L1 64+64 Ko</text>
+    <text x="513" y="192">+ L1 64+64 Ko</text>
+    <text x="639" y="192">+ L1 64+64 Ko</text>
+    <text x="261" y="210">1,55 × 1,25 mm</text>
+    <text x="387" y="210">1,94 mm²</text>
+    <text x="513" y="210">1,94 mm²</text>
+    <text x="639" y="210">1,94 mm²</text>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#1B1B19" text-anchor="middle">
+    <text x="261" y="256">L2 2 Mo</text><text x="387" y="256">L2 2 Mo</text>
+    <text x="513" y="256">L2 2 Mo</text><text x="639" y="256">L2 2 Mo</text>
+    <text x="261" y="272" font-size="9.5" fill="#6E6E68">1,40 mm²</text>
+    <text x="387" y="272" font-size="9.5" fill="#6E6E68">1,40 mm²</text>
+    <text x="513" y="272" font-size="9.5" fill="#6E6E68">1,40 mm²</text>
+    <text x="639" y="272" font-size="9.5" fill="#6E6E68">1,40 mm²</text>
+  </g>
+
+  <!-- épine centrale -->
+  <rect x="166" y="298" width="570" height="128" fill="#EFEBE4" stroke="#6E6E68" stroke-width="1.2"/>
+
+  <!-- 4 unités matricielles, centrées sous chaque COLONNE de cœurs :
+       équidistantes des deux cœurs qu'elles servent, et écartées entre elles
+       pour ne pas cumuler leurs points chauds (cf. §12.7). -->
+  <g>
+    <rect x="228" y="308" width="66" height="60" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.6"/>
+    <rect x="354" y="308" width="66" height="60" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.6"/>
+    <rect x="480" y="308" width="66" height="60" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.6"/>
+    <rect x="606" y="308" width="66" height="60" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.6"/>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#1B1B19" text-anchor="middle">
+    <text x="261" y="330">Matrice</text><text x="261" y="343">32 × 32</text>
+    <text x="387" y="330">Matrice</text><text x="387" y="343">32 × 32</text>
+    <text x="513" y="330">Matrice</text><text x="513" y="343">32 × 32</text>
+    <text x="639" y="330">Matrice</text><text x="639" y="343">32 × 32</text>
+    <text x="261" y="359" font-size="9" fill="#6E6E68">0,85 mm²</text>
+    <text x="387" y="359" font-size="9" fill="#6E6E68">0,85 mm²</text>
+    <text x="513" y="359" font-size="9" fill="#6E6E68">0,85 mm²</text>
+    <text x="639" y="359" font-size="9" fill="#6E6E68">0,85 mm²</text>
+  </g>
+
+  <!-- mémoire de tuile, dans les intervalles -->
+  <g fill="#FAF9F7" stroke="#6E6E68" stroke-width="1.1">
+    <rect x="172" y="308" width="50" height="60"/>
+    <rect x="300" y="308" width="48" height="60"/>
+    <rect x="426" y="308" width="48" height="60"/>
+    <rect x="552" y="308" width="48" height="60"/>
+    <rect x="678" y="308" width="50" height="60"/>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="9" fill="#1B1B19" text-anchor="middle">
+    <text x="197" y="332">tuile</text><text x="197" y="344">256 Ko</text>
+    <text x="324" y="332">tuile</text><text x="324" y="344">256 Ko</text>
+    <text x="450" y="332">tuile</text><text x="450" y="344">256 Ko</text>
+    <text x="576" y="332">tuile</text><text x="576" y="344">256 Ko</text>
+    <text x="703" y="332">horloge</text><text x="703" y="344">PLL</text>
+  </g>
+
+  <!-- lignes de service : chaque matrice sert les deux cœurs de sa colonne -->
+  <g stroke="#2E6B5E" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.8">
+    <line x1="261" y1="291" x2="261" y2="308"/><line x1="261" y1="368" x2="261" y2="433"/>
+    <line x1="387" y1="291" x2="387" y2="308"/><line x1="387" y1="368" x2="387" y2="433"/>
+    <line x1="513" y1="291" x2="513" y2="308"/><line x1="513" y1="368" x2="513" y2="433"/>
+    <line x1="639" y1="291" x2="639" y2="308"/><line x1="639" y1="368" x2="639" y2="433"/>
+  </g>
+
+  <rect x="178" y="378" width="546" height="38" fill="#FAF9F7" stroke="#6E6E68" stroke-width="1.1"/>
+  <text x="451" y="396" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">Interface die de base · arbre d'horloge · DFT · capteurs thermiques (8)</text>
+  <text x="451" y="410" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68" text-anchor="middle">aucune liaison latérale vers un autre chiplet : tout passe par le die de base</text>
+
+  <!-- rangée du bas -->
+  <g>
+    <rect x="207" y="433" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="333" y="433" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="459" y="433" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="585" y="433" width="108" height="63" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.1"/>
+    <rect x="207" y="496" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="333" y="496" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="459" y="496" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="585" y="496" width="108" height="88" fill="#F7E2D8" stroke="#3C3C38" stroke-width="1.3"/>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#1B1B19" text-anchor="middle">
+    <text x="261" y="462">L2 2 Mo</text><text x="387" y="462">L2 2 Mo</text>
+    <text x="513" y="462">L2 2 Mo</text><text x="639" y="462">L2 2 Mo</text>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="11.5" fill="#1B1B19" text-anchor="middle" font-weight="700">
+    <text x="261" y="532">Cœur P 4</text><text x="387" y="532">Cœur P 5</text>
+    <text x="513" y="532">Cœur P 6</text><text x="639" y="532">Cœur P 7</text>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68" text-anchor="middle">
+    <text x="261" y="548">+ L1 64+64 Ko</text><text x="387" y="548">+ L1 64+64 Ko</text>
+    <text x="513" y="548">+ L1 64+64 Ko</text><text x="639" y="548">+ L1 64+64 Ko</text>
+  </g>
+
+  <!-- cotes -->
+  <line x1="150" y1="642" x2="752" y2="642" stroke="#6E6E68" stroke-width="1.2" marker-start="url(#dim)" marker-end="url(#dim)"/>
+  <line x1="150" y1="620" x2="150" y2="650" stroke="#6E6E68" stroke-width="1"/>
+  <line x1="752" y1="620" x2="752" y2="650" stroke="#6E6E68" stroke-width="1"/>
+  <rect x="418" y="631" width="66" height="20" fill="#FAF9F7"/>
+  <text x="451" y="646" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700">8,60 mm</text>
+
+  <line x1="124" y1="110" x2="124" y2="614" stroke="#6E6E68" stroke-width="1.2" marker-start="url(#dim)" marker-end="url(#dim)"/>
+  <line x1="112" y1="110" x2="142" y2="110" stroke="#6E6E68" stroke-width="1"/>
+  <line x1="112" y1="614" x2="142" y2="614" stroke="#6E6E68" stroke-width="1"/>
+  <rect x="98" y="352" width="52" height="20" fill="#FAF9F7"/>
+  <text x="124" y="367" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#1B1B19" text-anchor="middle" font-weight="700" transform="rotate(-90 124 362)">7,20 mm</text>
+
+  <!-- détail : matrice de connexion hybride -->
+  <rect x="780" y="110" width="168" height="186" fill="#FFFFFF" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="864" y="130" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#1B1B19" text-anchor="middle">Détail — face inférieure</text>
+  <g fill="#BF4E2C">
+    <circle cx="806" cy="150" r="3.4"/><circle cx="826" cy="150" r="3.4"/><circle cx="846" cy="150" r="3.4"/><circle cx="866" cy="150" r="3.4"/><circle cx="886" cy="150" r="3.4"/><circle cx="906" cy="150" r="3.4"/><circle cx="926" cy="150" r="3.4"/>
+    <circle cx="806" cy="170" r="3.4"/><circle cx="826" cy="170" r="3.4"/><circle cx="846" cy="170" r="3.4"/><circle cx="866" cy="170" r="3.4"/><circle cx="886" cy="170" r="3.4"/><circle cx="906" cy="170" r="3.4"/><circle cx="926" cy="170" r="3.4"/>
+    <circle cx="806" cy="190" r="3.4"/><circle cx="826" cy="190" r="3.4"/><circle cx="846" cy="190" r="3.4"/><circle cx="866" cy="190" r="3.4"/><circle cx="886" cy="190" r="3.4"/><circle cx="906" cy="190" r="3.4"/><circle cx="926" cy="190" r="3.4"/>
+    <circle cx="806" cy="210" r="3.4"/><circle cx="826" cy="210" r="3.4"/><circle cx="846" cy="210" r="3.4"/><circle cx="866" cy="210" r="3.4"/><circle cx="886" cy="210" r="3.4"/><circle cx="906" cy="210" r="3.4"/><circle cx="926" cy="210" r="3.4"/>
+  </g>
+  <line x1="806" y1="228" x2="826" y2="228" stroke="#1B1B19" stroke-width="1.2" marker-start="url(#dim)" marker-end="url(#dim)"/>
+  <text x="836" y="232" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#1B1B19">9 µm</text>
+  <text x="864" y="256" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">La matrice couvre toute la face :</text>
+  <text x="864" y="270" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">765 000 sites possibles,</text>
+  <text x="864" y="284" font-family="Helvetica,Arial,sans-serif" font-size="10" fill="#3C3C38" text-anchor="middle">72 000 utilisés.</text>
+
+  <!-- budget de surface -->
+  <text x="780" y="326" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1B1B19">Budget de surface</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38">
+    <text x="780" y="346">8 cœurs P + L1</text><text x="948" y="346" text-anchor="end">15,5 mm²</text>
+    <text x="780" y="364">8 × L2 2 Mo</text><text x="948" y="364" text-anchor="end">11,2 mm²</text>
+    <text x="780" y="382">4 unités matricielles</text><text x="948" y="382" text-anchor="end">3,4 mm²</text>
+    <text x="780" y="400">Mémoire de tuile</text><text x="948" y="400" text-anchor="end">1,4 mm²</text>
+    <text x="780" y="418">Interface, horloge, DFT</text><text x="948" y="418" text-anchor="end">4,8 mm²</text>
+    <text x="780" y="436">Alim., garde, routage</text><text x="948" y="436" text-anchor="end">25,6 mm²</text>
+  </g>
+  <line x1="780" y1="446" x2="948" y2="446" stroke="#9B998F" stroke-width="1"/>
+  <text x="780" y="464" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#1B1B19">Total</text>
+  <text x="948" y="464" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="700" fill="#1B1B19" text-anchor="end">61,9 mm²</text>
+  <text x="780" y="486" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68">Les 41 % de « non-bloc » sont normaux :</text>
+  <text x="780" y="499" font-family="Helvetica,Arial,sans-serif" font-size="9.5" fill="#6E6E68">un die réel n'est pas un pavage de blocs.</text>
+
+  <!-- notes -->
+  <line x1="40" y1="676" x2="948" y2="676" stroke="#C9C7C1" stroke-width="1"/>
+  <text x="40" y="700" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">Pourquoi cette disposition</text>
+  <text x="40" y="720" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Chaque unité matricielle est centrée sur <tspan font-weight="700">sa colonne</tspan> de cœurs, donc équidistante des deux cœurs qu'elle sert (pointillés verts) : un</text>
+  <text x="40" y="737" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">déséquilibre se paierait en cycles d'attente sur le cœur le plus éloigné, alors que l'unité est partagée précisément pour rester saturée.</text>
+  <text x="40" y="754" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Elles sont <tspan font-weight="700">écartées les unes des autres</tspan>, jamais accolées : ce sont les points chauds du die, jusqu'à 2,9 W/mm² en charge IA soutenue</text>
+  <text x="40" y="771" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">contre 0,65 W/mm² pour un cœur en boost, et un die aminci à 25 µm étale mal la chaleur latéralement (§12.7).</text>
+</svg>

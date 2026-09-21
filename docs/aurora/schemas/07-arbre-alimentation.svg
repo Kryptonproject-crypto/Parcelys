@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 680" role="img"
+     aria-label="Arbre d'alimentation d'Aurora-D : l'alimentation 12 volts est convertie sur la carte en un rail intermédiaire de 1,2 volt, qui traverse le substrat par des TSV jusqu'au die de base, où seize régulateurs intégrés alimentent chacun leur domaine à quelques dizaines de micromètres de la charge.">
+  <title>Aurora-D — arbre d'alimentation et temps de réponse</title>
+  <desc>Le convertisseur de carte à six phases descend du 12 volts vers un rail intermédiaire de 1,2 volt à 88 ampères, avec un rendement de 94 pour cent et un temps de réponse de 20 microsecondes. Ce rail traverse le substrat et le die de base par des TSV, puis alimente seize régulateurs intégrés, un par tranche, dont le rendement est de 90 pour cent mais dont le temps de réponse est inférieur à 100 nanosecondes. C'est ce dernier chiffre qui rend possible un DVFS par cœur.</desc>
+
+  <rect width="1040" height="680" fill="#FAF9F7"/>
+
+  <defs>
+    <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E6B5E"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="34" font-family="Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1B1B19">Aurora-D — arbre d'alimentation</text>
+  <text x="40" y="54" font-family="Helvetica,Arial,sans-serif" font-size="12.5" fill="#6E6E68">95 W à la charge · la colonne de droite est celle qui compte : le temps de réponse détermine la finesse du DVFS possible</text>
+
+  <!-- étage 1 -->
+  <rect x="60" y="88" width="230" height="64" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.6"/>
+  <text x="175" y="112" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Alimentation 12 V</text>
+  <text x="175" y="132" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">9,35 A · 112 W en entrée</text>
+  <text x="175" y="146" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">connecteur ATX</text>
+
+  <line x1="175" y1="152" x2="175" y2="186" stroke="#2E6B5E" stroke-width="2.4" marker-end="url(#a7)"/>
+
+  <!-- étage 2 -->
+  <rect x="60" y="190" width="230" height="74" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.8"/>
+  <text x="175" y="213" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">Buck multiphase, sur carte</text>
+  <text x="175" y="231" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">6 phases · 12 V → 1,2 V</text>
+  <text x="175" y="246" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">rendement 94 %</text>
+  <text x="175" y="260" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">découplage : 8 × 470 µF polymère</text>
+
+  <rect x="310" y="204" width="128" height="46" fill="#FAF9F7" stroke="#9B998F" stroke-width="1.2"/>
+  <text x="374" y="223" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">réponse</text>
+  <text x="374" y="240" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#BF4E2C" text-anchor="middle">~20 µs</text>
+
+  <line x1="175" y1="264" x2="175" y2="298" stroke="#2E6B5E" stroke-width="2.4" marker-end="url(#a7)"/>
+  <text x="192" y="286" font-family="Helvetica,Arial,sans-serif" font-size="11.5" font-weight="700" fill="#2E6B5E">rail 1,2 V — 88 A</text>
+
+  <!-- étage 3 : traversée -->
+  <rect x="60" y="302" width="230" height="58" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.5"/>
+  <text x="175" y="324" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19" text-anchor="middle">Substrat → die de base</text>
+  <text x="175" y="342" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">LGA 2400 · 1 450 broches d'alim./masse</text>
+  <text x="175" y="355" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">puis champs de TSV, 58 mm²</text>
+
+  <line x1="175" y1="360" x2="175" y2="394" stroke="#2E6B5E" stroke-width="2.4" marker-end="url(#a7)"/>
+
+  <!-- étage 4 : IVR -->
+  <rect x="60" y="398" width="230" height="74" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="2.2"/>
+  <text x="175" y="421" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19" text-anchor="middle">16 IVR dans le die de base</text>
+  <text x="175" y="439" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">LDO numériques · 1,2 V → 0,45–1,05 V</text>
+  <text x="175" y="454" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#3C3C38" text-anchor="middle">rendement 90 % · pas de 5 mV</text>
+  <text x="175" y="468" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68" text-anchor="middle">découplage : 72 mm² de capacités profondes</text>
+
+  <rect x="310" y="412" width="128" height="46" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="374" y="431" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#1B1B19" text-anchor="middle">réponse</text>
+  <text x="374" y="448" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#BF4E2C" text-anchor="middle">&lt; 100 ns</text>
+
+  <!-- domaines -->
+  <g stroke="#2E6B5E" stroke-width="2" marker-end="url(#a7)" fill="none">
+    <path d="M290 435 L330 435 L330 120 L470 120"/>
+    <path d="M330 190 L470 190"/>
+    <path d="M330 260 L470 260"/>
+    <path d="M330 330 L470 330"/>
+    <path d="M330 400 L470 400"/>
+    <path d="M330 470 L470 470"/>
+    <path d="M330 540 L470 540"/>
+  </g>
+
+  <g>
+    <rect x="474" y="96" width="300" height="48" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.5"/>
+    <rect x="474" y="166" width="300" height="48" fill="#F7E2D8" stroke="#BF4E2C" stroke-width="1.5"/>
+    <rect x="474" y="236" width="300" height="48" fill="#E0EBE7" stroke="#2E6B5E" stroke-width="1.5"/>
+    <rect x="474" y="306" width="300" height="48" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="474" y="376" width="300" height="48" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="474" y="446" width="300" height="48" fill="#EFEBE4" stroke="#3C3C38" stroke-width="1.3"/>
+    <rect x="474" y="516" width="300" height="48" fill="#E6E5E1" stroke="#3C3C38" stroke-width="1.3"/>
+  </g>
+
+  <g font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19">
+    <text x="486" y="116">12 × cœur P — DVFS individuel</text>
+    <text x="486" y="186">16 × cœur E — DVFS individuel</text>
+    <text x="486" y="256">8 × Slice GPU — DVFS par slice</text>
+    <text x="486" y="326">SLC — par groupe de tranches</text>
+    <text x="486" y="396">NoC</text>
+    <text x="486" y="466">PHY mémoire</text>
+    <text x="486" y="536">Domaine toujours allumé</text>
+  </g>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#6E6E68">
+    <text x="486" y="133">0,60–1,05 V · 2,95 A/cœur au nominal, 4,54 A en boost</text>
+    <text x="486" y="203">0,50–0,90 V · 0,82 A/cœur</text>
+    <text x="486" y="273">0,55–1,00 V · 4,13 A/slice</text>
+    <text x="486" y="343">0,60–0,85 V</text>
+    <text x="486" y="413">0,65–0,90 V</text>
+    <text x="486" y="483">selon le standard JEDEC</text>
+    <text x="486" y="553">0,45 V · 2 cœurs L + sous-système sécurisé</text>
+  </g>
+
+  <!-- encart IR drop -->
+  <rect x="794" y="96" width="206" height="200" fill="#FFFFFF" stroke="#BF4E2C" stroke-width="1.6"/>
+  <text x="806" y="118" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19">Budget de chute IR</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38">
+    <text x="806" y="140">Cible : 5 % de 0,82 V</text>
+    <text x="806" y="156" font-weight="700" fill="#BF4E2C">→ 41 mV maximum</text>
+    <text x="806" y="178">Courant d'un CCD-P : 23,6 A</text>
+    <text x="806" y="194">→ résistance admissible</text>
+    <text x="806" y="210" font-weight="700">1,74 mΩ de bout en bout</text>
+    <text x="806" y="232">Dont la liaison hybride :</text>
+    <text x="806" y="248">12 000 plots VDD en parallèle</text>
+    <text x="806" y="264" font-weight="700" fill="#2E6B5E">0,00002 mΩ — négligeable</text>
+    <text x="806" y="284">Le budget part donc presque</text>
+    <text x="806" y="292" font-size="0">.</text>
+  </g>
+  <text x="806" y="288" font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38">entièrement dans la grille sur die.</text>
+
+  <!-- encart EM -->
+  <rect x="794" y="308" width="206" height="128" fill="#FFFFFF" stroke="#2E6B5E" stroke-width="1.6"/>
+  <text x="806" y="330" font-family="Helvetica,Arial,sans-serif" font-size="12" font-weight="700" fill="#1B1B19">Électromigration</text>
+  <g font-family="Helvetica,Arial,sans-serif" font-size="10.5" fill="#3C3C38">
+    <text x="806" y="352">1,97 mA par plot de 9 µm</text>
+    <text x="806" y="370">densité : 3,1 × 10³ A/cm²</text>
+    <text x="806" y="388">limite du cuivre : ~10⁶ A/cm²</text>
+    <text x="806" y="410" font-weight="700" fill="#2E6B5E">marge ×300 — ce n'est pas</text>
+    <text x="806" y="426" font-weight="700" fill="#2E6B5E">la contrainte dimensionnante</text>
+  </g>
+
+  <!-- note -->
+  <line x1="40" y1="592" x2="1000" y2="592" stroke="#C9C7C1" stroke-width="1"/>
+  <text x="40" y="616" font-family="Helvetica,Arial,sans-serif" font-size="12.5" font-weight="700" fill="#1B1B19">On perd 4 points de rendement, et on gagne un facteur 200 en agilité</text>
+  <text x="40" y="636" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">Un bon régulateur de carte atteint 94 % contre 90 % pour un IVR : la conversion en deux étages coûte environ 4 W sur 95. En échange, la</text>
+  <text x="40" y="653" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">tension suit la charge en moins de 100 ns au lieu de 20 µs. Sans cela, le DVFS ne peut réagir qu'à des phases de plusieurs millisecondes,</text>
+  <text x="40" y="670" font-family="Helvetica,Arial,sans-serif" font-size="12" fill="#3C3C38">et tout le gouverneur prédictif du §6.5 n'aurait aucun actionneur assez rapide pour appliquer ses décisions.</text>
+</svg>

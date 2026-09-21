@@ -333,4 +333,6 @@ une conception.
 
 ---
 
-**Retour au [sommaire](README.md).**
+**Suite :** [12. Plans de construction](12-plans-de-construction.md) — où ces
+chiffres rencontrent les cotes, les watts par millimètre carré et le prix de
+revient.
