@@ -61,7 +61,8 @@
     "audit:tout": "bash scripts/audit-lancer.sh tout",
     "audit:perf": "node scripts/audit-performance.mjs",
     "check:import-stock": "node scripts/check-import-stock.mjs",
-    "check:demarrage": "bash scripts/check-demarrage.sh"
+    "check:demarrage": "bash scripts/check-demarrage.sh",
+    "check:referentiels-aura": "tsx --conditions=react-server scripts/check-referentiels-aura.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

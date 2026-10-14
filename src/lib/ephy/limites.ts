@@ -254,6 +254,41 @@ export function rappelZnt(params: {
   );
 }
 
+/**
+ * Les écoulements cartographiés à moins de la ZNT aquatique du contour.
+ *
+ * La BD TOPAGE situe les cours d'eau, fossés et plans d'eau ; elle ne dit pas
+ * lesquels sont des **points d'eau** au sens de l'arrêté préfectoral du
+ * département — c'est cette désignation qui rend la ZNT applicable, et sa
+ * cartographie n'est pas fournie. Le rappel nomme donc l'écoulement et sa
+ * distance, et laisse la qualification à l'exploitant : il n'en déduit jamais
+ * qu'une ZNT s'applique, ni qu'elle ne s'applique pas.
+ */
+export function rappelZntEcoulements(params: {
+  produit: string;
+  zntAquaticM: string | null;
+  ecoulements: Array<{ label: string; nature: string | null; distanceM: number; dedans: boolean; source: string }>;
+}): string | null {
+  const znt = entierDuCatalogue(params.zntAquaticM);
+  if (znt === null || znt <= 0) return null;
+  const proches = params.ecoulements
+    .filter((e) => e.dedans || e.distanceM <= znt)
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .slice(0, 3);
+  if (proches.length === 0) return null;
+  const liste = proches
+    .map(
+      (e) =>
+        `« ${e.label} »${e.nature ? ` (${e.nature})` : ''} ${e.dedans ? 'touche la parcelle' : `à ${e.distanceM.toLocaleString('fr-FR')} m du contour`}`,
+    )
+    .join(', ');
+  return (
+    `ZNT aquatique de ${znt} m pour ${params.produit} : ${liste}, d’après ${proches[0]!.source}. ` +
+    'Si cet écoulement est un point d’eau au sens de l’arrêté préfectoral de votre département, la ZNT s’applique le long de lui. ' +
+    'Parcelys ne sait pas lequel l’est : la cartographie départementale des points d’eau n’est pas fournie.'
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Conditions d'emploi : délai de rentrée, pollinisateurs, riverains
 // ---------------------------------------------------------------------------

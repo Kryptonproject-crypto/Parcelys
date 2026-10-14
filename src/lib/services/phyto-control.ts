@@ -4,12 +4,14 @@ import { checkDose, type UsageForDose } from '@/lib/ephy/dose';
 import { drainedSoilSeverity } from '@/lib/ephy/conditions';
 import {
   rappelZnt,
+  rappelZntEcoulements,
   rappelsConditions,
   verifierDelaiAvantRecolte,
   verifierIntervalle,
   verifierNombreApplications,
 } from '@/lib/ephy/limites';
 import { isAuthorizedStatus } from '@/lib/ephy/search';
+import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { campagneCourante } from '@/lib/shared/campagne';
 
 /**
@@ -184,6 +186,11 @@ export async function buildPhytoWarnings(
         zntArthropodM: usage.zntArthropodM,
         zntPlantM: usage.zntPlantM,
       }),
+      rappelZntEcoulements({
+        produit: product.name,
+        zntAquaticM: usage.zntAquaticM,
+        ecoulements: await ecoulementsProches(input.parcelId),
+      }),
     ];
 
     for (const limite of limites) if (limite) warnings.push(limite);
@@ -214,6 +221,21 @@ export async function buildPhytoWarnings(
   }
 
   return warnings;
+}
+
+/** Les écoulements de la BD TOPAGE près du contour, d'après le contexte de la parcelle. */
+async function ecoulementsProches(parcelId: string) {
+  const NATURES = new Set(['TRONCON_HYDROGRAPHIQUE', 'COURS_EAU', 'SURFACE_HYDROGRAPHIQUE', 'PLAN_EAU']);
+  const contexte = await getOrComputeParcelContext(parcelId).catch(() => null);
+  return (contexte?.proximites ?? [])
+    .filter((p) => NATURES.has(p.kind))
+    .map((p) => ({
+      label: p.label,
+      nature: typeof p.attributes?.NatureTH === 'string' ? p.attributes.NatureTH : null,
+      distanceM: p.distanceM,
+      dedans: p.dedans,
+      source: `${p.referential.sourceLabel} (version ${p.referential.version})`,
+    }));
 }
 
 /**

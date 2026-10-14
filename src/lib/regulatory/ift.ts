@@ -146,44 +146,69 @@ export function computeTreatmentIft(params: {
 /**
  * Cherche la dose de référence applicable à un traitement.
  *
- * Du plus précis au plus général : produit + culture, puis culture seule. Un
- * rapprochement par culture seule est légitime — les référentiels publient
- * souvent une dose de référence par culture et par cible — mais on ne descend
- * jamais jusqu'à « n'importe quelle culture », qui reviendrait à choisir une
- * référence au hasard.
+ * Le fichier officiel publie, pour un produit et une culture :
+ *
+ *  · une dose de référence **à la culture** (cible vide) pour les traitements
+ *    des cultures — unique pour un couple produit × culture ;
+ *  · des doses **à la cible** (maladie, ravageur, adventice) ;
+ *  · des doses de **traitement de semences**, rangées dans leur propre
+ *    catégorie, et jusqu'à vingt fois plus élevées.
+ *
+ * On prend la dose à la cible quand la cible saisie est exactement celle du
+ * fichier, sinon la dose à la culture. Jamais une dose de traitement de
+ * semences pour un traitement des cultures, et jamais la dose d'une **autre
+ * culture** : prendre « la première ligne du produit » donnait à un traitement
+ * du blé la dose de référence d'une betterave, et un IFT faux d'un facteur
+ * vingt quand la ligne retenue était celle des semences.
  */
+const SEGMENT_SEMENCES = 'Traitement de semences';
+
 async function findReference(params: {
   referentialId: string;
   amm: string | null;
   cropLabel: string | null;
-}) {
+  targetLabel: string | null;
+}): Promise<{ reference: Awaited<ReturnType<typeof prisma.iftReference.findFirst>>; reason?: string }> {
   const cropNormalized = params.cropLabel ? normalizeSearchTerm(params.cropLabel) : null;
-
-  if (params.amm && cropNormalized) {
-    const exact = await prisma.iftReference.findFirst({
-      where: {
-        referentialId: params.referentialId,
-        amm: params.amm,
-        cropNormalized,
-      },
-    });
-    if (exact) return exact;
+  if (!cropNormalized) {
+    return { reference: null, reason: 'Culture du traitement inconnue : la dose de référence dépend de la culture.' };
   }
 
   if (params.amm) {
-    const parProduit = await prisma.iftReference.findFirst({
-      where: { referentialId: params.referentialId, amm: params.amm },
+    const lignes = await prisma.iftReference.findMany({
+      where: { referentialId: params.referentialId, amm: params.amm, cropNormalized },
     });
-    if (parProduit) return parProduit;
+    const cultures = lignes.filter((l) => l.category !== SEGMENT_SEMENCES);
+    const cible = params.targetLabel ? normalizeSearchTerm(params.targetLabel) : null;
+    const aLaCible = cible
+      ? cultures.find((l) => l.targetLabel && normalizeSearchTerm(l.targetLabel) === cible)
+      : undefined;
+    if (aLaCible) return { reference: aLaCible };
+    const aLaCulture = cultures.find((l) => !l.targetLabel);
+    if (aLaCulture) return { reference: aLaCulture };
+    if (lignes.length > 0) {
+      return {
+        reference: null,
+        reason:
+          cultures.length === 0
+            ? 'Seule une dose de référence de traitement de semences est publiée pour ce produit sur cette culture.'
+            : 'Aucune dose de référence à la culture n’est publiée pour ce produit, et la cible saisie ne correspond à aucune cible du référentiel.',
+      };
+    }
+    return {
+      reference: null,
+      reason: `Aucune dose de référence publiée pour ce produit sur la culture « ${params.cropLabel} » (le nom de culture doit être celui du référentiel IFT).`,
+    };
   }
 
-  if (cropNormalized) {
-    return prisma.iftReference.findFirst({
-      where: { referentialId: params.referentialId, cropNormalized, amm: null },
-    });
-  }
-
-  return null;
+  // Sans numéro d'AMM : une dose « à la culture » sans produit, si le
+  // référentiel en publie une (le fichier national n'en contient pas).
+  const parCulture = await prisma.iftReference.findFirst({
+    where: { referentialId: params.referentialId, cropNormalized, amm: null, targetLabel: null },
+  });
+  return parCulture
+    ? { reference: parCulture }
+    : { reference: null, reason: 'Numéro d’AMM absent : la dose de référence ne peut pas être retrouvée.' };
 }
 
 /**
@@ -282,10 +307,11 @@ export async function computeFarmIft(params: {
   for (const traitement of traitements) {
     const culture =
       traitement.cropLabel ?? traitement.cropYear?.crop.name ?? null;
-    const reference = await findReference({
+    const { reference, reason: raisonReference } = await findReference({
       referentialId: referentiel.id,
       amm: traitement.amm,
       cropLabel: culture,
+      targetLabel: traitement.targetLabel,
     });
 
     const doseValue = Number(traitement.dose);
@@ -318,7 +344,9 @@ export async function computeFarmIft(params: {
       treatedAreaHa,
       parcelAreaHa,
       ift,
-      ...(reason ? { reason } : {}),
+      // La raison de la recherche prime : « aucune dose publiée » est moins
+      // précis que « seule une dose de semences est publiée ».
+      ...(ift === null && (raisonReference ?? reason) ? { reason: raisonReference ?? reason } : {}),
     });
   }
 

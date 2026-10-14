@@ -455,6 +455,59 @@ describe('Bilan azoté et IFT', () => {
    * Le nombre aurait eu toutes les apparences d'un nombre juste — et l'IFT se
    * déclare.
    */
+  it('prend la dose à la culture ou à la cible — jamais celle des semences ni d’une autre culture', async () => {
+    // Le motif du fichier officiel : pour un même produit et une même culture,
+    // une dose à la cible, une dose à la culture (cible vide) et une dose de
+    // traitement de semences vingt fois plus élevée ; une autre culture a la
+    // sienne.
+    await importIftReferences(
+      [
+        // Comme dans le fichier officiel, la dose de semences existe aussi
+        // sans cible — et elle vient en premier.
+        { cropLabel: 'Blé tendre', amm: '9990002', targetLabel: null, category: 'Traitement de semences', doseValue: '5', doseUnit: 'KG/HA' },
+        { cropLabel: 'Blé tendre', amm: '9990002', targetLabel: 'Maladies fongiques', category: 'Fongicides bactericides', doseValue: '0.5', doseUnit: 'KG/HA' },
+        { cropLabel: 'Blé tendre', amm: '9990002', targetLabel: null, category: 'Fongicides bactericides', doseValue: '0.25', doseUnit: 'KG/HA' },
+        { cropLabel: 'Betterave', amm: '9990003', targetLabel: null, category: 'Herbicides', doseValue: '1', doseUnit: 'L/HA' },
+      ],
+      { version: '2026', sourceLabel: 'Échantillon 2026' },
+    );
+    const traitement = (amm: string, cible: string | null) =>
+      prisma.phytosanitaryApplication.create({
+        data: {
+          parcelId,
+          cropYearId,
+          appliedOn: new Date('2026-04-15'),
+          productName: 'ESSAI',
+          amm,
+          cropLabel: 'Blé tendre',
+          targetLabel: cible,
+          dose: 0.25,
+          doseUnit: 'kg/ha',
+          quantityUsed: 2.5,
+          quantityUnit: 'kg',
+          treatedAreaHa: 10,
+        },
+      });
+    const surface = Number((await prisma.parcel.findUniqueOrThrow({ where: { id: parcelId } })).areaHa);
+    const part = Math.min(10 / surface, 1);
+
+    await traitement('9990002', null);
+    await traitement('9990002', 'Maladies fongiques');
+    // Un produit qui n'a de dose que sur la betterave : rien sur le blé.
+    await traitement('9990003', null);
+
+    const ift = await computeFarmIft({ farmId, campaignYear: 2026 });
+    const ble = ift.treatments.filter((t) => t.amm === '9990002');
+    // Dose à la culture (0,25) et dose à la cible saisie (0,5) — jamais la
+    // dose de semences (5).
+    expect(ble.map((t) => t.referenceValue).sort()).toEqual([0.25, 0.5]);
+    expect(ble.find((t) => t.referenceValue === 0.25)?.ift).toBeCloseTo(1 * part, 3);
+    // Pas de dose sur le blé : jamais celle de la betterave.
+    const autreCulture = ift.treatments.find((t) => t.amm === '9990003');
+    expect(autreCulture?.ift).toBeNull();
+    expect(autreCulture?.reason).toMatch(/culture « Blé tendre »/);
+  });
+
   it('réimporter une campagne la remplace, sans créer de seconde version active', async () => {
     const ligne = (dose: string) => [
       { cropLabel: 'Blé tendre', amm: '9990001', category: 'herbicides', doseValue: dose, doseUnit: 'L/ha' },
