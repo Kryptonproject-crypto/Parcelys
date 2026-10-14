@@ -13,6 +13,7 @@ import {
   PARCEL_STYLE_SELECTED,
   type BaseLayerKey,
 } from '@/components/map/leaflet-setup';
+import { lignesDEtiquette } from '@/lib/shared/carte';
 import type { MultiPolygonGeometry } from '@/lib/geo/types';
 
 export type MapParcel = {
@@ -147,13 +148,22 @@ export function ParcelsMap({
         style: parcel.id === selectedId ? PARCEL_STYLE_SELECTED : PARCEL_STYLE,
       });
 
-      const label = [
-        parcel.internalNumber ? `<strong>${escapeHtml(parcel.internalNumber)}</strong> · ` : '',
-        `<strong>${escapeHtml(parcel.name)}</strong>`,
-        `<br/>${parcel.areaHa.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} ha`,
-        parcel.crop ? `<br/>${escapeHtml(parcel.crop)}` : '',
-        parcel.commune ? `<br/><span style="opacity:.75">${escapeHtml(parcel.commune)}</span>` : '',
-      ].join('');
+      // Le contenu du libellé vient du terrain commun : l'application de
+      // terrain affiche le même, et une parcelle doit se nommer de la même
+      // façon d'un écran à l'autre. Seul l'habillage diffère.
+      const label = lignesDEtiquette({
+        name: parcel.name,
+        internalNumber: parcel.internalNumber,
+        commune: parcel.commune,
+        areaHa: parcel.areaHa,
+        cropName: parcel.crop,
+      })
+        .map((ligne, index) =>
+          index === 0
+            ? `<strong>${escapeHtml(ligne)}</strong>`
+            : escapeHtml(ligne),
+        )
+        .join('<br/>');
 
       layer.bindTooltip(label, { className: 'parcel-tooltip', sticky: true });
 

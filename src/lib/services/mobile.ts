@@ -13,6 +13,7 @@ import { calculerSolde } from '@/lib/stock/balance';
 import { listRecommendations } from '@/lib/services/advisory';
 import { getEphySourceInfo, getProductUsages } from '@/lib/ephy/search';
 import type { OfflineCatalogueEntry } from '@/lib/ephy/catalogue-local';
+import { getEnv } from '@/lib/env';
 import type { FarmContext } from '@/lib/auth/rbac';
 
 // La forme d'une fiche embarquée est définie une seule fois, dans le terrain
@@ -244,6 +245,20 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
     role: ctx.role,
     /** `true` quand l'accès vient d'une mission de conseil : lecture seule. */
     advisory: ctx.accessKind === 'advisory',
+    /**
+     * Fond de plan de la carte, tel que l'instance le configure.
+     *
+     * Transmis plutôt qu'inscrit dans l'application : le fond est un réglage
+     * de l'instance (`MAP_TILE_URL`), et une adresse figée dans l'APK ne
+     * suivrait pas un changement de fournisseur — il faudrait recompiler et
+     * réinstaller pour une ligne de configuration. L'attribution voyage avec
+     * l'adresse : la licence du fournisseur l'exige, et les séparer finirait
+     * par afficher un fond sans sa provenance.
+     */
+    carte: {
+      tileUrl: getEnv().MAP_TILE_URL,
+      attribution: getEnv().MAP_TILE_ATTRIBUTION,
+    },
     recommendations,
     parcels: geojson.features.map((feature) => ({
       id: feature.properties.id,

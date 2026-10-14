@@ -633,6 +633,24 @@ describe('Application mobile et synchronisation', () => {
       ]);
     });
 
+    it('transmet le fond de plan configuré par l’instance', async () => {
+      const { native } = await setup();
+
+      const snapshot = await native.get<{
+        carte: { tileUrl: string; attribution: string };
+      }>('/api/mobile/bootstrap');
+
+      // Sans cela, l'adresse du fond serait inscrite dans l'APK : changer de
+      // fournisseur de tuiles demanderait de recompiler et de réinstaller,
+      // pour une ligne de configuration du serveur.
+      expect(snapshot.body.carte?.tileUrl).toMatch(/\{z\}/);
+      expect(snapshot.body.carte?.tileUrl).toMatch(/\{x\}/);
+      expect(snapshot.body.carte?.tileUrl).toMatch(/\{y\}/);
+      // L'attribution voyage avec l'adresse : la licence du fournisseur
+      // l'exige, et les séparer finirait par afficher un fond sans sa source.
+      expect(snapshot.body.carte?.attribution.length).toBeGreaterThan(10);
+    });
+
     it('n’expose pas l’exploitation d’un autre compte', async () => {
       await setup();
       const stranger = await createUserWithFarm({

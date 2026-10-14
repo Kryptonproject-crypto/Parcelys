@@ -207,6 +207,15 @@ export type Snapshot = {
   parcels: CachedParcel[];
   recommendations: CachedRecommendation[];
   referential: Referential;
+  /**
+   * Fond de plan de la carte, tel que l'instance le configure.
+   *
+   * Facultatif : un appareil qui n'a pas resynchronisé depuis la 0.9.8 n'en a
+   * pas, et doit afficher la carte avec le fond de repli plutôt que rien.
+   * L'attribution ne se sépare jamais de l'adresse — la licence du fournisseur
+   * l'exige.
+   */
+  carte?: { tileUrl: string; attribution: string };
 };
 
 /** Type d'opération que la file d'attente sait rejouer. */

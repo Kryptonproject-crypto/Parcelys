@@ -6,6 +6,69 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.8 — La même carte au champ qu'au bureau
+
+La 0.9.7 avait ajouté une carte à l'application : des contours dessinés à la
+main, sans fond de plan. Elle fonctionnait, mais ce n'était pas la carte du
+site — et c'est la carte du site qu'il faut au champ.
+
+### Leaflet des deux côtés, et les mêmes fonds
+
+L'application utilise désormais **la même bibliothèque que le site**, avec les
+mêmes fonds de plan — Satellite (imagerie Esri) et Plan — et un sélecteur pour
+passer de l'un à l'autre. Le satellite est affiché par défaut : au champ, c'est
+lui qui permet de reconnaître une limite, une haie, un chemin.
+
+Les couleurs des parcelles, les fonds et le libellé qui nomme une parcelle
+vivent maintenant dans `src/lib/shared/carte.ts`, lu par le site **et** par
+l'application. Le site les y prend aussi : ils n'étaient définis qu'à un seul
+endroit, ils le restent. `tests/carte.test.ts` refuse qu'une couleur soit
+réécrite à la main d'un côté ou de l'autre — c'est exactement ainsi que les
+deux cartes auraient recommencé à diverger.
+
+L'adresse du fond « Plan » vient du serveur (`MAP_TILE_URL`), transmise dans
+l'instantané : changer de fournisseur de tuiles ne demande pas de recompiler et
+de réinstaller l'APK.
+
+### Hors réseau, la carte reste utile
+
+Le fond de plan demande du réseau ; les contours, non — ils viennent du cache
+de l'appareil. Au milieu d'un champ sans couverture, les parcelles s'affichent
+donc toujours, sur fond vide, et un bandeau dit pourquoi le fond manque au lieu
+de laisser chercher.
+
+### Trois défauts trouvés en pilotant l'écran, pas en le relisant
+
+- **Debout dans sa parcelle, on ne pouvait pas la sélectionner.** Le repère de
+  position et son cercle de précision interceptaient l'appui : au milieu d'une
+  parcelle — le cas ordinaire —, on tapait sur son propre point et rien ne
+  s'ouvrait. Les deux ne sont plus cliquables. Le diagnostic a été obtenu en
+  demandant au navigateur ce qui se trouvait sous le doigt : `path trait
+  #ffffff`, le repère.
+- **L'infobulle restait ouverte en travers de la carte.** Une infobulle s'ouvre
+  au survol, et un doigt ne survole pas : au premier appui elle s'ouvrait et
+  restait, masquant les parcelles voisines. Elle est remplacée au champ par la
+  fiche sous la carte, plus lisible au soleil et à portée du pouce. Le site, où
+  l'on survole à la souris, la garde.
+- **L'attribution recouvrait la barre d'échelle.** Sur 390 points de large,
+  celle d'Esri tient sur deux lignes et passait par-dessus. Elle est désormais
+  posée sous la carte — la licence exige qu'elle soit visible, pas qu'elle soit
+  dans le cadre — et elle suit le fond affiché.
+
+### Ce que cela coûte
+
+L'application pèse 139 ko compressés au lieu de 95 : Leaflet et son habillage.
+C'est le prix d'une vraie carte, et il est payé une fois à l'installation.
+
+### Ce qui n'y est pas encore
+
+Les **couches réglementaires** (zones vulnérables, captages, cours d'eau) sont
+sur la carte du site, pas encore sur celle de l'application : il faudrait les
+embarquer dans l'instantané hors ligne, ce qui alourdit chaque
+synchronisation. Elles sont éteintes par défaut sur le site.
+
+---
+
 ## 0.9.7 — Le parcellaire sur une carte, et les saisies qui partent enfin
 
 ### Rien ne partait tout seul : aucune saisie n'atteignait le serveur

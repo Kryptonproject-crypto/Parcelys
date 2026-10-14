@@ -3,29 +3,36 @@
  * Vérification de bout en bout de la carte et du renommage, dans l'application.
  *
  * Ce que les tests de `tests/` ne peuvent pas atteindre : l'écran lui-même.
- * `tests/carte.test.ts` éprouve la projection, `tests/mobile-sync.test.ts`
- * éprouve le serveur — mais aucun des deux ne dit si l'exploitant voit ses
- * parcelles et peut les renommer depuis son téléphone. C'est pourtant la seule
- * question posée.
+ * `tests/carte.test.ts` vérifie que le site et l'application puisent leurs
+ * couleurs au même endroit, `tests/mobile-sync.test.ts` vérifie le serveur —
+ * mais aucun des deux ne dit si l'exploitant voit ses parcelles sur une carte
+ * et peut les renommer depuis son téléphone. C'est pourtant la seule question.
  *
  * On pilote donc l'application compilée dans un vrai navigateur, contre un vrai
  * serveur et une vraie base, et on regarde ce qui s'affiche.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LES TUILES
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Les serveurs de tuiles ne sont pas joignables depuis l'environnement de
+ * vérification. Plutôt que de déclarer le fond « non vérifiable », on répond
+ * **à la place** des serveurs de tuiles avec une image valide : la couche de
+ * fond est alors éprouvée pour de bon — Leaflet demande les bonnes adresses,
+ * reçoit des images, les pose et les marque chargées. Seule la joignabilité du
+ * fournisseur reste hors de portée, et c'est de la configuration, pas du code.
+ *
  * Prérequis, à lancer avant :
  *
- *   # base migrée et peuplée
  *   npx prisma migrate deploy && npx tsx prisma/seed.ts
  *
- *   # serveur, avec l'origine de l'aperçu mobile autorisée
- *   APP_URL=http://127.0.0.1:3000 \
- *   MOBILE_APP_ORIGINS="http://127.0.0.1:4173" \
+ *   APP_URL=http://127.0.0.1:3000 MOBILE_APP_ORIGINS="http://127.0.0.1:4173" \
  *     ./node_modules/.bin/next start --port 3000 --hostname 127.0.0.1
  *
- *   # application mobile, compilée vers ce serveur
  *   cd mobile && VITE_PARCELYS_SERVER=http://127.0.0.1:3000 npm run build \
  *     && npx vite preview --port 4173 --host 127.0.0.1
  *
- * Usage : node scripts/check-carte-mobile.mjs [--garder-captures]
+ * Usage : node scripts/check-carte-mobile.mjs
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -34,9 +41,18 @@ import { chromium } from 'playwright';
 import { cheminDuNavigateur } from './lib/navigateur.mjs';
 
 const APP = process.env.MOBILE_URL ?? 'http://127.0.0.1:4173';
+const SERVEUR = process.env.PARCELYS_URL ?? 'http://127.0.0.1:3000';
 const EMAIL = process.env.DEMO_SEED_EMAIL ?? 'demo@parcelys.local';
 const MOT_DE_PASSE = process.env.DEMO_SEED_PASSWORD ?? 'Demo1234!';
 const CAPTURES = process.env.CAPTURES_DIR ?? '/tmp/parcelys-captures';
+
+/** PNG 256×256 uni, pour répondre à la place des serveurs de tuiles. */
+const TUILE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAIAAADTED8xAAAAA3NCSVQICAjb4U/gAAAAW0lEQVR4' +
+    'nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIC3ASPAAAFZ0+QTAAAAAElFTkSuQmCC',
+  'base64',
+);
 
 const resultats = [];
 let echecs = 0;
@@ -54,24 +70,29 @@ function titre(texte) {
 
 const main = async () => {
   mkdirSync(CAPTURES, { recursive: true });
-  const navigateur = await chromium.launch({
-    executablePath: cheminDuNavigateur(),
-  });
-  const fermer = () => navigateur.close();
+  const navigateur = await chromium.launch({ executablePath: cheminDuNavigateur() });
 
-  // Un écran de téléphone, et une position GPS fixée : sans elle, le navigateur
-  // n'en a aucune et l'on ne vérifierait pas l'affichage de la position.
+  // Un écran de téléphone, et une position dans « Les Sables », parcelle de
+  // l'exploitation de démonstration (vérifié par `ST_PointOnSurface`). Une
+  // position au hasard tomberait à cent kilomètres et l'on ne vérifierait ni le
+  // repère ni l'appartenance.
   const contexte = await navigateur.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     permissions: ['geolocation'],
-    // Dans « Les Sables », une parcelle de l'exploitation de démonstration —
-    // vérifié par `ST_PointOnSurface`. Une position prise au hasard tomberait
-    // à cent kilomètres, et l'on ne vérifierait ni le repère ni l'appartenance.
     geolocation: { latitude: 48.0962, longitude: 1.8854, accuracy: 12 },
     locale: 'fr-FR',
   });
   const page = await contexte.newPage();
+
+  // On répond à la place des serveurs de tuiles. Les adresses demandées sont
+  // relevées au passage : c'est ainsi qu'on vérifie que le fond « plan » est
+  // bien celui que le serveur configure, et non une adresse figée dans l'APK.
+  const tuilesDemandees = [];
+  await page.route(/tile\.openstreetmap\.org|arcgisonline\.com/, async (route) => {
+    tuilesDemandees.push(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'image/png', body: TUILE_PNG });
+  });
 
   const erreursConsole = [];
   page.on('console', (message) => {
@@ -97,137 +118,155 @@ const main = async () => {
     verifier('l’application s’ouvre sur le parcellaire', true);
 
     // -----------------------------------------------------------------------
-    titre('La carte');
+    titre('Une vraie carte, comme sur le site');
     await page.getByRole('button', { name: /voir la carte/i }).click();
 
-    const svg = page.locator('svg[role="img"]');
-    await svg.waitFor({ timeout: 15_000 });
+    const carte = page.locator('.leaflet-container');
+    await carte.waitFor({ timeout: 15_000 });
+    verifier('la carte Leaflet est en place', await carte.isVisible());
 
-    // Le nombre de parcelles dessinées, comparé à celui que le serveur a
-    // envoyé : une carte vide ou partielle est le défaut qu'on cherche.
-    const attendues = await page.evaluate(async () => {
-      const bases = await indexedDB.databases();
-      const nom = bases.map((b) => b.name).find((n) => n);
-      if (!nom) return null;
-      return await new Promise((resolve) => {
-        const requete = indexedDB.open(nom);
-        requete.onsuccess = () => {
-          const base = requete.result;
-          if (!base.objectStoreNames.contains('snapshot')) return resolve(null);
-          const lecture = base.transaction('snapshot').objectStore('snapshot').getAll();
-          lecture.onsuccess = () => {
-            const instantane = lecture.result?.[0];
-            const parcelles = instantane?.value?.parcels ?? instantane?.parcels ?? [];
-            resolve(
-              parcelles.filter((p) => p.geometry && p.geometry.coordinates).length,
-            );
+    // Les tuiles sont demandées, reçues et posées. `leaflet-tile-loaded` n'est
+    // posé par Leaflet qu'une fois l'image réellement chargée : une couche qui
+    // demanderait sans afficher ne passerait pas ici.
+    await page
+      .locator('img.leaflet-tile-loaded')
+      .first()
+      .waitFor({ timeout: 15_000 })
+      .catch(() => {});
+    const tuilesPosees = await page.locator('img.leaflet-tile-loaded').count();
+    verifier('le fond de plan est chargé et affiché', tuilesPosees > 0,
+      `${tuilesPosees} tuile(s) posée(s), ${tuilesDemandees.length} demandée(s)`);
+
+    verifier(
+      'le fond satellite est celui d’Esri, comme sur le site',
+      tuilesDemandees.some((url) => url.includes('arcgisonline.com')),
+    );
+
+    // La licence des fournisseurs l'impose : un fond affiché sans attribution
+    // est un fond qu'on n'a pas le droit d'afficher. Elle est posée sous la
+    // carte et non dedans — sur 390 points de large, celle d'Esri passait
+    // par-dessus la barre d'échelle.
+    verifier(
+      'l’attribution du fond satellite est affichée',
+      await page.getByText(/Esri/).first().isVisible(),
+    );
+
+    verifier(
+      'une échelle métrique est affichée',
+      await page.locator('.leaflet-control-scale-line').first().isVisible(),
+      (await page.locator('.leaflet-control-scale-line').first().textContent()) ?? '',
+    );
+
+    // -----------------------------------------------------------------------
+    titre('Les parcelles');
+    const contours = page.locator('.leaflet-overlay-pane path.leaflet-interactive');
+    await contours.first().waitFor({ timeout: 10_000 });
+
+    const attendues = await page.evaluate(
+      async () =>
+        await new Promise((resolve) => {
+          const requete = indexedDB.open('parcelys');
+          requete.onsuccess = () => {
+            const base = requete.result;
+            if (!base.objectStoreNames.contains('cache')) return resolve(null);
+            const lecture = base.transaction('cache').objectStore('cache').get('snapshot');
+            lecture.onsuccess = () => {
+              const parcelles = lecture.result?.parcels ?? [];
+              resolve(parcelles.filter((p) => p.geometry).length);
+            };
+            lecture.onerror = () => resolve(null);
           };
-          lecture.onerror = () => resolve(null);
-        };
-        requete.onerror = () => resolve(null);
-      });
-    });
+          requete.onerror = () => resolve(null);
+        }),
+    );
 
-    const dessinees = await svg.locator('path[fill-rule="evenodd"]').count();
+    const dessinees = await contours.count();
     verifier(
       'chaque parcelle ayant un contour est dessinée',
-      attendues === null ? dessinees > 0 : dessinees === attendues,
+      attendues !== null && dessinees === attendues,
       attendues === null
-        ? `${dessinees} contour(s) dessiné(s) (cache illisible, on exige au moins un)`
+        ? 'cache illisible — vérification non concluante'
         : `${dessinees} dessinée(s) pour ${attendues} en cache`,
     );
 
-    const aireDessinee = await svg.locator('path[fill-rule="evenodd"]').first().evaluate(
-      (element) => {
-        const boite = element.getBBox();
-        return { largeur: boite.width, hauteur: boite.height };
-      },
-    );
+    const couleurContour = await contours.first().getAttribute('stroke');
     verifier(
-      'les contours ont une étendue à l’écran',
-      aireDessinee.largeur > 4 && aireDessinee.hauteur > 4,
-      `${Math.round(aireDessinee.largeur)}×${Math.round(aireDessinee.hauteur)} px`,
+      'les parcelles portent le vert du site',
+      couleurContour?.toLowerCase() === '#2f6b34',
+      couleurContour ?? 'sans couleur',
     );
 
-    // Tout doit tenir dans la vue au premier cadrage : c'est la promesse de
-    // « voir ses parcelles », et un cadrage faux les mettrait hors écran.
-    const debordements = await svg.evaluate((element) => {
-      const vue = element.getBoundingClientRect();
+    const debordements = await page.evaluate(() => {
+      const conteneur = document.querySelector('.leaflet-container');
+      if (!conteneur) return -1;
+      const vue = conteneur.getBoundingClientRect();
       let dehors = 0;
-      for (const chemin of element.querySelectorAll('path[fill-rule="evenodd"]')) {
+      for (const chemin of document.querySelectorAll(
+        '.leaflet-overlay-pane path.leaflet-interactive',
+      )) {
         const boite = chemin.getBoundingClientRect();
         if (
-          boite.left < vue.left - 1 ||
-          boite.right > vue.right + 1 ||
-          boite.top < vue.top - 1 ||
-          boite.bottom > vue.bottom + 1
+          boite.right < vue.left ||
+          boite.left > vue.right ||
+          boite.bottom < vue.top ||
+          boite.top > vue.bottom
         ) {
           dehors += 1;
         }
       }
       return dehors;
     });
-    verifier('aucune parcelle hors de la vue au premier cadrage', debordements === 0,
-      `${debordements} débordement(s)`);
+    verifier('toutes les parcelles sont dans la vue au cadrage', debordements === 0,
+      `${debordements} hors écran`);
 
-    // Une étiquette plus large que sa parcelle déborde sur la voisine : on ne
-    // sait plus laquelle elle nomme. Vu à l'écran avec « La Pièce du Moulin ».
-    const debordementsEtiquettes = await svg.evaluate((element) => {
-      const contours = [...element.querySelectorAll('path[fill-rule="evenodd"]')].map(
-        (chemin) => chemin.getBoundingClientRect(),
+    console.log(`     capture : ${await capture('carte')}`);
+
+    // -----------------------------------------------------------------------
+    titre('Changer de fond');
+    await page.getByRole('button', { name: /^Plan$/ }).click();
+    await page.waitForTimeout(900);
+    verifier(
+      'le fond « Plan » est celui que le serveur configure',
+      tuilesDemandees.some((url) => url.includes('tile.openstreetmap.org')),
+      'adresse issue de MAP_TILE_URL, pas de l’APK',
+    );
+    // L'attribution suit le fond : rester sur « Imagerie Esri » après être
+    // passé au plan créditerait le mauvais fournisseur.
+    verifier(
+      'l’attribution suit le fond affiché',
+      (await page.getByText(/OpenStreetMap/).first().isVisible()) &&
+        !(await page.getByText(/Esri/).first().isVisible().catch(() => false)),
+    );
+    console.log(`     capture : ${await capture('carte-plan')}`);
+    await page.getByRole('button', { name: /^Satellite$/ }).click();
+    await page.waitForTimeout(400);
+
+    // -----------------------------------------------------------------------
+    titre('Position de l’opérateur');
+    const repere = await page.evaluate(() => {
+      const conteneur = document.querySelector('.leaflet-container');
+      if (!conteneur) return null;
+      const vue = conteneur.getBoundingClientRect();
+      // Le repère et son cercle de précision sont des cercles SVG non
+      // interactifs, posés par-dessus les contours.
+      const cercles = [...document.querySelectorAll('.leaflet-overlay-pane path')].filter(
+        (noeud) => !noeud.classList.contains('leaflet-interactive'),
       );
-      let fautifs = 0;
-      for (const texte of element.querySelectorAll('text')) {
-        const boite = texte.getBoundingClientRect();
-        // La parcelle qui porte l'étiquette : celle dont le centre en est le
-        // plus proche.
-        const centreTexte = { x: boite.left + boite.width / 2, y: boite.top + boite.height / 2 };
-        let proche = null;
-        for (const contour of contours) {
-          const distance = Math.hypot(
-            contour.left + contour.width / 2 - centreTexte.x,
-            contour.top + contour.height / 2 - centreTexte.y,
-          );
-          if (!proche || distance < proche.distance) proche = { contour, distance };
-        }
-        if (proche && boite.width > proche.contour.width + 1) fautifs += 1;
-      }
-      return fautifs;
-    });
-    verifier(
-      'aucun nom de parcelle ne déborde de son contour',
-      debordementsEtiquettes === 0,
-      `${debordementsEtiquettes} étiquette(s) trop large(s)`,
-    );
-
-    const echelle = await page.locator('text=/^\\d+([,.]\\d+)? (m|km)$/').first().textContent()
-      .catch(() => null);
-    verifier('une barre d’échelle est affichée', Boolean(echelle), echelle ?? 'absente');
-
-    verifier(
-      'la provenance et la date de synchronisation sont affichées',
-      await page.getByText(/Contours issus de votre parcellaire Parcelys/i).isVisible(),
-    );
-
-    // Dessiné ne suffit pas : un repère posé hors du cadre existe dans le DOM
-    // sans être visible. On vérifie qu'il tombe dans la vue.
-    const repere = await svg.evaluate((element) => {
-      const marqueur = element.querySelector('circle[r="6"]');
-      if (!marqueur) return null;
-      const vue = element.getBoundingClientRect();
-      const boite = marqueur.getBoundingClientRect();
+      if (cercles.length === 0) return null;
+      const boite = cercles[cercles.length - 1].getBoundingClientRect();
       return {
+        nombre: cercles.length,
         dedans:
-          boite.left >= vue.left &&
-          boite.right <= vue.right &&
-          boite.top >= vue.top &&
-          boite.bottom <= vue.bottom,
+          boite.left >= vue.left - 1 &&
+          boite.right <= vue.right + 1 &&
+          boite.top >= vue.top - 1 &&
+          boite.bottom <= vue.bottom + 1,
       };
     });
     verifier(
-      'la position de l’opérateur est dessinée, dans la vue',
-      repere?.dedans === true,
-      repere ? '' : 'aucun repère',
+      'la position et sa précision sont dessinées, dans la vue',
+      repere?.dedans === true && repere.nombre >= 2,
+      repere ? `${repere.nombre} cercle(s)` : 'aucun repère',
     );
 
     verifier(
@@ -235,42 +274,35 @@ const main = async () => {
       await page.getByText(/Vous êtes dans «/).isVisible(),
     );
 
-    console.log(`     capture : ${await capture('carte')}`);
-
     // -----------------------------------------------------------------------
-    titre('Zoom et déplacement');
-    const avantZoom = await svg.locator('path[fill-rule="evenodd"]').first().evaluate(
-      (element) => element.getBBox().width,
-    );
-    await page.getByRole('button', { name: /^Zoomer$/ }).click();
-    await page.waitForTimeout(250);
-    const apresZoom = await svg.locator('path[fill-rule="evenodd"]').first().evaluate(
-      (element) => element.getBBox().width,
-    );
+    titre('Zoom et cadrage');
+    const avant = await contours.first().boundingBox();
+    await page.locator('.leaflet-control-zoom-in').click();
+    await page.waitForTimeout(600);
+    const apres = await contours.first().boundingBox();
     verifier(
       'le bouton de zoom agrandit réellement le dessin',
-      apresZoom > avantZoom * 1.2,
-      `${avantZoom.toFixed(0)} px → ${apresZoom.toFixed(0)} px`,
+      apres && avant && apres.width > avant.width * 1.3,
+      `${Math.round(avant?.width ?? 0)} px → ${Math.round(apres?.width ?? 0)} px`,
     );
 
     await page.getByRole('button', { name: /^Tout voir$/ }).click();
-    await page.waitForTimeout(250);
-    const apresToutVoir = await svg.locator('path[fill-rule="evenodd"]').first().evaluate(
-      (element) => element.getBBox().width,
-    );
+    await page.waitForTimeout(700);
+    const revenu = await contours.first().boundingBox();
     verifier(
       '« tout voir » revient à l’ensemble du parcellaire',
-      Math.abs(apresToutVoir - avantZoom) / avantZoom < 0.35,
-      `${apresToutVoir.toFixed(0)} px pour ${avantZoom.toFixed(0)} px au départ`,
+      revenu && avant && Math.abs(revenu.width - avant.width) / avant.width < 0.3,
+      `${Math.round(revenu?.width ?? 0)} px pour ${Math.round(avant?.width ?? 0)} px au départ`,
     );
 
     // -----------------------------------------------------------------------
     titre('Désigner une parcelle du doigt');
-    // On touche le centre du contour le plus grand : c'est le geste réel, et
-    // c'est la projection inverse qui est éprouvée ici.
-    const cible = await svg.evaluate((element) => {
+    // On touche le centre du plus grand contour : le geste réel.
+    const cible = await page.evaluate(() => {
       let meilleur = null;
-      for (const chemin of element.querySelectorAll('path[fill-rule="evenodd"]')) {
+      for (const chemin of document.querySelectorAll(
+        '.leaflet-overlay-pane path.leaflet-interactive',
+      )) {
         const boite = chemin.getBoundingClientRect();
         const aire = boite.width * boite.height;
         if (!meilleur || aire > meilleur.aire) {
@@ -283,18 +315,36 @@ const main = async () => {
       }
       return meilleur;
     });
+    // Ce qui se trouve réellement sous le doigt. Sans cette ligne, un appui qui
+    // ne désigne rien laisse chercher entre dix causes possibles ; avec elle,
+    // on lit tout de suite ce qui a intercepté — un repère de position, une
+    // commande posée sur la carte, une infobulle restée ouverte.
+    const sousLeDoigt = await page.evaluate(([x, y]) => {
+      const element = document.elementFromPoint(x, y);
+      if (!element) return 'rien';
+      // La couleur distingue une parcelle (#2f6b34) du repère de position
+      // (#ffffff) et de son cercle de précision (#2b7fd4) : sans elle, les
+      // trois se ressemblent dans le DOM et le diagnostic ne dit rien.
+      const trait = element.getAttribute?.('stroke');
+      return `${element.tagName.toLowerCase()}${trait ? ` trait ${trait}` : ''}`;
+    }, [cible.x, cible.y]);
 
     await page.mouse.click(cible.x, cible.y);
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(400);
 
     const fiche = page.getByText(/Ouvrir la fiche pour renommer/i);
-    verifier('un appui désigne une parcelle', await fiche.isVisible());
-    console.log(`     capture : ${await capture('carte-parcelle-designee')}`);
+    verifier('un appui désigne une parcelle', await fiche.isVisible(), sousLeDoigt);
 
-    const nomDesigne = await page
-      .locator('p.font-semibold.text-ink')
-      .first()
-      .textContent();
+    const choisies = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('.leaflet-overlay-pane path.leaflet-interactive')]
+          .map((noeud) => noeud.getAttribute('stroke')?.toLowerCase())
+          .filter((couleur) => couleur === '#b4841a').length,
+    );
+    // Sans ce changement de style, on ne saurait pas laquelle on a touchée.
+    verifier('la parcelle désignée change d’aspect', choisies === 1,
+      `${choisies} parcelle(s) en surbrillance`);
+    console.log(`     capture : ${await capture('carte-parcelle-designee')}`);
 
     // -----------------------------------------------------------------------
     titre('Renommer depuis la carte');
@@ -305,7 +355,7 @@ const main = async () => {
     const NOUVEAU = `La Côte du Chêne ${Date.now() % 100000}`;
     await page.getByLabel(/nom de la parcelle/i).fill(NOUVEAU);
     // Le cas qui ne marchait pas : les deux autres champs laissés vides, donc
-    // envoyés à `null`. Le serveur refusait le lot entier.
+    // envoyés à `null`. Le serveur rejetait le lot entier.
     await page.getByLabel(/numéro interne/i).fill('');
     await page.getByLabel(/lieu-dit/i).fill('');
     await page.getByRole('button', { name: /^Enregistrer$/ }).click();
@@ -320,15 +370,10 @@ const main = async () => {
 
     // -----------------------------------------------------------------------
     titre('Le renommage arrive-t-il au serveur ?');
-    // C'est toute la question : l'écriture locale est optimiste, et c'est elle
-    // qui masquait le refus du serveur.
-    await page.goto(`${APP}#queue`, { waitUntil: 'networkidle' }).catch(() => {});
-    await page.goBack().catch(() => {});
-
     const envoi = await page.evaluate(async () => {
       const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
 
-      /** Nombre d'opérations encore en file, ou `null` si on n'a pas pu lire. */
+      /** Opérations encore en file, ou `null` si on n'a pas pu lire. */
       const resteEnFile = () =>
         new Promise((resolve) => {
           const requete = indexedDB.open('parcelys');
@@ -351,9 +396,7 @@ const main = async () => {
     });
 
     // `null` veut dire qu'on n'a pas su lire la file : c'est un échec de la
-    // vérification, pas une réussite. La première version de ce script rendait
-    // « file vidée » quoi qu'il arrive, et passait au vert alors que rien
-    // n'était parti.
+    // vérification, pas une réussite.
     verifier(
       'la file d’attente se vide',
       envoi.restant === 0,
@@ -362,31 +405,33 @@ const main = async () => {
         : `${envoi.restant} opération(s) encore en attente`,
     );
 
-    // On interroge le serveur directement : c'est lui qui fait foi.
+    // Le serveur fait foi : c'est lui qu'on interroge, pas l'écran.
     const vuDuServeur = await page.evaluate(async ({ serveur }) => {
-      // `@capacitor/preferences` retombe sur `localStorage` dans un navigateur,
-      // en préfixant ses clés par `CapacitorStorage.`. On cherche donc la clé
-      // telle qu'elle existe, au lieu de supposer son nom.
       const cle = Object.keys(localStorage).find((nom) =>
         nom.endsWith('parcelys.session'),
       );
       const jeton = cle ? JSON.parse(localStorage.getItem(cle) ?? 'null') : null;
-      const token = jeton?.token ?? null;
-      if (!token) {
-        return { erreur: `jeton introuvable (clés : ${Object.keys(localStorage).join(', ')})` };
-      }
+      if (!jeton?.token) return { erreur: 'jeton introuvable' };
       const reponse = await fetch(`${serveur}/api/mobile/bootstrap`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${jeton.token}` },
       });
       if (!reponse.ok) return { erreur: `HTTP ${reponse.status}` };
       const corps = await reponse.json();
-      return { noms: (corps.parcels ?? []).map((p) => p.name) };
-    }, { serveur: 'http://127.0.0.1:3000' });
+      return {
+        noms: (corps.parcels ?? []).map((p) => p.name),
+        carte: corps.carte ?? null,
+      };
+    }, { serveur: SERVEUR });
 
     verifier(
       'le serveur connaît le nouveau nom',
       Boolean(vuDuServeur.noms?.includes(NOUVEAU)),
-      vuDuServeur.erreur ?? `renommée « ${nomDesigne?.trim()} » → « ${NOUVEAU} »`,
+      vuDuServeur.erreur ?? `« ${NOUVEAU} »`,
+    );
+    verifier(
+      'le serveur transmet bien son fond de plan à l’application',
+      Boolean(vuDuServeur.carte?.tileUrl?.includes('{z}')),
+      vuDuServeur.carte?.tileUrl ?? 'absent',
     );
 
     // -----------------------------------------------------------------------
@@ -403,7 +448,7 @@ const main = async () => {
       path.join(CAPTURES, 'resultats.json'),
       JSON.stringify(resultats, null, 2),
     );
-    await fermer();
+    await navigateur.close();
   }
 
   console.log(

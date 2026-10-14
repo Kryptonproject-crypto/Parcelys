@@ -587,11 +587,12 @@ Elle ne reprend que ce qui se fait dans un champ — relever une parcelle au GPS
 la renommer, saisir un traitement, un apport ou un travail — et le fait **sans
 réseau**, ce qui est la situation ordinaire au milieu d'une parcelle.
 
-Une **carte du parcellaire** complète la liste : elle dessine les contours déjà
-en cache, avec la position de l'appareil, et s'ouvre donc elle aussi sans
-réseau. Aucun fond de plan n'est téléchargé, et l'écran le dit — une photo
-aérienne supposerait des tuiles, donc du réseau. Un appui sur une parcelle
-ouvre sa fiche, d'où l'on renomme ou l'on saisit.
+Une **carte du parcellaire** complète la liste, et c'est la même que sur le
+site : Leaflet, fonds satellite et plan, mêmes couleurs de parcelles — les
+constantes vivent dans `src/lib/shared/carte.ts`, lues des deux côtés. Les
+contours viennent du cache de l'appareil et s'affichent avec ou sans réseau ;
+seul le fond de plan demande une connexion, et l'écran le dit quand il manque.
+Un appui sur une parcelle ouvre sa fiche, d'où l'on renomme ou l'on saisit.
 
 ```bash
 cd mobile
