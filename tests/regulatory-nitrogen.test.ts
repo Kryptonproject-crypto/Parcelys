@@ -444,6 +444,94 @@ describe('Bilan azoté et IFT', () => {
     expect(resume.source?.version).toBe('2026');
   });
 
+  /*
+   * ─────────────────────────────────────────────────────────────────────────
+   * DEUX CAMPAGNES NE SE MÉLANGENT PAS
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * Les doses de référence changent d'une campagne à l'autre. Le référentiel
+   * était choisi « le plus récent », sans regarder la campagne demandée : une
+   * fois 2026 importée, l'IFT 2025 se serait calculé avec les doses de 2026.
+   * Le nombre aurait eu toutes les apparences d'un nombre juste — et l'IFT se
+   * déclare.
+   */
+  it('ne calcule jamais une campagne avec les doses d’une autre', async () => {
+    // Deux campagnes, deux doses de référence différentes pour le même produit.
+    await importIftReferences(
+      [
+        {
+          cropLabel: 'Blé tendre',
+          amm: '9990001',
+          category: 'herbicides',
+          doseValue: '2.0',
+          doseUnit: 'L/ha',
+        },
+      ],
+      { version: '2026', sourceLabel: 'Échantillon 2026' },
+    );
+    await importIftReferences(
+      [
+        {
+          cropLabel: 'Blé tendre',
+          amm: '9990001',
+          category: 'herbicides',
+          doseValue: '4.0',
+          doseUnit: 'L/ha',
+        },
+      ],
+      { version: '2025', sourceLabel: 'Échantillon 2025' },
+    );
+
+    await prisma.phytosanitaryApplication.create({
+      data: {
+        parcelId,
+        cropYearId,
+        appliedOn: new Date('2026-04-15'),
+        productName: 'CONNU',
+        amm: '9990001',
+        cropLabel: 'Blé tendre',
+        dose: 2,
+        doseUnit: 'L/ha',
+        quantityUsed: 20,
+        quantityUnit: 'L',
+        treatedAreaHa: 10,
+      },
+    });
+
+    // Campagne 2026 : dose de référence 2,0 → IFT 1.
+    const deuxMilleVingtSix = await computeFarmIft({ farmId, campaignYear: 2026 });
+    expect(deuxMilleVingtSix.source?.version).toBe('2026');
+    expect(deuxMilleVingtSix.total).toBe(1);
+
+    // La même dose rapportée à la référence 2025 donnerait 0,5 : c'est
+    // exactement le nombre faux qu'on ne veut pas voir apparaître.
+    expect(deuxMilleVingtSix.total).not.toBe(0.5);
+  });
+
+  it('refuse de calculer une campagne dont les doses ne sont pas importées', async () => {
+    await importIftReferences(
+      [
+        {
+          cropLabel: 'Blé tendre',
+          amm: '9990001',
+          category: 'herbicides',
+          doseValue: '2.0',
+          doseUnit: 'L/ha',
+        },
+      ],
+      { version: '2026', sourceLabel: 'Échantillon 2026' },
+    );
+
+    // Campagne 2024 : rien n'est importé pour elle. On ne retombe pas sur
+    // 2026 — un IFT absent se voit, un IFT faux ne se voit pas.
+    const resume = await computeFarmIft({ farmId, campaignYear: 2024 });
+    expect(resume.configured).toBe(false);
+    expect(resume.total).toBeNull();
+    expect(resume.caveats.join(' ')).toContain('2024');
+    expect(resume.caveats.join(' ')).toContain('2026');
+    expect(resume.caveats.join(' ')).toContain('IFT faux');
+  });
+
   it('compte à part les traitements sans référence, sans les valoriser à zéro', async () => {
     await importIftReferences(
       [

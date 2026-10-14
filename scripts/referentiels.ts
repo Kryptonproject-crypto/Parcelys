@@ -23,7 +23,7 @@
  * référentiel à moitié importé.
  */
 import './load-env';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import {
@@ -33,7 +33,11 @@ import {
   finishImport,
   getReferentialStates,
 } from '@/lib/regulatory/referentials';
-import { importZoneCollection, type ZoneFeature } from '@/lib/regulatory/import-zones';
+import {
+  importIftReferences,
+  importZoneCollection,
+  type ZoneFeature,
+} from '@/lib/regulatory/import-zones';
 import { recomputeFarmContexts } from '@/lib/regulatory/geography';
 import {
   DatagouvError,
@@ -75,6 +79,7 @@ const NATURES: Record<string, ZoneKind> = {
   'zones-vulnerables': 'ZONE_VULNERABLE',
   'zones-action-renforcee': 'ZONE_ACTION_RENFORCEE',
   captages: 'CAPTAGE',
+  'aires-alimentation-captage': 'AIRE_ALIMENTATION_CAPTAGE',
   'cours-eau': 'COURS_EAU',
 };
 
@@ -123,6 +128,145 @@ async function etat(): Promise<void> {
         '  les vérifications correspondantes restent « indéterminées », et le disent.\n',
     );
   }
+}
+
+/**
+ * Importe les doses de référence IFT d'une campagne.
+ *
+ *   npm run referentiels -- importer-ift --dossier ./data/.../02_IFT --campagne 2026
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * UNE CAMPAGNE À LA FOIS, ET JAMAIS DEUX
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Les doses de référence changent d'une campagne à l'autre. Calculer l'IFT
+ * d'une campagne avec les doses d'une autre donne un nombre faux qui a toutes
+ * les apparences d'un nombre juste — et l'IFT se déclare.
+ *
+ * La campagne est donc exigée en argument, et **chaque ligne du fichier est
+ * vérifiée** : une seule ligne portant une autre campagne arrête l'import. Le
+ * ministère publie un fichier par groupe de cultures (GCU1 à GCU6) ; ils sont
+ * lus ensemble, et l'on dit lesquels.
+ */
+async function importerIft(args: Args): Promise<void> {
+  const campagne = String(args.campagne ?? '').trim();
+  if (!/^\d{4}$/.test(campagne)) {
+    console.error(
+      '✗ --campagne est obligatoire (AAAA).\n' +
+        '  Sans elle, impossible de savoir à quelle campagne ces doses se\n' +
+        '  rapportent — et deux campagnes mélangées produisent un IFT faux.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const dossier = typeof args.dossier === 'string' ? args.dossier : null;
+  const fichiers = typeof args.fichiers === 'string' ? args.fichiers.split(',') : null;
+  if (!dossier && !fichiers) {
+    console.error('✗ Passez --dossier <chemin> ou --fichiers a.csv,b.csv');
+    process.exitCode = 1;
+    return;
+  }
+
+  const chemins = fichiers
+    ? fichiers.map((f) => f.trim()).filter(Boolean)
+    : (await readdir(dossier as string))
+        .filter((f) => new RegExp(`^DosesReference${campagne}-.*\\.csv$`, 'i').test(f))
+        .sort()
+        .map((f) => path.join(dossier as string, f));
+
+  if (chemins.length === 0) {
+    console.error(
+      `✗ Aucun fichier « DosesReference${campagne}-*.csv » dans ${dossier}.\n` +
+        '  Vérifiez la campagne demandée.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  console.info(`→ Campagne ${campagne} — ${chemins.length} fichier(s)`);
+
+  const lignes: Array<{
+    cropLabel: string;
+    amm: string | null;
+    targetLabel: string | null;
+    category: string;
+    doseValue: string;
+    doseUnit: string;
+  }> = [];
+
+  for (const chemin of chemins) {
+    const texte = await readFile(chemin, 'utf8');
+    const brutes = texte.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    const entete = (brutes.shift() ?? '').split('\t').map((c) => c.trim());
+    const colonne = (nom: string): number => entete.indexOf(nom);
+
+    const iCampagne = colonne('ID_campagne');
+    const iCulture = colonne('Culture');
+    const iAmm = colonne('Code_AMM');
+    const iCible = colonne('Cible');
+    const iSegment = colonne('Segment');
+    const iDose = colonne('Dose_ref');
+    const iUnite = colonne('Unite_dose_ref');
+
+    if ([iCampagne, iCulture, iDose, iUnite, iSegment].some((i) => i < 0)) {
+      console.error(
+        `✗ ${path.basename(chemin)} : colonnes attendues introuvables.\n` +
+          `  Trouvées : ${entete.join(', ')}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    const sansGuillemets = (v: string | undefined): string =>
+      (v ?? '').trim().replace(/^"|"$/g, '').trim();
+
+    let retenues = 0;
+    for (const brute of brutes) {
+      const cellules = brute.split('\t');
+      const campagneLigne = sansGuillemets(cellules[iCampagne]);
+      if (campagneLigne !== campagne) {
+        console.error(
+          `✗ ${path.basename(chemin)} contient la campagne ${campagneLigne} alors que\n` +
+            `  l'import vise ${campagne}. Deux campagnes mélangées donnent un IFT faux :\n` +
+            '  l\u2019import est interrompu sans rien écrire.',
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const culture = sansGuillemets(cellules[iCulture]);
+      const dose = sansGuillemets(cellules[iDose]);
+      const unite = sansGuillemets(cellules[iUnite]);
+      if (!culture || !dose || !unite) continue;
+
+      lignes.push({
+        cropLabel: culture,
+        amm: iAmm >= 0 ? sansGuillemets(cellules[iAmm]) || null : null,
+        targetLabel: iCible >= 0 ? sansGuillemets(cellules[iCible]) || null : null,
+        category: sansGuillemets(cellules[iSegment]) || 'autres',
+        doseValue: dose,
+        doseUnit: unite,
+      });
+      retenues += 1;
+    }
+    console.info(`  ${path.basename(chemin)} : ${retenues} dose(s)`);
+  }
+
+  const rapport = await importIftReferences(lignes, {
+    version: campagne,
+    sourceLabel: String(
+      args.source ??
+        'Ministère de l’Agriculture — doses de référence pour le calcul de l’IFT',
+    ),
+  });
+
+  console.info(`\n✓ Campagne ${campagne} importée — ${rapport.imported} dose(s) de référence`);
+  for (const avertissement of rapport.warnings) console.info(`  ⚠ ${avertissement}`);
+  console.info(
+    '\n  Les campagnes sont conservées séparément : l’IFT d’une campagne se\n' +
+      '  calcule avec les doses de cette campagne, et d’aucune autre.',
+  );
 }
 
 async function importerZonage(args: Args): Promise<void> {
@@ -670,6 +814,10 @@ async function main(): Promise<void> {
     case 'importer-zonage':
       await importerZonage(args);
       break;
+    case 'importer-ift':
+      await importerIft(args);
+      break;
+
     case 'recalculer-contextes':
       await recalculerContextes();
       break;
@@ -704,6 +852,10 @@ async function main(): Promise<void> {
           '      Un programme d’actions est un arrêté, pas un jeu de données :',
           '      les règles se saisissent. --source est obligatoire — sans',
           '      référence de texte, une valeur n’est pas opposable.',
+          '',
+          '  npm run referentiels -- importer-ift --dossier ./data/… --campagne 2026',
+          '      Une campagne à la fois. Chaque ligne est vérifiée : une ligne',
+          '      d’une autre campagne arrête l’import sans rien écrire.',
           '',
           '  npm run referentiels -- recalculer-contextes',
           '      À lancer après chaque import de zonage.',

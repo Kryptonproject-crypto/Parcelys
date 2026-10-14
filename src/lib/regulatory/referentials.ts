@@ -184,17 +184,47 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
   {
     code: 'captages',
     domain: 'ZONAGE',
-    name: 'Captages et aires d’alimentation de captage',
+    name: 'Captages et ouvrages de prélèvement',
     usage: 'Contraintes liées à la protection de la ressource en eau.',
     sourceLabel: 'Données publiques sur l’eau',
     envVar: 'CAPTAGES_URL',
     territorial: true,
     degradedWithout: 'La proximité d’un captage n’est pas détectée.',
     datagouv: {
-      query: 'captages aire alimentation captage périmètre protection',
+      query: 'captages ouvrage prélèvement point de prélèvement',
       formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note:
-        'Un captage est souvent publié en points ; seules les aires et périmètres, qui sont des surfaces, permettent de calculer une part de parcelle concernée.',
+        'Un point de prélèvement, un ouvrage et un captage sont trois objets distincts, et aucun n’est une aire d’alimentation. Ils sont publiés en points : ils servent au repérage et au calcul de distance, pas au calcul d’une part de parcelle concernée.',
+    },
+  },
+  {
+    /*
+     * L'aire d'alimentation de captage est un objet distinct du captage.
+     *
+     * Le captage est l'ouvrage ; l'AAC est la surface dont les eaux
+     * l'alimentent. Les confondre reviendrait soit à opposer une contrainte de
+     * surface à un point, soit à n'en opposer aucune sur des centaines
+     * d'hectares. Ce sont aussi deux jeux de données différents, de millésimes
+     * et de producteurs différents.
+     *
+     * Une AAC n'est opposable que si un arrêté la délimite — et beaucoup n'en
+     * ont pas. L'attribut est conservé, et l'interface le dit.
+     */
+    code: 'aires-alimentation-captage',
+    domain: 'ZONAGE',
+    name: 'Aires d’alimentation de captage',
+    usage:
+      'Surface dont les eaux alimentent un captage : détermination par intersection, avec la part de parcelle concernée.',
+    sourceLabel: 'Agences de l’eau / BRGM — référentiel national des AAC',
+    envVar: 'AAC_URL',
+    territorial: true,
+    degradedWithout:
+      'L’appartenance à une aire d’alimentation de captage reste indéterminée.',
+    datagouv: {
+      query: 'aire alimentation captage AAC',
+      formats: ['geojson', 'json', 'shp', 'zip', 'gpkg', 'wfs'],
+      note:
+        'Le jeu national couvre toutes les agences de l’eau. Vérifier l’attribut d’arrêté de délimitation : sans arrêté, le périmètre n’est pas opposable tel quel.',
     },
   },
   {
@@ -398,23 +428,38 @@ export async function finishImport(params: {
   importId: string;
   recordCount: number;
   warnings: string[];
+  /**
+   * La version importée remplace-t-elle les précédentes ?
+   *
+   * Vrai par défaut, et c'est le bon comportement pour un zonage : une
+   * nouvelle délimitation se substitue à l'ancienne, qui n'a plus cours.
+   *
+   * Faux pour un référentiel **par campagne**, comme les doses de référence
+   * IFT : la liste 2025 n'est pas remplacée par celle de 2026, elle reste la
+   * seule référence des traitements de 2025. Les marquer « remplacées »
+   * rendrait l'IFT des campagnes passées incalculable — ou, pire, le ferait
+   * calculer avec les doses d'une autre année.
+   */
+  remplaceLesVersionsAnterieures?: boolean;
 }) {
   const maintenant = new Date();
+  const remplace = params.remplaceLesVersionsAnterieures ?? true;
+
+  const code = (
+    await prisma.regulatoryReferential.findUniqueOrThrow({
+      where: { id: params.referentialId },
+      select: { code: true },
+    })
+  ).code;
 
   await prisma.$transaction([
     // Les versions antérieures du même référentiel et du même territoire
     // passent en « remplacée » — jamais supprimées.
     prisma.regulatoryReferential.updateMany({
-      where: {
-        id: { not: params.referentialId },
-        status: 'ACTIF',
-        code: (
-          await prisma.regulatoryReferential.findUniqueOrThrow({
-            where: { id: params.referentialId },
-            select: { code: true },
-          })
-        ).code,
-      },
+      where: remplace
+        ? { id: { not: params.referentialId }, status: 'ACTIF', code }
+        : // Rien à remplacer : les campagnes coexistent.
+          { id: 'aucun-referentiel' },
       data: { status: 'REMPLACE' },
     }),
     prisma.regulatoryReferential.update({

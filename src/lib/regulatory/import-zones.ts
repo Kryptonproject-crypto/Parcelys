@@ -276,6 +276,8 @@ export async function importIftReferences(
     await finishImport({
       referentialId: referentiel.id,
       importId: journal.id,
+      // Les campagnes coexistent : 2025 reste la référence de 2025.
+      remplaceLesVersionsAnterieures: false,
       recordCount: valides.length,
       warnings,
     });

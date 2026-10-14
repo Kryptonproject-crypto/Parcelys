@@ -197,10 +197,39 @@ export async function computeFarmIft(params: {
   campaignYear: number;
   parcelId?: string;
 }): Promise<IftSummary> {
+  /*
+   * ─────────────────────────────────────────────────────────────────────────
+   * LA CAMPAGNE DEMANDÉE, ET AUCUNE AUTRE
+   * ─────────────────────────────────────────────────────────────────────────
+   *
+   * Les doses de référence changent d'une campagne à l'autre. Cette requête
+   * prenait le référentiel le plus récent **sans regarder la campagne**, si
+   * bien que l'IFT 2025 se serait calculé avec les doses 2026 dès qu'elles
+   * auraient été importées. Le nombre produit aurait eu toutes les apparences
+   * d'un nombre juste — et l'IFT se déclare.
+   *
+   * Le référentiel est donc versionné par la campagne, et on exige la
+   * correspondance exacte. À défaut, rien n'est calculé et l'on dit quelles
+   * campagnes sont disponibles : un IFT absent se voit, un IFT faux ne se voit
+   * pas.
+   */
   const referentiel = await prisma.regulatoryReferential.findFirst({
-    where: { code: 'ift-doses-reference', status: 'ACTIF' },
-    orderBy: { appliesFrom: 'desc' },
+    where: {
+      code: 'ift-doses-reference',
+      status: 'ACTIF',
+      version: String(params.campaignYear),
+    },
   });
+
+  const campagnesDisponibles = referentiel
+    ? []
+    : (
+        await prisma.regulatoryReferential.findMany({
+          where: { code: 'ift-doses-reference', status: 'ACTIF' },
+          select: { version: true },
+          orderBy: { version: 'desc' },
+        })
+      ).map((r) => r.version);
 
   const debut = new Date(Date.UTC(params.campaignYear - 1, 8, 1));
   const fin = new Date(Date.UTC(params.campaignYear, 7, 31, 23, 59, 59));
@@ -226,9 +255,14 @@ export async function computeFarmIft(params: {
 
   if (!referentiel) {
     caveats.push(
-      'Le référentiel des doses de référence IFT n’a pas été importé : aucun IFT ' +
-        'ne peut être calculé. Parcelys ne compte pas les passages à la place — ' +
-        'un nombre de traitements n’est pas un IFT.',
+      campagnesDisponibles.length > 0
+        ? `Aucune dose de référence IFT n’est importée pour la campagne ` +
+          `${params.campaignYear}. Disponibles : ${campagnesDisponibles.join(', ')}. ` +
+          'Les doses d’une autre campagne ne sont pas employées : elles ' +
+          'donneraient un IFT faux.'
+        : 'Le référentiel des doses de référence IFT n’a pas été importé : aucun IFT ' +
+          'ne peut être calculé. Parcelys ne compte pas les passages à la place — ' +
+          'un nombre de traitements n’est pas un IFT.',
     );
     return {
       configured: false,

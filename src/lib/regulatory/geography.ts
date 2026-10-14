@@ -218,6 +218,11 @@ const ZONAGES_ATTENDUS: Array<{
   { kind: 'ZONE_VULNERABLE', label: 'Zone vulnérable aux nitrates', referentialCode: 'zones-vulnerables' },
   { kind: 'ZONE_ACTION_RENFORCEE', label: 'Zone d’actions renforcées', referentialCode: 'zones-action-renforcee' },
   { kind: 'CAPTAGE', label: 'Captage', referentialCode: 'captages' },
+  {
+    kind: 'AIRE_ALIMENTATION_CAPTAGE',
+    label: 'Aire d’alimentation de captage',
+    referentialCode: 'aires-alimentation-captage',
+  },
   { kind: 'COURS_EAU', label: 'Cours d’eau', referentialCode: 'cours-eau' },
 ];
 
