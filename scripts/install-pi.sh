@@ -238,9 +238,12 @@ step "Paquets système"
 APT_LOG=/var/log/parcelys-install.log
 run_sh "apt-get update -qq >>'$APT_LOG' 2>&1 || { tail -20 '$APT_LOG'; exit 1; }"
 run_sh "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-  curl git ca-certificates gnupg ufw postgresql postgresql-postgis \
+  curl git ca-certificates gnupg ufw postgresql postgresql-postgis gdal-bin \
   >>'$APT_LOG' 2>&1 || { tail -20 '$APT_LOG'; exit 1; }"
-ok "PostgreSQL, PostGIS, git, ufw (journal : $APT_LOG)"
+# gdal-bin (ogr2ogr) : l'import des référentiels géographiques (zones
+# vulnérables, BD TOPAGE, captages) charge les GeoPackage en flux, sans les
+# tenir en mémoire — indispensable sur un Raspberry Pi.
+ok "PostgreSQL, PostGIS, GDAL, git, ufw (journal : $APT_LOG)"
 
 if command -v node >/dev/null 2>&1 &&
    [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -ge 20 ]; then

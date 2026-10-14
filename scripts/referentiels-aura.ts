@@ -45,7 +45,9 @@ import {
 } from '@/lib/regulatory/import-staging';
 import { recomputeFarmContexts } from '@/lib/regulatory/geography';
 import {
+  beginImport,
   enregistrerIntegration,
+  finishImport,
   type FichierVerifie,
   type Integration,
 } from '@/lib/regulatory/referentials';
@@ -218,6 +220,78 @@ async function etapeEphy(dossier: string): Promise<void> {
     console.info(`  écarté  : ${path.relative(dossier, e.chemin)} (${e.date}) — millésime antérieur`);
   }
   npm('ephy:sync', '--zip', retenu!.chemin);
+  await integrerEphy(dossier, retenu!, ecartes);
+}
+
+/**
+ * Le catalogue E-Phy comme référentiel : sa version est la date de l'archive
+ * (dans son nom), et ce qu'il contient est compté en base après la
+ * synchronisation — pas recopié du journal.
+ */
+async function integrerEphy(
+  dossier: string,
+  retenu: { chemin: string; date: string },
+  ecartes: Array<{ chemin: string; date: string }>,
+): Promise<void> {
+  const run = await prisma.ephySyncRun.findFirst({
+    where: { status: 'SUCCESS' },
+    orderBy: { startedAt: 'desc' },
+  });
+  if (!run) throw new Error('La synchronisation E-Phy n’a laissé aucun résultat enregistré.');
+  const millesime = `${retenu.date.slice(0, 4)}-${retenu.date.slice(4, 6)}-${retenu.date.slice(6, 8)}`;
+  const fichier = await fichierVerifie(dossier, retenu.chemin);
+  const [produits, autorises, substances, usages, avecZnt, avecDar, conditions] = await Promise.all([
+    prisma.phytosanitaryProduct.count(),
+    prisma.phytosanitaryProduct.count({ where: { withdrawnAt: null } }),
+    prisma.activeSubstance.count(),
+    prisma.phytoUsage.count(),
+    prisma.phytoUsage.count({ where: { zntAquaticM: { not: null } } }),
+    prisma.phytoUsage.count({ where: { preHarvestDelay: { not: null } } }),
+    prisma.phytoCondition.count(),
+  ]);
+  const { referentiel, journal } = await beginImport({
+    code: 'ephy',
+    domain: 'PHYTO',
+    name: 'Catalogue des produits phytopharmaceutiques (E-Phy)',
+    territory: 'FR',
+    version: millesime,
+    sourceLabel: run.source,
+    sourceUrl: run.sourceUrl,
+  });
+  const avertissements = (run.errorMessage ?? '').split(' | ').filter(Boolean);
+  await finishImport({
+    referentialId: referentiel.id,
+    importId: journal.id,
+    recordCount: produits,
+    warnings: [
+      ...ecartes.map((e) => `Archive ${path.relative(dossier, e.chemin)} (${e.date}) écartée : millésime antérieur.`),
+      ...avertissements,
+    ],
+  });
+  await enregistrerIntegration(referentiel.id, {
+    etat: avertissements.length === 0 ? 'complet' : 'partiel',
+    millesime,
+    fichiers: [fichier],
+    elements: [
+      { quoi: 'produits (toutes décisions)', nombre: produits },
+      { quoi: 'produits sans date de retrait', nombre: autorises },
+      { quoi: 'substances actives', nombre: substances },
+      { quoi: 'usages (culture, cible, dose)', nombre: usages },
+      { quoi: 'usages avec ZNT aquatique', nombre: avecZnt },
+      { quoi: 'usages avec délai avant récolte', nombre: avecDar },
+      { quoi: 'conditions d’emploi', nombre: conditions },
+    ],
+    manques: [
+      ...avertissements.map((a) => ({ quoi: 'Avertissement de la synchronisation', pourquoi: a, consequence: 'Voir le journal des imports.' })),
+      {
+        quoi: 'Points d’eau à prendre en compte pour les ZNT (arrêtés préfectoraux)',
+        pourquoi: 'La cartographie départementale des points d’eau n’est pas fournie.',
+        consequence:
+          'La ZNT d’un usage est connue, mais aucun écoulement n’est désigné comme « point d’eau » : les distances au réseau hydrographique sont affichées, jamais converties en ZNT.',
+      },
+    ],
+  });
+  console.info(`  ✓ ephy v${millesime} : ${produits.toLocaleString('fr-FR')} produit(s), ${usages.toLocaleString('fr-FR')} usage(s)`);
 }
 
 async function etapeIft(dossier: string): Promise<void> {
@@ -234,6 +308,51 @@ async function etapeIft(dossier: string): Promise<void> {
   // Une campagne à la fois : chacune est vérifiée ligne à ligne.
   for (const campagne of campagnes) {
     npm('referentiels', 'importer-ift', '--dossier', ici, '--campagne', campagne);
+  }
+
+  // Ce que chaque campagne contient, et ce qui lui manque. Les fichiers sont
+  // publiés par groupe de cultures (GCU1, GCU2…) : une campagne qui n'a pas
+  // les mêmes groupes que la plus complète n'a pas les doses de ces cultures.
+  const groupes = new Map<string, string[]>();
+  for (const nom of await readdir(ici)) {
+    const m = nom.match(/^DosesReference(\d{4})-(GCU\d+)\.csv$/i);
+    if (m?.[1] && m[2]) groupes.set(m[1], [...(groupes.get(m[1]) ?? []), m[2].toUpperCase()].sort());
+  }
+  const tous = [...new Set([...groupes.values()].flat())].sort();
+  for (const campagne of campagnes) {
+    const referentiel = await prisma.regulatoryReferential.findFirst({
+      where: { code: 'ift-doses-reference', version: campagne, status: 'ACTIF' },
+      select: { id: true, recordCount: true },
+    });
+    if (!referentiel) throw new Error(`Campagne IFT ${campagne} introuvable après import.`);
+    const presents = groupes.get(campagne) ?? [];
+    const absents = tous.filter((g) => !presents.includes(g));
+    const fichiers: FichierVerifie[] = [];
+    for (const g of presents) fichiers.push(await fichierVerifie(dossier, path.join(ici, `DosesReference${campagne}-${g}.csv`)));
+    const comptage = await prisma.$queryRaw<Array<{ n: number }>>`
+      SELECT COUNT(DISTINCT crop_normalized)::int AS n FROM ift_references WHERE referential_id = ${referentiel.id}
+    `;
+    const cultures = comptage[0]?.n ?? 0;
+    await enregistrerIntegration(referentiel.id, {
+      etat: absents.length === 0 ? 'complet' : 'partiel',
+      millesime: campagne,
+      fichiers,
+      elements: [
+        { quoi: 'doses de référence', nombre: referentiel.recordCount },
+        { quoi: 'cultures', nombre: cultures },
+        { quoi: 'groupes de cultures fournis', nombre: presents.length },
+      ],
+      manques: absents.length
+        ? [
+            {
+              quoi: `Groupes de cultures ${absents.join(', ')} de la campagne ${campagne}`,
+              pourquoi: `Seuls ${presents.join(', ')} ont été fournis pour ${campagne} (${tous.join(', ')} pour la campagne la plus complète).`,
+              consequence: `L’IFT ${campagne} des cultures de ces groupes n’est pas calculé : le traitement est signalé comme non pris en compte.`,
+            },
+          ]
+        : [],
+    });
+    console.info(`  ✓ IFT ${campagne} : intégration enregistrée (${presents.join(', ')})`);
   }
 }
 

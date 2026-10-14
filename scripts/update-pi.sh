@@ -292,6 +292,19 @@ fi
 
 # --- 3. Dépendances ---------------------------------------------------------
 
+step "Paquets système"
+# GDAL (ogr2ogr) sert à l'import des référentiels géographiques AURA. Une
+# installation antérieure à cette version ne l'a pas : on l'ajoute, sans
+# bloquer la mise à jour si le dépôt apt est momentanément injoignable —
+# seul l'import des référentiels en dépend.
+if command -v ogr2ogr >/dev/null 2>&1; then
+  ok "GDAL déjà présent ($(ogr2ogr --version 2>/dev/null | head -1))"
+elif DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gdal-bin >/tmp/parcelys-update-apt.log 2>&1; then
+  ok "GDAL installé ($(ogr2ogr --version 2>/dev/null | head -1))"
+else
+  warn "GDAL non installé (journal : /tmp/parcelys-update-apt.log) : l'import des référentiels géographiques en a besoin — sudo apt install gdal-bin"
+fi
+
 step "Dépendances"
 
 as_service npm ci >/tmp/parcelys-update-npm.log 2>&1 || true

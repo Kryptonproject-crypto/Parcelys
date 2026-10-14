@@ -310,7 +310,42 @@ export type ReferentialState = ReferentialSpec & {
   configured: boolean;
   /** Nombre de versions conservées, campagnes passées comprises. */
   versionCount: number;
+  /**
+   * Toutes les versions conservées, la plus récente d'abord — avec ce que
+   * chacune contient et ce qui lui manque. Une campagne IFT passée reste une
+   * version à part entière : c'est elle qui s'applique à ses traitements.
+   */
+  versions: VersionReferentiel[];
 };
+
+export type VersionReferentiel = {
+  id: string;
+  version: string;
+  status: ReferentialStatus;
+  territory: string | null;
+  sourceLabel: string;
+  sourceUrl: string | null;
+  importedAt: string | null;
+  appliesFrom: string | null;
+  appliesTo: string | null;
+  recordCount: number;
+  notes: string | null;
+  /** `null` : l'import n'a pas documenté son intégration. */
+  integration: Integration | null;
+};
+
+function integrationDe(brut: unknown): Integration | null {
+  if (!brut || typeof brut !== 'object' || Array.isArray(brut)) return null;
+  const i = brut as Partial<Integration>;
+  if (i.etat !== 'complet' && i.etat !== 'partiel') return null;
+  return {
+    etat: i.etat,
+    millesime: typeof i.millesime === 'string' ? i.millesime : null,
+    fichiers: Array.isArray(i.fichiers) ? i.fichiers : [],
+    elements: Array.isArray(i.elements) ? i.elements : [],
+    manques: Array.isArray(i.manques) ? i.manques : [],
+  };
+}
 
 /**
  * État de tous les référentiels, pour le centre d'administration.
@@ -343,6 +378,20 @@ export async function getReferentialStates(): Promise<ReferentialState[]> {
       notes: actif?.notes ?? null,
       configured: Boolean(process.env[spec.envVar]),
       versionCount: versions.length,
+      versions: versions.map((row) => ({
+        id: row.id,
+        version: row.version,
+        status: row.status,
+        territory: row.territory,
+        sourceLabel: row.sourceLabel,
+        sourceUrl: row.sourceUrl,
+        importedAt: row.importedAt?.toISOString() ?? null,
+        appliesFrom: row.appliesFrom?.toISOString() ?? null,
+        appliesTo: row.appliesTo?.toISOString() ?? null,
+        recordCount: row.recordCount,
+        notes: row.notes,
+        integration: integrationDe(row.integration),
+      })),
     };
   });
 }
@@ -434,14 +483,24 @@ export async function beginImport(params: {
   appliesFrom?: Date | null;
   appliesTo?: Date | null;
 }) {
+  // Un référentiel sans territoire (IFT, catalogue national) a `territory`
+  // NULL — et PostgreSQL tient deux NULL pour distincts : la clé d'unicité ne
+  // retrouverait jamais la version déjà importée, et chaque réimport créerait
+  // un doublon actif. On la cherche donc explicitement.
+  const existant = await prisma.regulatoryReferential.findFirst({
+    where: { code: params.code, territory: params.territory, version: params.version },
+    select: { id: true },
+  });
   const referentiel = await prisma.regulatoryReferential.upsert({
-    where: {
-      code_territory_version: {
-        code: params.code,
-        territory: params.territory ?? '',
-        version: params.version,
-      },
-    },
+    where: existant
+      ? { id: existant.id }
+      : {
+          code_territory_version: {
+            code: params.code,
+            territory: params.territory ?? '',
+            version: params.version,
+          },
+        },
     create: {
       code: params.code,
       domain: params.domain,

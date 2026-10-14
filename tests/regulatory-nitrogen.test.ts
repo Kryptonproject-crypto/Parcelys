@@ -455,6 +455,24 @@ describe('Bilan azoté et IFT', () => {
    * Le nombre aurait eu toutes les apparences d'un nombre juste — et l'IFT se
    * déclare.
    */
+  it('réimporter une campagne la remplace, sans créer de seconde version active', async () => {
+    const ligne = (dose: string) => [
+      { cropLabel: 'Blé tendre', amm: '9990001', category: 'herbicides', doseValue: dose, doseUnit: 'L/ha' },
+    ];
+    await importIftReferences(ligne('2.0'), { version: '2026', sourceLabel: 'Échantillon 2026' });
+    await importIftReferences(ligne('3.0'), { version: '2026', sourceLabel: 'Échantillon 2026' });
+
+    const versions = await prisma.regulatoryReferential.findMany({
+      where: { code: 'ift-doses-reference', version: '2026' },
+      select: { id: true, status: true },
+    });
+    // Un territoire NULL n'est jamais égal à un autre pour la clé d'unicité :
+    // sans recherche explicite, chaque réimport ajoutait une version active.
+    expect(versions).toHaveLength(1);
+    const doses = await prisma.iftReference.findMany({ where: { referentialId: versions[0]!.id } });
+    expect(doses.map((d) => d.doseValue)).toEqual(['3.0']);
+  });
+
   it('ne calcule jamais une campagne avec les doses d’une autre', async () => {
     // Deux campagnes, deux doses de référence différentes pour le même produit.
     await importIftReferences(
