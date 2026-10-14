@@ -1,0 +1,16 @@
+BD TOPAGE 2026 - extrait region Auvergne-Rhone-Alpes
+=====================================================
+Source : BD_Topage_FXX_2026-shp.zip (IGN / OFB, France metropolitaine).
+Extraction : entites qui intersectent le contour de la region AURA
+(00_LIMITES/region_aura.geojson). Toutes les colonnes d'origine sont conservees.
+Format : GeoPackage (EPSG:2154 - Lambert 93), un fichier zip par couche.
+
+Couches :
+- TronconHydrographique (402 215 troncons), coupee en 2 fichiers pour rester
+  sous la limite GitHub de 100 Mo :
+    * _Loire-Bretagne_Adour-Garonne (bassins 04 + 05)
+    * _Rhone-Mediterranee (bassin 06)
+- CoursEau (18 796), SurfaceElementaire (97 903), PlanEau (3 894),
+  NoeudHydrographique (398 251), BassinVersantTopographique (782),
+  BassinHydrographique (3).
+- LimiteTerreEau : vide pour AURA (pas de littoral), non incluse.
