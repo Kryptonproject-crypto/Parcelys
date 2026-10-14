@@ -391,3 +391,191 @@ describe('Doses autorisées, ZNT et sols drainés', () => {
     expect(retire?.product.withdrawnAt?.slice(0, 10)).toBe('2024-03-15');
   });
 });
+
+/*
+ * ───────────────────────────────────────────────────────────────────────────
+ * L'HISTORIQUE DES USAGES
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * L'archive officielle porte deux fichiers d'usages, et ils ne disent pas la
+ * même chose. `usages_des_produits_autorises` ne contient que ce qui est en
+ * vigueur ; `produits_usages` contient en plus 63 075 usages **retirés**, avec
+ * leur date de fin d'utilisation et l'intervalle minimum entre applications.
+ *
+ * Ce que ces tests protègent : qu'un traitement passé soit jugé avec la règle
+ * de son époque. Un traitement de mai 2024 régulier à sa date ne doit pas
+ * ressortir « aucune dose de référence » parce que l'ANSES a retiré l'usage
+ * depuis — un registre réglementaire se tient dans le temps.
+ */
+
+/**
+ * En-têtes de `produits_usages_utf8.csv`, à l'identique — **y compris la faute
+ * de frappe « tade cultural max »**, qui est celle de l'ANSES.
+ *
+ * Ici l'usage n'est désigné que par son code : c'est le fichier des usages
+ * autorisés qui porte le libellé, et c'est lui qui sert de dictionnaire.
+ */
+const PRODUITS_USAGES_COMPLET = [
+  "numero AMM;nom produit;identifiant usage; date decision;stade cultural min (BBCH);tade cultural max (BBCH);etat usage;dose retenue;dose retenue unite;delai avant recolte jour;delai avant recolte bbch;nombre max d'application;date fin distribution;date fin utilisation;condition emploi;ZNT aquatique (en m);ZNT arthropodes non cibles (en m);ZNT plantes non cibles (en m);mentions autorisees;intervalle minimum entre applications (jour)",
+  // Usage en vigueur, avec un intervalle minimum que l'autre fichier ne porte pas.
+  '9910001;ESSAI HERBI;01002019;03/10/2018;11;89;Autorisé;2.0;L/ha;60;;1;;;Ne pas appliquer sur sol drainé;20.0;5.0;5.0;;14',
+  '9910001;ESSAI HERBI;01002020;03/10/2018;11;89;Autorisé;2.5;L/ha;60;;1;;;;20.0;;;;',
+  // Retiré, mais avec une date de fin d'utilisation : un traitement antérieur
+  // reste jugeable.
+  '9910001;ESSAI HERBI;01002021;03/10/2018;11;89;Retrait;3.0;L/ha;60;;1;;30/06/2025;;20.0;;;;',
+  '9910001;ESSAI HERBI;01002022;03/10/2018;11;89;Autorisé;1.2;kg/ha;21;;3;;;;50.0;;;;7',
+  // Retiré **sans** date de fin publiée : on ne peut rien en affirmer.
+  '9910001;ESSAI HERBI;01002023;03/10/2018;11;89;Retrait;9.9;L/ha;60;;1;;;;20.0;;;;',
+].join('\r\n');
+
+describe('Usages retirés et historique', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+    await importEphyData(
+      {
+        products: toUtf8(PRODUITS),
+        usages: toUtf8(USAGES_AUTORISES),
+        allUsages: toUtf8(PRODUITS_USAGES_COMPLET),
+      },
+      { sourceLabel: 'édition d’essai', version: '2026-10-13' },
+    );
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('importe aussi les usages retirés, avec leur date de fin', async () => {
+    const usages = await prisma.phytoUsage.findMany({
+      where: { product: { amm: '9910001' } },
+      orderBy: { ephyUsageId: 'asc' },
+    });
+
+    // Cinq usages, et non les quatre du seul fichier des autorisés.
+    expect(usages).toHaveLength(5);
+    const retire = usages.find((u) => u.ephyUsageId === '01002021');
+    expect(retire?.status).toBe('Retrait');
+    expect(retire?.endUsage?.toISOString().slice(0, 10)).toBe('2025-06-30');
+  });
+
+  it('reprend le libellé de culture depuis le fichier des usages autorisés', async () => {
+    // Le fichier complet ne porte que des codes : sans le dictionnaire, aucune
+    // dose ne pourrait être rapprochée d'une culture.
+    const usage = await prisma.phytoUsage.findFirst({
+      where: { product: { amm: '9910001' }, ephyUsageId: '01002021' },
+    });
+    expect(usage?.cropLabel).toBe('Orge');
+  });
+
+  it('renseigne l’intervalle minimum entre applications, absent de l’autre fichier', async () => {
+    const usage = await prisma.phytoUsage.findFirst({
+      where: { product: { amm: '9910001' }, ephyUsageId: '01002019' },
+    });
+    expect(usage?.minIntervalDays).toBe('14');
+
+    // Et ne l'invente pas là où la source est muette.
+    const sansIntervalle = await prisma.phytoUsage.findFirst({
+      where: { product: { amm: '9910001' }, ephyUsageId: '01002020' },
+    });
+    expect(sansIntervalle?.minIntervalDays).toBeNull();
+  });
+
+  it('laisse sans libellé un usage dont le code n’est nulle part autorisé', async () => {
+    // `01002023` n'existe que dans le fichier complet : aucun libellé ne lui
+    // correspond. On ne devine pas la culture — un rapprochement de dose sur
+    // une culture supposée serait pire que pas de rapprochement.
+    const inconnu = await prisma.phytoUsage.findFirst({
+      where: { product: { amm: '9910001' }, ephyUsageId: '01002023' },
+    });
+    expect(inconnu?.cropLabel).toBeNull();
+    expect(inconnu?.usageLabel).toBeNull();
+  });
+
+  it('juge un traitement passé avec l’usage en vigueur à sa date', async () => {
+    const usages = (
+      await prisma.phytoUsage.findMany({ where: { product: { amm: '9910001' } } })
+    ).map((u) => ({
+      id: u.id,
+      cropLabel: u.cropLabel,
+      targetLabel: u.targetLabel,
+      usageLabel: u.usageLabel,
+      doseValue: u.doseValue,
+      doseUnit: u.doseUnit,
+      status: u.status,
+      preHarvestDelay: u.preHarvestDelay,
+      maxApplications: u.maxApplications,
+      minIntervalDays: u.minIntervalDays,
+      zntAquaticM: u.zntAquaticM,
+      zntArthropodM: u.zntArthropodM,
+      zntPlantM: u.zntPlantM,
+      conditions: u.conditions,
+      endUsage: u.endUsage ? u.endUsage.toISOString() : null,
+    })) satisfies UsageForDose[];
+
+    // Mai 2025 : l'usage « Orge » court jusqu'au 30 juin 2025. 3 L/ha était la
+    // dose retenue, la saisie de 2,8 L/ha ne la dépasse pas.
+    const aLEpoque = checkDose({
+      usages,
+      crop: 'Orge',
+      dose: 2.8,
+      doseUnit: 'L/ha',
+      at: new Date('2025-05-12T00:00:00Z'),
+    });
+    expect(aLEpoque.verdict).toBe('conforme');
+    expect(aLEpoque.authorized).toEqual({ value: 3, unit: 'L/ha' });
+
+    // Juillet 2025 : l'usage n'était plus en vigueur. On ne lui oppose aucune
+    // dose, et on le dit plutôt que de valider en silence.
+    const apres = checkDose({
+      usages,
+      crop: 'Orge',
+      dose: 2.8,
+      doseUnit: 'L/ha',
+      at: new Date('2025-07-01T00:00:00Z'),
+    });
+    expect(apres.verdict).toBe('usage-inconnu');
+
+    // Sans date fournie, le comportement d'avant : au présent, l'usage retiré
+    // ne sert pas de référence.
+    const auPresent = checkDose({ usages, crop: 'Orge', dose: 2.8, doseUnit: 'L/ha' });
+    expect(auPresent.verdict).toBe('usage-inconnu');
+  });
+
+  it('n’oppose jamais un usage retiré sans date de fin publiée', async () => {
+    const usages = (
+      await prisma.phytoUsage.findMany({
+        where: { product: { amm: '9910001' }, ephyUsageId: '01002023' },
+      })
+    ).map((u) => ({
+      id: u.id,
+      cropLabel: 'Colza',
+      targetLabel: null,
+      usageLabel: null,
+      doseValue: u.doseValue,
+      doseUnit: u.doseUnit,
+      status: u.status,
+      preHarvestDelay: null,
+      maxApplications: null,
+      minIntervalDays: null,
+      zntAquaticM: null,
+      zntArthropodM: null,
+      zntPlantM: null,
+      conditions: null,
+      endUsage: u.endUsage ? u.endUsage.toISOString() : null,
+    })) satisfies UsageForDose[];
+
+    // Retiré, sans date : on ne sait pas depuis quand. Supposer une date
+    // reviendrait à inventer une règle réglementaire.
+    for (const date of ['2015-01-01', '2024-06-01', '2026-01-01']) {
+      expect(
+        checkDose({
+          usages,
+          crop: 'Colza',
+          dose: 1,
+          doseUnit: 'L/ha',
+          at: new Date(`${date}T00:00:00Z`),
+        }).verdict,
+      ).toBe('usage-inconnu');
+    }
+  });
+});

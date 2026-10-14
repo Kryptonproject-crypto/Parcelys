@@ -230,15 +230,40 @@ export const DATA_FILE_PATTERNS: Record<EphyRole, RegExp[]> = {
     /^usages?_des_produits_autorises(?:_utf8)?\.csv$/i,
     /^produits_usages(?:_utf8)?\.csv$/i,
   ],
+  /**
+   * Tous les usages, retirés compris.
+   *
+   * L'archive officielle en porte deux fichiers, et ils ne disent pas la même
+   * chose :
+   *
+   *   `usages_des_produits_autorises` — 19 594 lignes, avec le **libellé**
+   *     « culture*traitement*cible », mais les seuls usages en vigueur et sans
+   *     l'intervalle minimum entre applications ;
+   *   `produits_usages`              — 81 613 lignes, soit les mêmes plus
+   *     63 075 usages **retirés**, avec l'intervalle minimum, mais désignant
+   *     l'usage par un code et non par un libellé.
+   *
+   * Les deux sont donc nécessaires : le premier pour savoir de quelle culture
+   * on parle, le second pour la couverture et l'historique. Un traitement de
+   * 2024 doit pouvoir être jugé à l'aune de l'usage en vigueur à sa date, et
+   * non d'un retrait prononcé depuis.
+   */
+  allUsages: [/^produits_usages(?:_utf8)?\.csv$/i],
   substances: [/^substances?_actives?(?:_utf8)?\.csv$/i],
   conditions: [/^produits_condition_emploi(?:_utf8)?\.csv$/i],
 };
 
-export type EphyRole = 'products' | 'usages' | 'substances' | 'conditions';
+export type EphyRole =
+  | 'products'
+  | 'usages'
+  | 'allUsages'
+  | 'substances'
+  | 'conditions';
 
 const ROLE_LABELS: Record<EphyRole, string> = {
   products: 'produits',
   usages: 'usages autorisés',
+  allUsages: 'usages (retirés compris)',
   substances: 'substances actives',
   conditions: "conditions d'emploi",
 };

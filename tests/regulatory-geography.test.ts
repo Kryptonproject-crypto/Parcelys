@@ -5,6 +5,7 @@ import {
   computeParcelContext,
   computeZoneIntersections,
   getParcelContext,
+  statutZonage,
   zoneOf,
 } from '../src/lib/regulatory/geography';
 import { saveParcelGeometry } from '../src/lib/geo/repository';
@@ -264,5 +265,179 @@ describe('Contexte réglementaire de la parcelle', () => {
     expect(relu?.zones).toHaveLength(1);
     expect(relu?.computedAt).toBeTruthy();
     expect(relu?.referentialVersions[0]?.code).toBe('zones-vulnerables');
+  });
+});
+
+/*
+ * ───────────────────────────────────────────────────────────────────────────
+ * UN ZONAGE PUBLIÉ À LA COMMUNE
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Les zones vulnérables d'Auvergne-Rhône-Alpes ne sont pas publiées sous forme
+ * de zones : la DREAL publie la **liste des communes classées par arrêté
+ * préfectoral**, et la géométrie fournie est le contour communal, au 1:50 000.
+ *
+ * Pour 907 des 1 125 communes, l'arrêté vise « toutes sections » — le contour
+ * communal est alors la zone. Pour 218 autres, il ne vise que « quelques
+ * sections » cadastrales, et le fichier ne dit pas lesquelles.
+ *
+ * Ce que ces tests protègent : qu'on ne conclue pas « dedans » parce que la
+ * parcelle est dans une commune partiellement classée — ni « dehors », ce qui
+ * dispenserait de règles qui s'appliquent peut-être. La seule réponse juste est
+ * « indéterminé », assortie de ce qu'il faut consulter.
+ *
+ * Les codes et noms de communes sont fictifs ; le vocabulaire du classement est
+ * celui du fichier officiel, mot pour mot.
+ */
+describe('Zonage publié à la commune', () => {
+  let farmId = '';
+
+  beforeEach(async () => {
+    await resetDatabase();
+    const user = await createUserWithFarm({
+      email: 'commune@parcelys.test',
+      farmName: 'Exploitation communale',
+    });
+    farmId = user.farmId;
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  function carre(ouest: number, sud: number, cote: number) {
+    return {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [ouest, sud],
+          [ouest + cote, sud],
+          [ouest + cote, sud + cote],
+          [ouest, sud + cote],
+          [ouest, sud],
+        ] as Array<[number, number]>,
+      ],
+    };
+  }
+
+  async function importerCommunes() {
+    return importZoneCollection(
+      [
+        {
+          type: 'Feature',
+          geometry: carre(3.0, 45.8, 0.1),
+          properties: {
+            insee_com: '99001',
+            nom_com: 'Communeentière',
+            bassin: 'lb',
+            classement: 'toutes sections',
+          },
+        },
+        {
+          type: 'Feature',
+          geometry: carre(3.2, 45.8, 0.1),
+          properties: {
+            insee_com: '99002',
+            nom_com: 'Communepartielle',
+            bassin: 'rm',
+            classement: 'quelques sections',
+          },
+        },
+      ],
+      {
+        code: 'zones-vulnerables',
+        name: 'Zones vulnérables aux nitrates',
+        kind: 'ZONE_VULNERABLE',
+        territory: '84',
+        version: '2021-maj-2025-05-12',
+        sourceLabel: 'DREAL Auvergne-Rhône-Alpes',
+        codeField: 'insee_com',
+        labelField: 'nom_com',
+      },
+    );
+  }
+
+  async function parcelleDans(nom: string, ouest: number, sud: number): Promise<string> {
+    const parcelle = await prisma.parcel.create({
+      data: { farmId, name: nom, areaHa: 0 },
+      select: { id: true },
+    });
+    await saveParcelGeometry(prisma, parcelle.id, carre(ouest, sud, 0.004));
+    return parcelle.id;
+  }
+
+  it('classe la parcelle quand l’arrêté vise toutes les sections', async () => {
+    await importerCommunes();
+    const parcelleId = await parcelleDans('Dans la commune entière', 3.04, 45.84);
+
+    const contexte = await computeParcelContext(parcelleId);
+
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE')).toBe('dedans');
+    expect(zoneOf(contexte, 'ZONE_VULNERABLE')?.label).toBe('Communeentière');
+    // Rien d'indéterminé : le contour communal est la zone.
+    expect(
+      contexte.unresolved.some((u) => u.what.includes('Zone vulnérable')),
+    ).toBe(false);
+  });
+
+  it('reste indéterminé quand l’arrêté ne vise que quelques sections', async () => {
+    await importerCommunes();
+    const parcelleId = await parcelleDans('Dans la commune partielle', 3.24, 45.84);
+
+    const contexte = await computeParcelContext(parcelleId);
+
+    // La parcelle recoupe bel et bien le polygone : il est conservé, avec sa
+    // surface — ce n'est pas la géométrie qu'on met en doute, c'est ce que le
+    // classement dit d'elle.
+    expect(zoneOf(contexte, 'ZONE_VULNERABLE')).not.toBeNull();
+
+    // Mais on ne conclut pas.
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE')).toBe('indetermine');
+
+    const dit = contexte.unresolved.find((u) => u.what.includes('Zone vulnérable'));
+    expect(dit).toBeDefined();
+    expect(dit?.reason).toContain('quelques sections');
+    expect(dit?.reason).toContain('Communepartielle');
+    // Et on dit quoi consulter pour trancher.
+    expect(dit?.remedy).toContain('arrêté');
+    expect(dit?.remedy).toContain('sections cadastrales');
+  });
+
+  it('conserve le bassin, qui désigne l’arrêté applicable', async () => {
+    // L'Auvergne-Rhône-Alpes relève de plusieurs bassins, et chacun a son
+    // arrêté de délimitation. Perdre le bassin, c'est perdre la référence du
+    // texte opposable.
+    await importerCommunes();
+    const parcelleId = await parcelleDans('Bassin Loire-Bretagne', 3.04, 45.84);
+
+    const contexte = await computeParcelContext(parcelleId);
+    expect(zoneOf(contexte, 'ZONE_VULNERABLE')?.attributes?.bassin).toBe('lb');
+  });
+
+  it('ne met pas en doute un zonage dont la géométrie est la zone', async () => {
+    // Un zonage publié en vraies zones ne porte pas de « classement » : le
+    // recoupement tranche, et l'indétermination communale ne doit pas
+    // contaminer les autres référentiels.
+    await importZoneCollection(
+      [
+        {
+          type: 'Feature',
+          geometry: carre(3.0, 45.8, 0.1),
+          properties: { nom: 'Zone tracée', code: 'ZT-1' },
+        },
+      ],
+      {
+        code: 'zones-vulnerables',
+        name: 'Zones vulnérables aux nitrates',
+        kind: 'ZONE_VULNERABLE',
+        territory: '84',
+        version: '2026-tracee',
+        sourceLabel: 'Échantillon de test',
+      },
+    );
+    const parcelleId = await parcelleDans('Dans la zone tracée', 3.04, 45.84);
+
+    const contexte = await computeParcelContext(parcelleId);
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE')).toBe('dedans');
   });
 });

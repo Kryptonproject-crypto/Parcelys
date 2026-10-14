@@ -44,6 +44,16 @@ export type ZoneIntersection = {
   ratio: number;
   /** `totale` au-delà de 99,5 % de la parcelle, `partielle` sinon. */
   coverage: 'totale' | 'partielle';
+  /**
+   * Attributs publiés avec la zone, conservés tels quels.
+   *
+   * Ils portent ce que le recoupement géométrique ne dit pas : le bassin dont
+   * relève l'arrêté, et surtout la **portée** du classement. Les zones
+   * vulnérables d'Auvergne-Rhône-Alpes sont publiées *à la commune* : pour
+   * 218 des 1 125 communes classées, l'arrêté ne vise que « quelques
+   * sections » cadastrales, que le fichier ne nomme pas.
+   */
+  attributes: Record<string, unknown> | null;
   referential: {
     code: string;
     version: string;
@@ -88,6 +98,7 @@ type LigneIntersection = {
   ref_version: string;
   ref_source: string;
   ref_territory: string | null;
+  attributes: Record<string, unknown> | null;
 };
 
 /**
@@ -117,7 +128,8 @@ export async function computeZoneIntersections(
       r.code                                                  AS ref_code,
       r.version                                               AS ref_version,
       r.source_label                                          AS ref_source,
-      r.territory                                             AS ref_territory
+      r.territory                                             AS ref_territory,
+      z.attributes                                            AS attributes
     FROM regulatory_zones z
     JOIN regulatory_referentials r ON r.id = z.referential_id
     CROSS JOIN parcelle p
@@ -142,6 +154,7 @@ export async function computeZoneIntersections(
           ratio >= SEUIL_COUVERTURE_TOTALE
             ? ('totale' as const)
             : ('partielle' as const),
+        attributes: ligne.attributes ?? null,
         referential: {
           code: ligne.ref_code,
           version: ligne.ref_version,
@@ -153,6 +166,41 @@ export async function computeZoneIntersections(
     // Une intersection réduite à une ligne de contact n'est pas un
     // recoupement : deux polygones voisins se touchent sans se recouvrir.
     .filter((zone) => zone.areaHa > 0.0001);
+}
+
+/**
+ * Jusqu'où le classement publié engage-t-il la parcelle ?
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * POURQUOI CETTE QUESTION SE POSE
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Les zones vulnérables d'Auvergne-Rhône-Alpes sont publiées **à la commune** :
+ * la généalogie du jeu de la DREAL le dit mot pour mot — « Établi à partir
+ * d'une liste des communes par arrêté préfectoral », au 1:50 000. Le polygone
+ * fourni est donc le contour communal, pas celui de la zone.
+ *
+ * Pour 907 des 1 125 communes classées, l'arrêté vise « toutes sections » : le
+ * contour communal **est** la zone, et une parcelle qui le recoupe est dedans.
+ *
+ * Pour 218 autres, il ne vise que « quelques sections » cadastrales — et le
+ * fichier ne dit pas lesquelles. Conclure « dedans » parce que la parcelle est
+ * dans la commune classerait à tort ; conclure « dehors » dispenserait à tort
+ * de règles qui s'appliquent peut-être. La seule réponse honnête est
+ * **indéterminé**, avec ce qu'il faut consulter pour trancher.
+ *
+ * Quand la source ne précise rien, c'est que le polygone est la zone : la
+ * géométrie parle d'elle-même, et le recoupement suffit.
+ */
+export function porteeDuClassement(
+  attributes: Record<string, unknown> | null | undefined,
+): 'totale' | 'partielle' | 'non-precisee' {
+  const brut = attributes?.classement;
+  if (typeof brut !== 'string') return 'non-precisee';
+  const valeur = brut.trim().toLowerCase();
+  if (valeur.includes('toutes')) return 'totale';
+  if (valeur.includes('quelques') || valeur.includes('partie')) return 'partielle';
+  return 'non-precisee';
 }
 
 /**
@@ -215,6 +263,23 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
     select: { code: true },
   });
   const disponibles = new Set(referentielsActifs.map((r) => r.code));
+
+  // Zonage publié à la commune, et classement partiel : la parcelle est dans
+  // une commune classée, mais pas forcément dans la zone. On le consigne.
+  for (const zone of zones) {
+    if (porteeDuClassement(zone.attributes) !== 'partielle') continue;
+    const attendu = ZONAGES_ATTENDUS.find((z) => z.kind === zone.kind);
+    unresolved.push({
+      what: attendu?.label ?? zone.label,
+      reason:
+        `La commune de ${zone.label} est classée « quelques sections » : le ` +
+        'zonage publié est établi à la commune et ne dit pas quelles sections ' +
+        'cadastrales sont concernées.',
+      remedy:
+        'Reportez-vous à l’arrêté préfectoral de délimitation et aux sections ' +
+        'cadastrales qu’il vise pour savoir si cette parcelle en fait partie.',
+    });
+  }
 
   for (const attendu of ZONAGES_ATTENDUS) {
     if (disponibles.has(attendu.referentialCode)) continue;
@@ -423,7 +488,16 @@ export function statutZonage(
   kind: ZoneKind,
 ): 'dedans' | 'dehors' | 'indetermine' {
   if (!context) return 'indetermine';
-  if (context.zones.some((zone) => zone.kind === kind)) return 'dedans';
+
+  const recoupees = context.zones.filter((zone) => zone.kind === kind);
+  // Un classement « toutes sections », ou un zonage dont la géométrie est la
+  // zone elle-même : le recoupement tranche.
+  if (recoupees.some((zone) => porteeDuClassement(zone.attributes) !== 'partielle')) {
+    return 'dedans';
+  }
+  // Recoupée seulement par des communes classées « quelques sections » : on ne
+  // sait pas, et le dire est la seule réponse juste.
+  if (recoupees.length > 0) return 'indetermine';
 
   // Un zonage attendu et non déterminé figure dans `unresolved` : le contour
   // manque, ou le référentiel n'est pas importé. Dans les deux cas on ne sait

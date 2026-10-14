@@ -68,10 +68,19 @@ export async function buildPhytoWarnings(
     prisma.phytosanitaryProduct.findUnique({
       where: { id: input.productId },
       include: {
-        usages: {
-          where: { status: { contains: 'autoris', mode: 'insensitive' } },
-          take: 800,
-        },
+        /*
+         * Tous les usages, retirés compris — et non les seuls autorisés.
+         *
+         * La requête les écartait dès la base, si bien qu'un traitement de
+         * l'an dernier, parfaitement régulier à sa date, ressortait « aucune
+         * dose de référence » dès que l'ANSES avait retiré l'usage depuis. Le
+         * tri se fait maintenant plus bas, à la date du traitement, où l'on
+         * sait quelle règle était en vigueur.
+         *
+         * Le produit le plus fourni du catalogue en porte 282 : la limite
+         * reste large.
+         */
+        usages: { take: 800 },
         // Toutes les conditions, et non plus les seules « sol drainé ».
         //
         // Le délai de rentrée, la mention abeilles et les distances aux
@@ -113,6 +122,7 @@ export async function buildPhytoWarnings(
     crop,
     dose: input.dose,
     doseUnit: input.doseUnit,
+    at: input.appliedOn,
   });
 
   if (controle.verdict === 'depassement' || controle.verdict === 'unites-incomparables') {
@@ -323,6 +333,7 @@ type UsageRow = {
   zntArthropodM: string | null;
   zntPlantM: string | null;
   conditions: string | null;
+  endUsage: Date | null;
 };
 
 function toUsageForDose(usage: UsageRow): UsageForDose {
@@ -341,5 +352,8 @@ function toUsageForDose(usage: UsageRow): UsageForDose {
     zntArthropodM: usage.zntArthropodM,
     zntPlantM: usage.zntPlantM,
     conditions: usage.conditions,
+    // La fin d'utilisation publiée : c'est elle qui permet de juger un
+    // traitement passé avec la règle de son époque.
+    endUsage: usage.endUsage ? usage.endUsage.toISOString() : null,
   };
 }

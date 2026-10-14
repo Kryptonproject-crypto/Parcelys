@@ -38,6 +38,14 @@ export type UsageForDose = {
   doseValue: string | null;
   doseUnit: string | null;
   status: string | null;
+  /**
+   * Fin d'utilisation publiée pour un usage retiré, en ISO.
+   *
+   * Facultatif : un instantané mobile pris avant la 0.9.9 n'en a pas, et doit
+   * continuer à fonctionner — le contrôle se fait alors au présent, comme
+   * avant.
+   */
+  endUsage?: string | null;
   preHarvestDelay: string | null;
   maxApplications: string | null;
   minIntervalDays: string | null;
@@ -151,6 +159,37 @@ export function isUsageInForce(usage: Pick<UsageForDose, 'status'>): boolean {
 }
 
 /**
+ * Un usage était-il en vigueur **à une date donnée** ?
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * POURQUOI LA DATE COMPTE
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Un registre phytosanitaire se tient dans le temps : un traitement de mai 2024
+ * se juge à l'aune de l'autorisation en vigueur en mai 2024, pas de celle
+ * d'aujourd'hui. Le catalogue publie 63 075 usages retirés avec leur date de
+ * fin d'utilisation ; les écarter sans regarder la date ferait apparaître
+ * « aucune dose de référence » sur des traitements parfaitement réguliers à
+ * l'époque, et un contrôle ne pourrait plus s'appuyer sur Parcelys pour
+ * l'année passée.
+ *
+ * Un usage retiré **sans** date de fin publiée ne permet rien d'affirmer : il
+ * n'est pas retenu, et le contrôle le dira « inconnu » plutôt que de supposer
+ * une date de retrait.
+ */
+export function usageEnVigueurLe(
+  usage: Pick<UsageForDose, 'status' | 'endUsage'>,
+  date: Date | null | undefined,
+): boolean {
+  if (isUsageInForce(usage)) return true;
+  if (!date || !usage.endUsage) return false;
+
+  const fin = new Date(usage.endUsage);
+  if (Number.isNaN(fin.getTime())) return false;
+  return date.getTime() <= fin.getTime();
+}
+
+/**
  * Retient les usages du produit qui correspondent à la culture saisie.
  *
  * Le rapprochement se fait sur le libellé normalisé, avec inclusion dans les
@@ -184,6 +223,12 @@ export function checkDose(input: {
   crop: string | null;
   dose: number;
   doseUnit: string;
+  /**
+   * Date du traitement. Fournie, le rapprochement se fait sur les usages en
+   * vigueur **à cette date** — un traitement passé se juge avec la règle de son
+   * époque. Absente, on s'en tient aux usages en vigueur aujourd'hui.
+   */
+  at?: Date | null;
 }): DoseCheck {
   const base = { usage: null, authorized: null, entered: null, ratio: null };
 
@@ -205,7 +250,9 @@ export function checkDose(input: {
     };
   }
 
-  const correspondants = usagesForCrop(input.usages, input.crop).filter(isUsageInForce);
+  const correspondants = usagesForCrop(input.usages, input.crop).filter((usage) =>
+    input.at ? usageEnVigueurLe(usage, input.at) : isUsageInForce(usage),
+  );
   if (correspondants.length === 0) {
     return {
       ...base,

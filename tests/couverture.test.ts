@@ -70,6 +70,8 @@ describe('Statut d’un zonage : trois états, jamais deux', () => {
     areaHa: 8,
     ratio: 1,
     coverage: 'totale' as const,
+    // Zonage dont la géométrie est la zone elle-même : rien à préciser.
+    attributes: null,
     referential: {
       code: 'zones-vulnerables',
       version: '2024-07',

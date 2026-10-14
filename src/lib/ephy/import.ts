@@ -25,6 +25,17 @@ export type ImportSource = {
   products: Buffer;
   /** Contenu du CSV « usages » (optionnel selon l'édition du jeu de données). */
   usages?: Buffer;
+  /**
+   * Contenu du CSV `produits_usages`, qui porte **tous** les usages — retirés
+   * compris — et l'intervalle minimum entre applications, mais désigne l'usage
+   * par un code et non par un libellé.
+   *
+   * Fourni en plus de `usages`, jamais à sa place : c'est `usages` qui dit de
+   * quelle culture il s'agit. Absent, on importe les seuls usages en vigueur,
+   * comme avant — un appareil ou une archive d'une édition antérieure doit
+   * continuer à fonctionner.
+   */
+  allUsages?: Buffer;
   /** Contenu du CSV « substances actives » (optionnel). */
   substances?: Buffer;
   /** Contenu du CSV « conditions d'emploi » (optionnel). */
@@ -79,7 +90,7 @@ export async function importEphyData(
     const { productCount, ammToId } = await importProducts(source.products, warnings);
 
     const usageCount = source.usages
-      ? await importUsages(source.usages, ammToId, warnings)
+      ? await importUsages(source.usages, ammToId, warnings, source.allUsages)
       : 0;
 
     if (!source.usages) {
@@ -320,23 +331,8 @@ async function linkProductSubstances(
   }
 }
 
-async function importUsages(
-  buffer: Buffer,
-  ammToId: Map<string, string>,
-  warnings: string[],
-): Promise<number> {
-  const rows = parseCsv(buffer);
-  if (rows.length === 0) return 0;
-
-  const { resolved, missing } = resolveColumns(Object.keys(rows[0] ?? {}), USAGE_COLUMNS);
-  if (!resolved.amm) {
-    warnings.push("Fichier usages ignoré : colonne du numéro d'AMM introuvable.");
-    return 0;
-  }
-  if (missing.length) {
-    warnings.push(`Champs usages non renseignés : ${missing.join(', ')}.`);
-  }
-
+/** Colonnes de libellé et de code d'un fichier d'usages, reconnues au contenu. */
+function colonnesDUsage(rows: CsvRow[], resolved: Record<string, string | null>) {
   // Où est le libellé, et où est le code ? Les intitulés ne le disent pas
   // fidèlement : on regarde le contenu. Voir `looksLikeUsageLabel`.
   const candidats = [...new Set([resolved.usageLabel, resolved.usageId])].filter(
@@ -348,8 +344,63 @@ async function importUsages(
       looksLikeUsageLabel(echantillon.map((row) => row[colonne])),
     ) ?? null;
   const idColumn = candidats.find((colonne) => colonne !== labelColumn) ?? null;
+  return { labelColumn, idColumn };
+}
 
-  if (!labelColumn) {
+async function importUsages(
+  buffer: Buffer,
+  ammToId: Map<string, string>,
+  warnings: string[],
+  complet?: Buffer,
+): Promise<number> {
+  const rowsLibelles = parseCsv(buffer);
+  if (rowsLibelles.length === 0) return 0;
+
+  const colonnesLibelles = resolveColumns(
+    Object.keys(rowsLibelles[0] ?? {}),
+    USAGE_COLUMNS,
+  );
+  const reperesLibelles = colonnesDUsage(rowsLibelles, colonnesLibelles.resolved);
+
+  /**
+   * Dictionnaire code d'usage → libellé, construit sur le fichier des usages
+   * autorisés : c'est le seul qui porte « culture*traitement*cible ».
+   *
+   * Un usage retiré dont le code n'apparaît plus nulle part reste sans
+   * libellé — et sa culture restera nulle. On ne la devine pas : rapprocher
+   * une dose d'une culture supposée serait pire que de ne rien rapprocher.
+   */
+  const libelleParCode = new Map<string, string>();
+  if (reperesLibelles.labelColumn && reperesLibelles.idColumn) {
+    for (const row of rowsLibelles) {
+      const code = row[reperesLibelles.idColumn]?.trim();
+      const libelle = row[reperesLibelles.labelColumn]?.trim();
+      if (code && libelle && !libelleParCode.has(code)) libelleParCode.set(code, libelle);
+    }
+  }
+
+  // Le fichier complet prime quand il est fourni : mêmes attributs, plus les
+  // usages retirés et l'intervalle minimum entre applications.
+  const rows = complet ? parseCsv(complet) : rowsLibelles;
+  if (rows.length === 0) return 0;
+
+  const { resolved, missing } = complet
+    ? resolveColumns(Object.keys(rows[0] ?? {}), USAGE_COLUMNS)
+    : colonnesLibelles;
+
+  if (!resolved.amm) {
+    warnings.push("Fichier usages ignoré : colonne du numéro d'AMM introuvable.");
+    return 0;
+  }
+  if (missing.length) {
+    warnings.push(`Champs usages non renseignés : ${missing.join(', ')}.`);
+  }
+
+  const { labelColumn, idColumn } = complet
+    ? colonnesDUsage(rows, resolved)
+    : reperesLibelles;
+
+  if (!labelColumn && libelleParCode.size === 0) {
     warnings.push(
       'Aucune colonne du fichier d’usages ne contient de libellé au format ' +
         '« culture*traitement*cible » : cultures et cibles ne seront pas ' +
@@ -364,6 +415,7 @@ async function importUsages(
   };
 
   const byProduct = new Map<string, Array<Record<string, unknown>>>();
+  let sansLibelle = 0;
 
   for (const row of rows) {
     const amm = pick(row, resolved, 'amm');
@@ -372,7 +424,9 @@ async function importUsages(
     if (!productId) continue;
 
     const rawUsageId = lire(row, idColumn);
-    const usageLabel = lire(row, labelColumn);
+    const usageLabel =
+      lire(row, labelColumn) ?? (rawUsageId ? libelleParCode.get(rawUsageId) : undefined);
+    if (!usageLabel) sansLibelle += 1;
     const { crop, target } = splitUsageLabel(usageLabel);
 
     const entry = {
@@ -420,6 +474,16 @@ async function importUsages(
       });
       total += dataBatch.length;
     }
+  }
+
+  // Dit, plutôt que tu : un usage sans libellé ne pourra être rapproché
+  // d'aucune culture, et il vaut mieux savoir combien le sont.
+  if (sansLibelle > 0) {
+    warnings.push(
+      `${sansLibelle} usage(s) sans libellé de culture : leur code n'apparaît ` +
+        'dans aucun usage autorisé du catalogue. Leur dose ne sera rapprochée ' +
+        'd’aucune culture.',
+    );
   }
 
   return total;

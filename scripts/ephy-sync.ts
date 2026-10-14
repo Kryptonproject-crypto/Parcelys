@@ -115,6 +115,7 @@ async function readFromZip(zipPath: string): Promise<ImportSource> {
   return {
     products,
     usages: await read(chosen.usages),
+    allUsages: await read(chosen.allUsages),
     substances: await read(chosen.substances),
     conditions: await read(chosen.conditions),
   };
@@ -131,6 +132,7 @@ async function readFromZip(zipPath: string): Promise<ImportSource> {
 function chooseFiles(names: string[]): {
   products: string;
   usages: string | null;
+  allUsages: string | null;
   substances: string | null;
   conditions: string | null;
 } {
@@ -143,17 +145,25 @@ function chooseFiles(names: string[]): {
   }
 
   const usages = resolveDataFile(names, 'usages');
+  // Le fichier complet ne remplace pas le précédent, il le complète : usages
+  // retirés et intervalle minimum entre applications. Il n'est retenu que s'il
+  // s'agit bien d'un autre fichier — certaines éditions n'en portent qu'un.
+  const candidatComplet = resolveDataFile(names, 'allUsages');
+  const allUsages = candidatComplet && candidatComplet !== usages ? candidatComplet : null;
   const substances = resolveDataFile(names, 'substances');
   const conditions = resolveDataFile(names, 'conditions');
 
   console.info(`  → produits   : ${products}`);
   console.info(`  → usages     : ${usages ?? '(absent — doses, ZNT et DAR non importés)'}`);
+  console.info(
+    `  → usages (tous) : ${allUsages ?? '(absent — ni usages retirés, ni intervalle entre applications)'}`,
+  );
   console.info(`  → substances : ${substances ?? '(absent)'}`);
   console.info(
     `  → conditions : ${conditions ?? '(absent — restrictions sol drainé non importées)'}`,
   );
 
-  return { products, usages, substances, conditions };
+  return { products, usages, allUsages, substances, conditions };
 }
 
 /** Lit les CSV d'un dossier déjà décompressé. */
@@ -168,6 +178,9 @@ async function readFromDir(dir: string): Promise<ImportSource> {
   return {
     products: await readFile(path.join(dir, chosen.products)),
     usages: chosen.usages ? await readFile(path.join(dir, chosen.usages)) : undefined,
+    allUsages: chosen.allUsages
+      ? await readFile(path.join(dir, chosen.allUsages))
+      : undefined,
     substances: chosen.substances
       ? await readFile(path.join(dir, chosen.substances))
       : undefined,
