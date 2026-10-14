@@ -1,0 +1,181 @@
+Code	Label
+1	Acariens
+2	"Acariens et phytoptes"
+3	"Acariens galligènes"
+4	"Acariens, phytopes et tarsonèmes"
+5	Adventices
+6	Aleurodes
+7	Alternarioses
+8	Anthracnose(s)
+9	Antitranspirant
+10	"Attractif Abeilles"
+11	"Autres chenilles phytophages"
+177	"Autres maladies du pied"
+12	Bactéries
+13	Balanin
+14	"Bitter pit"
+15	"Black rot"
+16	Brunissures
+17	Cécidomyies
+18	"Cécidomyies des feuilles"
+172	"Cécidomyies des fleurs"
+19	"Cèphe du poirier"
+20	Cercosporioses
+21	Champignons
+23	"Champignons autres que pythiacées"
+24	"Champignons compétiteurs"
+25	"Champignons producteurs d’ota"
+22	"Champignons (pythiacées)"
+26	"Chancre du collet"
+27	"Chancre européen"
+28	"Chancres à champignons"
+180	"Charançon aquatique"
+29	"Charançon du palmier"
+30	"Charançons du feuillage et des fruits"
+182	"Charbon des inflorescences"
+31	Charbons
+32	"Chenilles défoliatrices"
+33	"Chenilles foreuses des fruits"
+34	"Chenilles phytophages"
+35	Chironomides
+36	Cicadelles
+173	"Cicadelles autres que de la flavescence dorée"
+37	"Cicadelles, cercopides et psylles"
+174	"Cicadelles de la flavescence dorée"
+38	"Cicadelles, punaises et psylles"
+39	Cloque(s)
+40	Cochenilles
+41	"Coléoptères phytophages"
+42	Coryneum
+164	Criquets
+43	Cylindrosporiose
+44	Dévitalisation
+45	Encre
+46	Epamprage
+47	Erinose
+48	"Esca et black dead arm"
+49	Escargots
+50	Eutypiose
+51	Excoriose
+52	Forficules
+53	Fourmis
+54	"Fusariose à microdochium"
+55	Fusarioses
+56	Fusicoccum
+165	"Galle du collet"
+166	Gloeosporiose
+57	"Gloeosporiose et autres maladies de conservation"
+58	Glu
+59	Graphiose
+60	"Guêpes frelons"
+61	Helminthosporiose
+62	"Helminthosporiose et ramulariose"
+64	"Hylobes des conifères"
+65	Insectes
+167	"Insectes foreurs des tiges et des bourgeons"
+66	"Insectes phytophages"
+67	"Insectes piqueurs"
+68	"Insectes ravageurs des semences"
+69	"Insectes xylophages"
+70	"Insectes xylophages et sous-corticaux"
+71	"Limaces et escargots"
+72	Limnées
+73	Lixus
+74	"Lutte contre le gel"
+75	"Maladie de l'oeil de paon"
+169	"Maladie des fruits"
+168	"Maladie des inflorescences"
+76	"Maladie des racines tordues"
+77	"Maladies à sclérotes"
+78	"Maladies de conservation"
+79	"Maladies des feuilles, tiges et panicules"
+80	"Maladies des ramules et des aiguilles"
+81	"Maladies des tâches brunes"
+82	"Maladies des taches foliaires"
+83	"Maladies des taches noires"
+84	"Maladies diverses"
+175	"Maladies du bois"
+85	"Maladies du feuillage"
+86	"Maladies foliaires des palmiers"
+87	"Maladies fongiques"
+88	"Maladies fongiques des siliques"
+89	"Maladies précoces des fruits"
+176	"Maladies racinaires"
+90	"Maladies vasculaires"
+91	"Mildiou et rouille blanche"
+92	Mildiou(s)
+93	"Moles et toiles"
+94	Monilioses
+95	"Mouche de l'olive"
+96	Moucherons
+97	Mouches
+98	"Mouches des fruits"
+99	"Mouches des racines et des bulbes"
+100	"Mouches mineuses"
+101	Moustiques
+103	Nématodes
+104	"Nématodes du feuillage"
+105	"Nématodes du pin"
+106	Oïdium(s)
+107	"Papillon palmivore"
+108	Phoma
+109	Phomopsis
+110	Phylloxera
+111	Phytophthora
+112	"Piétin verse"
+113	"Plomb parasitaire"
+114	Pourridiés
+115	"Pourriture grise"
+116	"Pourriture grise et sclérotinioses"
+117	"Pourritures des fruits"
+118	"Pourritures du système racinaire"
+188	"Pourritures en phase de conservation"
+199	"Pourritures en phase végétative"
+119	"Prot. Plaies"
+120	"Psylle du prunier"
+121	Psylle(s)
+122	"Puceron lanigère"
+123	Pucerons
+124	"Pucerons galligènes et laineux"
+125	Punaises
+126	"Punaises et tigres"
+170	"Punaises phytophages"
+127	Pyrale(s)
+128	Ramulariose
+129	"Ravageurs des inflorescences"
+130	"Ravageurs des parties aériennes"
+131	"Ravageurs divers"
+132	"Ravageurs du feuillage"
+133	"Ravageurs du sol"
+134	"Régulation croissance"
+190	"Répulsif corbeaux"
+135	Rhizoctone
+136	Rhynchosporiose
+137	Rongeurs
+138	"Rot blanc"
+139	"Rougeot parasitaire"
+140	"Rouille couronnée"
+141	Rouille(s)
+143	Sclérotiniose
+144	"Septoriose et kabatiella (polyspora)"
+145	Septoriose(s)
+146	"Stad. Hivern. Ravageurs"
+147	Stemphyliose
+148	"Stimul. Déf. Naturelles"
+149	Taphrina
+150	Taupins
+151	Tavelure(s)
+152	"Tenthrède limace"
+153	Thrips
+171	Tigres
+154	Tipules
+155	Tordeuses
+156	"Tordeuses de la grappe"
+157	"Tordeuses de la pelure"
+158	Trachéomycoses
+159	"Traitement des siliques"
+160	"Traitement sol avant plantation"
+193	Virus
+161	"Virus non persistants"
+162	Zabre
+163	Zeuzère

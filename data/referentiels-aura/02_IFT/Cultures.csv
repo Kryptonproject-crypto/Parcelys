@@ -1,0 +1,207 @@
+Code_culture	Label_culture	Code_groupe_culture
+1001	Abricotier	GCU2
+1002	Ail	GCU3
+1003	Airelle	GCU2
+1004	Amandier	GCU2
+1197	Amarantes	GCU1
+1005	Ananas	GCU5
+1006	Arachide	GCU1
+1007	"Arbres et arbustes"	GCU5
+1008	Artichaut	GCU3
+1009	Asperge	GCU3
+1010	Aubergine	GCU3
+1012	"Autres anacardiacées"	GCU5
+1013	"Autres choux à inflorescence"	GCU3
+1014	"Autres choux feuillus"	GCU3
+1015	"Autres choux pommés"	GCU3
+1016	"Autres cucurbitacées à peau comestible"	GCU3
+1017	"Autres cucurbitacées à peau non comestible"	GCU3
+1011	"Autres oignons verts"	GCU3
+1018	"Autres salades"	GCU3
+1019	Avocatier	GCU5
+1020	Avoine	GCU1
+1021	Azerolier	GCU2
+1022	Bananier	GCU5
+1023	Barbadines	GCU5
+1024	"Barbe de capucin"	GCU3
+1210	"Betterave à sucre ou industrielle"	GCU1
+1209	"Betterave fourragère"	GCU1
+1025	"Betterave industrielle et fourragère"	GCU1
+1026	"Betterave potagère"	GCU3
+1027	Blé	GCU1
+1028	Bourrache	GCU1
+1029	"Brocoli "	GCU3
+1030	"Bulbes ornementaux"	GCU5
+1031	Cameline	GCU1
+1032	"Canne à sucre"	GCU5
+1033	Carambole	GCU5
+1034	Cardon	GCU3
+1035	Carotte	GCU3
+1201	Carthame	GCU5
+1036	Cassissier	GCU2
+1038	Céleri-branche	GCU3
+1037	"Céleri rave"	GCU3
+1039	Cerisier	GCU2
+1040	"Champignons de couche"	GCU3
+1046	"Champignons sauvages"	GCU3
+1041	Chanvre	GCU1
+1042	Chataignier	GCU2
+1198	Chènevis	GCU5
+1043	Cherimole	GCU5
+1044	"Chicorée frisée"	GCU3
+1045	"Chicorée scarole"	GCU3
+1047	"Chicorées production de racines"	GCU3
+1048	Chou-fleur	GCU3
+1049	"Choux chinois"	GCU3
+1050	"Choux de bruxelles"	GCU3
+1051	"Choux pommés"	GCU3
+1053	Choux-raves	GCU3
+1052	"Choux verts type non pommés"	GCU3
+1054	Ciboule	GCU3
+1055	Citronnier	GCU2
+1056	Clémentinier	GCU2
+1057	Cognassier	GCU2
+1058	Colza	GCU1
+1059	Concombre	GCU3
+1060	Cornichon	GCU3
+1061	Corossol	GCU5
+1199	"Courge à graines"	GCU5
+1062	Courgette	GCU3
+1063	"Cresson alenois"	GCU3
+1064	"Cresson de fontaine"	GCU3
+1065	"Cultures florales et plantes vertes"	GCU5
+1066	Cynhorodon	GCU2
+1067	Dachine	GCU5
+1068	Échalote	GCU3
+1069	Endive	GCU3
+1070	Épeautre	GCU1
+1071	Epices	GCU5
+1072	Epinard	GCU3
+1073	Fenouil	GCU3
+1074	"Feuilles de bette"	GCU3
+1077	Feverole	GCU1
+1076	"Fève sèche"	GCU3
+1078	Figuier	GCU2
+1079	"Fines Herbes"	GCU5
+1081	Fraisier	GCU3
+1082	Framboisier	GCU2
+1084	"Fruit de la passion"	GCU5
+1083	"Fruit de l'arbre à pain"	GCU5
+1085	Goyavier	GCU5
+1086	"Graminées fourragères"	GCU1
+1087	"Graminées ornementales"	GCU5
+1206	Grenadier	GCU2
+1088	Grenadilles	GCU5
+1089	Groseillier	GCU2
+1090	"Haricot sec"	GCU3
+1204	"Haricots écossés frais"	GCU3
+1091	"Haricots et pois non écossés frais"	GCU3
+1093	Houblon	GCU1
+1094	Igname	GCU5
+1095	"Infusions séchées"	GCU5
+1096	"Jachères et cultures intermédiaires"	GCU1
+1097	"Jachères faunistiques fleuries"	GCU1
+1098	Jujubier	GCU2
+1195	Kaki	GCU2
+1208	Kiwai	GCU2
+1099	Kiwi	GCU2
+1203	Kumquat	GCU2
+1100	Laitue	GCU3
+1101	"Lentille fraîche"	GCU3
+1102	"Lentille sèche"	GCU3
+1104	Limettes	GCU2
+1105	Lin	GCU1
+1106	Litchi	GCU5
+1107	Longanis	GCU5
+1108	Lotier	GCU1
+1109	Lupin	GCU1
+1110	Luzerne	GCU1
+1111	Mâche	GCU3
+1112	Maïs	GCU1
+1113	"Maïs doux"	GCU3
+1114	Mandarinier	GCU2
+1115	Manguier	GCU5
+1116	Manioc	GCU5
+1117	Melon	GCU3
+1118	Millet	GCU1
+1119	Mirabellier	GCU2
+1120	Miscanthus	GCU1
+1121	Moha	GCU1
+1122	Moutarde	GCU1
+1123	"Mûre morus sp"	GCU2
+1125	"Mûres des haies"	GCU2
+1124	"Mûres rubus sp"	GCU2
+1126	Myrtillier	GCU2
+1127	Nashi	GCU2
+1128	Navet	GCU3
+1129	Navette	GCU1
+1130	Nectarinier	GCU2
+1131	Néflier	GCU2
+1133	Noisetier	GCU2
+1134	Noyer	GCU2
+1135	Oignon	GCU3
+1136	"Oignon de printemps"	GCU3
+1137	Olivier	GCU2
+1200	Onagre	GCU5
+1138	Oranger	GCU2
+1139	Orge	GCU1
+1140	"Palmiers alimentaires"	GCU5
+1141	Pamplemoussier	GCU2
+1142	Panais	GCU3
+1143	Papayer	GCU5
+1144	Pastèque	GCU3
+1145	"Patate douce"	GCU5
+1146	Pavot	GCU5
+1147	Pêcher	GCU2
+1148	"Persil à grosse racine et cerfeuil tubéreux"	GCU3
+1149	Piment	GCU3
+1150	Pissenlit	GCU3
+1207	Pistachier	GCU2
+1151	"Plantes d'intérieur et balcons"	GCU5
+1152	Poireau	GCU3
+1153	Poirier	GCU2
+1154	"Pois chiche"	GCU3
+1155	"Pois écossés frais"	GCU3
+1156	"Pois fourrager"	GCU1
+1157	"Pois protéagineux"	GCU1
+1159	"Pois sec"	GCU3
+1160	Poivron	GCU3
+1161	"Pomme de terre"	GCU6
+1162	Pommette	GCU2
+1163	Pommier	GCU2
+1164	Potiron	GCU3
+1165	Pourpier	GCU3
+1205	PPAMC	GCU5
+1166	"PPAM - non alimentaires"	GCU5
+1167	Prairies	GCU1
+1168	Prunier	GCU2
+1212	"Prunier du Japon"	GCU2
+1196	Quinoa	GCU1
+1169	Radis	GCU3
+1170	Raifort	GCU3
+1171	Ramboutan	GCU5
+1172	Rhubarbe	GCU3
+1202	Ricin	GCU5
+1173	Riz	GCU1
+1174	Roquette	GCU3
+1175	Rosier	GCU5
+1176	Rutabaga	GCU3
+1177	Sainfoin	GCU1
+1178	Salsifis	GCU3
+1179	Sarrasin	GCU1
+1180	Scorsonère	GCU3
+1181	Seigle	GCU1
+1182	Sésame	GCU1
+1183	Soja	GCU1
+1184	Songe	GCU5
+1185	Sorgho	GCU1
+1186	"Sureau noir"	GCU2
+1187	Tabac	GCU1
+1188	Tomate	GCU3
+1189	"Topinambour et crosne"	GCU3
+1190	Tournesol	GCU1
+1191	Trèfle	GCU1
+1192	Triticale	GCU1
+1211	"Tritordeum et autres hybrides du blé"	GCU1
+1193	Vesce	GCU1
+1194	Vigne	GCU4
