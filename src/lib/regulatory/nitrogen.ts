@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { resolveReferential } from '@/lib/regulatory/referentials';
+import { calculEnregistre, type CalculEnregistre } from '@/lib/regulatory/gren';
 
 /**
  * Plan prévisionnel de fumure et bilan azoté.
@@ -69,6 +70,8 @@ export type NitrogenBalance = {
     referentialVersion: string;
     sourceLabel: string;
   } | null;
+  /** Le calcul GREN enregistré, quand le plan a été établi selon les fiches. */
+  gren?: CalculEnregistre;
 };
 
 type PlanRow = {
@@ -90,6 +93,7 @@ type PlanRow = {
   referentialVersion: string | null;
   entries: Array<{ efficientKgHa: unknown; totalKgHa: unknown }>;
   soilAnalysis: { residualNitrogenKgHa: unknown; sampledOn: Date } | null;
+  computation: unknown;
 };
 
 const nombre = (valeur: unknown): number | null => {
@@ -143,7 +147,13 @@ export async function buildNitrogenBalance(planId: string): Promise<NitrogenBala
     },
   })) as PlanRow | null;
 
+
   if (!plan) throw new Error(`Plan ${planId} introuvable.`);
+
+  // Plan établi selon les fiches GREN : le bilan est celui qui a été calculé
+  // et enregistré, terme par terme, avec ses règles.
+  const gren = calculEnregistre(plan.computation);
+  if (gren) return bilanGren(gren, plan.entries);
 
   const blockers: NitrogenBalance['blockers'] = [];
 
@@ -340,6 +350,62 @@ export async function buildNitrogenBalance(planId: string): Promise<NitrogenBala
   };
 }
 
+function bilanGren(
+  gren: CalculEnregistre,
+  entries: PlanRow['entries'],
+): NitrogenBalance {
+  const c = gren.calcul;
+  const ligne = (t: CalculEnregistre['calcul']['termes'][number]): BalanceLine => ({
+    key: t.terme,
+    label: t.libelle,
+    valueKgHa: t.valeur,
+    origin: t.origine,
+    ...(t.valeur === null
+      ? {
+          missingReason: t.manque ?? 'Valeur manquante.',
+          remedy: 'Complétez le plan prévisionnel de fumure (onglet Apports de la parcelle).',
+        }
+      : {}),
+  });
+  const tete = c.termes.find((t) => t.terme === 'Pf' || t.terme === 'plafond');
+  const need: BalanceLine = tete
+    ? ligne(tete)
+    : {
+        key: 'need',
+        label: 'Besoin de la culture',
+        valueKgHa: null,
+        origin: '—',
+        missingReason: c.bloquants[0]?.raison ?? 'Plan incomplet.',
+        remedy: 'Complétez le plan prévisionnel de fumure (onglet Apports de la parcelle).',
+      };
+  const supplies = c.termes.filter((t) => t !== tete && t.terme !== 'y' && t.terme !== 'CAU').map(ligne);
+  const plannedKgHa = Number(
+    entries.reduce((s, e) => s + (nombre(e.efficientKgHa) ?? nombre(e.totalKgHa) ?? 0), 0).toFixed(2),
+  );
+  return {
+    need,
+    supplies,
+    totalSuppliesKgHa: null,
+    requiredKgHa: c.doseKgHa,
+    plannedKgHa,
+    planGapKgHa: null,
+    computable: c.doseKgHa !== null,
+    blockers: c.bloquants.map((b) => ({
+      label: b.terme,
+      reason: b.raison,
+      remedy: 'Complétez le plan prévisionnel de fumure (onglet Apports de la parcelle).',
+    })),
+    source: gren.referentiel
+      ? {
+          referentialCode: gren.referentiel.code,
+          referentialVersion: gren.referentiel.version,
+          sourceLabel: gren.referentiel.source,
+        }
+      : null,
+    gren,
+  };
+}
+
 /**
  * Prévisionnel contre réalisé.
  *
@@ -348,6 +414,14 @@ export async function buildNitrogenBalance(planId: string): Promise<NitrogenBala
  * saisie, deux lectures — c'est le principe de tout le logiciel.
  */
 export type PlanVsActual = {
+  /**
+   * Ce que le prévisionnel couvre. Un plan GREN donne la dose d'**engrais
+   * minéral** (les produits organiques sont déjà déduits par Xpro) : seul le
+   * minéral se compare alors. Un plan saisi à la main compare tous les apports.
+   */
+  perimetre: 'engrais-mineraux' | 'tous-apports';
+  /** Ce qu'il faut savoir pour lire la comparaison. */
+  remarques: string[];
   plannedKgHa: number;
   actualKgHa: number;
   deviationKgHa: number;
@@ -506,11 +580,26 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
       id: true,
       appliedOn: true,
       productLabel: true,
+      inputType: true,
       nSupplied: true,
       treatedAreaHa: true,
     },
     orderBy: { appliedOn: 'asc' },
   });
+  const gren = calculEnregistre(plan.computation);
+  // Plan GREN sans dose calculée : rien à comparer (le constat « bilan
+  // incalculable » le dit déjà).
+  if (gren && gren.calcul.doseKgHa === null) return null;
+  const remarques: string[] = [];
+  if (gren) {
+    const pris = new Set(gren.apportsRealises ?? []);
+    const nouveaux = apports.filter((a) => a.inputType === 'ORGANIC' && !pris.has(a.id));
+    if (nouveaux.length > 0) {
+      remarques.push(
+        `${nouveaux.length} apport(s) organique(s) enregistré(s) après le calcul du plan : recalculez-le pour que Xpro en tienne compte.`,
+      );
+    }
+  }
 
   // `nSupplied` est une **dose à l'hectare**, pas un total.
   //
@@ -547,14 +636,22 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
     };
   });
 
+  const comptes = gren
+    ? applications.filter((_, i) => apports[i]!.inputType === 'MINERAL')
+    : applications;
   const actualKgHa = Number(
-    applications.reduce((somme, a) => somme + (a.nKgHa ?? 0), 0).toFixed(2),
+    comptes.reduce((somme, a) => somme + (a.nKgHa ?? 0), 0).toFixed(2),
   );
-  const plannedKgHa = Number(
-    plan.entries
-      .reduce((somme, e) => somme + (nombre(e.efficientKgHa) ?? nombre(e.totalKgHa) ?? 0), 0)
-      .toFixed(2),
-  );
+  const plannedKgHa = gren
+    ? (gren.calcul.doseKgHa as number)
+    : Number(
+        plan.entries
+          .reduce((somme, e) => somme + (nombre(e.efficientKgHa) ?? nombre(e.totalKgHa) ?? 0), 0)
+          .toFixed(2),
+      );
+  if (comptes.some((a) => a.nKgHa === null)) {
+    remarques.push('Un apport au moins a une teneur en azote inconnue : le réalisé est sous-estimé.');
+  }
 
   const deviationKgHa = Number((actualKgHa - plannedKgHa).toFixed(2));
 
@@ -564,6 +661,8 @@ export async function comparePlanToActual(planId: string): Promise<PlanVsActual 
   });
 
   return {
+    perimetre: gren ? 'engrais-mineraux' : 'tous-apports',
+    remarques,
     plannedKgHa,
     actualKgHa,
     deviationKgHa,

@@ -193,7 +193,8 @@ describe('Synthèse de conformité', () => {
     expect(depassement).toBeDefined();
     expect(depassement?.level).toBe('ANOMALIE');
     expect(depassement?.detail).toContain('165');
-    expect(depassement?.action).toContain('justification');
+    // L'action renvoie à l'écran où la justification se saisit.
+    expect(depassement?.action).toMatch(/Justifiez l’écart depuis le plan prévisionnel de fumure/);
     // Une anomalie réelle change la phrase de synthèse.
     expect(rapport.summary).toContain('anomalie');
     expect(rapport.summary).toContain('référentiels actuellement disponibles');

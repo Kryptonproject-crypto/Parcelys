@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { calculEnregistre } from '@/lib/regulatory/gren';
 import { roleHasPermission } from '@/lib/auth/rbac';
 import { requirePageParcelAccess } from '@/lib/auth/page-guards';
 import { getParcelGeometry } from '@/lib/geo/repository';
@@ -115,7 +116,10 @@ export default async function ParcelPage({
     prisma.parcel.findUnique({
       where: { id },
       include: {
-        cropYears: { include: { crop: true }, orderBy: { campaignYear: 'desc' } },
+        cropYears: {
+          include: { crop: true, nitrogenPlan: { select: { computation: true } } },
+          orderBy: { campaignYear: 'desc' },
+        },
       },
     }),
     getParcelGeometry(id),
@@ -314,6 +318,12 @@ export default async function ParcelPage({
           yieldValue: cy.yieldValue?.toString() ?? null,
           yieldUnit: cy.yieldUnit,
           notes: cy.notes,
+          planFumure: (() => {
+            const g = calculEnregistre(cy.nitrogenPlan?.computation ?? null);
+            return g
+              ? { doseKgHa: g.calcul.doseKgHa, bloquants: g.calcul.bloquants.length, calculeLe: g.calculeLe }
+              : null;
+          })(),
         }))}
         fertilizations={fertilizations.map((f) => ({
           id: f.id,

@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { computeFarmIft } from '@/lib/regulatory/ift';
 import { buildNitrogenBalance, comparePlanToActual } from '@/lib/regulatory/nitrogen';
-import { getOrComputeParcelContext, porteeDuClassement } from '@/lib/regulatory/geography';
+import { getOrComputeParcelContext, porteeDuClassement, statutZonage } from '@/lib/regulatory/geography';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
 import { constatsCouverture } from '@/lib/regulatory/soil-cover';
 import { plafondAzoteOrganique } from '@/lib/regulatory/organic-nitrogen';
@@ -110,9 +110,17 @@ export async function buildComplianceReport(params: {
     orderBy: { name: 'asc' },
   });
 
+  // Statut « zone vulnérable » de chaque parcelle à la fin de la campagne :
+  // le plan prévisionnel de fumure n'est exigé qu'en zone vulnérable.
+  const statutZv = new Map<string, 'dedans' | 'dehors' | 'indetermine'>();
+
   // --- Contexte réglementaire des parcelles --------------------------------
   for (const parcelle of parcelles) {
     const contexte = await getOrComputeParcelContext(parcelle.id);
+    {
+      const fin = new Date(Date.UTC(params.campaignYear, 6, 31, 23, 59, 59));
+      statutZv.set(parcelle.id, statutZonage(contexte, 'ZONE_VULNERABLE', fin < new Date() ? fin : new Date()));
+    }
 
     if (!contexte) {
       findings.push({
@@ -198,13 +206,22 @@ export async function buildComplianceReport(params: {
 
   for (const campagne of parcellesAvecCulture) {
     if (avecPlan.has(campagne.id)) continue;
+    // Le plan est exigé « pour chaque îlot cultural localisé en zone
+    // vulnérable » (GREN, champ d'application) : hors zone, il n'y a rien à
+    // signaler ; zonage inconnu, on le dit.
+    const zv = statutZv.get(campagne.parcel.id) ?? 'indetermine';
+    if (zv === 'dehors') continue;
     findings.push({
       domain: 'NITRATES',
-      level: 'INDETERMINE',
+      level: zv === 'dedans' ? 'VERIFICATION' : 'INDETERMINE',
       code: 'ppf.absent',
       title: 'Aucun plan prévisionnel de fumure',
-      detail: `« ${campagne.parcel.name} » — ${campagne.crop.name}, campagne ${params.campaignYear}.`,
-      action: 'Créez le plan depuis l’onglet Apports de la parcelle.',
+      detail:
+        `« ${campagne.parcel.name} » — ${campagne.crop.name}, campagne ${params.campaignYear}` +
+        (zv === 'dedans'
+          ? ' : parcelle en zone vulnérable, où le plan est exigé.'
+          : ' : zonage non déterminé, le plan peut être exigé.'),
+      action: 'Établissez le plan depuis l’onglet Apports de la parcelle.',
       parcelId: campagne.parcel.id,
       parcelName: campagne.parcel.name,
       entity: 'cropYear',
@@ -222,10 +239,14 @@ export async function buildComplianceReport(params: {
         level: 'INDETERMINE',
         code: 'ppf.bilan-incomplet',
         title: 'Bilan azoté incalculable',
-        detail:
-          `« ${nom} » : ${bilan.blockers.map((b) => b.label.toLowerCase()).join(', ')} ` +
-          `${bilan.blockers.length > 1 ? 'manquent' : 'manque'}.`,
+        detail: bilan.gren
+          ? `« ${nom} » : ${bilan.blockers.map((b) => `${b.label} — ${b.reason}`).join(' ; ')}`
+          : `« ${nom} » : ${bilan.blockers.map((b) => b.label.toLowerCase()).join(', ')} ` +
+            `${bilan.blockers.length > 1 ? 'manquent' : 'manque'}.`,
         action: bilan.blockers[0]?.remedy,
+        referentialCode: bilan.source?.referentialCode,
+        referentialVersion: bilan.source?.referentialVersion,
+        sourceLabel: bilan.source?.sourceLabel,
         parcelId: plan.cropYear.parcel.id,
         parcelName: nom,
         entity: 'nitrogenPlan',
@@ -243,8 +264,10 @@ export async function buildComplianceReport(params: {
         detail:
           `« ${nom} » : ${comparaison.actualKgHa.toLocaleString('fr-FR')} kg N/ha réalisés ` +
           `pour ${comparaison.plannedKgHa.toLocaleString('fr-FR')} prévus ` +
-          `(+${comparaison.deviationKgHa.toLocaleString('fr-FR')} kg N/ha).`,
-        action: 'Enregistrez une justification d’écart, avec sa cause et son justificatif.',
+          `(+${comparaison.deviationKgHa.toLocaleString('fr-FR')} kg N/ha` +
+          (comparaison.perimetre === 'engrais-mineraux' ? ', engrais minéraux).' : ').'),
+        action:
+          'Justifiez l’écart depuis le plan prévisionnel de fumure de la culture (outil de pilotage, exportation supérieure au prévisionnel ou accident cultural daté).',
         parcelId: plan.cropYear.parcel.id,
         parcelName: nom,
         entity: 'nitrogenPlan',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ApiRequestError, apiDelete } from '@/lib/client/api';
 import { useToast } from '@/components/ui/Toast';
@@ -426,6 +427,44 @@ export function ParcelTabs(props: ParcelTabsProps) {
             <div className="flex justify-end">
               <Button onClick={() => setModal('fertilization')}>+ Ajouter un apport</Button>
             </div>
+          ) : null}
+
+          {/* Plan prévisionnel de fumure, culture par culture : calculé selon
+              les fiches GREN importées, avec la trace de chaque règle. */}
+          {cropYears.length > 0 ? (
+            <Card>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-3">
+                Plan prévisionnel de fumure
+              </p>
+              <ul className="mt-2 divide-y divide-line">
+                {cropYears.map((cy) => (
+                  <li key={cy.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                    <span className="text-sm text-ink">
+                      {cy.cropName} — campagne {cy.campaignYear}
+                    </span>
+                    <span className="flex items-center gap-2.5">
+                      {cy.planFumure ? (
+                        cy.planFumure.doseKgHa !== null ? (
+                          <Badge tone="green">
+                            {formatNumberFr(cy.planFumure.doseKgHa, 0)} kg N/ha
+                          </Badge>
+                        ) : (
+                          <Badge tone="amber">Dose non calculable</Badge>
+                        )
+                      ) : (
+                        <Badge tone="neutral">À établir</Badge>
+                      )}
+                      <Link
+                        href={`/parcelles/${parcel.id}/fumure/${cy.id}`}
+                        className="text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                      >
+                        {cy.planFumure ? 'Voir le plan' : canWrite ? 'Établir le plan' : 'Voir'}
+                      </Link>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
           ) : null}
 
           {fertilizations.length > 0 ? (

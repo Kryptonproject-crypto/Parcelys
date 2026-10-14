@@ -33,6 +33,8 @@ export type CropYearRow = {
   yieldValue: string | null;
   yieldUnit: string | null;
   notes: string | null;
+  /** Plan prévisionnel de fumure, quand il a été établi. */
+  planFumure?: { doseKgHa: number | null; bloquants: number; calculeLe: string } | null;
 };
 
 export type FertilizationRow = {
