@@ -17,9 +17,10 @@ l'administration restent sur l'application web, où ils se font au bureau.
 | --- | --- |
 | **Connexion** | Adresse e-mail et mot de passe — rien d'autre. L'application se connecte à **parcelys.fr**, adresse inscrite à la compilation. Le jeton de session est conservé par l'appareil (stockage natif), jamais dans un cookie. |
 | **Parcelles** | Liste et recherche, servies par le cache local : disponibles hors réseau. |
+| **Carte** | Tous les contours en cache, dessinés avec la position de l'appareil et sa précision. Pincer pour zoomer, glisser pour se déplacer, toucher une parcelle pour l'ouvrir. Fonctionne sans réseau : rien n'est téléchargé. |
 | **Relever une parcelle** | Contour au GPS, en **marchant la limite** (un point tous les 10 m) ou en **posant un sommet** à chaque angle. Surface et périmètre calculés en direct. |
-| **Fiche parcelle** | Quatre saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé (irrigation comprise), couvert d'interculture. |
-| **Synchronisation** | File d'attente visible, envoi manuel ou automatique au retour du réseau, motif de refus affiché pour chaque saisie rejetée. |
+| **Fiche parcelle** | Quatre saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé (irrigation comprise), couvert d'interculture. Et le renommage : c'est devant la parcelle qu'on sait comment elle s'appelle. |
+| **Synchronisation** | File d'attente visible, envoi automatique dès qu'il y a du réseau et quelque chose en attente, envoi manuel toujours possible, motif de refus affiché pour chaque saisie rejetée. |
 
 ### Ce qu'elle ne fait pas, volontairement
 
@@ -32,8 +33,12 @@ l'administration restent sur l'application web, où ils se font au bureau.
   PostGIS calcule à l'enregistrement, sur l'ellipsoïde WGS84. L'écran le dit.
 - **Pas de création de compte** : l'inscription se fait par code d'invitation,
   depuis l'application web.
-- **Pas de fond de carte** pendant le relevé : les tuiles exigeraient du réseau,
-  précisément ce qui manque. L'aperçu du contour est un tracé, pas une carte.
+- **Pas de fond de plan**, ni sur la carte du parcellaire ni pendant le relevé :
+  une photo aérienne ou un plan supposent des tuiles téléchargées, donc du
+  réseau — précisément ce qui manque au milieu d'un champ. La carte dessine les
+  contours, l'échelle et le nord, et dit à l'écran qu'elle n'a pas de fond.
+  L'aperçu du relevé, lui, est un tracé et non une carte : il montre la forme
+  relevée, il ne situe pas la parcelle.
 - **Aucune période réglementaire n'est affichée pour les couverts.** Les dates
   de couverture obligatoire relèvent du programme d'actions régional ; les
   inventer ici donnerait une échéance fausse à un exploitant qui n'a pas de

@@ -271,14 +271,30 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
               en cache : la réponse arrive sans réseau, ce qui est précisément
               la situation.
             */}
-            <Button
-              variant="secondary"
-              full
-              loading={localisation === 'recherche'}
-              onClick={() => void ouLeSuisJe()}
-            >
-              Où suis-je ?
-            </Button>
+            {/*
+              La carte répond à la même famille de question, autrement : « où
+              suis-je » répond par un nom, la carte répond par un dessin. Les
+              deux se dessinent depuis les contours déjà en cache, donc sans
+              réseau — la liste ci-dessous dit laquelle, la carte dit laquelle
+              est à côté de laquelle.
+            */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="secondary"
+                full
+                loading={localisation === 'recherche'}
+                onClick={() => void ouLeSuisJe()}
+              >
+                Où suis-je ?
+              </Button>
+              <Button
+                variant="secondary"
+                full
+                onClick={() => navigate({ name: 'carte' })}
+              >
+                Voir la carte
+              </Button>
+            </div>
 
             {messageLocalisation ? (
               <Banner tone={localisation === 'erreur' ? 'warning' : 'info'}>

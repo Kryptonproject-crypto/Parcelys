@@ -6,6 +6,96 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.7 — Le parcellaire sur une carte, et les saisies qui partent enfin
+
+### Rien ne partait tout seul : aucune saisie n'atteignait le serveur
+
+Le défaut le plus grave de cette version, et il ne concernait pas que le
+renommage : **toute saisie faite au champ restait dans le téléphone**.
+
+`runSync` n'avait qu'un seul appelant dans toute l'application : le bouton de
+l'écran de la file d'attente. Rien ne déclenchait d'envoi — ni l'ouverture de
+l'application, ni le retour du réseau, ni une saisie faite en zone couverte. Un
+traitement phytosanitaire noté dans la parcelle, un apport, un couvert, un
+renommage : tout attendait que l'exploitant pense à ouvrir un écran que rien ne
+lui demandait d'ouvrir.
+
+Le bandeau hors réseau promettait pourtant l'inverse, mot pour mot : « vos
+saisies partiront à la reconnexion ». Elles ne partaient pas.
+
+Constaté en pilotant l'application compilée contre un vrai serveur : la
+parcelle renommée affichait son nouveau nom sur le téléphone — l'écriture
+locale est optimiste — et gardait l'ancien en base de données.
+
+L'envoi part désormais de lui-même dès qu'il y a du réseau et quelque chose en
+attente. Une saisie **refusée** par le serveur ne déclenche pas de réessai sans
+fin : les tentatives s'espacent puis s'arrêtent, parce qu'un refus reste un
+refus et qu'il faut alors corriger la saisie. Le voyant rouge et l'écran de la
+file sont là pour ça. Une nouvelle saisie, ou un envoi manuel qui aboutit,
+réarme l'envoi automatique.
+
+### Renommer une parcelle était impossible dès qu'un champ restait vide
+
+L'écran de renommage envoie ses trois libellés à chaque enregistrement, et
+`null` pour celui qu'on laisse vide. Le schéma de validation refusait `null` :
+le serveur répondait « Données invalides » et **rejetait le renommage entier**.
+Une parcelle sans numéro interne ni lieu-dit — le cas courant — ne pouvait donc
+pas être renommée du tout.
+
+Le même corps étant envoyé par le site, le renommage y était cassé de la même
+façon.
+
+Dans la foulée, un second défaut du même helper : `''` était transformé en
+« champ absent », si bien qu'**aucun champ texte optionnel ne pouvait être
+effacé** par l'API. Un lieu-dit saisi par erreur restait attaché à la parcelle
+pour de bon.
+
+Les trois intentions sont maintenant distinguées, comme elles le sont déjà pour
+`drainedSoil` : champ absent, on ne touche pas ; champ vidé (`''` ou `null`),
+on efface ; texte, on écrit.
+
+### Voir ses parcelles sur une carte
+
+Nouvel écran, accessible depuis le parcellaire à côté de « Où suis-je ? ».
+
+Il dessine **tous les contours déjà en cache**, avec la position de l'opérateur
+et la précision annoncée par le GPS. Il s'ouvre donc au milieu d'un champ, sans
+réseau — le seul moment où l'on en a vraiment besoin. On pince pour zoomer, on
+glisse pour se déplacer, on touche une parcelle pour l'ouvrir : de là, on la
+renomme ou on y saisit une intervention.
+
+Pas de fond de plan, et l'écran le dit : une photo aérienne suppose des tuiles
+téléchargées, donc du réseau. Les parcelles sans contour sont listées à part
+plutôt que passées sous silence, avec la raison.
+
+Les calculs — projection, cadrage, zoom, étiquettes — vivent dans le terrain
+commun et sont couverts par `tests/carte.test.ts` : un carré du terrain reste
+un carré à l'écran, le nord est en haut, l'emprise entière tient dans la vue,
+le point qu'on pince reste sous le doigt.
+
+### Trois défauts d'affichage trouvés en pilotant l'écran
+
+Aucun n'était visible à la compilation.
+
+- Les boutons de zoom ne faisaient rien : la zone qui écoute les gestes
+  capturait le pointeur et les boutons posés dessus ne recevaient jamais leur
+  clic. Ils paraissaient présents et répondaient au doigt sans effet.
+- « Tout voir » englobait la position : un relevé GPS pris loin — ou aberrant —
+  réduisait le parcellaire à trois pixels. Le bouton montre désormais le
+  parcellaire, toujours le même, quoi qu'annonce le GPS.
+- Les noms trop longs débordaient sur la parcelle voisine, et le repère de
+  position se posait par-dessus le nom (« Les ● bles »). Les noms sont rognés à
+  la largeur de leur parcelle, et l'étiquette s'écarte du repère.
+
+### Vérification
+
+`scripts/check-carte-mobile.mjs` pilote l'application compilée dans un
+navigateur, contre un vrai serveur et une vraie base : connexion, carte,
+zoom, appui sur une parcelle, renommage avec champs vides, et **lecture du
+serveur** pour confirmer que le nouveau nom y est bien arrivé.
+
+---
+
 ## 0.9.6 — Le Pi se relève, et les stocks démarrent tout seuls
 
 ### La mise à jour pouvait sauter des étapes en annonçant un succès

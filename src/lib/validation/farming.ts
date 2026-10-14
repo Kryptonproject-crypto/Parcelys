@@ -7,14 +7,31 @@ import {
   YIELD_UNITS,
 } from '@/lib/constants/agronomy';
 
+/**
+ * Texte optionnel, avec trois intentions à distinguer — et c'est tout l'enjeu :
+ *
+ *  - champ **absent** → `undefined` : une mise à jour n'y touche pas ;
+ *  - champ **vidé** (`''` ou `null`) → `null` : on efface ;
+ *  - texte → le texte, rogné.
+ *
+ * Confondre les deux premiers rendait tout effacement impossible : un lieu-dit
+ * saisi par erreur restait attaché à la parcelle pour de bon, puisque `''`
+ * devenait `undefined` et que la route ne modifie pas ce qu'elle reçoit comme
+ * absent. Refuser `null`, lui, cassait le renommage depuis l'application de
+ * terrain : l'écran envoie ses trois libellés à chaque fois, et `null` pour
+ * celui qu'on laisse vide — le lot partait donc en entier au rebut dès qu'une
+ * parcelle n'avait pas de numéro interne.
+ *
+ * Même raisonnement à trois états que `drainedSoil` plus bas : l'absence de
+ * réponse et la réponse vide ne disent pas la même chose.
+ */
 const optionalText = (max: number) =>
   z
     .string()
     .trim()
     .max(max)
-    .optional()
-    .or(z.literal(''))
-    .transform((v) => (v ? v : undefined));
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v === '' ? null : v));
 
 /** Date ISO (`YYYY-MM-DD` ou datetime complet) convertie en `Date`. */
 const dateSchema = z

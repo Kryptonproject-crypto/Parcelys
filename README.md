@@ -584,8 +584,14 @@ l'application web : [`mobile/README.md`](mobile/README.md) détaille son
 fonctionnement et la construction de l'APK.
 
 Elle ne reprend que ce qui se fait dans un champ — relever une parcelle au GPS,
-saisir un traitement, un apport ou un travail — et le fait **sans réseau**, ce
-qui est la situation ordinaire au milieu d'une parcelle.
+la renommer, saisir un traitement, un apport ou un travail — et le fait **sans
+réseau**, ce qui est la situation ordinaire au milieu d'une parcelle.
+
+Une **carte du parcellaire** complète la liste : elle dessine les contours déjà
+en cache, avec la position de l'appareil, et s'ouvre donc elle aussi sans
+réseau. Aucun fond de plan n'est téléchargé, et l'écran le dit — une photo
+aérienne supposerait des tuiles, donc du réseau. Un appui sur une parcelle
+ouvre sa fiche, d'où l'on renomme ou l'on saisit.
 
 ```bash
 cd mobile
@@ -608,6 +614,13 @@ Chaque opération porte un identifiant produit par l'appareil, transmis en
 doublon** : le serveur renvoie la réponse initiale. Une opération refusée reste
 dans la file, avec son motif affiché, jusqu'à correction ou suppression — rien
 ne disparaît en silence d'un registre réglementaire.
+
+L'envoi part **de lui-même** dès qu'il y a du réseau et quelque chose en
+attente : à l'ouverture de l'application, au retour du réseau, ou aussitôt
+après une saisie faite en zone couverte. Le bouton de l'écran de la file reste
+là pour forcer un envoi. Une saisie que le serveur refuse ne déclenche pas de
+réessai sans fin — les tentatives s'espacent puis s'arrêtent, parce qu'un refus
+reste un refus et qu'il faut corriger la saisie ; le voyant rouge le signale.
 
 ### Ce que l'application n'invente pas
 

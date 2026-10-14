@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Network } from '@capacitor/network';
 import { clearCache, clearOutbox, outboxCount, readSnapshot } from './lib/db';
 import {
@@ -17,6 +17,7 @@ import { writeSnapshot } from './lib/db';
 import type { CachedParcel, Session, Snapshot } from './lib/types';
 import { LoginScreen } from './screens/Login';
 import { ParcelsScreen } from './screens/Parcels';
+import { CarteScreen } from './screens/Carte';
 import { NewParcelScreen } from './screens/NewParcel';
 import { ParcelScreen } from './screens/Parcel';
 import { EntryScreen, type EntryKind } from './screens/Entry';
@@ -44,6 +45,7 @@ import { NewRecommendationScreen } from './screens/NewRecommendation';
 export type Screen =
   | { name: 'portfolio' }
   | { name: 'parcels' }
+  | { name: 'carte' }
   | { name: 'new-parcel' }
   | { name: 'parcel'; parcelId: string }
   | { name: 'entry'; kind: EntryKind; parcelId: string }
@@ -214,6 +216,97 @@ export function App() {
     }
   }, [session, activeFarmId, refreshSnapshot]);
 
+  /**
+   * Envoi automatique des saisies en attente.
+   *
+   * ───────────────────────────────────────────────────────────────────────────
+   * POURQUOI
+   * ───────────────────────────────────────────────────────────────────────────
+   *
+   * `runSync` n'avait qu'un seul appelant : le bouton de l'écran de la file
+   * d'attente. Rien ne partait donc jamais tout seul — ni à la connexion, ni au
+   * retour du réseau, ni après une saisie faite avec du réseau. L'exploitant
+   * renommait une parcelle, voyait le nouveau nom (l'écriture locale est
+   * optimiste), et rien n'arrivait au serveur tant qu'il n'allait pas presser
+   * un bouton sur un autre écran — qu'aucune ligne de l'interface ne lui
+   * demandait de presser. Le bandeau hors réseau promettait même l'inverse :
+   * « vos saisies partiront à la reconnexion ».
+   *
+   * Vérifié en pilotant l'application contre un vrai serveur : la parcelle
+   * renommée gardait son ancien nom en base.
+   *
+   * ───────────────────────────────────────────────────────────────────────────
+   * CE QUI DÉCLENCHE, ET CE QUI RETIENT
+   * ───────────────────────────────────────────────────────────────────────────
+   *
+   * L'effet se déclenche dès qu'il y a du réseau et quelque chose en attente :
+   * cela couvre d'un coup l'ouverture de l'application, le retour du réseau et
+   * la saisie faite en zone couverte.
+   *
+   * Un envoi réussi vide la file, donc l'effet ne se rejoue pas. Ce qui compte
+   * est l'autre cas : une saisie que le serveur **refuse** reste en file, et
+   * réessayer sans fin la viderait la batterie sans rien changer — un refus
+   * reste un refus. On espace donc les tentatives, puis on s'arrête : le
+   * voyant rouge et l'écran de la file sont là pour ça, et c'est à
+   * l'exploitant de corriger.
+   */
+  const [essaisAuto, setEssaisAuto] = useState(0);
+  const echecsDeSuite = useRef(0);
+  const envoiAutoEnCours = useRef(false);
+  /** Au-delà, on laisse la main : réessayer n'est plus une réponse. */
+  const ECHECS_AVANT_ABANDON = 4;
+
+  const fileObservee = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!session || !online || pending === 0 || syncing) return;
+
+    // La file a changé de taille : une saisie de plus, ou un envoi qui a
+    // avancé. Dans les deux cas la situation n'est plus celle qui avait fait
+    // abandonner, et un envoi manuel réussi réarme ainsi l'automatique.
+    if (fileObservee.current !== pending) {
+      fileObservee.current = pending;
+      echecsDeSuite.current = 0;
+    }
+
+    if (echecsDeSuite.current >= ECHECS_AVANT_ABANDON) return;
+
+    // Première tentative tout de suite ; les suivantes de plus en plus
+    // espacées, jusqu'à cinq minutes.
+    const attente =
+      echecsDeSuite.current === 0
+        ? 0
+        : Math.min(5 * 60_000, 15_000 * 2 ** (echecsDeSuite.current - 1));
+
+    const minuteur = setTimeout(() => {
+      if (envoiAutoEnCours.current) return;
+      envoiAutoEnCours.current = true;
+
+      void runSync()
+        .then((rapport) => {
+          // La file peut rester garnie pour deux raisons opposées : le lot est
+          // plafonné (l'envoi avance, il faut continuer), ou le serveur a
+          // refusé (insister ne servirait à rien). `applied` les distingue.
+          if (rapport && rapport.remaining > 0 && rapport.applied === 0) {
+            echecsDeSuite.current += 1;
+          } else {
+            echecsDeSuite.current = 0;
+          }
+        })
+        .catch(() => {
+          // L'erreur est déjà portée par `syncError` et par le voyant : ici on
+          // ne fait que compter, pour espacer la suite.
+          echecsDeSuite.current += 1;
+        })
+        .finally(() => {
+          envoiAutoEnCours.current = false;
+          setEssaisAuto((nombre) => nombre + 1);
+        });
+    }, attente);
+
+    return () => clearTimeout(minuteur);
+  }, [session, online, pending, syncing, essaisAuto, runSync]);
+
   // Le voyant se calcule, il ne se stocke pas : voir `syncStatusFrom`.
   const syncStatus: SyncStatus = syncStatusFrom({
     online,
@@ -349,6 +442,9 @@ export function App() {
   switch (current.name) {
     case 'portfolio':
       return <PortfolioScreen context={context} />;
+
+    case 'carte':
+      return <CarteScreen context={context} />;
 
     case 'new-parcel':
       return <NewParcelScreen context={context} />;

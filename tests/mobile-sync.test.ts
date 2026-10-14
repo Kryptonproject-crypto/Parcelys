@@ -329,6 +329,263 @@ describe('Application mobile et synchronisation', () => {
   });
 
   // -------------------------------------------------------------------------
+  describe('Renommer une parcelle depuis le champ', () => {
+    /*
+     * ─────────────────────────────────────────────────────────────────────────
+     * POURQUOI CES CAS EXISTENT
+     * ─────────────────────────────────────────────────────────────────────────
+     *
+     * Le renommage au champ a été ajouté en 0.9.1 : l'écran est là, la file
+     * d'attente connaît `parcel.rename`, le serveur route vers `updateParcel`.
+     * Mais **aucun test ne parcourait ce chemin**, et c'est précisément le
+     * chemin que Kevin signale comme inopérant.
+     *
+     * C'est là qu'on sait comment une parcelle s'appelle : devant elle. Un
+     * import TéléPAC la nomme « Îlot 39 — parcelle 3 » ; le nom qu'on lui donne
+     * vraiment vient au moment où l'on y est.
+     */
+
+    /** Une parcelle, et de quoi la renommer par la file d'attente. */
+    async function parcelleDEssai(native: NativeClient) {
+      const creation = await native.post<{ id: string }>('/api/parcels', {
+        name: 'Îlot 39 — parcelle 3',
+        internalNumber: 'I39-P3',
+        status: 'ACTIVE',
+        geometry: testPolygon(1.9, 48.1, 0.01, 0.006),
+      });
+      expect(creation.status).toBe(201);
+      return creation.body.id;
+    }
+
+    function renommage(parcelId: string, payload: Record<string, unknown>) {
+      return {
+        operations: [
+          {
+            clientId: randomUUID(),
+            kind: 'parcel.rename',
+            parcelId,
+            capturedAt: new Date().toISOString(),
+            payload,
+          },
+        ],
+      };
+    }
+
+    it('applique le nouveau nom, le numéro interne et le lieu-dit', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      const reponse = await native.post<{ applied: number; results: unknown[] }>(
+        '/api/sync',
+        renommage(parcelId, {
+          name: 'La Côte du Chêne',
+          internalNumber: 'A-07',
+          lieuDit: 'Le Chêne',
+        }),
+      );
+
+      expect(reponse.status).toBe(200);
+      expect(reponse.body.applied).toBe(1);
+
+      // L'effet, pas le code de retour : un 200 qui n'écrit rien est un 200.
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { name: true, internalNumber: true, lieuDit: true },
+      });
+      expect(apres).toMatchObject({
+        name: 'La Côte du Chêne',
+        internalNumber: 'A-07',
+        lieuDit: 'Le Chêne',
+      });
+    });
+
+    it('rend le nouveau nom à l’instantané suivant', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      await native.post('/api/sync', renommage(parcelId, { name: 'Le Grand Pré' }));
+
+      // Sans cela, le téléphone afficherait encore l'ancien nom après
+      // synchronisation — le renommage « marcherait » sans se voir.
+      const instantane = await native.get<{
+        parcels: Array<{ id: string; name: string }>;
+      }>('/api/mobile/bootstrap');
+      const vue = instantane.body.parcels.find((p) => p.id === parcelId);
+      expect(vue?.name).toBe('Le Grand Pré');
+    });
+
+    /**
+     * Le corps exact que l'écran de renommage envoie.
+     *
+     * `ParcelScreen` transmet ses trois libellés à chaque enregistrement, et
+     * `null` pour celui qu'on laisse vide (`numero.trim() || null`). Une
+     * parcelle sans numéro interne ni lieu-dit — le cas courant — produit donc
+     * deux `null`, et c'est ce corps-là qui doit passer. Il partait au rebut
+     * en entier avant la 0.9.7 : le nom changeait sur le téléphone, ne
+     * remontait jamais, et l'instantané suivant restaurait l'ancien.
+     */
+    it('accepte le corps que l’écran envoie, champs vides compris', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      const reponse = await native.post<{
+        applied: number;
+        rejected: number;
+        results: Array<{ status: string; message?: string }>;
+      }>(
+        '/api/sync',
+        renommage(parcelId, {
+          name: 'La Croix Rouge',
+          internalNumber: null,
+          lieuDit: null,
+        }),
+      );
+
+      // Le message du refus, le cas échéant : sans lui, l'échec ne dit pas
+      // quel champ le serveur a repoussé.
+      expect(reponse.body.results[0]?.message ?? null).toBeNull();
+      expect(reponse.body.rejected).toBe(0);
+
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { name: true, internalNumber: true },
+      });
+      expect(apres?.name).toBe('La Croix Rouge');
+      // Vidé, donc effacé — et non conservé parce que le serveur a ignoré le champ.
+      expect(apres?.internalNumber).toBeNull();
+    });
+
+    it('efface un lieu-dit quand on vide le champ', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      await native.post('/api/sync', renommage(parcelId, { name: 'A', lieuDit: 'Les Sables' }));
+      const vidage = await native.post<{ rejected: number }>(
+        '/api/sync',
+        renommage(parcelId, { name: 'A', lieuDit: null }),
+      );
+      expect(vidage.body.rejected).toBe(0);
+
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { lieuDit: true },
+      });
+      // `null` doit effacer, pas être ignoré : un lieu-dit saisi par erreur
+      // resterait sinon attaché à la parcelle pour de bon.
+      expect(apres?.lieuDit).toBeNull();
+    });
+
+    it('efface aussi quand le champ arrive comme chaîne vide', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      // Le formulaire du site, lui, envoie `''`. Les deux formes disent la
+      // même chose et doivent effacer de la même façon — sinon l'effacement
+      // dépend de l'écran par lequel on passe.
+      await native.post('/api/sync', renommage(parcelId, { name: 'B', lieuDit: 'Les Sables' }));
+      await native.post('/api/sync', renommage(parcelId, { name: 'B', lieuDit: '' }));
+
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { lieuDit: true },
+      });
+      expect(apres?.lieuDit).toBeNull();
+    });
+
+    it('refuse un nom vide plutôt que d’effacer le nom', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      const reponse = await native.post<{ applied: number; rejected: number }>(
+        '/api/sync',
+        renommage(parcelId, { name: '   ' }),
+      );
+
+      expect(reponse.body.applied).toBe(0);
+      expect(reponse.body.rejected).toBe(1);
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { name: true },
+      });
+      expect(apres?.name).toBe('Îlot 39 — parcelle 3');
+    });
+
+    it('ne renomme pas la parcelle d’une autre exploitation', async () => {
+      const { native } = await setup();
+      const voisin = await createUserWithFarm({
+        email: 'voisin@terrain.test',
+        farmName: 'Ferme voisine',
+      });
+      const sienne = await prisma.parcel.create({
+        data: { farmId: voisin.farmId, name: 'Chez le voisin', status: 'ACTIVE' },
+        select: { id: true },
+      });
+
+      const reponse = await native.post<{ applied: number; rejected: number }>(
+        '/api/sync',
+        renommage(sienne.id, { name: 'Détournée' }),
+      );
+
+      expect(reponse.body.applied).toBe(0);
+      const apres = await prisma.parcel.findUnique({
+        where: { id: sienne.id },
+        select: { name: true },
+      });
+      expect(apres?.name).toBe('Chez le voisin');
+    });
+
+    it('refuse le renommage à un expert en mission de conseil', async () => {
+      const { native, user } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      const expert = await createExpert({ email: 'expert@terrain.test' });
+      await grantAdvisoryAccess({ expertId: expert.id, farmId: user.farmId });
+
+      const appExpert = new NativeClient();
+      await appExpert.login(expert.email, expert.password);
+
+      const reponse = await appExpert.post<{ applied: number }>(
+        '/api/sync',
+        renommage(parcelId, { name: 'Renommée par l’expert' }),
+      );
+
+      // Le parcellaire appartient à l'exploitation. L'écran ne propose même pas
+      // le geste à un expert ; le serveur le refuse de toute façon, et c'est
+      // ce refus-là qui compte.
+      expect(reponse.body.applied).toBe(0);
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { name: true },
+      });
+      expect(apres?.name).toBe('Îlot 39 — parcelle 3');
+    });
+
+    it('rejoué après un renommage plus récent, ne fait pas revenir l’ancien nom', async () => {
+      const { native } = await setup();
+      const parcelId = await parcelleDEssai(native);
+
+      // Le cas gênant n'est pas la panne franche mais la réponse perdue : le
+      // premier lot a été appliqué, le téléphone ne l'a pas su, l'exploitant a
+      // renommé une seconde fois, et le premier lot repart. Sans idempotence,
+      // la parcelle reprendrait le nom intermédiaire — un renommage qui
+      // s'annule tout seul, et sans rien signaler.
+      const premier = renommage(parcelId, { name: 'Le Clos' });
+      await native.post('/api/sync', premier);
+      await native.post('/api/sync', renommage(parcelId, { name: 'Le Clos du Bas' }));
+
+      const rejeu = await native.post<{
+        results: Array<{ status: string }>;
+      }>('/api/sync', premier);
+
+      expect(rejeu.body.results[0]?.status).toBe('replayed');
+      const apres = await prisma.parcel.findUnique({
+        where: { id: parcelId },
+        select: { name: true },
+      });
+      expect(apres?.name).toBe('Le Clos du Bas');
+    });
+  });
+
   describe('Instantané hors ligne', () => {
     it('renvoie tout ce qu’il faut pour travailler sans réseau', async () => {
       const { native, user } = await setup();

@@ -127,8 +127,10 @@ export async function resolveInterventionWeather(
     weatherWindKmh?: number | undefined;
     weatherHumidity?: number | undefined;
     weatherRainMm?: number | undefined;
-    weatherSummary?: string | undefined;
-    weatherSource?: string | undefined;
+    // `null` est admis au même titre que l'absence : un champ texte vidé par
+    // la saisie arrive ainsi, et la normalisation ci-dessous les confond déjà.
+    weatherSummary?: string | null | undefined;
+    weatherSource?: string | null | undefined;
   },
   location: { latitude: number | null; longitude: number | null } | null,
   preferredProvider?: string | null,
@@ -139,10 +141,12 @@ export async function resolveInterventionWeather(
     weatherHumidity: input.weatherHumidity ?? null,
     weatherRainMm: input.weatherRainMm ?? null,
     weatherSummary: input.weatherSummary ?? null,
-    // Une valeur transmise sans provenance déclarée vient de l'appareil.
+    // Une valeur transmise sans provenance déclarée vient de l'appareil. On
+    // lit les valeurs déjà normalisées : un champ vidé arrive à `null`, et le
+    // tester contre `undefined` déclarerait une provenance pour rien.
     weatherSource:
       input.weatherSource ??
-      (input.weatherTempC !== undefined || input.weatherSummary !== undefined
+      (input.weatherTempC !== undefined || (input.weatherSummary ?? null) !== null
         ? 'appareil'
         : null),
   };
