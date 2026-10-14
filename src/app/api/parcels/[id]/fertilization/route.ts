@@ -101,6 +101,7 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
       nContent: organicInput.nContent ? Number(organicInput.nContent) : null,
       pContent: organicInput.pContent ? Number(organicInput.pContent) : null,
       kContent: organicInput.kContent ? Number(organicInput.kContent) : null,
+      unit: organicInput.defaultUnit,
     };
     productLabel = organicInput.name;
   }

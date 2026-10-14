@@ -2,11 +2,22 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { resolveReferential } from '@/lib/regulatory/referentials';
 import {
+  NATURES_HYDROGRAPHIQUES,
+  distanceAuPlusProche,
   getOrComputeParcelContext,
+  referentielPortant,
   statutZonage,
   territoiresDeLaParcelle,
 } from '@/lib/regulatory/geography';
 import { plafondAzoteOrganique } from '@/lib/regulatory/organic-nitrogen';
+import {
+  controleBandeEnherbee,
+  controlerApportPar,
+  type ApportAControler,
+} from '@/lib/regulatory/programme-actions';
+import { traceEnClair, type Trace } from '@/lib/regulatory/regles';
+import type { ClassementProduit } from '@/lib/regulatory/classement-produit';
+import type { ZoneKind } from '@prisma/client';
 
 /**
  * Contrôle avant épandage : parcelle + date + effluent + quantité.
@@ -60,10 +71,15 @@ export type PointDeControle = {
    * `ok` — contrôlé et satisfait ; `alerte` — contrôlé et non satisfait ;
    * `indetermine` — pas contrôlable, et l'on dit pourquoi.
    */
-  verdict: 'ok' | 'alerte' | 'indetermine';
+  verdict: 'ok' | 'alerte' | 'verification' | 'indetermine' | 'sans-objet';
   detail: string;
   /** D'où vient la règle opposée, quand il y en a une. */
   source: string | null;
+  /**
+   * La règle opposée, entière : code, référentiel et version, texte, citation,
+   * territoire et période de validité. Présente pour les règles transcrites.
+   */
+  trace?: Trace | null;
 };
 
 export type ControleEpandage = {
@@ -95,6 +111,15 @@ export async function controlerEpandage(params: {
   /** Azote total apporté par cet épandage, en kg, quand il est calculable. */
   azoteKg: number | null;
   campaignYear: number;
+  /**
+   * Ce que les règles du programme d'actions régional ont besoin de savoir du
+   * produit : sa nature, son classement, l'azote apporté à l'hectare.
+   */
+  produit?: {
+    nature: 'MINERAL' | 'ORGANIC';
+    classement: ClassementProduit;
+    azoteKgHa: number | null;
+  };
 }): Promise<ControleEpandage> {
   const points: PointDeControle[] = [];
 
@@ -114,7 +139,7 @@ export async function controlerEpandage(params: {
   // `statutZonage` distingue les trois états qui comptent : dedans, dehors, et
   // « on ne sait pas ». Un booléen les aurait ramenés à deux, et c'est
   // précisément le troisième qui interdit de conclure.
-  const zoneVulnerable = statutZonage(contexte, 'ZONE_VULNERABLE');
+  const zoneVulnerable = statutZonage(contexte, 'ZONE_VULNERABLE', params.date);
   const enZoneVulnerable =
     zoneVulnerable === 'indetermine' ? null : zoneVulnerable === 'dedans';
 
@@ -131,15 +156,41 @@ export async function controlerEpandage(params: {
     source: contexte?.referentialVersions[0]?.sourceLabel ?? null,
   });
 
-  // --- 2. La période ------------------------------------------------------
-  points.push(
-    await controlerPeriode({
+  // --- 2. Le programme d'actions régional ---------------------------------
+  //
+  // Période, fractionnement, couverts, digestats, zone d'actions renforcée :
+  // les règles transcrites de l'arrêté régional, lues à la date de
+  // l'épandage, chacune avec sa trace. Sans le produit, rien n'est opposable
+  // — le type de fertilisant décide de presque tout.
+  if (params.produit) {
+    const apport: ApportAControler = {
+      parcelId: params.parcelId,
       date: params.date,
-      effluent: params.effluent,
-      enZoneVulnerable,
-      territoires: await territoiresDeLaParcelle(params.parcelId),
-    }),
-  );
+      nature: params.produit.nature,
+      libelle: params.effluent,
+      azoteTotalKgHa: params.produit.azoteKgHa,
+      classement: params.produit.classement,
+    };
+    const { controles } = await controlerApportPar(apport);
+    for (const c of controles) {
+      points.push({
+        sujet: c.sujet,
+        verdict: c.verdict,
+        detail: c.detail,
+        source: c.trace ? traceEnClair(c.trace) : null,
+        trace: c.trace,
+      });
+    }
+  } else {
+    points.push(
+      await controlerPeriode({
+        date: params.date,
+        effluent: params.effluent,
+        enZoneVulnerable,
+        territoires: await territoiresDeLaParcelle(params.parcelId),
+      }),
+    );
+  }
 
   // --- 3. Les distances ---------------------------------------------------
   for (const distance of await controlerDistances({
@@ -150,18 +201,42 @@ export async function controlerEpandage(params: {
     points.push(distance);
   }
 
+  const bande = await controleBandeEnherbee(params.parcelId, params.date);
+  if (bande) {
+    points.push({
+      sujet: bande.sujet,
+      verdict: bande.verdict,
+      detail: bande.detail,
+      source: bande.trace ? traceEnClair(bande.trace) : null,
+      trace: bande.trace,
+    });
+  }
+
   // --- 4. Le plafond d'azote organique ------------------------------------
-  points.push(
-    await controlerPlafond({
-      farmId: params.farmId,
-      parcelId: params.parcelId,
-      surfaceParcelleHa: Number(parcelle.areaHa),
-      campaignYear: params.campaignYear,
-      azoteKg: params.azoteKg,
-      date: params.date,
-      territoires: await territoiresDeLaParcelle(params.parcelId),
-    }),
-  );
+  //
+  // Il porte sur l'azote des effluents d'élevage : un engrais minéral n'y
+  // entre pas, et dire « teneur de l'effluent inconnue » à son sujet serait
+  // faux.
+  if (params.produit?.nature === 'MINERAL') {
+    points.push({
+      sujet: 'Plafond d’azote organique',
+      verdict: 'sans-objet',
+      detail: 'Engrais minéral : le plafond d’azote organique ne le concerne pas.',
+      source: null,
+    });
+  } else {
+    points.push(
+      await controlerPlafond({
+        farmId: params.farmId,
+        parcelId: params.parcelId,
+        surfaceParcelleHa: Number(parcelle.areaHa),
+        campaignYear: params.campaignYear,
+        azoteKg: params.azoteKg,
+        date: params.date,
+        territoires: await territoiresDeLaParcelle(params.parcelId),
+      }),
+    );
+  }
 
   // --- 5. La culture en place ---------------------------------------------
   const culture = await prisma.cropYear.findFirst({
@@ -187,20 +262,24 @@ export async function controlerEpandage(params: {
   // ayant renoncé à un contrôle serait exactement ce que la section 53 interdit.
   const niveau: NiveauEpandage = points.some((p) => p.verdict === 'alerte')
     ? 'NON_CONFORME'
-    : points.some((p) => p.verdict === 'indetermine')
+    : points.some((p) => p.verdict === 'indetermine' || p.verdict === 'verification')
       ? 'A_VERIFIER'
       : 'CONFORME';
 
   const alertes = points.filter((p) => p.verdict === 'alerte').length;
-  const indetermines = points.filter((p) => p.verdict === 'indetermine').length;
+  const indetermines = points.filter(
+    (p) => p.verdict === 'indetermine' || p.verdict === 'verification',
+  ).length;
+  // Une règle « sans objet » n'est ni vérifiée ni manquée : elle ne compte pas.
+  const verifiables = points.filter((p) => p.verdict !== 'sans-objet').length;
 
   const synthese =
     niveau === 'NON_CONFORME'
       ? `${alertes} règle(s) ne sont pas respectées d’après les référentiels importés.`
       : niveau === 'A_VERIFIER'
-        ? `Aucune anomalie détectée sur les ${points.length - indetermines} point(s) ` +
+        ? `Aucune anomalie détectée sur les ${verifiables - indetermines} point(s) ` +
           `vérifiables, mais ${indetermines} n’ont pas pu être contrôlés faute de ` +
-          'référentiel ou de donnée. Ce n’est pas un feu vert.'
+          'référentiel ou de donnée, ou demandent une vérification. Ce n’est pas un feu vert.'
         : 'Aucune anomalie détectée selon les données et référentiels actuellement ' +
           'disponibles.';
 
@@ -274,6 +353,20 @@ async function controlerPeriode(params: {
   for (const regle of regles) {
     for (const periode of periodesDeLaRegle(regle.value)) {
       if (!dansLaPeriode(jour, periode.du, periode.au)) continue;
+      // Une période conditionnée (type de fertilisant, culture) ne s'oppose
+      // pas sans savoir ce qui est épandu, et sur quoi : c'est le contrôle du
+      // programme d'actions qui la juge, produit en main.
+      if (regle.conditionnee) {
+        return {
+          sujet,
+          verdict: 'indetermine',
+          detail:
+            `Le ${params.date.toLocaleDateString('fr-FR')} tombe dans une période (du ${periode.du} ` +
+            `au ${periode.au}) qui ne vise que certains fertilisants et certaines cultures : ` +
+            'précisez le produit épandu pour qu’elle soit jugée.',
+          source: regle.source,
+        };
+      }
       return {
         sujet,
         verdict: 'alerte',
@@ -315,16 +408,40 @@ async function controlerDistances(params: {
 }): Promise<PointDeControle[]> {
   const points: PointDeControle[] = [];
 
+  /*
+   * Deux familles, et elles ne se jugent pas pareil.
+   *
+   * Les habitations, quand un zonage les porte, sont qualifiées par lui : une
+   * distance trop courte est un constat.
+   *
+   * L'hydrographie vient de BD TOPAGE, qui **localise** les écoulements — tous,
+   * nommés ou non, permanents ou intermittents — mais ne dit pas lesquels sont
+   * des cours d'eau au sens de l'arrêté : c'est la cartographie départementale
+   * qui en décide. Un élément plus proche que la distance exigée est donc « à
+   * vérifier », avec son nom, sa nature et sa persistance — jamais « non
+   * conforme » sur la seule foi de sa présence.
+   */
   const cas = [
-    { code: CODE_DISTANCE_EAU, zone: 'COURS_EAU', sujet: 'Distance aux cours d’eau' },
+    {
+      code: CODE_DISTANCE_EAU,
+      natures: NATURES_HYDROGRAPHIQUES,
+      sujet: 'Distance aux cours d’eau',
+      qualifieParLeZonage: false,
+    },
     {
       code: CODE_DISTANCE_HABITATION,
-      zone: 'ZONE_ENVIRONNEMENTALE',
+      natures: ['ZONE_ENVIRONNEMENTALE'] as ZoneKind[],
       sujet: 'Distance aux habitations',
+      qualifieParLeZonage: true,
     },
-  ] as const;
+  ];
 
-  for (const { code, zone, sujet } of cas) {
+  const contour = await prisma.parcelGeometry.findFirst({
+    where: { parcelId: params.parcelId, isCurrent: true },
+    select: { id: true },
+  });
+
+  for (const { code, natures, sujet, qualifieParLeZonage } of cas) {
     const regles = await reglesEnVigueur(code, params.date, params.territoires);
     const exigee = regles.length > 0 ? nombreDeLaRegle(regles[0]!.value) : null;
 
@@ -341,29 +458,61 @@ async function controlerDistances(params: {
       continue;
     }
 
-    const mesuree = await distanceAuZonage(params.parcelId, zone);
-    if (mesuree === null) {
+    const source = regles[0]!.source;
+    const referentiel = await referentielPortant(natures);
+
+    if (!contour || !referentiel) {
       points.push({
         sujet,
         verdict: 'indetermine',
         detail:
-          `La distance exigée est connue (${exigee} m, ${regles[0]!.source}), mais ` +
-          `aucun zonage « ${zone} » n’est importé — ou la parcelle n’a pas de ` +
-          'contour. Il n’y a donc rien à mesurer.',
-        source: regles[0]!.source,
+          `La distance exigée est connue (${exigee} m, ${source}), mais ` +
+          (contour
+            ? 'aucun référentiel ne localise ce dont il faut s’éloigner. '
+            : 'la parcelle n’a pas de contour. ') +
+          'Il n’y a donc rien à mesurer.',
+        source,
       });
       continue;
     }
 
+    const proche = await distanceAuPlusProche(params.parcelId, natures, exigee);
+    const reference = `${referentiel.sourceLabel} v${referentiel.version}`;
+
+    if (!proche) {
+      points.push({
+        sujet,
+        verdict: 'ok',
+        detail:
+          `Aucun élément à moins de ${exigee} m du contour de la parcelle ` +
+          `(${reference}). La mesure part du contour, pas du point d’épandage.`,
+        source,
+      });
+      continue;
+    }
+
+    const quoi = [
+      proche.label,
+      typeof proche.attributes?.NatureTH === 'string' ? proche.attributes.NatureTH : null,
+      typeof proche.attributes?.Persistanc === 'string'
+        ? `écoulement ${proche.attributes.Persistanc}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     points.push({
       sujet,
-      verdict: mesuree >= exigee ? 'ok' : 'alerte',
-      detail:
-        `Distance mesurée entre le contour de la parcelle et le zonage le plus ` +
-        `proche : ${mesuree.toFixed(0)} m, pour ${exigee} m exigés. ` +
-        'La mesure part du contour de la parcelle, pas du point d’épandage : ' +
-        'la distance réelle depuis l’endroit épandu peut être plus courte.',
-      source: regles[0]!.source,
+      verdict: qualifieParLeZonage ? 'alerte' : 'indetermine',
+      detail: qualifieParLeZonage
+        ? `${quoi} se trouve à ${proche.distanceM.toFixed(0)} m du contour de la ` +
+          `parcelle, pour ${exigee} m exigés (${reference}).`
+        : `${quoi} se trouve à ${proche.distanceM.toFixed(0)} m du contour de la ` +
+          `parcelle, pour ${exigee} m exigés (${reference}). BD TOPAGE localise ` +
+          'les écoulements mais ne dit pas lesquels sont des cours d’eau au sens ' +
+          'de l’arrêté : à vérifier sur la cartographie départementale des cours ' +
+          'd’eau. La mesure part du contour, pas du point d’épandage.',
+      source,
     });
   }
 
@@ -489,7 +638,7 @@ async function controlerPlafond(params: {
 // Lecture des règles
 // ---------------------------------------------------------------------------
 
-type RegleLue = { value: unknown; exception: string | null; source: string };
+type RegleLue = { value: unknown; exception: string | null; source: string; conditionnee: boolean };
 
 /** Les règles d'un code, en vigueur à la date donnée, la plus récente d'abord. */
 async function reglesEnVigueur(
@@ -520,6 +669,10 @@ async function reglesEnVigueur(
   return regles.map((r) => ({
     value: r.value,
     exception: r.exception,
+    conditionnee:
+      r.condition !== null &&
+      typeof r.condition === 'object' &&
+      Object.keys(r.condition as Record<string, unknown>).some((k) => k !== 'zone'),
     source: [r.sourceRef, `${referentiel.code} v${referentiel.version}`]
       .filter(Boolean)
       .join(' · '),
@@ -579,20 +732,3 @@ export function dansLaPeriode(jour: string, du: string, au: string): boolean {
   return jour >= du || jour <= au;
 }
 
-/**
- * Distance en mètres entre le contour d'une parcelle et le zonage le plus
- * proche d'une nature donnée. `null` s'il n'y a pas de quoi mesurer.
- */
-async function distanceAuZonage(
-  parcelId: string,
-  kind: string,
-): Promise<number | null> {
-  const lignes = await prisma.$queryRaw<Array<{ distance: number | null }>>`
-    SELECT MIN(ST_Distance(pg.geom::geography, z.geom::geography)) AS distance
-    FROM parcel_geometries pg
-    JOIN regulatory_zones z ON z.kind::text = ${kind}
-    WHERE pg.parcel_id = ${parcelId} AND pg.is_current = true
-  `;
-  const distance = lignes[0]?.distance;
-  return distance === null || distance === undefined ? null : Number(distance);
-}

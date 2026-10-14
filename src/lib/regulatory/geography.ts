@@ -1,6 +1,8 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import type { Prisma, ZoneKind } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { ZoneKind } from '@prisma/client';
+import { porteeDuClassement } from '@/lib/regulatory/portee';
 
 /**
  * Le contexte réglementaire d'une parcelle, déduit de sa géométrie.
@@ -70,12 +72,84 @@ export type Unresolved = {
   remedy: string;
 };
 
+/**
+ * Un élément situé **près** de la parcelle : cours d'eau, plan d'eau, point de
+ * prélèvement.
+ *
+ * Distinct d'une `ZoneIntersection` : une distance n'est pas une appartenance.
+ * Être à 12 m d'un ruisseau ne met la parcelle dans aucun zonage — mais c'est
+ * précisément ce qu'un contrôle de distance a besoin de savoir.
+ */
+export type Proximite = {
+  kind: ZoneKind;
+  code: string | null;
+  label: string;
+  /** Distance géodésique au contour de la parcelle, en mètres. 0 s'il le touche. */
+  distanceM: number;
+  /** L'élément touche ou traverse la parcelle. */
+  dedans: boolean;
+  attributes: Record<string, unknown> | null;
+  referential: {
+    code: string;
+    version: string;
+    sourceLabel: string;
+    territory: string | null;
+  };
+};
+
 export type ParcelContext = {
   parcelId: string;
   zones: ZoneIntersection[];
+  /** Éléments proches, par famille, du plus proche au plus lointain. */
+  proximites: Proximite[];
   unresolved: Unresolved[];
   referentialVersions: Array<{ code: string; version: string; sourceLabel: string }>;
 };
+
+/**
+ * Natures qui délimitent une **surface** réglementaire : on les recoupe avec la
+ * parcelle, et l'on rend la surface concernée.
+ */
+export const NATURES_SURFACIQUES: ZoneKind[] = [
+  'ZONE_VULNERABLE',
+  'ZONE_ACTION_RENFORCEE',
+  'AIRE_ALIMENTATION_CAPTAGE',
+  'PERIMETRE_PROTECTION_CAPTAGE',
+  'ZONE_PROTECTION_AAC',
+  'ZONE_ENVIRONNEMENTALE',
+  'BASSIN_HYDROGRAPHIQUE',
+  // La région ne réglemente rien par elle-même : elle dit quel programme
+  // régional s'applique. Elle figure au contexte pour qu'on le voie.
+  'REGION_ADMINISTRATIVE',
+  'AUTRE',
+];
+
+/** Éléments hydrographiques : on mesure leur distance, on ne les recoupe pas. */
+export const NATURES_HYDROGRAPHIQUES: ZoneKind[] = [
+  'TRONCON_HYDROGRAPHIQUE',
+  'SURFACE_HYDROGRAPHIQUE',
+  'PLAN_EAU',
+  'COURS_EAU',
+];
+
+/** Prélèvements d'eau : on les situe par rapport à la parcelle. */
+export const NATURES_PRELEVEMENT: ZoneKind[] = [
+  'POINT_PRELEVEMENT',
+  'OUVRAGE_PRELEVEMENT',
+  'CAPTAGE',
+];
+
+/**
+ * Rayon de recherche des éléments proches, en mètres.
+ *
+ * **Ce n'est pas une distance réglementaire** : c'est l'horizon au-delà duquel
+ * on ne cherche plus. Il est choisi au-dessus des plus grandes distances que
+ * les référentiels importés peuvent exiger — 100 m pour les ZNT aquatiques les
+ * plus larges du catalogue E-Phy, 100 m pour les épandages du programme
+ * d'actions les plus éloignés des points d'eau. Un contrôle qui a besoin d'une
+ * distance la mesure exactement, sans passer par cette liste.
+ */
+export const RAYON_RECHERCHE_M = 500;
 
 /**
  * Au-delà de ce taux de recouvrement, on considère la parcelle entièrement
@@ -135,6 +209,7 @@ export async function computeZoneIntersections(
     CROSS JOIN parcelle p
     WHERE r.status = 'ACTIF'
       AND z.geom IS NOT NULL
+      AND z.kind::text IN (${Prisma.join(NATURES_SURFACIQUES)})
       AND ST_Intersects(z.geom, p.geom)
     ORDER BY area_m2 DESC
   `;
@@ -168,40 +243,147 @@ export async function computeZoneIntersections(
     .filter((zone) => zone.areaHa > 0.0001);
 }
 
+type LigneProximite = {
+  kind: ZoneKind;
+  code: string | null;
+  label: string;
+  attributes: Record<string, unknown> | null;
+  distance_m: number;
+  dedans: boolean;
+  ref_code: string;
+  ref_version: string;
+  ref_source: string;
+  ref_territory: string | null;
+};
+
 /**
- * Jusqu'où le classement publié engage-t-il la parcelle ?
+ * Les éléments les plus proches de la parcelle, parmi certaines natures.
  *
  * ───────────────────────────────────────────────────────────────────────────
- * POURQUOI CETTE QUESTION SE POSE
+ * POURQUOI CETTE REQUÊTE EST ÉCRITE AINSI
  * ───────────────────────────────────────────────────────────────────────────
  *
- * Les zones vulnérables d'Auvergne-Rhône-Alpes sont publiées **à la commune** :
- * la généalogie du jeu de la DREAL le dit mot pour mot — « Établi à partir
- * d'une liste des communes par arrêté préfectoral », au 1:50 000. Le polygone
- * fourni est donc le contour communal, pas celui de la zone.
+ * BD TOPAGE compte 402 215 tronçons en Auvergne-Rhône-Alpes. Mesurer la
+ * distance géodésique de la parcelle à chacun — ce que faisait la première
+ * version du contrôle de distance — coûte des dizaines de secondes sur un
+ * Raspberry Pi, à chaque traitement saisi.
  *
- * Pour 907 des 1 125 communes classées, l'arrêté vise « toutes sections » : le
- * contour communal **est** la zone, et une parcelle qui le recoupe est dedans.
+ * `ST_DWithin` sur la géométrie interroge l'index GiST et ne retient que les
+ * candidats d'un voisinage ; la distance exacte, sur l'ellipsoïde, n'est
+ * calculée que sur eux. La tolérance en degrés est prise sur la longitude, où
+ * un degré est le plus court : le voisinage est donc toujours un peu plus
+ * large que le rayon, jamais plus étroit.
  *
- * Pour 218 autres, il ne vise que « quelques sections » cadastrales — et le
- * fichier ne dit pas lesquelles. Conclure « dedans » parce que la parcelle est
- * dans la commune classerait à tort ; conclure « dehors » dispenserait à tort
- * de règles qui s'appliquent peut-être. La seule réponse honnête est
- * **indéterminé**, avec ce qu'il faut consulter pour trancher.
+ * Seuls les référentiels **actifs** comptent : une version remplacée garde ses
+ * géométries pour l'historique, mais on ne mesure plus rien contre elles.
  *
- * Quand la source ne précise rien, c'est que le polygone est la zone : la
- * géométrie parle d'elle-même, et le recoupement suffit.
+ * Les tronçons **fictifs** sont écartés — c'est la source qui les marque ainsi
+ * (`TronconFic`) : ils matérialisent l'écoulement à travers un plan d'eau, et
+ * la rive de ce plan d'eau, plus proche, est déjà dans les surfaces en eau.
  */
-export function porteeDuClassement(
-  attributes: Record<string, unknown> | null | undefined,
-): 'totale' | 'partielle' | 'non-precisee' {
-  const brut = attributes?.classement;
-  if (typeof brut !== 'string') return 'non-precisee';
-  const valeur = brut.trim().toLowerCase();
-  if (valeur.includes('toutes')) return 'totale';
-  if (valeur.includes('quelques') || valeur.includes('partie')) return 'partielle';
-  return 'non-precisee';
+export async function plusProches(
+  parcelId: string,
+  natures: ZoneKind[],
+  options: { rayonM?: number; limite?: number } = {},
+): Promise<Proximite[]> {
+  const rayon = options.rayonM ?? RAYON_RECHERCHE_M;
+  const limite = options.limite ?? 10;
+
+  const lignes = await prisma.$queryRaw<LigneProximite[]>`
+    WITH p AS (
+      SELECT pg.geom, ST_Y(ST_Centroid(pg.geom)) AS lat
+      FROM parcel_geometries pg
+      WHERE pg.parcel_id = ${parcelId} AND pg.is_current = true
+      LIMIT 1
+    )
+    SELECT
+      z.kind::text                                       AS kind,
+      z.code                                             AS code,
+      z.label                                            AS label,
+      z.attributes                                       AS attributes,
+      ST_Distance(z.geom::geography, p.geom::geography)  AS distance_m,
+      ST_Intersects(z.geom, p.geom)                      AS dedans,
+      r.code                                             AS ref_code,
+      r.version                                          AS ref_version,
+      r.source_label                                     AS ref_source,
+      r.territory                                        AS ref_territory
+    FROM p
+    JOIN regulatory_zones z
+      ON ST_DWithin(
+           z.geom,
+           p.geom,
+           ${rayon}::float8 / (111320.0 * GREATEST(cos(radians(p.lat)), 0.1))
+         )
+    JOIN regulatory_referentials r
+      ON r.id = z.referential_id AND r.status = 'ACTIF'
+    WHERE z.kind::text IN (${Prisma.join(natures)})
+      AND COALESCE(z.attributes->>'TronconFic', '0') <> '1'
+      AND ST_Distance(z.geom::geography, p.geom::geography) <= ${rayon}::float8
+    ORDER BY distance_m ASC
+    LIMIT ${limite}
+  `;
+
+  return lignes.map((ligne) => ({
+    kind: ligne.kind,
+    code: ligne.code,
+    label: ligne.label,
+    distanceM: Number(Number(ligne.distance_m).toFixed(1)),
+    dedans: Boolean(ligne.dedans),
+    attributes: ligne.attributes ?? null,
+    referential: {
+      code: ligne.ref_code,
+      version: ligne.ref_version,
+      sourceLabel: ligne.ref_source,
+      territory: ligne.ref_territory,
+    },
+  }));
 }
+
+/**
+ * Distance au plus proche élément de certaines natures — `null` si aucun dans
+ * le rayon de recherche, ou si aucun référentiel ne les porte.
+ */
+export async function distanceAuPlusProche(
+  parcelId: string,
+  natures: ZoneKind[],
+  rayonM = RAYON_RECHERCHE_M,
+): Promise<Proximite | null> {
+  const [plusProche] = await plusProches(parcelId, natures, { rayonM, limite: 1 });
+  return plusProche ?? null;
+}
+
+/**
+ * Le référentiel actif qui porte des géométries de ces natures, s'il y en a un.
+ *
+ * Sert à distinguer deux silences qui ne disent pas la même chose : « rien à
+ * moins de 35 m » (on a cherché) et « rien d'importé » (on ne pouvait pas
+ * chercher).
+ */
+export async function referentielPortant(
+  natures: ZoneKind[],
+): Promise<{ code: string; version: string; sourceLabel: string } | null> {
+  const lignes = await prisma.$queryRaw<
+    Array<{ code: string; version: string; source_label: string }>
+  >`
+    SELECT r.code, r.version, r.source_label
+    FROM regulatory_referentials r
+    WHERE r.status = 'ACTIF'
+      AND EXISTS (
+        SELECT 1 FROM regulatory_zones z
+        WHERE z.referential_id = r.id
+          AND z.geom IS NOT NULL
+          AND z.kind::text IN (${Prisma.join(natures)})
+      )
+    ORDER BY r.imported_at DESC NULLS LAST
+    LIMIT 1
+  `;
+  const ligne = lignes[0];
+  return ligne
+    ? { code: ligne.code, version: ligne.version, sourceLabel: ligne.source_label }
+    : null;
+}
+
+export { porteeDuClassement, type PorteeDuClassement } from '@/lib/regulatory/portee';
 
 /**
  * Zonages que Parcelys sait déterminer, et le référentiel dont chacun dépend.
@@ -217,13 +399,21 @@ const ZONAGES_ATTENDUS: Array<{
 }> = [
   { kind: 'ZONE_VULNERABLE', label: 'Zone vulnérable aux nitrates', referentialCode: 'zones-vulnerables' },
   { kind: 'ZONE_ACTION_RENFORCEE', label: 'Zone d’actions renforcées', referentialCode: 'zones-action-renforcee' },
-  { kind: 'CAPTAGE', label: 'Captage', referentialCode: 'captages' },
   {
     kind: 'AIRE_ALIMENTATION_CAPTAGE',
     label: 'Aire d’alimentation de captage',
     referentialCode: 'aires-alimentation-captage',
   },
-  { kind: 'COURS_EAU', label: 'Cours d’eau', referentialCode: 'cours-eau' },
+  {
+    kind: 'PERIMETRE_PROTECTION_CAPTAGE',
+    label: 'Périmètre de protection de captage',
+    referentialCode: 'perimetres-protection-captage',
+  },
+  { kind: 'BASSIN_HYDROGRAPHIQUE', label: 'Bassin hydrographique', referentialCode: 'cours-eau' },
+  { kind: 'REGION_ADMINISTRATIVE', label: 'Région', referentialCode: 'limites-administratives' },
+  // Familles de proximité : elles ne se recoupent pas, elles se mesurent.
+  { kind: 'COURS_EAU', label: 'Cours d’eau et plans d’eau', referentialCode: 'cours-eau' },
+  { kind: 'CAPTAGE', label: 'Points et ouvrages de prélèvement', referentialCode: 'captages' },
 ];
 
 /**
@@ -257,23 +447,55 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
       reason: 'La parcelle n’a pas de contour tracé.',
       remedy: 'Tracez ou importez le contour de la parcelle.',
     });
-    return enregistrer(parcelle, [], unresolved);
+    return enregistrer(parcelle, [], unresolved, []);
   }
 
   const zones = await computeZoneIntersections(parcelId);
+  const proximites = [
+    ...(await plusProches(parcelId, NATURES_HYDROGRAPHIQUES, { limite: 10 })),
+    ...(await plusProches(parcelId, NATURES_PRELEVEMENT, { limite: 10 })),
+  ];
 
   // Quels zonages n'ont pas pu être déterminés, et pourquoi.
-  const referentielsActifs = await prisma.regulatoryReferential.findMany({
-    where: { status: 'ACTIF', domain: 'ZONAGE' },
-    select: { code: true },
-  });
-  const disponibles = new Set(referentielsActifs.map((r) => r.code));
+  //
+  // Un référentiel **actif sans aucune géométrie** compte comme absent : c'est
+  // le cas des zones d'actions renforcées, publiées en liste de captages sans
+  // périmètre. Sans cette précaution, l'absence de recoupement se lirait
+  // « hors ZAR » alors qu'elle veut dire « on ne sait pas où passe la ZAR ».
+  const referentielsActifs = await prisma.$queryRaw<
+    Array<{ code: string; avec_geometrie: bigint; notes: string | null }>
+  >`
+    SELECT r.code, COUNT(z.geom)::bigint AS avec_geometrie, r.notes
+    FROM regulatory_referentials r
+    LEFT JOIN regulatory_zones z ON z.referential_id = r.id
+    WHERE r.status = 'ACTIF' AND r.domain = 'ZONAGE'
+    GROUP BY r.code, r.notes
+  `;
+  const disponibles = new Set(
+    referentielsActifs.filter((r) => Number(r.avec_geometrie) > 0).map((r) => r.code),
+  );
+  const sansGeometrie = new Map(
+    referentielsActifs
+      .filter((r) => Number(r.avec_geometrie) === 0)
+      .map((r) => [r.code, r.notes]),
+  );
 
   // Zonage publié à la commune, et classement partiel : la parcelle est dans
   // une commune classée, mais pas forcément dans la zone. On le consigne.
   for (const zone of zones) {
     if (porteeDuClassement(zone.attributes) !== 'partielle') continue;
     const attendu = ZONAGES_ATTENDUS.find((z) => z.kind === zone.kind);
+    const raisonPropre = zone.attributes?.raisonIncertitude;
+    if (typeof raisonPropre === 'string' && raisonPropre.length > 0) {
+      unresolved.push({
+        what: attendu?.label ?? zone.label,
+        reason: raisonPropre,
+        remedy:
+          'Consultez la cartographie officielle de ce zonage pour savoir si la ' +
+          'parcelle en fait partie.',
+      });
+      continue;
+    }
     unresolved.push({
       what: attendu?.label ?? zone.label,
       reason:
@@ -286,8 +508,28 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
     });
   }
 
+  for (const manque of await bassinsNonCouverts(zones)) unresolved.push(manque);
+
+  const signales = new Set<string>();
   for (const attendu of ZONAGES_ATTENDUS) {
     if (disponibles.has(attendu.referentialCode)) continue;
+    // Deux natures d'un même référentiel absent ne font qu'un signalement.
+    if (signales.has(`${attendu.referentialCode}/${attendu.label}`)) continue;
+    signales.add(`${attendu.referentialCode}/${attendu.label}`);
+
+    if (sansGeometrie.has(attendu.referentialCode)) {
+      unresolved.push({
+        what: attendu.label,
+        reason:
+          `Le référentiel « ${attendu.referentialCode} » est importé, mais sans ` +
+          'aucun périmètre géographique : l’appartenance de la parcelle ne peut ' +
+          'pas être déterminée.',
+        remedy:
+          'Importez les périmètres officiels quand ils sont publiés, ou ' +
+          'reportez-vous à l’arrêté de délimitation.',
+      });
+      continue;
+    }
     unresolved.push({
       what: attendu.label,
       reason: `Le référentiel « ${attendu.referentialCode} » n’a pas été importé.`,
@@ -295,17 +537,65 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
     });
   }
 
-  return enregistrer(parcelle, zones, unresolved);
+  return enregistrer(parcelle, zones, unresolved, proximites);
+}
+
+/**
+ * Bassins de la parcelle que le zonage des zones vulnérables ne couvre pas.
+ *
+ * Chaque bassin a son arrêté de délimitation. Le jeu de la DREAL
+ * d'Auvergne-Rhône-Alpes fourni ne contient que les communes des bassins
+ * Rhône-Méditerranée et Loire-Bretagne ; le bassin Adour-Garonne, qui touche
+ * le Cantal et le Puy-de-Dôme, n'y figure pas. Une parcelle de ce bassin ne
+ * recoupe donc aucune commune classée — et l'on serait tenté de conclure
+ * « hors zone vulnérable ». Ce serait déduire d'un fichier ce qu'il ne dit pas.
+ *
+ * Le bassin de la parcelle vient de BD TOPAGE (couche des bassins) ; les
+ * bassins couverts, des communes elles-mêmes (`bassin_nom`). Sans l'un ou
+ * l'autre, rien n'est signalé ici : l'absence du référentiel est déjà dite
+ * par ailleurs.
+ */
+async function bassinsNonCouverts(zones: ZoneIntersection[]): Promise<Unresolved[]> {
+  const bassins = zones.filter((z) => z.kind === 'BASSIN_HYDROGRAPHIQUE');
+  if (bassins.length === 0) return [];
+
+  const couverts = await prisma.$queryRaw<Array<{ bassin: string }>>`
+    SELECT DISTINCT z.attributes->>'bassin_nom' AS bassin
+    FROM regulatory_zones z
+    JOIN regulatory_referentials r ON r.id = z.referential_id
+    WHERE r.status = 'ACTIF' AND r.code = 'zones-vulnerables'
+      AND z.kind = 'ZONE_VULNERABLE'
+      AND z.attributes ? 'bassin_nom'
+  `;
+  if (couverts.length === 0) return [];
+
+  const normaliser = (v: string) =>
+    v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/gi, '').toLowerCase();
+  const noms = new Set(couverts.map((c) => normaliser(c.bassin)));
+
+  return bassins
+    .filter((b) => !noms.has(normaliser(b.label)))
+    .map((b) => ({
+      what: 'Zone vulnérable aux nitrates',
+      reason:
+        `La parcelle est ${b.coverage === 'totale' ? '' : 'en partie '}dans le bassin ` +
+        `${b.label} (BD TOPAGE), que le zonage des zones vulnérables importé ne couvre ` +
+        `pas : il ne contient que les communes des bassins ` +
+        `${couverts.map((c) => c.bassin).join(' et ')}.`,
+      remedy:
+        `Reportez-vous à l’arrêté de délimitation des zones vulnérables du bassin ${b.label}.`,
+    }));
 }
 
 async function enregistrer(
   parcelle: { id: string; commune: string | null; inseeCode: string | null },
   zones: ZoneIntersection[],
   unresolved: Unresolved[],
+  proximites: Proximite[],
 ): Promise<ParcelContext> {
   const versions = [
     ...new Map(
-      zones.map((z) => [
+      [...zones, ...proximites].map((z) => [
         `${z.referential.code}@${z.referential.version}`,
         {
           code: z.referential.code,
@@ -325,6 +615,7 @@ async function enregistrer(
     commune: parcelle.commune,
     inseeCode: parcelle.inseeCode,
     zones: zones as unknown as Prisma.InputJsonValue,
+    proximites: proximites as unknown as Prisma.InputJsonValue,
     referentialVersions: versions as unknown as Prisma.InputJsonValue,
     unresolved: unresolved as unknown as Prisma.InputJsonValue,
     computedAt: new Date(),
@@ -339,6 +630,7 @@ async function enregistrer(
   return {
     parcelId: parcelle.id,
     zones,
+    proximites,
     unresolved,
     referentialVersions: versions,
   };
@@ -358,6 +650,7 @@ export async function getParcelContext(
     commune: ligne.commune,
     computedAt: ligne.computedAt.toISOString(),
     zones: (ligne.zones as unknown as ZoneIntersection[]) ?? [],
+    proximites: (ligne.proximites as unknown as Proximite[]) ?? [],
     unresolved: (ligne.unresolved as unknown as Unresolved[]) ?? [],
     referentialVersions:
       (ligne.referentialVersions as unknown as ParcelContext['referentialVersions']) ?? [],
@@ -470,11 +763,33 @@ export async function territoiresDeLaParcelle(parcelId: string): Promise<string[
     territoires.push(depuisExploitation);
   }
 
+  // La région, par le contour officiel quand il est importé : c'est elle qui
+  // désigne le programme d'actions régional et le référentiel GREN. Une
+  // parcelle sans contour n'a pas de région connue — et l'on ne la déduit pas
+  // du département.
+  for (const region of await regionsDeLaParcelle(parcelId)) {
+    if (!territoires.includes(region)) territoires.push(region);
+  }
+
   // « FR » ferme la liste : un référentiel national s'applique à défaut de
   // territorial. `resolveReferential` essaie ensuite `null`, qui couvre les
   // référentiels non territorialisés.
   territoires.push('FR');
   return territoires;
+}
+
+/** Codes des régions dont le contour officiel recoupe la parcelle. */
+export async function regionsDeLaParcelle(parcelId: string): Promise<string[]> {
+  const lignes = await prisma.$queryRaw<Array<{ code: string }>>`
+    SELECT DISTINCT z.code
+    FROM parcel_geometries pg
+    JOIN regulatory_zones z
+      ON z.kind = 'REGION_ADMINISTRATIVE' AND ST_Intersects(z.geom, pg.geom)
+    JOIN regulatory_referentials r ON r.id = z.referential_id AND r.status = 'ACTIF'
+    WHERE pg.parcel_id = ${parcelId} AND pg.is_current = true AND z.code IS NOT NULL
+    ORDER BY z.code
+  `;
+  return lignes.map((l) => l.code);
 }
 
 /**
@@ -491,18 +806,26 @@ export async function territoiresDeLaParcelle(parcelId: string): Promise<string[
 export function statutZonage(
   context: ParcelContext | null,
   kind: ZoneKind,
+  /** Date à laquelle on juge : celle de l'intervention, ou la fin de campagne. */
+  date: Date = new Date(),
 ): 'dedans' | 'dehors' | 'indetermine' {
   if (!context) return 'indetermine';
 
-  const recoupees = context.zones.filter((zone) => zone.kind === kind);
+  const portees = context.zones
+    .filter((zone) => zone.kind === kind)
+    .map((zone) => porteeDuClassement(zone.attributes, date));
+
   // Un classement « toutes sections », ou un zonage dont la géométrie est la
   // zone elle-même : le recoupement tranche.
-  if (recoupees.some((zone) => porteeDuClassement(zone.attributes) !== 'partielle')) {
-    return 'dedans';
+  if (portees.some((p) => p === 'totale' || p === 'non-precisee')) return 'dedans';
+  // Recoupée seulement par des communes classées « quelques sections », ou par
+  // un zonage pas encore en vigueur à cette date : on ne sait pas, et le dire
+  // est la seule réponse juste.
+  if (portees.some((p) => p === 'partielle' || p === 'non-en-vigueur')) {
+    return 'indetermine';
   }
-  // Recoupée seulement par des communes classées « quelques sections » : on ne
-  // sait pas, et le dire est la seule réponse juste.
-  if (recoupees.length > 0) return 'indetermine';
+  // Ne restent que des communes retirées du zonage à cette date : elles ne
+  // classent rien, et l'on poursuit comme sans recoupement.
 
   // Un zonage attendu et non déterminé figure dans `unresolved` : le contour
   // manque, ou le référentiel n'est pas importé. Dans les deux cas on ne sait

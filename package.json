@@ -48,6 +48,7 @@
     "audit:debit": "tsx --conditions=react-server scripts/audit-reset-debit.ts",
     "verif:navigateur": "npm run audit:debit && npm run audit:comptes && npm run check:ecrans && npm run audit:debit && npm run check:pages && npm run audit:debit && npm run check:mobile && npm run audit:debit && npm run check:modales && npm run audit:debit && npm run check:corrections && npm run audit:debit && npm run check:admin && npm run audit:debit && npm run check:advisory && npm run audit:debit && npm run check:security && npm run audit:debit && npm run check:091",
     "referentiels": "tsx --conditions=react-server scripts/referentiels.ts",
+    "referentiels:aura": "tsx --conditions=react-server scripts/referentiels-aura.ts",
     "check:telepac": "tsx --conditions=react-server scripts/check-telepac-xml.ts",
     "check:pac": "tsx --conditions=react-server scripts/check-pac-import.ts",
     "check:modales": "node scripts/check-modales.mjs",

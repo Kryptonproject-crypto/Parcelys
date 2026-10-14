@@ -144,7 +144,7 @@ export async function couvertureExploitation(params: {
     });
 
     const contexte = await getOrComputeParcelContext(parcelle.id);
-    const zoneVulnerable = statutZonage(contexte, 'ZONE_VULNERABLE');
+    const zoneVulnerable = statutZonage(contexte, 'ZONE_VULNERABLE', fin);
 
     const territoires = await territoiresDeLaParcelle(parcelle.id);
     const referentiel = await resolveReferential({

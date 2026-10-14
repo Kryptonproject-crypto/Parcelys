@@ -1,0 +1,802 @@
+{
+  "format": "parcelys-transcription/1",
+  "referentiel": {
+    "code": "programme-actions-nitrates",
+    "domaine": "NITRATES",
+    "nom": "7e programme d’actions régional nitrates — Auvergne-Rhône-Alpes",
+    "territoire": "84",
+    "version": "PAR7 AURA — arrêté n° 24-135 du 19/07/2024 modifié par l’arrêté n° 24-162 du 12/09/2024",
+    "source": "Préfète de la région Auvergne-Rhône-Alpes — arrêté n° 24-135 du 19 juillet 2024 (7e programme d’actions régional nitrates), modifié par l’arrêté n° 24-162 du 12 septembre 2024",
+    "applicableDu": "2024-09-01",
+    "applicableAu": null,
+    "remplaceLesVersionsAnterieures": true,
+    "notes": [
+      "Entrée en vigueur le 1er septembre 2024 (article 7) ; abroge l’arrêté préfectoral n° 2018-248 du 19 juillet 2018 (6e PAR) à la même date (article 8). Le 6e PAR n’est pas fourni : les campagnes antérieures au 1er septembre 2024 restent indéterminées pour les règles régionales.",
+      "Les deux arrêtés sont des scans : le texte a été obtenu par reconnaissance de caractères, et chaque valeur transcrite (dates, doses, durées, seuils) a été vérifiée sur l’image de la page.",
+      "Les définitions des termes techniques sont celles du programme d’actions national (article 1er) ; le PAN (arrêté du 30 janvier 2023) n’est pas fourni."
+    ]
+  },
+  "documents": {
+    "par7": {
+      "fichier": "05_PAN_PAR/2024_07_19_ap_par7_nitrates.pdf",
+      "sha256": "4f3184557cdc2f7513865de10ad689e4603a623e93bdd1be4f5f0248387440f8",
+      "titre": "Arrêté n° 24-135 du 19 juillet 2024 relatif au programme d’actions régional en vue de la protection des eaux contre la pollution par les nitrates d’origine agricole pour la région Auvergne-Rhône-Alpes",
+      "date": "2024-07-19",
+      "lecture": "scan-ocr-verifie-visuellement"
+    },
+    "modificatif": {
+      "fichier": "05_PAN_PAR/2024_09_12_ap_modificatif_par7.pdf",
+      "sha256": "cb9372f123ea433725aab1ff3355e3ba45bd43c68871110d03d1c3463bf99da2",
+      "titre": "Arrêté n° 24-162 du 12 septembre 2024 modifiant l’arrêté du 19 juillet 2024 établissant le programme d’actions régional nitrates pour la région Auvergne-Rhône-Alpes",
+      "date": "2024-09-12",
+      "lecture": "scan-ocr-verifie-visuellement"
+    },
+    "annexe2b": {
+      "fichier": "05_PAN_PAR/2024_07_19_annexe_2b.pdf",
+      "sha256": "8c6f0dfb19691d740185346d15116e6d16e75efbb6239ebb664c7437e003beb6",
+      "titre": "Annexe 2.B du PAR7 : liste des espèces porte-graines à petites graines ouvrant droit à dérogation de couverture des sols",
+      "date": "2024-07-19",
+      "lecture": "texte-numerique"
+    },
+    "annexe2c": {
+      "fichier": "05_PAN_PAR/2024_07_19_annexe_2c.pdf",
+      "sha256": "d00dea28f52cbc4e8dee1a490f113c0148ae25e7c87f2e93743a436d74084811",
+      "titre": "Annexe 2.C du PAR7 : liste des petites régions agricoles à aléas forts et très forts d’érosion des sols",
+      "date": "2024-07-19",
+      "lecture": "image-verifiee-visuellement"
+    },
+    "annexe2a": {
+      "fichier": "05_PAN_PAR/2024_07_19_annexe_2a.pdf",
+      "sha256": "50888cee279d3a4e6c2b033d36d25c72e8a9cb5bc8926fc658dbc8230d43458a",
+      "titre": "Annexe 2.A du PAR7 : formulaire de déclaration de dérogations à l’obligation de couverture des sols pendant les intercultures longues",
+      "date": "2024-07-19",
+      "lecture": "texte-numerique"
+    }
+  },
+  "regles": [
+    {
+      "code": "champ-application-par",
+      "libelle": "Champ d’application du programme d’actions régional",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE" },
+      "valeur": {
+        "mesuresALaParcelle": "s’appliquent sur les parcelles situées en région Auvergne-Rhône-Alpes",
+        "mesuresALExploitation": "s’appliquent aux exploitations dont le siège est situé en région Auvergne-Rhône-Alpes",
+        "definitions": "celles du programme d’actions national"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 1er",
+        "page": 3,
+        "citation": "Tout agriculteur est tenu de respecter le programme d'actions national renforcé par ce programme d'actions régional pour la partie de son exploitation située ou concernée par la zone vulnérable en région Auvergne-Rhône-Alpes. Dans le cas particulier d'exploitations situées sur plusieurs régions : les mesures à la parcelle ou à l'îlot s'appliquent sur les parcelles situées en région Auvergne-Rhône-Alpes ; les mesures à l'exploitation s'appliquent aux exploitations dont le siège de l'exploitation est situé en région Auvergne-Rhône-Alpes."
+      }
+    },
+    {
+      "code": "periode-interdiction-epandage",
+      "libelle": "Allongement de la période d’interdiction d’épandage des fertilisants de type III (du 15 au 28 février)",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": {
+        "zone": "ZONE_VULNERABLE",
+        "typesFertilisant": ["III"],
+        "culture": {
+          "principale": true,
+          "implanteeDansLAnneeCivileDeLApport": true,
+          "saisonsDImplantation": ["hiver", "printemps"],
+          "recolteeAvantLaFinDeLAnnee": true
+        }
+      },
+      "valeur": {
+        "periodes": [{ "du": "02-15", "au": "02-28" }],
+        "nature": "allongement",
+        "periodesAllongees": "Périodes d’interdiction d’épandage du programme d’actions national (I de l’annexe I de l’arrêté du 30 janvier 2023)"
+      },
+      "exception": "Ces renforcements ne remettent pas en cause les cas particuliers précisés en bas du tableau de la partie I de l’annexe I de l’arrêté du 30 janvier 2023.",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 1°, tableau 1",
+        "page": 4,
+        "citation": "Tableau 1 : Allongements des périodes d'interdiction d'épandage en région Auvergne-Rhône-Alpes — Culture principale implantée dans l’année en cours en hiver ou au printemps et récoltée avant la fin de l’année (notamment les cultures de printemps) — Type III — Du 15 au 28 février"
+      }
+    },
+    {
+      "code": "apports-cine",
+      "libelle": "Apports de fertilisants azotés sur un couvert d’interculture non exporté (CINE)",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "couvert": "CINE" },
+      "valeur": {
+        "grandeur": "azote potentiellement libéré jusqu’en sortie d’hiver",
+        "legumineusesPures": "interdit",
+        "plafonds": [
+          { "cas": "general", "kgHa": 30, "cumulTypes": ["0", "I", "II"] },
+          {
+            "cas": "bonne-captation",
+            "kgHa": 70,
+            "cumulTypes": ["0", "I", "II"],
+            "definition": "lorsque le couvert permet une bonne captation de l’azote, c’est à dire pas de graminées issues de repousses spontanées"
+          },
+          {
+            "cas": "effluents-volailles",
+            "kgHa": 70,
+            "produits": "uniquement pour les effluents de volailles",
+            "conditionsCumulatives": [
+              "cultures intermédiaires implantées avant le 1er septembre, et pendant trois mois minimum",
+              "cultures intermédiaires ni légumineuses (pures ou en mélange), ni graminées pures"
+            ]
+          }
+        ]
+      },
+      "unite": "kg N/ha",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 2° a",
+        "page": 4,
+        "citation": "a/ sur un CINE, les apports sont : interdits sur les légumineuses pures utilisées en CINE, autorisés avec un plafond de 30 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare en cumulant les apports de type 0, I et II, autorisés avec un plafond de 70 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare en cumulant les apports de type 0, I et II lorsque le couvert permet une bonne captation de l’azote, c’est à dire pas de graminées issues de repousses spontanées, autorisés avec un plafond de 70 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare, uniquement pour les effluents de volailles, à 2 conditions : que les cultures intermédiaires soient implantées avant le 1er septembre, et pendant trois mois minimum, que les cultures intermédiaires ne soient pas des légumineuses (pures ou en mélange), ni des graminées pures."
+      }
+    },
+    {
+      "code": "apports-cie",
+      "libelle": "Apports de fertilisants azotés sur un couvert d’interculture exporté (CIE)",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "couvert": "CIE" },
+      "valeur": {
+        "grandeur": "azote potentiellement libéré jusqu’en sortie d’hiver",
+        "legumineusesPures": "interdit",
+        "plafonds": [
+          {
+            "cas": "interculture-courte",
+            "definition": "CIE récoltés pendant l’année d’implantation (avant le 31/12) et suivis d’une culture implantée la même année",
+            "kgHa": 70,
+            "cumulTypes": ["0", "I"]
+          },
+          {
+            "cas": "interculture-longue",
+            "definition": "CIE récoltés pendant l’année d’implantation (avant le 31/12) et non suivis d’une culture implantée la même année",
+            "kgHa": 70,
+            "cumulTypes": ["0", "I", "II", "III"]
+          },
+          {
+            "cas": "recolte-annee-suivante-type-iii-possible",
+            "definition": "CIE récoltés l’année suivant l’implantation (après le 31/12), des apports de type III étant possibles l’année suivant l’implantation",
+            "kgHa": 70,
+            "cumulTypes": ["0", "I", "II", "III"],
+            "renvoi": "règles du référentiel régional de l’équilibre de la fertilisation azotée"
+          },
+          {
+            "cas": "recolte-annee-suivante-type-iii-impossible",
+            "definition": "CIE récoltés l’année suivant l’implantation (après le 31/12), des apports de type III n’étant pas possibles l’année suivant l’implantation",
+            "kgHa": 70,
+            "cumulTypes": ["0", "I", "II"],
+            "renvoi": "les apports de type III de l’année d’implantation respectent les règles du référentiel régional"
+          }
+        ]
+      },
+      "unite": "kg N/ha",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 2° b",
+        "page": 4,
+        "citation": "b/ sur un CIE, les apports sont : interdits sur les légumineuses pures utilisées en CIE, autorisés pour les CIE récoltés pendant l’année d’implantation (avant le 31/12) et suivi d’une culture implantée la même année (période d'interculture courte) avec un plafond de 70 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare en cumulant les apports de type 0 et I (conformément aux règles du PAN), autorisés pour les CIE récoltés pendant l’année d’implantation (avant le 31/12) et non suivi d’une culture implantée la même année (période d'interculture longue) avec un plafond de 70 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare en cumulant les apports de type 0, I, II et III (conformément aux règles du PAN), autorisés pour les CIE récoltés l’année suivante de l’implantation (après le 31/12) […] dans la limite d’un plafond de 70 kg d'azote potentiellement libéré jusqu’en sortie d’hiver par hectare."
+      }
+    },
+    {
+      "code": "digestat-liquide-sol-nu",
+      "libelle": "Digestats phase liquide sur sol nu : interdits en sortie d’hiver jusqu’au 28 février",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "produit": "digestat-phase-liquide", "sol": "nu" },
+      "valeur": {
+        "interditJusquAu": "02-28",
+        "moment": "sortie d’hiver",
+        "resteAutorise": "sur cultures, prairies et couverts dans le respect des dates d’épandage fixées par le PAN pour ce type d’effluent (type II)"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 2° c",
+        "page": 5,
+        "citation": "En sortie d’hiver l’épandage de phase liquide des digestats sur sol nu est interdit jusqu’au 28 février. Il reste toutefois possible sur cultures, prairies et couverts dans le respect des dates d’épandage fixées par le PAN pour ce type d’effluent (type II)."
+      }
+    },
+    {
+      "code": "digestat-liquide-analyse",
+      "libelle": "Digestats phase liquide : analyse de moins de 6 mois obligatoire",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "produit": "digestat-phase-liquide" },
+      "valeur": {
+        "analyseDeMoinsDeMois": 6,
+        "objet": "phase liquide des digestats prise au stockage",
+        "usage": "résultats pris en compte dans le calcul de l’équilibre de la fertilisation ; analyse tenue à disposition de l’administration"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 3°",
+        "page": 5,
+        "citation": "Pour tous les épandages de phase liquide des digestats, une analyse datant de moins de 6 mois à la date de l'épandage, devra avoir été faite. Cette analyse sera celle de la phase liquide des digestats prise au stockage."
+      }
+    },
+    {
+      "code": "digestat-liquide-septembre",
+      "libelle": "Digestats phase liquide en septembre avant une culture récoltée l’année suivante (hors colza) : 30 kg N/ha au plus",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": {
+        "zone": "ZONE_VULNERABLE",
+        "produit": "digestat-phase-liquide",
+        "mois": "09",
+        "culture": { "principale": true, "recolteeLAnneeSuivante": true, "sauf": ["colza"] }
+      },
+      "valeur": { "kgHa": 30, "grandeur": "azote potentiellement libéré jusqu’en sortie d’hiver", "recommandation": "faire l’apport au plus près du semis" },
+      "unite": "kg N/ha",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 3°",
+        "page": 5,
+        "citation": "Pour cultures principales autres que le colza, récoltées l’année suivante, l’épandage de phase liquide des digestats est limité en septembre à 30kg d’azote potentiellement libéré jusqu’en sortie d’hiver par hectare."
+      }
+    },
+    {
+      "code": "azote-potentiellement-libere",
+      "libelle": "Calcul de l’azote potentiellement libéré jusqu’en sortie d’hiver",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE" },
+      "valeur": {
+        "coefficients": "prescrits par l’arrêté référentiel de l’équilibre de la fertilisation azotée en vigueur (GREN)",
+        "teneursAdaptables": "si justifiées par une ou des analyses représentatives et récentes (datant de moins de 2 ans et conditions équivalentes du fertilisant)",
+        "aDefautDeCoefficient": "azote efficace"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, I, 4°",
+        "page": 6,
+        "citation": "En l’absence de coefficients d’équivalence en azote potentiellement libéré jusqu’en sortie d’hiver dans l’arrêté référentiel de mise en œuvre de l’équilibre de la fertilisation azotée en vigueur pour le territoire régional, les calculs et les plafonds se feront sur la base de l’azote efficace."
+      }
+    },
+    {
+      "code": "fractionnement-type-iii",
+      "libelle": "Fractionnement des apports de fertilisants de type III",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "typesFertilisant": ["III"] },
+      "valeur": {
+        "fractionnementObligatoireSiDoseTotaleSuperieureA": 100,
+        "doseTotaleGrandeur": "azote efficace",
+        "maxParApport": 100,
+        "adaptations": [
+          { "cas": "engrais-liberation-progressive", "definition": "engrais spéciaux à libération progressive et/ou contrôlée", "maxParApport": 120 },
+          { "cas": "mais-seme-avant-15-mai", "semisAvant": "05-15", "premierApportMax": 50, "jusquAuStade": "deux feuilles", "ensuite": "dose par apport non limitée" },
+          { "cas": "mais-autres", "parApport": "non limitée" },
+          { "cas": "noyers-plus-de-3-ans", "premierApportMaxFractionDeLaDoseTotaleAnnuelle": { "numerateur": 1, "denominateur": 3 }, "fractionLitterale": "au tiers de la dose totale annuelle" }
+        ]
+      },
+      "unite": "kg N/ha",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, II",
+        "page": 6,
+        "citation": "le fractionnement est obligatoire, si la dose totale à apporter sur la culture est supérieure à 100 unités d'azote efficace par hectare, avec une dose maximale de 100 unités d'azote par hectare et par apport, les modalités de fractionnement peuvent être adaptées dans les cas suivants : pour les engrais spéciaux à libération progressive et/ou contrôlée : tout apport est limité à 120 unités d'azote par hectare, pour le maïs : si le semis est réalisé avant le 15 mai, le premier apport est limité à 50 unités d'azote par hectare jusqu'au stade deux feuilles. Dans les autres cas la dose par apport n’est pas limitée. pour les vergers de noyers de plus de trois ans, le premier apport est plafonné au tiers de la dose totale annuelle […]"
+      }
+    },
+    {
+      "code": "couverture-dispense-boues-papeterie",
+      "libelle": "Pas d’obligation de couverture en interculture longue après épandage de boues de papeterie de C/N > 30",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": { "cnSuperieurA": 30, "cadre": "plan d’épandage", "justificatif": "analyse des boues épandues avec mesure du rapport C/N", "melangeInterdit": true },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III (préambule)",
+        "page": 6,
+        "citation": "La réglementation relative au PAN permet de ne pas avoir de couverture des sols dans les intercultures longues pour les îlots culturaux sur lesquels un épandage de boues de papeteries ayant un C/N supérieur à 30 est réalisé dans le cadre du plan d'épandage sous réserve de la production, en cas de contrôle, d'une analyse des boues épandues avec notamment la mesure du rapport C/N. L'utilisation d'un mélange de boues issues de différentes unités de production n'est pas autorisé."
+      }
+    },
+    {
+      "code": "couverture-duree-recommandee",
+      "libelle": "Couverture des sols de 12 semaines recommandée",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": { "semaines": 12, "statut": "recommandation" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° a",
+        "page": 7,
+        "citation": "a) Une couverture des sols de 12 semaines est recommandée,"
+      }
+    },
+    {
+      "code": "couverture-implantation-date-limite",
+      "libelle": "Implantation de la culture intermédiaire au plus tard le 15 octobre",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "couverts": ["CINE", "CIE"] },
+      "valeur": { "auPlusTard": "10-15" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° b",
+        "page": 7,
+        "citation": "b) L'implantation d'une culture intermédiaire (CINE, ou CIE) doit être réalisée au plus tard le 15 octobre."
+      }
+    },
+    {
+      "code": "couverture-dispense-recolte-tardive",
+      "libelle": "Couverture non obligatoire après une récolte postérieure au 1er octobre, sauf derrière maïs grain et sorgho grain",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": {
+        "recoltePrecedentApres": "10-01",
+        "sauf": ["maïs grain", "sorgho grain"],
+        "equivalence": "pour les îlots en maïs grain, sorgho (y compris semence) : semis sous couvert ou semis direct juste après la récolte, s’il respecte les conditions d’implantation du PAN, sans broyage ni enfouissement des cannes"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° c",
+        "page": 7,
+        "citation": "c) Sur les îlots culturaux sur lesquels la récolte de la culture principale précédente est postérieure au 1er octobre la couverture des sols pendant l'interculture longue n'est pas obligatoire, sauf derrière maïs grain, sorgho grain où les dispositions du programme d'actions national restent obligatoires."
+      }
+    },
+    {
+      "code": "couverture-dispense-porte-graines",
+      "libelle": "Couverture non obligatoire avant une culture porte-graines à petites graines (annexe 2.B)",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": {
+        "travailDuSolAvant": "12-01",
+        "implantationAuPlusTard": "02-15",
+        "justificatif": "contrat de production",
+        "enregistrement": "dates de travail du sol et des semis ou plantations dans le cahier d’enregistrement",
+        "especes": [
+          { "espece": "Fétuque élevée", "graine": true, "repiquee": false },
+          { "espece": "Fétuque rouge", "graine": true, "repiquee": false },
+          { "espece": "Dactyle", "graine": true, "repiquee": false },
+          { "espece": "Fétuque ovine", "graine": true, "repiquee": false },
+          { "espece": "Brome", "graine": true, "repiquee": false },
+          { "espece": "Pâturin des prés", "graine": true, "repiquee": false },
+          { "espece": "Fléole des prés", "graine": true, "repiquee": false },
+          { "espece": "Radis fourrager", "graine": true, "repiquee": false },
+          { "espece": "Ciboule/ciboulette", "graine": true, "repiquee": true },
+          { "espece": "Persil", "graine": true, "repiquee": false },
+          { "espece": "Coriandre", "graine": true, "repiquee": false },
+          { "espece": "Aneth", "graine": true, "repiquee": false },
+          { "espece": "Fenouil", "graine": true, "repiquee": true },
+          { "espece": "Laitue", "graine": true, "repiquee": true },
+          { "espece": "Chicorée Scarole / Frisée", "graine": true, "repiquee": true },
+          { "espece": "Radis (type rond rouge)", "graine": true, "repiquee": false },
+          { "espece": "Cresson de fontaine", "graine": true, "repiquee": false },
+          { "espece": "Roquette", "graine": true, "repiquee": false },
+          { "espece": "Courge - Courgette", "graine": true, "repiquee": false },
+          { "espece": "Concombre", "graine": true, "repiquee": false },
+          { "espece": "Cornichon", "graine": true, "repiquee": false },
+          { "espece": "Melon", "graine": true, "repiquee": false },
+          { "espece": "Citrouille - Patisson", "graine": true, "repiquee": false },
+          { "espece": "Semences florales implantées en hiver", "graine": true, "repiquee": false },
+          { "espece": "Oignon", "graine": true, "repiquee": true },
+          { "espece": "Ail", "graine": false, "repiquee": true },
+          { "espece": "Échalote", "graine": false, "repiquee": true }
+        ],
+        "listeSource": "Annexe 2.B (fichier 2024_07_19_annexe_2b.pdf) ; la colonne « mode d’implantation » est reprise telle que l’extraction du texte la restitue et n’est pas utilisée par les contrôles."
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° d (et annexe 2.B)",
+        "page": 7,
+        "citation": "d) - Pour les îlots culturaux destinés aux cultures porte-graines à petites graines dont la liste est fixée en annexe 2.B nécessitant un travail du sol avant le 1er décembre, la couverture des sols pendant l'interculture n'est pas obligatoire. La date limite d'implantation de la culture est fixée au 15 février. En cas de contrôle, l'exploitant agricole devra être en mesure de présenter un contrat de production, obligatoire pour la production de semences."
+      }
+    },
+    {
+      "code": "couverture-dispense-cultures-perennes",
+      "libelle": "Couverture non obligatoire avant une plantation de culture pérenne",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": {
+        "cultures": ["verger", "truffière", "vigne", "plante aromatique pluriannuelle"],
+        "travailDuSolAvant": "12-01",
+        "implantationAuPlusTard": "03-15",
+        "justificatif": "facture de livraison des plants"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° d",
+        "page": 7,
+        "citation": "Pour les îlots culturaux destinés à une plantation de culture pérenne (verger, truffière, vigne et plante aromatique pluriannuelle) nécessitant un travail du sol avant le 1er décembre, la couverture des sols pendant l'interculture n'est pas obligatoire. La date limite d'implantation de la culture pérenne est fixée au 15 mars."
+      }
+    },
+    {
+      "code": "couverture-dispense-alliacees",
+      "libelle": "Couverture non obligatoire avant une plantation d’alliacées",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": { "travailDuSolAvant": "12-01", "plantationAuPlusTard": "02-15" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° d",
+        "page": 7,
+        "citation": "Pour les îlots culturaux destinés à une plantation d'alliacées en semence ou en consommation nécessitant un travail du sol avant le 1er décembre, la couverture des sols pendant l'interculture n'est pas obligatoire. La date limite de plantation est fixée au 15 février."
+      }
+    },
+    {
+      "code": "couverture-dispense-argile",
+      "libelle": "Couverture non obligatoire sur sols argileux travaillés avant l’hiver",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue" },
+      "valeur": {
+        "casGeneral": { "tauxArgileStrictementSuperieurA": 37 },
+        "allierEtPuyDeDome": { "departements": ["03", "63"], "tauxArgileSuperieurOuEgalA": 31 },
+        "justificatifs": [
+          "analyse de sol justifiant du taux d’argile par unité de sol homogène",
+          "mesure de reliquat azoté sortie hiver sur la culture qui précède l’interculture longue, par îlot, ou justification d’un outil de pilotage"
+        ]
+      },
+      "unite": "%",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° e",
+        "page": 7,
+        "citation": "e) Sur les îlots culturaux nécessitant un travail du sol avant l'hiver et présentant des sols dont le taux d'argile est strictement supérieur à 37 % (cas général), ou supérieur ou égal à 31 % dans les départements de l’Allier et du Puy-de-Dôme compte tenu des caractéristiques pédologiques de ces territoires, la couverture des sols n'est pas obligatoire en interculture longue."
+      }
+    },
+    {
+      "code": "couverture-cannes-ppri",
+      "libelle": "Maintien des cannes de maïs ou sorgho en zone inondable à aléas très forts d’un PPRI",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "precedent": ["maïs", "sorgho"] },
+      "valeur": { "zonage": "zone inondable à aléas très forts d’un PPRI", "couvertureAdmise": "simple maintien des cannes, sans broyage et enfouissement des résidus", "horsPPRI": "non applicable" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° f",
+        "page": 8,
+        "citation": "f) Sur les îlots culturaux situés en zones vulnérables et en zone inondable à aléas très forts d’un PPRI derrière maïs ou sorgho (grain et semence) la couverture des sols peut être obtenue par un simple maintien des cannes, sans broyage et enfouissement des résidus. Dans les communes en zone vulnérable non couvertes par un PPRI, ce type de couverture de sols ne peut pas être mis en œuvre."
+      }
+    },
+    {
+      "code": "couverture-cannes-erosion",
+      "libelle": "Maintien des cannes de maïs ou sorgho dans les petites régions agricoles à fort aléa d’érosion (annexe 2.C)",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "precedent": ["maïs", "sorgho"] },
+      "valeur": {
+        "couvertureAdmise": "simple maintien des cannes, sans broyage et enfouissement des résidus",
+        "obligation": "mesure de reliquat azoté sortie hiver sur la culture qui précède l’interculture longue, par îlot, ou justification d’un outil de pilotage ; reliquat inscrit au plan de fumure",
+        "petitesRegionsAgricoles": [
+          { "departement": "01", "pra": ["DOMBES", "ZONE D ELEVAGE DU PAYS DE GEX (2E ZONE)", "BRESSE"] },
+          { "departement": "26", "pra": ["REGION DE ROYANS", "DIOIS", "VALLOIRE", "GALLAURE ET HERBASSE", "PAYS DE BOURDEAUX", "BARONNIES"] },
+          { "departement": "38", "pra": ["BAS-DAUPHINE", "VALLEE DU GRESIVAUDAN", "VALLEE DU RHONE"] },
+          { "departement": "42", "pra": ["VALLEE DU RHONE"] },
+          { "departement": "69", "pra": ["BAS-DAUPHINE", "BEAUJOLAIS VITICOLE", "VALLEE DU RHONE"] },
+          { "departement": "73", "pra": ["COMBE DE SAVOIE", "CLUSE DE CHAMBERY", "LSE QUATRE CANTONS", "CHARTREUSE", "ALBANAIS"] },
+          { "departement": "74", "pra": ["BAS-GENEVOIS", "LA SEMINE", "VALLEE DES USSES", "REGION D ANNEMASSE", "REGION D ANNECY", "PLATEAU DES DRANSES", "BAS-CHABLAIS", "PLATEAU DES BORNES", "ALBANAIS"] }
+        ],
+        "listeSource": "Annexe 2.C, page 1, lue sur l’image (orthographe de la source conservée, « LSE QUATRE CANTONS » compris). La carte de la page 2 n’est pas exploitable : les contours des petites régions agricoles ne sont pas fournis."
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° g (et annexe 2.C)",
+        "page": 8,
+        "citation": "g) Sur les îlots culturaux situés en zones vulnérables et en petites régions agricoles à aléas forts et très forts d’érosion des sols (listées et cartographiées en annexe 2.C) derrière maïs ou sorgho (grain et semence) la couverture des sols peut être obtenue par un simple maintien des cannes, sans broyage et enfouissement des résidus."
+      }
+    },
+    {
+      "code": "couverture-suivi-sans-couvert",
+      "libelle": "Interculture longue sans couvert : précédent et bilan azoté post-récolte au cahier d’enregistrement",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "cas": ["c", "d", "e", "f", "g"] },
+      "valeur": { "aTenirADisposition": ["nature du précédent cultural", "bilan azoté post-récolte"], "support": "cahier d’enregistrement (IV de l’annexe I de l’arrêté du 30 janvier 2023)" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° h (dernier alinéa)",
+        "page": 8,
+        "citation": "De ce fait, dans les cas de figure mentionnés aux c, d, e, f et g l'agriculteur doit donc, à minima, être en mesure de tenir à la disposition de l’administration, la nature du précédent cultural et un bilan azoté post-récolte, et l'inscrit dans le cahier d'enregistrement prévu par le IV de l'annexe I de l'arrêté du 30 janvier 2023."
+      }
+    },
+    {
+      "code": "couverture-derogations-6e-par",
+      "libelle": "Fin des dérogations du 6e PAR au 1er septembre 2024",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": null,
+      "valeur": { "derogations": ["terres argileuses", "adventices vivaces", "zone inondable"], "validesJusquAu": "2024-09-01" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 1° h",
+        "page": 8,
+        "citation": "h) Les dérogations « terres argileuses », « adventices vivaces» et « zone inondable » au titre du 6ème PAR Auvergne-Rhône sont valables jusqu'au 01 septembre 2024."
+      }
+    },
+    {
+      "code": "couverture-destruction",
+      "libelle": "Destruction des cultures intermédiaires : pas avant le 1er novembre, après huit semaines d’implantation au minimum",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "couverts": ["CINE", "CIE"] },
+      "valeur": {
+        "pasAvant": "11-01",
+        "implantationMinimaleSemaines": 8,
+        "renvoiDureeMinimale": "Cf PAN",
+        "exceptions": [
+          { "cas": "argile-superieure-31", "tauxArgileSuperieurA": 31, "pasAvant": "10-15", "implantationMinimaleSemaines": 8, "justificatif": "analyse de sol justifiant du taux d’argile par unité de sol homogène" },
+          { "cas": "adventices-vivaces-especes-a-destruction-obligatoire", "declarationDDTJoursAvant": 7 },
+          { "cas": "montee-a-graine-cine", "admis": "destruction mécanique des parties aériennes en maintenant l’implantation racinaire, sans tenir compte du 1er novembre" }
+        ],
+        "recolteOuPaturageCIE": "pas une destruction ; l’implantation racinaire doit être maintenue jusqu’au 1er novembre"
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 2°",
+        "page": 9,
+        "citation": "Les cultures intermédiaires (CINE et CIE) ne peuvent pas être détruites avant le 01 novembre, sous réserve de huit semaines minimum d'implantation (Cf PAN) de la culture intermédiaire minimum, sauf : sur les îlots culturaux présentant des sols dont le taux d’argile est supérieur à 31 %, sous réserve du respect des 8 semaines minimales d’implantation, la destruction est possible à partir du 15 octobre."
+      }
+    },
+    {
+      "code": "couverture-destruction-chimique",
+      "libelle": "Destruction chimique des cultures intermédiaires : seulement par dérogation (adventices vivaces, espèces à destruction obligatoire)",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "couverts": ["CINE", "CIE"] },
+      "valeur": {
+        "regle": "dérogatoire",
+        "conditions": [
+          "parties d’îlots infestées par des adventices vivaces et espèces à destruction obligatoire",
+          "déclaration préalable à la DDT une semaine avant le traitement (formulaire de l’annexe 2.A)",
+          "attestation d’un technicien titulaire du certiphyto « conseil »"
+        ]
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 2° (modalités de destruction)",
+        "page": 9,
+        "citation": "A titre dérogatoire, la destruction chimique des cultures intermédiaires est autorisée sur les parties d'îlots culturaux infestés par des adventices vivaces et espèces à destruction obligatoire sous réserve d'une déclaration préalable transmise à la DDT du département concerné une semaine avant la réalisation du traitement selon le formulaire fourni en annexe 2.A."
+      }
+    },
+    {
+      "code": "couverture-legumineuses-pures-cine",
+      "libelle": "Légumineuses pures en CINE : sans fertilisant azoté, détruites après le 1er mars",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "couvert": "CINE", "composition": "legumineuses-pures" },
+      "valeur": { "fertilisantsAzotes": "interdits", "destructionApres": "03-01", "recommandation": "au plus proche du semis de la culture suivante" },
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 3°",
+        "page": 9,
+        "citation": "les légumineuses pures sont autorisées comme CINE à condition de ne pas épandre de fertilisants azotés sur ces cultures et de ne détruire le couvert qu’après le 1er mars et au plus proche du semis de la culture implantée après le CINE,"
+      }
+    },
+    {
+      "code": "couverture-repousses-cereales",
+      "libelle": "Repousses de céréales : 20 % au plus des surfaces en interculture longue de l’exploitation",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE", "interculture": "longue", "couvert": "repousses-cereales" },
+      "valeur": { "partMaxPourcent": 20, "echelle": "surfaces en interculture longue de l’exploitation", "exigences": "denses et homogènes spatialement", "sinon": "implanter une culture intermédiaire avant le 15 octobre" },
+      "unite": "%",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, III, 3°",
+        "page": 10,
+        "citation": "les repousses de céréales denses et homogènes spatialement sont autorisées dans la limite de 20 % des surfaces en interculture longue à l'échelle de l'exploitation. Si les repousses ne sont pas conformes aux exigences ci-dessus, l'exploitant a l'obligation d'implanter une culture intermédiaire avant le 15 octobre."
+      }
+    },
+    {
+      "code": "bande-enherbee-cours-eau",
+      "libelle": "Bande enherbée ou boisée permanente de 5 mètres le long des cours d’eau, canaux, fossés et plans d’eau",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_VULNERABLE" },
+      "valeur": {
+        "largeurMinimaleMetres": 5,
+        "elements": [
+          "cours d’eau, canaux et fossés identifiés par la couche « BCAE » de l’année (Géoportail)",
+          "plans d’eau de la carte topographique IGN au 1/25 000 actualisée, y compris inférieurs à 10 ha",
+          "canaux à fond et parois étanches"
+        ],
+        "exception": "En Dombes, plan d’eau en assec selon les droits d’usage"
+      },
+      "unite": "m",
+      "source": {
+        "document": "par7",
+        "article": "art. 2, IV",
+        "page": 10,
+        "citation": "La mise en place et le maintien d’une bande enherbée ou boisée permanente d'une largeur minimale de 5 mètres est obligatoire le long des cours d’eau, canaux et fossés identifiés par la couche « BCAE » de l’année sur le site géoportail, ou la carte topographique IGN au 1/25000 actualisée pour les plans d’eau. Cette obligation s’applique aussi aux plans d’eau inférieurs à 10 ha et aux canaux à fond et parois étanches."
+      }
+    },
+    {
+      "code": "zar-retournement-prairies",
+      "libelle": "ZAR : retournement des prairies interdit, sauf quatre conditions cumulatives",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE" },
+      "valeur": {
+        "interdit": true,
+        "saufConditionsCumulatives": [
+          "remise en culture dans les 30 jours suivant le retournement",
+          "mesure de reliquat azoté dans les 365 jours suivant le retournement",
+          "outil de pilotage de la fertilisation azotée sur la culture implantée après le retournement, s’il existe",
+          "prairie installée depuis moins de 6 ans"
+        ],
+        "remiseEnCultureJoursMax": 30,
+        "reliquatJoursMax": 365,
+        "ageMaxPrairieAns": 6
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 1/",
+        "page": 11,
+        "citation": "Le retournement des prairies est interdit sauf si toutes les conditions suivantes sont respectées de manière cumulative : a. une remise en culture est réalisée dans les 30 jours suivant la date du retournement ; ET b. une mesure de reliquat azoté est réalisée dans les 365 jours suivant le retournement ; ET c. un outil de pilotage de la fertilisation azotée sur la culture implantée après le retournement de prairie est utilisé s'il existe. ET d. La prairie est installée depuis moins de 6 ans."
+      }
+    },
+    {
+      "code": "zar-cine-epandage-interdit",
+      "libelle": "ZAR : épandages interdits sur les CINE",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE", "couvert": "CINE" },
+      "valeur": { "interdit": true },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 2/",
+        "page": 11,
+        "citation": "Pour les CINE : les épandages sont interdits"
+      }
+    },
+    {
+      "code": "zar-digestat-liquide-sol-nu",
+      "libelle": "ZAR : digestats phase liquide sur sol nu en sortie d’hiver à partir du 28 février et 15 jours au plus avant le semis",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE", "produit": "digestat-phase-liquide", "sol": "nu" },
+      "valeur": { "autoriseAPartirDu": "02-28", "joursMaxAvantSemis": 15, "resteAutorise": "sur cultures, prairies et couverts" },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 2/",
+        "page": 11,
+        "citation": "En sortie d’hiver l’épandage de phase liquide de digestats n’est autorisé sur sol nu : qu’à partir du 28 février ET 15 jours au maximum avant semis. Il reste toutefois possible sur cultures, prairies et couverts."
+      }
+    },
+    {
+      "code": "zar-plafond-premier-apport",
+      "libelle": "ZAR : plafonnement du premier apport sur céréales à paille d’hiver (50 u) et colza d’hiver (80 u)",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE" },
+      "valeur": {
+        "grandeur": "azote efficace",
+        "cultures": [
+          { "culture": "cereales-paille-hiver", "libelle": "Céréales à paille d’hiver", "kgHa": 50, "jusquAuStade": "tallage (BBCH 21)" },
+          { "culture": "colza-hiver", "libelle": "Colza d’hiver", "kgHa": 80, "jusquAuStade": "reprise de la végétation (BBCH 30)" }
+        ],
+        "nonCompte": {
+          "produit": "engrais minéral phosphaté NP-NPK localisé en ligne au semis des cultures d’automne",
+          "kgHaMax": 10,
+          "grandeur": "azote potentiellement libéré jusqu’en sortie d’hiver",
+          "mais": "pris en compte dans l’équilibre de la fertilisation azotée"
+        }
+      },
+      "unite": "kg N/ha",
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 2/ (tableau « Plafonnement du premier apport »)",
+        "page": 11,
+        "citation": "Lors du premier apport de fertilisants azotés sur la culture principale, le plafonnement est obligatoire selon les modalités suivantes : Céréales à paille d'hiver — 50 unités d'azote efficaces par hectare maximum jusqu’au stade tallage (BBCH 21) ; Colza d'hiver — 80 d'azote efficaces par hectare jusqu’au stade de reprise de la végétation (BBCH 30)"
+      }
+    },
+    {
+      "code": "zar-maraichage-fractionnement",
+      "libelle": "ZAR : fractionnement obligatoire en maraîchage au-delà de 80 kg N",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE", "culture": { "famille": "maraichage" } },
+      "valeur": {
+        "seuilDoseTotaleKg": 80,
+        "apportsMinimumParCycle": 2,
+        "horsCultureSousAbri": true,
+        "grandeurSelonLeMoment": { "automne": "azote potentiellement libéré jusqu’en sortie d’hiver", "printemps": "azote efficace" }
+      },
+      "unite": "kg N",
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 2/",
+        "page": 12,
+        "citation": "Sur les îlots culturaux destinés aux cultures maraîchères, il y a obligation de fractionnement des apports si la dose totale à apporter est supérieure à 80 kg d'azote (au moins 2 apports par cycle de culture minimum, hors culture sous abri). Si l’épandage du 1er apport est fait à l’automne, il s’agit de 80 kg d’azote potentiellement libéré jusqu’en sortie d’hiver ; et si ce 1er apport intervient au printemps, il s’agit de 80 kg d'azote efficace."
+      }
+    },
+    {
+      "code": "zar-couverts-duree-minimale",
+      "libelle": "ZAR : couverts d’interculture longue maintenus au moins 12 semaines",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE", "interculture": "longue" },
+      "valeur": { "semainesMinimum": 12, "depuis": "le semis, ou la date de récolte du précédent pour les repousses ou le mulch des maïs grain et sorghos grain" },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 3/",
+        "page": 12,
+        "citation": "Les couverts en intercultures longues doivent être maintenus au moins 12 semaines à partir du semis ou de la date de récolte du précédent pour les repousses ou le mulch des maïs grain et sorghos grain."
+      }
+    },
+    {
+      "code": "zar-repousses",
+      "libelle": "ZAR : repousses de céréales exclues de la couverture ; repousses de colza à 15 plants/m² au moins",
+      "domaine": "COUVERTURE",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE", "interculture": "longue" },
+      "valeur": {
+        "repoussesCereales": "ne peuvent pas assurer la couverture, sauf dérogation en situation exceptionnelle (grêle…)",
+        "repoussesColza": { "plantsParM2Minimum": 15, "exigences": "denses et homogènes" }
+      },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, II, 3/",
+        "page": 12,
+        "citation": "Par principe, la couverture des sols en intercultures longues (CIL) ne peut pas être obtenue par des repousses de céréales. En cas de situations exceptionnelles (grêle...) permettant des repousses denses et homogènes, ce couvert est accepté sous condition de dérogation. Les repousses de colza sont possibles mais doivent être denses et homogènes sur la base de 15 plants/m²."
+      }
+    },
+    {
+      "code": "zar-regions-limitrophes",
+      "libelle": "ZAR des régions limitrophes : la partie en Auvergne-Rhône-Alpes est ZAR, avec les mesures du PAR AURA",
+      "domaine": "NITRATES",
+      "depuis": "2024-09-01",
+      "condition": { "zone": "ZONE_ACTION_RENFORCEE" },
+      "valeur": { "mesures": "identiques à celles des ZAR définies en Auvergne-Rhône-Alpes", "liste": "annexe 1 (modifiée par l’arrêté n° 24-162)" },
+      "source": {
+        "document": "par7",
+        "article": "art. 3, III",
+        "page": 12,
+        "citation": "Dans le cas de captages d’eau destinés à la consommation humaine situés dans des régions limitrophes et classés en zone d’actions renforcées par les PAR de ces régions avec un périmètre intersectant le territoire de la région Auvergne-Rhône-Alpes, la partie de ces périmètres en région Auvergne-Rhône-Alpes est retenue comme ZAR par le PAR Auvergne-Rhône-Alpes."
+      }
+    }
+  ],
+  "manques": [
+    {
+      "quoi": "Périodes d’interdiction d’épandage nationales",
+      "pourquoi": "Le PAR7 les « allonge » (tableau 1) sans les reproduire : elles figurent au I de l’annexe I de l’arrêté du 30 janvier 2023 (programme d’actions national), qui n’est pas fourni.",
+      "consequence": "Seul l’allongement régional du 15 au 28 février (type III) est opposé. Un épandage hors de cette fenêtre n’est pas déclaré « conforme » : il reste indéterminé pour les périodes nationales."
+    },
+    {
+      "quoi": "Plafond d’azote organique (170 kg N/ha) et ses modalités",
+      "pourquoi": "Mesure du programme d’actions national, absente des fichiers fournis.",
+      "consequence": "Le plafond d’azote organique de l’exploitation n’est pas contrôlé : la quantité épandue est affichée sans être comparée."
+    },
+    {
+      "quoi": "Classement des fertilisants en types 0, I, II et III",
+      "pourquoi": "Défini par le programme d’actions national (non fourni). Le PAR7 ne qualifie qu’un produit : la phase liquide des digestats (type II).",
+      "consequence": "Parcelys ne range en type III que les engrais azotés minéraux (« engrais minéral de synthèse » des fiches GREN). Le type d’un produit organique doit être déclaré sur sa fiche ; à défaut, les plafonds par type restent indéterminés."
+    },
+    {
+      "quoi": "Cartographie des zones d’actions renforcées",
+      "pourquoi": "L’arrêté renvoie aux cartes publiées par la DREAL ; elles ne sont pas fournies.",
+      "consequence": "Le périmètre de chaque ZAR est reconstitué par l’aire d’alimentation du captage quand elle existe (référentiel national des AAC), sinon laissé indéterminé sur la commune citée. Voir la transcription des ZAR."
+    },
+    {
+      "quoi": "Couche « BCAE » des cours d’eau, canaux et fossés",
+      "pourquoi": "Elle désigne les écoulements soumis à la bande enherbée ; elle n’est pas fournie. BD TOPAGE localise les écoulements sans dire lesquels sont « BCAE ».",
+      "consequence": "La bande enherbée de 5 m est signalée « à vérifier » sur les parcelles en zone vulnérable bordées d’un écoulement BD TOPAGE ; jamais déclarée respectée ni manquante."
+    },
+    {
+      "quoi": "Contours des petites régions agricoles et des zones inondables à aléas très forts des PPRI",
+      "pourquoi": "L’annexe 2.C liste les petites régions agricoles mais sa carte n’est pas exploitable ; les PPRI ne sont pas fournis.",
+      "consequence": "Les dérogations de maintien des cannes (III, 1° f et g) sont affichées comme règles applicables ; leur bénéfice n’est pas déterminé automatiquement."
+    },
+    {
+      "quoi": "Flexibilité agro-météorologique",
+      "pourquoi": "Le PAR7 annonce une modification de l’arrêté pour la prendre en compte ; aucune modification en ce sens n’est fournie (l’arrêté n° 24-162 ne porte que sur les ZAR).",
+      "consequence": "Aucune flexibilité n’est appliquée aux périodes d’interdiction."
+    },
+    {
+      "quoi": "6e programme d’actions régional (arrêté n° 2018-248 du 19 juillet 2018)",
+      "pourquoi": "Abrogé au 1er septembre 2024 et non fourni.",
+      "consequence": "Les épandages antérieurs au 1er septembre 2024 ne sont contrôlés par aucune règle régionale : le contrôle est indéterminé, jamais rétroactivement soumis au PAR7."
+    }
+  ]
+}

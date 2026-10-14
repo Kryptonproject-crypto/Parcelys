@@ -1,0 +1,231 @@
+{
+  "format": "parcelys-transcription-zar/1",
+  "referentiel": {
+    "code": "zones-action-renforcee",
+    "domaine": "ZONAGE",
+    "nom": "Zones d’actions renforcées — Auvergne-Rhône-Alpes",
+    "territoire": "84",
+    "version": "PAR7 AURA — annexe 1 de l’arrêté n° 24-135 modifiée par l’arrêté n° 24-162",
+    "source": "Préfète de la région Auvergne-Rhône-Alpes — annexe 1 de l’arrêté n° 24-135 du 19 juillet 2024, modifiée par l’arrêté n° 24-162 du 12 septembre 2024 ; fiche DRAAF/DREAL « Mesures renforcées à mettre en œuvre dans les ZAR » (juillet 2024) ; périmètres reconstitués à partir du référentiel national des aires d’alimentation de captage",
+    "applicableDu": "2024-09-01",
+    "applicableAu": null,
+    "remplaceLesVersionsAnterieures": true,
+    "notes": [
+      "L’arrêté donne la liste des captages classés et leurs communes, pas les périmètres : « les cartographies actualisées des zones d’actions renforcées sont disponibles sur le site de la DREAL » (art. 3, I) — elles ne sont pas fournies.",
+      "Selon la fiche DRAAF/DREAL fournie, les limites des ZAR sont les aires d’alimentation de captages lorsqu’elles ont été délimitées, sinon les périmètres de protection du code de la santé, sinon les communes (code de l’environnement, art. R. 211-81-1 et R. 211-81-1-1).",
+      "Quand l’aire d’alimentation du captage figure au référentiel national des AAC, elle est retenue comme périmètre, après vérification qu’elle recoupe une commune citée par l’arrêté. Sinon, le périmètre reste inconnu : la commune citée est marquée « appartenance indéterminée », jamais « en ZAR ».",
+      "La cartographie DREAL fait foi en cas d’écart : un contrôle fondé sur un périmètre reconstitué est présenté « à vérifier », pas comme une anomalie certaine."
+    ]
+  },
+  "documents": {
+    "annexe1": {
+      "fichier": "05_PAN_PAR/2024_07_19_annexe_1.pdf",
+      "sha256": "9ee51ade97edb5602ace8747ce9c063b997bf233099f330558a22bd6524d3868",
+      "titre": "Annexe 1 de l’arrêté n° 24-135 du 19 juillet 2024 : liste des captages classés en zone d’actions renforcées (ZAR)",
+      "date": "2024-07-19",
+      "lecture": "texte-numerique"
+    },
+    "modificatif": {
+      "fichier": "05_PAN_PAR/2024_09_12_ap_modificatif_par7.pdf",
+      "sha256": "cb9372f123ea433725aab1ff3355e3ba45bd43c68871110d03d1c3463bf99da2",
+      "titre": "Arrêté n° 24-162 du 12 septembre 2024 modifiant l’arrêté du 19 juillet 2024 établissant le programme d’actions régional nitrates pour la région Auvergne-Rhône-Alpes",
+      "date": "2024-09-12",
+      "lecture": "scan-ocr-verifie-visuellement"
+    },
+    "fiche": {
+      "fichier": "04_ZAR/mzarvf.pdf",
+      "sha256": "ca7834758546154bc1bc46807c2e119838e7580d21c3fd7c7da077d7eaf8324d",
+      "titre": "Fiche DRAAF et DREAL Auvergne-Rhône-Alpes « Mesures renforcées à mettre en œuvre dans les zones d’actions renforcées (ZAR) », version juillet 2024",
+      "date": "2024-07-01",
+      "lecture": "texte-numerique"
+    }
+  },
+  "captages": [
+    {
+      "id": "les-terriens",
+      "nom": "Les Terriens",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Gannay sur Loire", "insee": "03119", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Gannay-sur-Loire »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Les Terriens, commune de Gannay sur Loire (03)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1887"], "rapprochement": "AAC 1887 « AAC_GANNAY_SUR_LOIRE », nom d’usage « AAC_DES_TERRIENS » (bassin Loire-Bretagne)" }
+    },
+    {
+      "id": "pont-de-chatel",
+      "nom": "Pont de Chatel",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "La Ferté Hauterive", "insee": "03114", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « La Ferté-Hauterive »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Pont de Chatel, commune de La Ferté Hauterive (03)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1883"], "rapprochement": "AAC 1883 « AAC de Pont-de-Châtel » (bassin Loire-Bretagne)" }
+    },
+    {
+      "id": "port-saint-aubin",
+      "nom": "Port Saint Aubin",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Dompierre sur Besbre", "insee": "03102", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Dompierre-sur-Besbre »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Port Saint Aubin, commune de Dompierre sur Besbre (03)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1886"], "rapprochement": "AAC 1886 « AAC de Port-Saint-Aubin » (bassin Loire-Bretagne)" }
+    },
+    {
+      "id": "les-mottes",
+      "nom": "Les Mottes",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Paray sous Briailles", "insee": "03204", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Paray-sous-Briailles »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Les Mottes, commune de Paray sous Briailles (03)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1879"], "rapprochement": "AAC 1879 « AAC des Mottes » (bassin Loire-Bretagne)" }
+    },
+    {
+      "id": "moureyre-pideyre-orlhac",
+      "nom": "Moureyre, Pideyre, Orlhac",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Vieillespesse", "insee": "15259", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Vieillespesse ») ; points Sandre MOUREYRE, PIDEYRE, ORLHAC (CdCommune 15259)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Moureyre, Pideyre, Orlhac, commune de Vieillespesse (15)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation de ces captages au référentiel national des AAC fourni, et aucun périmètre de protection fourni." },
+      "pointsSandre": ["PTP000000000498198", "PTP000000000715765", "PTP000000000498196"]
+    },
+    {
+      "id": "source-chaffoix",
+      "nom": "Source Chaffoix",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Autichamp", "insee": "26021", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Autichamp »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Source Chaffoix, commune d'Autichamp (26)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1471"], "rapprochement": "AAC 1471 « CHAFFOIX », code alternatif 2601 (bassin Rhône-Méditerranée)" }
+    },
+    {
+      "id": "source-rouveyrol",
+      "nom": "Source Rouveyrol",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Chabrillan", "insee": "26065", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Chabrillan ») ; points Sandre PUITS ROUVEYROL et SOURCE ROUVEYROL (CdCommune 26065)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Source Rouveyrol, commune de Chabrillan (26)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation de ce captage au référentiel national des AAC fourni, et aucun périmètre de protection fourni." },
+      "pointsSandre": ["PTP000000000779272", "PTP000000000779271", "PTP000000000792783"]
+    },
+    {
+      "id": "galerie-de-la-tour",
+      "nom": "La galerie de la tour",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "La Bâtie-Rolland", "insee": "26031", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « La Bâtie-Rolland »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "La galerie de la tour, commune de La Bâtie-Rolland (26)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1576"], "rapprochement": "AAC 1576 « LA TOUR LA BATIE ROLLAND », code alternatif gr576 (bassin Rhône-Méditerranée)" }
+    },
+    {
+      "id": "bas-beaufort",
+      "nom": "Bas Beaufort puits secours",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Beaufort", "insee": "38032", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Beaufort », bassin rm) ; points Sandre FORAGE DE BAS-BEAUFORT (CdCommune 38032)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Bas Beaufort puits secours, commune de Beaufort (38)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation de ce captage au référentiel national des AAC fourni (l’AAC « RETENUE_BEAUFORT » est en bassin Loire-Bretagne, sans rapport), et aucun périmètre de protection fourni." },
+      "pointsSandre": ["PTP000000000071197", "PTP000000000779408"]
+    },
+    {
+      "id": "est-lyonnais-aac",
+      "nom": "Chozelle, Azieu, Saint-Exupéry, Reculon",
+      "regionDuCaptage": "AURA",
+      "communes": [
+        { "nom": "Tignieu-Jameyzieu", "insee": "38507", "sourceInsee": "zones vulnérables DREAL AURA ; point Sandre FORAGE STATION DE CHOZELLE (CdCommune 38507)" },
+        { "nom": "Satolas et Bonce", "insee": "38475", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Satolas-et-Bonce »)" },
+        { "nom": "Charvieu Chavagneux", "insee": "38085", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Charvieu-Chavagneux »)" },
+        { "nom": "Genas", "insee": "69277", "sourceInsee": "zones vulnérables DREAL AURA ; points Sandre FORAGE D'AZIEU (CdCommune 69277)" },
+        { "nom": "Colombier-Saugnier", "insee": "69299", "sourceInsee": "points Sandre PUITS LIEU-DIT RECULON (CdCommune 69299, « COLOMBIER SAUGNIEU ») — commune absente du zonage des zones vulnérables fourni ; l’arrêté écrit « Colombier-Saugnier »" }
+      ],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Chozelle, Avinans secours, Coutuses, communes de Tignieu-Jameyzieu, de Satolas et Bonce et de Charvieu Chavagneux (38) et Azieu, Saint-Exupéry, Reculon, commune de Genas et de Colombier-Saugnier (69)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1653", "1489", "1488", "1559"], "rapprochement": "AAC 1653 « CHOZELLE » (CE3801), 1489 « AZIEU (SECOURS) - NAPPE FLUVIO-GLACIAIRE EST LYONNAIS » (6903), 1488 « SAINT-EXUPERY - NAPPE FLUVIO-GLACIAIRE EST LYONNAIS » (6901), 1559 « RECULON » (gr593), bassin Rhône-Méditerranée" },
+      "pointsSandre": ["PTP000000000072973", "PTP000000000075039", "PTP000000000075040", "PTP000000000075120"]
+    },
+    {
+      "id": "est-lyonnais-sans-aac",
+      "nom": "Avinans secours, Coutuses",
+      "regionDuCaptage": "AURA",
+      "communes": [
+        { "nom": "Satolas et Bonce", "insee": "38475", "sourceInsee": "zones vulnérables DREAL AURA ; points Sandre FORAGE AVINANS et PUITS … LES AVINANS (CdCommune 38475)" },
+        { "nom": "Charvieu Chavagneux", "insee": "38085", "sourceInsee": "zones vulnérables DREAL AURA ; points Sandre PUITS STATION LES COUTUSES et PUITS LES COUTUSES (CdCommune 38085)" }
+      ],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Chozelle, Avinans secours, Coutuses, communes de Tignieu-Jameyzieu, de Satolas et Bonce et de Charvieu Chavagneux (38) et Azieu, Saint-Exupéry, Reculon, commune de Genas et de Colombier-Saugnier (69)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation propre à ces deux captages au référentiel national des AAC fourni, et aucun périmètre de protection fourni." },
+      "pointsSandre": ["PTP000000000072837", "PTP000000000072835", "PTP000000000071474", "PTP000000000071475"]
+    },
+    {
+      "id": "sources-plateau-de-louze",
+      "nom": "Sources du Plateau de Louze",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Saint-Maurice-l'Exil", "insee": "38425", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Saint-Maurice-l'Exil »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Sources du Plateau de Louze, commune de Saint-Maurice-l'Exil (38)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["5730"], "rapprochement": "AAC 5730 « AAC SOURCES DE LOUZE (FRANCOU) » (bassin Rhône-Méditerranée)" }
+    },
+    {
+      "id": "charlan",
+      "nom": "Charlan",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Ruy Montceau", "insee": "38348", "sourceInsee": "zones vulnérables DREAL AURA ; point Sandre SOURCE DE CHARLAN (CdCommune 38348)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Charlan, commune de Ruy Montceau (38)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["1652"], "rapprochement": "AAC 1652 « LE CHARLAN » (CE3802), bassin Rhône-Méditerranée" },
+      "pointsSandre": ["PTP000000000788006"]
+    },
+    {
+      "id": "anzieux-la-vaure-les-vials",
+      "nom": "Anzieux, La Vaure et Les Vials",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Saint-André-le-Puy", "insee": "42200", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Saint-André-le-Puy ») ; points Sandre P1 ANZIEUX, P2 LA VAURE, P3 LES VIALS (CdCommune 42200)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "Anzieux, La Vaure et Les Vials, commune de Saint-André-le-Puy (42)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation de ces captages au référentiel national des AAC fourni, et aucun périmètre de protection fourni." },
+      "pointsSandre": ["PTP000000000099915", "PTP000000000099913", "PTP000000000099914"]
+    },
+    {
+      "id": "la-giraudiere",
+      "nom": "La Giraudière",
+      "regionDuCaptage": "AURA",
+      "communes": [{ "nom": "Saint-Just-Saint-Rambert", "insee": "42279", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Saint-Just-Saint-Rambert »)" }],
+      "depuis": "2024-09-01",
+      "source": { "document": "annexe1", "article": "annexe 1", "page": 1, "citation": "La Giraudière, commune de Saint-Just-Saint-Rambert (42)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["5503"], "rapprochement": "AAC 5503 « AAC des Giraudières » (bassin Loire-Bretagne)" }
+    },
+    {
+      "id": "varenne-bfc",
+      "nom": "Varenne",
+      "regionDuCaptage": "BFC",
+      "communes": [{ "nom": "Chassenard", "insee": "03063", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Chassenard ») — commune d’Auvergne-Rhône-Alpes intersectée selon l’arrêté ; le captage est à Varenne-Saint-Germain (71)" }],
+      "depuis": "2024-09-12",
+      "source": { "document": "modificatif", "article": "art. 1er", "page": 3, "citation": "Varenne, commune de Varenne Saint Germain (71), périmètre intersectant la commune de Chassenard (03)" },
+      "perimetre": { "type": "aire-alimentation-captage", "cdAac": ["5913"], "rapprochement": "AAC 5913 « AAC_VARENNE-SAINT-GERMAIN » (bassin Loire-Bretagne) ; seule sa partie en Auvergne-Rhône-Alpes est ZAR au titre du PAR AURA (art. 3, III)" }
+    },
+    {
+      "id": "la-greve-bfc",
+      "nom": "La Grève",
+      "regionDuCaptage": "BFC",
+      "communes": [{ "nom": "Pierrefitte sur Loire", "insee": "03207", "sourceInsee": "zones vulnérables DREAL AURA (insee_com « Pierrefitte-sur-Loire ») — commune d’Auvergne-Rhône-Alpes intersectée selon l’arrêté ; le captage est à Perrigny-sur-Loire (71)" }],
+      "depuis": "2024-09-12",
+      "source": { "document": "modificatif", "article": "art. 1er", "page": 3, "citation": "La Grève, commune de Perrigny sur Loire (71), périmètre intersectant la commune de Pierrefitte sur Loire (03)" },
+      "perimetre": { "type": "non-fourni", "raison": "Aucune aire d’alimentation de ce captage au référentiel national des AAC fourni (les AAC « PERRIGNY » du référentiel sont en Côte-d’Or et dans l’Yonne), et le périmètre du PAR de Bourgogne-Franche-Comté n’est pas fourni." }
+    }
+  ],
+  "manques": [
+    {
+      "quoi": "Cartographie DREAL des ZAR",
+      "pourquoi": "L’arrêté renvoie à des cartes en ligne, non fournies.",
+      "consequence": "Les périmètres sont reconstitués par l’AAC quand elle existe ; sinon l’appartenance reste indéterminée sur la commune citée."
+    },
+    {
+      "quoi": "Périmètres de protection de captage",
+      "pourquoi": "Aucun jeu de périmètres de protection (ARS) n’est fourni.",
+      "consequence": "Pour les six captages sans AAC, le périmètre de protection — deuxième niveau de délimitation des ZAR — est inconnu : il peut déborder de la commune citée, et la partie hors de cette commune ne peut pas être vérifiée."
+    },
+    {
+      "quoi": "Périmètre de la ZAR « La Grève » du PAR de Bourgogne-Franche-Comté",
+      "pourquoi": "Ni le PAR de Bourgogne-Franche-Comté ni sa cartographie ne sont fournis.",
+      "consequence": "Seule la commune de Pierrefitte-sur-Loire, citée par l’arrêté n° 24-162, est marquée « appartenance indéterminée »."
+    }
+  ]
+}

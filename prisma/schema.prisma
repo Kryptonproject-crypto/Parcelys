@@ -650,6 +650,10 @@ model OrganicInput {
   pContent    Decimal? @map("p_content") @db.Decimal(8, 3)
   kContent    Decimal? @map("k_content") @db.Decimal(8, 3)
   dryMatter   Decimal? @map("dry_matter") @db.Decimal(6, 2)
+  /// Classement réglementaire déclaré : type de fertilisant au sens du
+  /// programme national (0, I, II, III) et dénominations de la fiche GREN 19
+  /// (teneur, Kéq, azote potentiellement libéré). Vide : non déclaré.
+  regulatoryClass Json? @map("regulatory_class")
   defaultUnit String   @default("t/ha") @map("default_unit")
   isCustom    Boolean  @default(false) @map("is_custom")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1402,6 +1406,10 @@ model RegulatoryReferential {
   recordCount Int               @default(0) @map("record_count")
   /// Ce que l'import n'a pas su faire, dit en clair plutôt que passé sous silence.
   notes       String?
+  /// Ce qui a été intégré de cette version et ce qui manque, par rubrique :
+  /// fichiers sources et empreintes, éléments repris, données absentes. Un
+  /// référentiel intégré en partie ne doit s'afficher ni complet, ni absent.
+  integration Json?
 
   importedAt DateTime? @map("imported_at")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -1475,6 +1483,9 @@ model RegulatoryRule {
 
   /// Référence du texte : arrêté, article. Affichée à l'utilisateur.
   sourceRef String? @map("source_ref")
+  /// Ce que dit le texte, mot pour mot : la valeur appliquée se confronte à
+  /// la citation sans rouvrir le PDF.
+  citation  String?
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1494,6 +1505,25 @@ enum ZoneKind {
   COURS_EAU
   ZONE_ENVIRONNEMENTALE
   AUTRE
+  /// Bassin hydrographique (Rhône-Méditerranée, Loire-Bretagne…) : il désigne
+  /// l'arrêté de délimitation applicable.
+  BASSIN_HYDROGRAPHIQUE
+  /// Contour officiel d'une région : il désigne le programme d'actions
+  /// régional auquel une parcelle est soumise.
+  REGION_ADMINISTRATIVE
+  /// Tronçon du réseau hydrographique (BD TOPAGE), nommé ou non.
+  TRONCON_HYDROGRAPHIQUE
+  /// Surface en eau élémentaire (BD TOPAGE) : berges des cours d'eau larges.
+  SURFACE_HYDROGRAPHIQUE
+  PLAN_EAU
+  /// Point de prélèvement d'eau (référentiel Sandre). Ni ouvrage, ni AAC.
+  POINT_PRELEVEMENT
+  /// Ouvrage de prélèvement, qui regroupe un ou plusieurs points.
+  OUVRAGE_PRELEVEMENT
+  /// Périmètre de protection de captage (code de la santé publique).
+  PERIMETRE_PROTECTION_CAPTAGE
+  /// Zone de protection d'aire d'alimentation de captage.
+  ZONE_PROTECTION_AAC
 }
 
 /// Un zonage réglementaire, avec sa géométrie.
@@ -1510,7 +1540,7 @@ model RegulatoryZone {
   code          String?
   label         String
 
-  geom Unsupported("geometry(MultiPolygon, 4326)")?
+  geom Unsupported("geometry(Geometry, 4326)")?
 
   /// Attributs de la source, conservés intégralement : ce qui n'est pas
   /// reconnu est gardé plutôt qu'écarté.
@@ -1556,6 +1586,11 @@ model ParcelRegulatoryContext {
   /// bien plus souvent qu'on ne voudrait, et c'est normal : tant qu'un
   /// référentiel n'est pas importé, le contexte reste partiel — il le dit.
   unresolved Json @default("[]")
+
+  /// Ce qui est proche sans recouper : cours d'eau, plans d'eau, points de
+  /// prélèvement, avec la distance au contour. Une distance n'est pas une
+  /// appartenance, d'où ce champ distinct de `zones`.
+  proximites Json @default("[]")
 
   computedAt DateTime @default(now()) @map("computed_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -1616,6 +1651,10 @@ model NitrogenPlan {
   /// Dose prévisionnelle retenue, en azote efficace puis en azote total.
   plannedEfficientKgHa Decimal? @map("planned_efficient_kg_ha") @db.Decimal(8, 2)
   plannedTotalKgHa     Decimal? @map("planned_total_kg_ha") @db.Decimal(8, 2)
+
+  /// Paramètres du calcul GREN : culture au sens du référentiel, type de sol,
+  /// choix faits dans chaque tableau, valeurs mesurées et leur justification.
+  grenInputs Json? @map("gren_inputs")
 
   /// Référentiel de calcul employé, pour l'affichage de la source.
   referentialCode    String? @map("referential_code")

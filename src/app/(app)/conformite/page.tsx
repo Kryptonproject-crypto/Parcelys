@@ -5,6 +5,7 @@ import { buildComplianceReport } from '@/lib/regulatory/compliance';
 import { computeFarmIft } from '@/lib/regulatory/ift';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
 import { Badge, Card, PageHeader } from '@/components/ui';
+import { RegleTrace } from '@/components/regulatory/RegleTrace';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Conformité' };
@@ -153,7 +154,9 @@ export default async function CompliancePage({
                 {finding.action ? (
                   <p className="mt-1.5 text-[13px] text-ink-3">→ {finding.action}</p>
                 ) : null}
-                {finding.sourceLabel ? (
+                {finding.trace ? (
+                  <RegleTrace trace={finding.trace} />
+                ) : finding.sourceLabel ? (
                   <p className="mt-1.5 border-t border-line pt-1.5 text-[11.5px] text-ink-3">
                     Règle issue de {finding.sourceLabel}
                     {finding.referentialVersion ? `, version ${finding.referentialVersion}` : ''}

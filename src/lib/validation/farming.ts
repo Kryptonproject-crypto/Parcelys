@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { classementDeclareSchema } from '@/lib/regulatory/classement-produit';
 import { geometrySchema } from '@/lib/geo/types';
 import {
   DOCUMENT_CATEGORIES,
@@ -331,3 +332,27 @@ export const memberInviteSchema = z.object({
 export type ParcelCreateInput = z.infer<typeof parcelCreateSchema>;
 export type FertilizationInput = z.infer<typeof fertilizationSchema>;
 export type PhytoApplicationInput = z.infer<typeof phytoApplicationSchema>;
+
+// ---------------------------------------------------------------------------
+// Produits organiques de l'exploitation
+// ---------------------------------------------------------------------------
+
+/**
+ * Un produit organique propre à l'exploitation : ses teneurs (issues d'une
+ * analyse) et son classement réglementaire déclaré.
+ *
+ * Les teneurs sont en kg d'élément par tonne ou par m³ de produit brut. Le
+ * classement reprend le type du programme national et les dénominations de
+ * la fiche GREN 19 ; chacune est facultative — non déclarée, la règle qui en
+ * dépend reste indéterminée.
+ */
+export const organicProductSchema = z.object({
+  name: z.string().trim().min(1, 'Nom du produit requis').max(120),
+  category: optionalText(80),
+  nContent: optionalDecimal(500),
+  pContent: optionalDecimal(500),
+  kContent: optionalDecimal(500),
+  dryMatter: optionalDecimal(100),
+  defaultUnit: z.enum(['t/ha', 'm3/ha']).default('t/ha'),
+  regulatoryClass: classementDeclareSchema.optional(),
+});

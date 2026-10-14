@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import type { RegulatoryDomain, ReferentialStatus } from '@prisma/client';
+import type { Prisma, RegulatoryDomain, ReferentialStatus } from '@prisma/client';
+import type { Manque } from '@/lib/regulatory/transcription';
 
 /**
  * Les référentiels réglementaires, et la seule façon honnête de s'en servir.
@@ -131,6 +132,24 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
     },
   },
   {
+    /*
+     * Le contour officiel de la région. Il ne porte aucune règle : il dit à
+     * quel programme d'actions **régional** une parcelle est soumise. Le
+     * déduire du code de département marcherait presque partout ; le contour
+     * fourni le dit sans déduction, enclaves comprises.
+     */
+    code: 'limites-administratives',
+    domain: 'ZONAGE',
+    name: 'Limites administratives (région)',
+    usage:
+      'Rattache chaque parcelle à sa région, donc au programme d’actions régional et au référentiel GREN qui s’y appliquent ; borne les zonages régionaux.',
+    sourceLabel: 'Contour régional fourni avec les référentiels',
+    envVar: 'LIMITES_ADMINISTRATIVES_URL',
+    territorial: true,
+    degradedWithout:
+      'La région d’une parcelle n’est pas déterminée : aucune règle régionale (programme d’actions, GREN) ne lui est opposée.',
+  },
+  {
     code: 'zones-action-renforcee',
     domain: 'ZONAGE',
     name: 'Zones d’actions renforcées',
@@ -184,9 +203,10 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
   {
     code: 'captages',
     domain: 'ZONAGE',
-    name: 'Captages et ouvrages de prélèvement',
-    usage: 'Contraintes liées à la protection de la ressource en eau.',
-    sourceLabel: 'Données publiques sur l’eau',
+    name: 'Points et ouvrages de prélèvement',
+    usage:
+      'Situe les prélèvements d’eau autour des parcelles et identifie les captages cités par les textes (zones d’actions renforcées).',
+    sourceLabel: 'Sandre — référentiel des prélèvements (BNPE)',
     envVar: 'CAPTAGES_URL',
     territorial: true,
     degradedWithout: 'La proximité d’un captage n’est pas détectée.',
@@ -195,6 +215,30 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
       formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
       note:
         'Un point de prélèvement, un ouvrage et un captage sont trois objets distincts, et aucun n’est une aire d’alimentation. Ils sont publiés en points : ils servent au repérage et au calcul de distance, pas au calcul d’une part de parcelle concernée.',
+    },
+  },
+  {
+    /*
+     * Le périmètre de protection de captage relève du code de la santé
+     * publique, et d'un arrêté de déclaration d'utilité publique par captage.
+     * Aucun jeu ne l'a fourni pour l'Auvergne-Rhône-Alpes : la place existe
+     * pour qu'il ne soit pas, le jour venu, rangé sous une nature voisine.
+     */
+    code: 'perimetres-protection-captage',
+    domain: 'ZONAGE',
+    name: 'Périmètres de protection de captage',
+    usage:
+      'Périmètres immédiat, rapproché et éloigné fixés par arrêté de DUP : interdictions et réglementations propres à chaque captage.',
+    sourceLabel: 'Agences régionales de santé',
+    envVar: 'PERIMETRES_PROTECTION_URL',
+    territorial: true,
+    degradedWithout:
+      'L’appartenance à un périmètre de protection reste indéterminée — et c’est aussi ce qui empêche de délimiter les zones d’actions renforcées quand l’aire d’alimentation n’est pas arrêtée.',
+    datagouv: {
+      query: 'périmètres protection captage eau potable',
+      formats: ['geojson', 'json', 'shp', 'zip', 'gpkg', 'wfs'],
+      note:
+        'Publiés par les ARS, souvent sur demande. Chaque périmètre renvoie à son arrêté de DUP, qu’il faut conserver avec lui.',
     },
   },
   {
@@ -230,18 +274,19 @@ export const REFERENTIAL_CATALOG: ReferentialSpec[] = [
   {
     code: 'cours-eau',
     domain: 'ZONAGE',
-    name: 'Cours d’eau',
-    usage: 'Distances réglementaires et zones non traitées riveraines.',
-    sourceLabel: 'IGN — Géoplateforme',
+    name: 'Hydrographie — BD TOPAGE',
+    usage:
+      'Localise les écoulements, surfaces en eau et plans d’eau, mesure leur distance aux parcelles, et détermine le bassin hydrographique de chaque parcelle.',
+    sourceLabel: 'IGN / OFB — BD TOPAGE',
     envVar: 'COURS_EAU_URL',
     territorial: true,
     degradedWithout:
-      'La proximité d’un cours d’eau n’est pas détectée : les ZNT restent affichées sans être rapportées au terrain.',
+      'La proximité d’un cours d’eau n’est pas détectée : les ZNT et distances d’épandage restent affichées sans être rapportées au terrain, et le bassin de la parcelle n’est pas déterminé.',
     datagouv: {
-      query: 'cours d’eau police de l’eau BD TOPO hydrographie',
-      formats: ['geojson', 'json', 'shp', 'zip', 'wfs'],
+      query: 'BD TOPAGE tronçon hydrographique cours d’eau',
+      formats: ['gpkg', 'shp', 'zip', 'geojson', 'wfs'],
       note:
-        'Les cours d’eau sont des lignes : leur import sert au repérage, pas au calcul de surface concernée.',
+        'BD TOPAGE localise les écoulements mais ne dit pas lesquels sont des cours d’eau au sens d’un arrêté : c’est la cartographie départementale qui en décide. Une distance mesurée sert à vérifier, jamais à créer une ZNT.',
     },
   },
 ];
@@ -502,4 +547,33 @@ export async function failImport(params: {
       },
     }),
   ]);
+}
+
+/** Ce que l'import a pu vérifier d'un fichier source. */
+export type FichierVerifie = { chemin: string; sha256: string; octets: number };
+
+/**
+ * Ce qu'une version de référentiel contient, et ce qui lui manque.
+ *
+ * C'est ce que la page « Référentiels réglementaires » affiche : un
+ * référentiel n'y est ni « importé » ni « absent » en bloc, il est intégré
+ * **pour ce qu'il contient**, avec la liste de ce qui fait défaut.
+ */
+export type Integration = {
+  /** `complet` : tout ce que la source contient est employé ; `partiel` sinon. */
+  etat: 'complet' | 'partiel';
+  millesime: string | null;
+  fichiers: FichierVerifie[];
+  elements: Array<{ quoi: string; nombre: number }>;
+  manques: Manque[];
+};
+
+export async function enregistrerIntegration(
+  referentialId: string,
+  integration: Integration,
+): Promise<void> {
+  await prisma.regulatoryReferential.update({
+    where: { id: referentialId },
+    data: { integration: integration as unknown as Prisma.InputJsonValue },
+  });
 }

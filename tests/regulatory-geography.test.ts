@@ -414,6 +414,91 @@ describe('Zonage publié à la commune', () => {
     expect(zoneOf(contexte, 'ZONE_VULNERABLE')?.attributes?.bassin).toBe('lb');
   });
 
+  /*
+   * Le classement a une histoire. Les décisions du tribunal administratif du
+   * 6 juin 2024 ont retiré sept communes de l'Allier de la zone vulnérable et
+   * en ont réduit deux à « quelques sections ». Une parcelle de Bost était en
+   * zone vulnérable en 2023, et ne l'est plus en 2025 : les deux réponses sont
+   * justes, chacune à sa date.
+   */
+  async function importerHistorique() {
+    return importZoneCollection(
+      [
+        {
+          type: 'Feature',
+          geometry: carre(3.0, 45.8, 0.1),
+          properties: {
+            insee_com: '99010',
+            nom_com: 'Communeretirée',
+            bassin: 'lb',
+            classement: 'toutes sections',
+            modif2024: 'suppression',
+            classements: [
+              { depuis: '2021-08-30', valeur: 'toutes sections', source: 'Arrêté du 30 août 2021' },
+              { depuis: '2024-06-06', valeur: 'suppression', source: 'TA du 6 juin 2024' },
+            ],
+          },
+        },
+        {
+          type: 'Feature',
+          geometry: carre(3.2, 45.8, 0.1),
+          properties: {
+            insee_com: '99011',
+            nom_com: 'Communeréduite',
+            bassin: 'lb',
+            classement: 'toutes sections',
+            modif2024: 'quelques sections',
+            classements: [
+              { depuis: '2021-08-30', valeur: 'toutes sections', source: 'Arrêté du 30 août 2021' },
+              { depuis: '2024-06-06', valeur: 'quelques sections', source: 'TA du 6 juin 2024' },
+            ],
+          },
+        },
+      ],
+      {
+        code: 'zones-vulnerables',
+        name: 'Zones vulnérables aux nitrates',
+        kind: 'ZONE_VULNERABLE',
+        territory: '84',
+        version: '2021-maj-2025-05-12',
+        sourceLabel: 'DREAL Auvergne-Rhône-Alpes',
+        codeField: 'insee_com',
+        labelField: 'nom_com',
+      },
+    );
+  }
+
+  it('juge le classement à la date demandée : une commune retirée en 2024', async () => {
+    await importerHistorique();
+    const parcelleId = await parcelleDans('À Communeretirée', 3.04, 45.84);
+    const contexte = await computeParcelContext(parcelleId);
+
+    // 2023 : la commune était classée, toutes sections.
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE', new Date('2023-05-01'))).toBe('dedans');
+    // 2025 : retirée par les décisions du 6 juin 2024.
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE', new Date('2025-03-01'))).toBe('dehors');
+    // 2019 : ce zonage n'était pas encore en vigueur, et le précédent n'est pas
+    // importé. On ne présume pas.
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE', new Date('2019-03-01'))).toBe(
+      'indetermine',
+    );
+  });
+
+  it('juge le classement à la date demandée : une commune réduite en 2024', async () => {
+    await importerHistorique();
+    const parcelleId = await parcelleDans('À Communeréduite', 3.24, 45.84);
+    const contexte = await computeParcelContext(parcelleId);
+
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE', new Date('2023-05-01'))).toBe('dedans');
+    expect(statutZonage(contexte, 'ZONE_VULNERABLE', new Date('2025-03-01'))).toBe(
+      'indetermine',
+    );
+    // Et le contexte du jour le dit : « quelques sections », à vérifier.
+    expect(
+      contexte.unresolved.some((u) => u.reason.includes('quelques sections')),
+    ).toBe(true);
+  });
+
   it('ne met pas en doute un zonage dont la géométrie est la zone', async () => {
     // Un zonage publié en vraies zones ne porte pas de « classement » : le
     // recoupement tranche, et l'indétermination communale ne doit pas

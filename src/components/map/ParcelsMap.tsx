@@ -226,6 +226,18 @@ export function ParcelsMap({
             fillColor: definition.color,
             fillOpacity: 0.12,
           },
+          // Les points de prélèvement se comptent par centaines autour d'une
+          // exploitation : en marqueurs, ils recouvriraient les parcelles. Un
+          // petit cercle les situe sans masquer ce qu'on regarde.
+          pointToLayer: (_entite, position) =>
+            L.circleMarker(position, {
+              radius: 4,
+              color: definition.color,
+              weight: 1.5,
+              fillColor: definition.color,
+              fillOpacity: 0.6,
+              interactive: false,
+            }),
           interactive: false,
         },
       );

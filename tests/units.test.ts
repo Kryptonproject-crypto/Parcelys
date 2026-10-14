@@ -85,6 +85,32 @@ describe('Calculs de fertilisation', () => {
     ).toEqual({ nSupplied: 112.5, pSupplied: 62.5, kSupplied: 150 });
   });
 
+  it('ne convertit jamais des litres d’engrais en kilogrammes sans densité', () => {
+    // Une solution azotée dosée en L/ha : sans la densité, l'azote est inconnu.
+    expect(
+      computeNutrients({ dose: 150, doseUnit: 'L/ha', mineral: { nPercent: 39 } }),
+    ).toEqual({ nSupplied: null, pSupplied: null, kSupplied: null });
+    // Une tonne d'engrais, en revanche, ce sont 1 000 kg.
+    expect(
+      computeNutrients({ dose: 0.2, doseUnit: 't/ha', mineral: { nPercent: 33.5 } }),
+    ).toMatchObject({ nSupplied: 67 });
+  });
+
+  it('rapporte la dose organique à l’unité des teneurs, ou renonce', () => {
+    // 30 m³/ha d'un lisier analysé au m³ : 30 × 3 = 90 kg N/ha.
+    expect(
+      computeNutrients({ dose: 30, doseUnit: 'm3/ha', organic: { nContent: 3, unit: 'm3/ha' } }),
+    ).toMatchObject({ nSupplied: 90 });
+    // Des m³ d'un fumier analysé à la tonne : densité inconnue, pas de chiffre.
+    expect(
+      computeNutrients({ dose: 30, doseUnit: 'm3/ha', organic: { nContent: 6, unit: 't/ha' } }),
+    ).toEqual({ nSupplied: null, pSupplied: null, kSupplied: null });
+    // Des kg/ha d'un produit analysé à la tonne : 500 kg = 0,5 t.
+    expect(
+      computeNutrients({ dose: 500, doseUnit: 'kg/ha', organic: { nContent: 30, unit: 't/ha' } }),
+    ).toMatchObject({ nSupplied: 15 });
+  });
+
   it('n’estime jamais une teneur inconnue', () => {
     expect(computeNutrients({ dose: 100, doseUnit: 'kg/ha' })).toEqual({
       nSupplied: null,

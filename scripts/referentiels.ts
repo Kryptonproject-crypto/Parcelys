@@ -78,9 +78,10 @@ function parseArgs(argv: string[]): { commande: string; args: Args } {
 const NATURES: Record<string, ZoneKind> = {
   'zones-vulnerables': 'ZONE_VULNERABLE',
   'zones-action-renforcee': 'ZONE_ACTION_RENFORCEE',
-  captages: 'CAPTAGE',
+  captages: 'POINT_PRELEVEMENT',
   'aires-alimentation-captage': 'AIRE_ALIMENTATION_CAPTAGE',
-  'cours-eau': 'COURS_EAU',
+  'perimetres-protection-captage': 'PERIMETRE_PROTECTION_CAPTAGE',
+  'cours-eau': 'TRONCON_HYDROGRAPHIQUE',
 };
 
 async function etat(): Promise<void> {

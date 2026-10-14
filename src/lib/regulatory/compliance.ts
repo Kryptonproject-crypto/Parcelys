@@ -2,10 +2,12 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { computeFarmIft } from '@/lib/regulatory/ift';
 import { buildNitrogenBalance, comparePlanToActual } from '@/lib/regulatory/nitrogen';
-import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
+import { getOrComputeParcelContext, porteeDuClassement } from '@/lib/regulatory/geography';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
 import { constatsCouverture } from '@/lib/regulatory/soil-cover';
 import { plafondAzoteOrganique } from '@/lib/regulatory/organic-nitrogen';
+import { constatsProgrammeActions } from '@/lib/regulatory/programme-actions';
+import type { Trace } from '@/lib/regulatory/regles';
 import type { FindingLevel, RegulatoryDomain } from '@prisma/client';
 
 /**
@@ -57,6 +59,12 @@ export type Finding = {
   parcelName?: string;
   entity?: string;
   entityId?: string;
+  /**
+   * La règle appliquée, entière : code et libellé, référentiel et version,
+   * texte (arrêté, article, page) et citation, territoire, période de
+   * validité. Présente pour toute règle transcrite d'un texte.
+   */
+  trace?: Trace | null;
 };
 
 export type ComplianceReport = {
@@ -120,8 +128,15 @@ export async function buildComplianceReport(params: {
       continue;
     }
 
+    // Le classement se lit à la fin de la campagne : une commune retirée du
+    // zonage, classée « quelques sections » ou pas encore classée ne met pas
+    // la parcelle en zone vulnérable — même si son contour la recoupe.
+    const finCampagne = new Date(Date.UTC(params.campaignYear, 6, 31, 23, 59, 59));
+    const reference = finCampagne < new Date() ? finCampagne : new Date();
     for (const zone of contexte.zones) {
       if (zone.kind !== 'ZONE_VULNERABLE') continue;
+      const portee = porteeDuClassement(zone.attributes, reference);
+      if (portee !== 'totale' && portee !== 'non-precisee') continue;
       findings.push({
         domain: 'NITRATES',
         level: 'VERIFICATION',
@@ -375,6 +390,35 @@ export async function buildComplianceReport(params: {
       ...(constat.referentialCode ? { referentialCode: constat.referentialCode } : {}),
       parcelId: constat.parcelId,
       parcelName: constat.parcelName,
+    });
+  }
+
+  // --- Programme d'actions régional (apports, couverts, ZAR, bandes) --------
+  //
+  // Les règles transcrites du 7e programme d'actions régional, appliquées à
+  // ce qui a été enregistré. Chaque constat porte la règle qu'il oppose.
+  for (const constat of await constatsProgrammeActions({
+    farmId: params.farmId,
+    campaignYear: params.campaignYear,
+  })) {
+    findings.push({
+      domain: constat.domain,
+      level: constat.level,
+      code: constat.code,
+      title: constat.title,
+      detail: constat.detail,
+      ...(constat.action ? { action: constat.action } : {}),
+      ...(constat.parcelId ? { parcelId: constat.parcelId, parcelName: constat.parcelName } : {}),
+      ...(constat.entity ? { entity: constat.entity, entityId: constat.entityId } : {}),
+      ...(constat.trace
+        ? {
+            trace: constat.trace,
+            ruleLabel: constat.trace.regle.libelle,
+            referentialCode: constat.trace.referentiel.code,
+            referentialVersion: constat.trace.referentiel.version,
+            sourceLabel: constat.trace.referentiel.source,
+          }
+        : {}),
     });
   }
 

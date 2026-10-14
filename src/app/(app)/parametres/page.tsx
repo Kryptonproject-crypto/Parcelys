@@ -6,6 +6,8 @@ import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { FarmForm } from '@/app/(app)/parametres/FarmForm';
 import { AdvisorsPanel } from '@/app/(app)/parametres/AdvisorsPanel';
+import { OrganicProductsPanel } from '@/app/(app)/parametres/OrganicProductsPanel';
+import { optionsClassement } from '@/lib/regulatory/gren-options';
 import {
   Alert,
   Badge,
@@ -21,7 +23,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsPage() {
   const ctx = await requirePageFarmAccess('farm:read');
 
-  const [farm, members, ephySource, lastSyncRun] = await Promise.all([
+  const [farm, members, ephySource, lastSyncRun, produitsOrganiques, optionsFiche19] = await Promise.all([
     prisma.farm.findUniqueOrThrow({ where: { id: ctx.farmId } }),
     prisma.farmMember.findMany({
       where: { farmId: ctx.farmId },
@@ -32,7 +34,13 @@ export default async function SettingsPage() {
     }),
     getEphySourceInfo(),
     prisma.ephySyncRun.findFirst({ orderBy: { startedAt: 'desc' } }),
+    prisma.organicInput.findMany({
+      where: { farmId: ctx.farmId },
+      orderBy: { name: 'asc' },
+    }),
+    optionsClassement(),
   ]);
+  const decimal = (v: { toString(): string } | null) => (v === null ? null : Number(v));
 
   const canManageMembers = roleHasPermission(ctx.role, 'member:read');
 
@@ -102,6 +110,26 @@ export default async function SettingsPage() {
             </div>
           </Card>
         ) : null}
+
+        {/* Produits organiques et leur classement réglementaire */}
+        <OrganicProductsPanel
+          produits={produitsOrganiques.map((p) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            nContent: decimal(p.nContent),
+            pContent: decimal(p.pContent),
+            kContent: decimal(p.kContent),
+            dryMatter: decimal(p.dryMatter),
+            defaultUnit: p.defaultUnit,
+            regulatoryClass:
+              p.regulatoryClass && typeof p.regulatoryClass === 'object' && !Array.isArray(p.regulatoryClass)
+                ? (p.regulatoryClass as Record<string, string | null>)
+                : null,
+          }))}
+          options={optionsFiche19}
+          canEdit={roleHasPermission(ctx.role, 'referential:write')}
+        />
 
         {/* Experts agronomiques */}
         <AdvisorsPanel canManage={roleHasPermission(ctx.role, 'advisor:manage')} />

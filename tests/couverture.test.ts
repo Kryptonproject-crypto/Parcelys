@@ -83,7 +83,7 @@ describe('Statut d’un zonage : trois états, jamais deux', () => {
   it('dit « dedans » quand la parcelle recoupe la zone', () => {
     expect(
       statutZonage(
-        { parcelId: 'p', zones: [zoneVulnerable], unresolved: [], referentialVersions: [] },
+        { parcelId: 'p', zones: [zoneVulnerable], proximites: [], unresolved: [], referentialVersions: [] },
         'ZONE_VULNERABLE',
       ),
     ).toBe('dedans');
@@ -92,7 +92,7 @@ describe('Statut d’un zonage : trois états, jamais deux', () => {
   it('dit « dehors » seulement quand le zonage a vraiment été déterminé', () => {
     expect(
       statutZonage(
-        { parcelId: 'p', zones: [], unresolved: [], referentialVersions: [] },
+        { parcelId: 'p', zones: [], proximites: [], unresolved: [], referentialVersions: [] },
         'ZONE_VULNERABLE',
       ),
     ).toBe('dehors');
@@ -107,6 +107,7 @@ describe('Statut d’un zonage : trois états, jamais deux', () => {
         {
           parcelId: 'p',
           zones: [],
+          proximites: [],
           unresolved: [
             {
               what: 'Zone vulnérable aux nitrates',
@@ -127,6 +128,7 @@ describe('Statut d’un zonage : trois états, jamais deux', () => {
         {
           parcelId: 'p',
           zones: [],
+          proximites: [],
           unresolved: [
             {
               what: 'Contexte réglementaire',

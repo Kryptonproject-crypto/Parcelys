@@ -61,7 +61,15 @@ const COULEURS: Record<string, string> = {
   ZONE_ACTION_RENFORCEE: '#7c3aed',
   CAPTAGE: '#dc2626',
   AIRE_ALIMENTATION_CAPTAGE: '#ea580c',
+  PERIMETRE_PROTECTION_CAPTAGE: '#b91c1c',
+  ZONE_PROTECTION_AAC: '#c2410c',
   COURS_EAU: '#0891b2',
+  TRONCON_HYDROGRAPHIQUE: '#0e7490',
+  SURFACE_HYDROGRAPHIQUE: '#0284c7',
+  PLAN_EAU: '#0369a1',
+  POINT_PRELEVEMENT: '#be123c',
+  OUVRAGE_PRELEVEMENT: '#9f1239',
+  BASSIN_HYDROGRAPHIQUE: '#475569',
   ZONE_ENVIRONNEMENTALE: '#16a34a',
   AUTRE: '#64748b',
 };
@@ -75,6 +83,8 @@ type LigneZone = {
   label: string;
   code: string | null;
   geojson: string;
+  /** Entités de cette nature dans l'emprise de l'exploitation. */
+  dans_emprise: number;
 };
 
 /**
@@ -93,6 +103,20 @@ export async function couchesPourExploitation(params: {
   const marge = params.margeDegres ?? 0.02;
   const plafond = params.maxParCouche ?? 400;
 
+  /*
+   * Plafond **par référentiel et par nature**, et géométrie simplifiée
+   * seulement pour ce qui sera rendu.
+   *
+   * Le plafond s'appliquait à l'ensemble des couches : avec les 402 215
+   * tronçons de BD TOPAGE, les premières lignes renvoyées étaient toutes des
+   * tronçons, et les zones vulnérables disparaissaient de la carte sans que
+   * rien ne le signale. Et la simplification était calculée sur tous les
+   * candidats avant d'en jeter la plupart.
+   *
+   * Les bassins hydrographiques ne sont pas servis : un bassin couvre un quart
+   * de la France, son contour pèse des mégaoctets, et il n'apprend rien sur une
+   * carte d'exploitation — le bassin de chaque parcelle figure dans sa fiche.
+   */
   const lignes = await prisma.$queryRaw<LigneZone[]>`
     WITH emprise AS (
       -- ST_Extent rend une box2d, dont le cast en geometry porte le SRID 0.
@@ -108,52 +132,55 @@ export async function couchesPourExploitation(params: {
       WHERE p.farm_id = ${params.farmId}
         AND p.deleted_at IS NULL
         AND pg.is_current = true
+    ),
+    candidats AS (
+      SELECT
+        z.id,
+        r.code       AS ref_code,
+        z.kind::text AS kind,
+        ROW_NUMBER() OVER (PARTITION BY r.code, z.kind ORDER BY z.id) AS rang,
+        COUNT(*)     OVER (PARTITION BY r.code, z.kind)               AS dans_emprise
+      FROM regulatory_zones z
+      JOIN regulatory_referentials r ON r.id = z.referential_id
+      CROSS JOIN emprise e
+      WHERE r.status = 'ACTIF'
+        AND z.geom IS NOT NULL
+        AND e.boite IS NOT NULL
+        -- Bassins et région couvrent tout l'écran : ils se lisent dans le
+        -- contexte de la parcelle, pas en couche.
+        AND z.kind::text NOT IN ('BASSIN_HYDROGRAPHIQUE', 'REGION_ADMINISTRATIVE')
+        AND z.geom && e.boite
+        AND ST_Intersects(z.geom, e.boite)
     )
     SELECT
-      r.code          AS ref_code,
+      c.ref_code,
       r.source_label  AS ref_source,
       r.version       AS ref_version,
       r.territory     AS ref_territory,
-      z.kind::text    AS kind,
-      z.label         AS label,
-      z.code          AS code,
+      c.kind,
+      z.label,
+      z.code,
+      c.dans_emprise::int AS dans_emprise,
       -- Simplification légère : à l'échelle d'une parcelle, quelques mètres de
       -- généralisation ne se voient pas, et divisent le poids par cinq ou dix.
       ST_AsGeoJSON(ST_SimplifyPreserveTopology(z.geom, 0.00005)) AS geojson
-    FROM regulatory_zones z
+    FROM candidats c
+    JOIN regulatory_zones z ON z.id = c.id
     JOIN regulatory_referentials r ON r.id = z.referential_id
-    CROSS JOIN emprise e
-    WHERE r.status = 'ACTIF'
-      AND z.geom IS NOT NULL
-      AND e.boite IS NOT NULL
-      AND z.geom && e.boite
-      AND ST_Intersects(z.geom, e.boite)
-    LIMIT ${plafond * 8}
+    WHERE c.rang <= ${plafond}
   `;
 
-  // Totaux par référentiel, pour dire si la carte montre tout ou une partie.
-  const totaux = new Map<string, number>();
-  for (const groupe of await prisma.regulatoryZone.groupBy({
-    by: ['referentialId'],
-    _count: { _all: true },
-    where: { referential: { status: 'ACTIF' } },
-  })) {
-    const referentiel = await prisma.regulatoryReferential.findUnique({
-      where: { id: groupe.referentialId },
-      select: { code: true },
-    });
-    if (referentiel) {
-      totaux.set(referentiel.code, (totaux.get(referentiel.code) ?? 0) + groupe._count._all);
-    }
-  }
-
-  const parCode = new Map<string, CoucheReglementaire>();
+  const parCouche = new Map<string, CoucheReglementaire>();
 
   for (const ligne of lignes) {
-    let couche = parCode.get(ligne.ref_code);
+    // Une couche par référentiel **et** par nature : BD TOPAGE porte à la fois
+    // des tronçons, des surfaces en eau et des plans d'eau, qu'on veut pouvoir
+    // allumer séparément et qui n'ont pas la même couleur.
+    const cle = `${ligne.ref_code}:${ligne.kind}`;
+    let couche = parCouche.get(cle);
     if (!couche) {
       couche = {
-        code: ligne.ref_code,
+        code: cle,
         kind: ligne.kind as ZoneKind,
         label: libelleDe(ligne.kind, ligne.ref_code),
         color: COULEURS[ligne.kind] ?? COULEURS.AUTRE ?? '#64748b',
@@ -164,12 +191,10 @@ export async function couchesPourExploitation(params: {
         },
         features: [],
         rendues: 0,
-        total: totaux.get(ligne.ref_code) ?? 0,
+        total: Number(ligne.dans_emprise),
       };
-      parCode.set(ligne.ref_code, couche);
+      parCouche.set(cle, couche);
     }
-
-    if (couche.features.length >= plafond) continue;
 
     couche.features.push({
       type: 'Feature',
@@ -179,7 +204,7 @@ export async function couchesPourExploitation(params: {
     couche.rendues += 1;
   }
 
-  return [...parCode.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...parCouche.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function libelleDe(kind: string, code: string): string {
@@ -193,7 +218,21 @@ function libelleDe(kind: string, code: string): string {
     case 'AIRE_ALIMENTATION_CAPTAGE':
       return 'Aires d’alimentation de captage';
     case 'COURS_EAU':
-      return 'Cours d’eau';
+      return 'Cours d’eau (BD TOPAGE)';
+    case 'TRONCON_HYDROGRAPHIQUE':
+      return 'Réseau hydrographique (BD TOPAGE)';
+    case 'SURFACE_HYDROGRAPHIQUE':
+      return 'Surfaces en eau (BD TOPAGE)';
+    case 'PLAN_EAU':
+      return 'Plans d’eau (BD TOPAGE)';
+    case 'POINT_PRELEVEMENT':
+      return 'Points de prélèvement d’eau';
+    case 'OUVRAGE_PRELEVEMENT':
+      return 'Ouvrages de prélèvement d’eau';
+    case 'PERIMETRE_PROTECTION_CAPTAGE':
+      return 'Périmètres de protection de captage';
+    case 'ZONE_PROTECTION_AAC':
+      return 'Zones de protection d’aire d’alimentation';
     case 'ZONE_ENVIRONNEMENTALE':
       return 'Zones environnementales';
     default:

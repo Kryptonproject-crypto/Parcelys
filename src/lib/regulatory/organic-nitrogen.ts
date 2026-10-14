@@ -151,7 +151,7 @@ export async function plafondAzoteOrganique(params: {
   // --- Zone vulnérable ----------------------------------------------------
   const statuts = await Promise.all(
     [...parcellesConcernees].map(async (id) =>
-      statutZonage(await getOrComputeParcelContext(id), 'ZONE_VULNERABLE'),
+      statutZonage(await getOrComputeParcelContext(id), 'ZONE_VULNERABLE', fin),
     ),
   );
   const zoneVulnerable: PlafondAzoteOrganique['zoneVulnerable'] =

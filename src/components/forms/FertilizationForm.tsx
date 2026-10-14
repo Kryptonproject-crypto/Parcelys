@@ -74,6 +74,7 @@ export function FertilizationForm({
               nContent: selectedOrganic.nContent ? Number(selectedOrganic.nContent) : null,
               pContent: selectedOrganic.pContent ? Number(selectedOrganic.pContent) : null,
               kContent: selectedOrganic.kContent ? Number(selectedOrganic.kContent) : null,
+              unit: selectedOrganic.defaultUnit ?? null,
             }
           : null,
     });
