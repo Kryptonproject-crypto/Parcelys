@@ -420,11 +420,24 @@ export function tableauDuTerme(
   } else {
     candidats.push(`gren-ft${fiche}-${t}-${sousRegion}`, `gren-ft${fiche}-${t}`);
   }
+  // Les types de sol de l'ex-région (fiche 21) : un tableau sans ex-région
+  // déclarée mais dont les types de sol sont ceux de l'autre ex-région (Mh de
+  // la betterave, fiche 10) ne vaut pas pour celle-ci.
+  const typesSols = regles.get('gren-types-sols')?.valeur as Record<string, Array<{ code: string }>> | undefined;
+  const solsDeLaRegion = new Set(
+    (typesSols?.[sousRegion === 'auvergne' ? 'auvergne' : 'rhoneAlpes'] ?? []).map((t) => t.code),
+  );
   for (const c of candidats) {
     const regle = regles.get(c);
-    if (!regle || !tableauDe(regle)) continue;
+    const tableau = tableauDe(regle);
+    if (!regle || !tableau) continue;
     const sr = regle.valeur.sousRegion;
     if (typeof sr === 'string' && sr !== sousRegion) continue;
+    const cleSol = tableau.cles.find((k) => k.nom === 'typeSol');
+    if (cleSol && Array.isArray(cleSol.valeurs) && solsDeLaRegion.size > 0) {
+      const codes = (cleSol.valeurs as Array<{ code?: string }>).map((v) => v.code);
+      if (!codes.some((code) => code && solsDeLaRegion.has(code))) continue;
+    }
     return regle;
   }
   return null;

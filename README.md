@@ -18,6 +18,7 @@ que sur un Raspberry Pi.
 - [Administration et inscriptions](#administration-et-inscriptions)
 - [Configuration](#configuration)
 - [Référentiel phytosanitaire E-Phy](#référentiel-phytosanitaire-e-phy)
+- [Référentiels réglementaires d'Auvergne-Rhône-Alpes](#référentiels-réglementaires-dauvergne-rhône-alpes)
 - [Déploiement](#déploiement)
 - [Déploiement sur Raspberry Pi](#déploiement-sur-raspberry-pi)
 - [Mises à jour](#mises-à-jour)
@@ -386,6 +387,23 @@ Aucune intégration n'est requise pour démarrer, et **aucune n'est simulée** :
   produits est vide et l'annonce clairement.
 
 ---
+
+## Référentiels réglementaires d'Auvergne-Rhône-Alpes
+
+Les référentiels officiels de la région — zones vulnérables, programme
+d'actions régional (PAR7), zones d'actions renforcées, référentiel GREN, aires
+d'alimentation de captage, captages, BD TOPAGE, E-Phy et doses de référence
+IFT — sont fournis dans `data/referentiels-aura/` et importés en une commande
+(GDAL requis, installé par les scripts du Raspberry Pi) :
+
+```bash
+npm run referentiels:aura           # import, avec vérification des empreintes
+npm run check:referentiels-aura     # les moteurs confrontés aux données importées
+```
+
+Ce qui est intégré, ce que chaque référentiel décide dans Parcelys, et ce qui
+manque : [`docs/referentiels-aura.md`](docs/referentiels-aura.md), et la page
+**Administration → Référentiels**.
 
 ## Référentiel phytosanitaire E-Phy
 

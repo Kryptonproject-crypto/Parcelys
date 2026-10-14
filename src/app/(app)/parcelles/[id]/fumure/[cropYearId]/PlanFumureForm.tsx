@@ -33,6 +33,34 @@ type Brouillon = Partial<SaisieGren> & {
   apportsPrevus: NonNullable<SaisieGren['apportsPrevus']>;
 };
 
+/** Le champ en clair, depuis le chemin rendu par la validation. */
+const CHAMPS: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
+  [/^saisie\.besoin\.valeur$/, () => 'besoin unitaire de la variété'],
+  [/^saisie\.besoin\.justification$/, () => 'justification du besoin unitaire'],
+  [/^saisie\.objectif\.valeur$/, () => 'objectif de rendement'],
+  [/^saisie\.objectif\.justification$/, () => 'justification de l’objectif'],
+  [/^saisie\.objectif\.cultureFiche20$/, () => 'culture de la fiche 20'],
+  [/^saisie\.mesures\.(\w+)\.valeur$/, (m) => `${m[1]} mesuré`],
+  [/^saisie\.mesures\.(\w+)\.justification$/, (m) => `justification de ${m[1]}`],
+  [/^saisie\.apportsPrevus\.(\d+)\.dose$/, (m) => `dose de l’apport prévu n° ${Number(m[1]) + 1}`],
+  [/^saisie\.apportsPrevus\.(\d+)\.date$/, (m) => `date de l’apport prévu n° ${Number(m[1]) + 1}`],
+  [/^saisie\.irrigation/, () => 'irrigation'],
+  [/^saisie\.culture$/, () => 'culture'],
+];
+
+function champsEnClair(err: ApiRequestError): string {
+  const details = (err.details as Array<{ field?: string }> | undefined) ?? [];
+  const noms = details.map((d) => {
+    const champ = d.field ?? '';
+    for (const [motif, nom] of CHAMPS) {
+      const m = champ.match(motif);
+      if (m) return nom(m);
+    }
+    return champ;
+  });
+  return noms.length > 0 ? `${err.message} — à compléter : ${[...new Set(noms)].join(', ')}.` : err.message;
+}
+
 const nombre = (v: string): number | undefined => {
   const n = Number(v.replace(',', '.'));
   return v.trim() !== '' && Number.isFinite(n) ? n : undefined;
@@ -149,7 +177,7 @@ export function PlanFumureForm({
         router.refresh();
       }
     } catch (err) {
-      setErreur(err instanceof ApiRequestError ? err.message : 'Calcul impossible.');
+      setErreur(err instanceof ApiRequestError ? champsEnClair(err) : 'Calcul impossible.');
     } finally {
       setEnvoi(false);
     }
@@ -323,7 +351,8 @@ export function PlanFumureForm({
             maj({
               apportsPrevus: [
                 ...saisie.apportsPrevus,
-                { organicInputId: produits[0]!.id, dose: 10, unite: produits[0]!.defaultUnit === 'm3/ha' ? 'm3/ha' : 't/ha', date: new Date().toISOString().slice(0, 10) },
+                // Ni dose ni date par défaut : un apport prévu se saisit.
+                { organicInputId: produits[0]!.id, unite: produits[0]!.defaultUnit === 'm3/ha' ? 'm3/ha' : 't/ha', date: '' } as never,
               ],
             })
           }
@@ -440,7 +469,7 @@ export function PlanFumureForm({
                     type="radio"
                     name="besoin"
                     checked={saisie.besoin?.mode === 'declare'}
-                    onChange={() => maj({ besoin: { mode: 'declare', valeur: 3, justification: '' } })}
+                    onChange={() => maj({ besoin: { mode: 'declare', justification: '' } as never })}
                     disabled={verrouille}
                   />
                   Besoin de ma variété
@@ -477,7 +506,7 @@ export function PlanFumureForm({
                           : m === 'defaut'
                             ? { mode: 'defaut', cultureFiche20: '', regimeHydrique: 'pluvial' }
                             : m === 'declare'
-                              ? { mode: 'declare', valeur: 1, justification: '' }
+                              ? ({ mode: 'declare', justification: '' } as never)
                               : undefined,
                     });
                   }}

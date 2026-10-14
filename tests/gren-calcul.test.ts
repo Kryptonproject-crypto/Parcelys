@@ -317,6 +317,9 @@ describe('Dose prévisionnelle GREN — maïs et colza', () => {
     );
     expect(calcul.doseKgHa).toBeNull();
     expect(calcul.bloquants.find((b) => b.terme.includes('(Rf)'))?.raison).toMatch(/Rhône-Alpes/);
+    // Le tableau Mh de la fiche 10 ne déclare pas d'ex-région, mais ses types
+    // de sol sont ceux de l'Auvergne : il ne vaut pas pour un sol rhônalpin.
+    expect(calcul.bloquants.find((b) => b.terme.includes('(Mh)'))?.raison).toMatch(/ne donne pas de tableau Mh pour l’ex-région Rhône-Alpes/);
   });
 });
 

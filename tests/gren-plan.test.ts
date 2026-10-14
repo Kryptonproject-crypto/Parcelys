@@ -10,6 +10,7 @@ import { saveParcelGeometry } from '../src/lib/geo/repository';
 import { calculEnregistre, calculerPlan, enregistrerPlanGren } from '../src/lib/regulatory/gren';
 import { buildNitrogenBalance, comparePlanToActual } from '../src/lib/regulatory/nitrogen';
 import { buildComplianceReport } from '../src/lib/regulatory/compliance';
+import { assemblerDossier } from '../src/lib/regulatory/control-file';
 
 /**
  * Le plan prévisionnel de fumure, de la base à la conformité : règles GREN
@@ -215,5 +216,21 @@ describe('Plan prévisionnel de fumure GREN — enregistré, relu, comparé', ()
     const absents = rapport.findings.filter((f) => f.code === 'ppf.absent');
     expect(absents.map((f) => f.parcelId)).toEqual([parcelId]);
     expect(absents[0]?.level).toBe('VERIFICATION');
+
+    // Le dossier de contrôle compte de la même façon : une culture exigée,
+    // une hors zone.
+    const avant = (await assemblerDossier({ farmId, campaignYear: 2026 })).pieces.find((p) => p.code === 'ppf');
+    expect(avant?.statut).toBe('absente');
+    expect(avant?.detail).toMatch(/0 plan\(s\) pour 1 culture\(s\).*1 culture\(s\) hors zone vulnérable/);
+
+    const cy = await prisma.cropYear.findFirstOrThrow({ where: { parcelId, campaignYear: 2026 } });
+    await enregistrerPlanGren({
+      cropYearId: cy.id,
+      farmId,
+      saisie: { ...SAISIE_BLE, objectif: { mode: 'declare', valeur: 80, justification: 'moyenne' } },
+    });
+    const apres = (await assemblerDossier({ farmId, campaignYear: 2026 })).pieces.find((p) => p.code === 'ppf');
+    expect(apres?.statut).toBe('presente');
+    expect(apres?.detail).toMatch(/dont 1 avec une dose calculée/);
   });
 });

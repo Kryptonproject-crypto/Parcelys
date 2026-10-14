@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { buildComplianceReport } from '@/lib/regulatory/compliance';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
 import { cahierEpandage } from '@/lib/regulatory/organic-nitrogen';
+import { getOrComputeParcelContext, statutZonage } from '@/lib/regulatory/geography';
+import { calculEnregistre } from '@/lib/regulatory/gren';
 
 /**
  * Dossier de contrôle.
@@ -223,29 +225,57 @@ export async function assemblerDossier(params: {
   });
 
   // --- Plans prévisionnels de fumure --------------------------------------
-  const campagnes = await prisma.cropYear.count({
+  //
+  // Exigés « pour chaque îlot cultural exploité en zone vulnérable » (GREN,
+  // art. 10) : une culture hors zone n'en demande pas, une culture dont le
+  // zonage est indéterminé en demande un par prudence. Un plan enregistré
+  // sans dose calculée n'est pas un plan complet.
+  const cultures = await prisma.cropYear.findMany({
     where: {
       parcel: { farmId: params.farmId, deletedAt: null },
       campaignYear: params.campaignYear,
     },
-  });
-  const plans = await prisma.nitrogenPlan.count({
-    where: {
-      campaignYear: params.campaignYear,
-      cropYear: { parcel: { farmId: params.farmId, deletedAt: null } },
+    select: {
+      parcelId: true,
+      nitrogenPlan: { select: { computation: true, plannedEfficientKgHa: true } },
     },
   });
+  const finCampagne = new Date(Date.UTC(params.campaignYear, 6, 31, 23, 59, 59));
+  const dateZonage = finCampagne < maintenant ? finCampagne : maintenant;
+  const zonage = new Map<string, 'dedans' | 'dehors' | 'indetermine'>();
+  for (const parcelId of new Set(cultures.map((c) => c.parcelId))) {
+    zonage.set(parcelId, statutZonage(await getOrComputeParcelContext(parcelId), 'ZONE_VULNERABLE', dateZonage));
+  }
+  const exigees = cultures.filter((c) => zonage.get(c.parcelId) !== 'dehors');
+  const avecPlan = exigees.filter((c) => c.nitrogenPlan);
+  const calcules = avecPlan.filter((c) => {
+    const gren = calculEnregistre(c.nitrogenPlan?.computation ?? null);
+    return gren ? gren.calcul.doseKgHa !== null : c.nitrogenPlan?.plannedEfficientKgHa != null;
+  });
+  const horsZone = cultures.length - exigees.length;
   pieces.push({
     code: 'ppf',
     label: 'Plans prévisionnels de fumure',
-    usage: 'Justifie la dose d’azote prévue, culture par culture.',
-    statut: plans === 0 ? 'absente' : plans < campagnes ? 'incomplete' : 'presente',
+    usage: 'Justifie la dose d’azote prévue, culture par culture, en zone vulnérable.',
+    statut:
+      exigees.length === 0
+        ? 'presente'
+        : avecPlan.length === 0
+          ? 'absente'
+          : calcules.length < exigees.length
+            ? 'incomplete'
+            : 'presente',
     detail:
-      campagnes === 0
+      cultures.length === 0
         ? 'Aucune culture renseignée pour cette campagne.'
-        : `${plans} plan(s) pour ${campagnes} culture(s) enregistrée(s).`,
-    compte: plans,
-    action: plans < campagnes ? 'Établissez les plans manquants.' : null,
+        : `${avecPlan.length} plan(s) pour ${exigees.length} culture(s) en zone vulnérable ou de zonage indéterminé, ` +
+          `dont ${calcules.length} avec une dose calculée` +
+          (horsZone > 0 ? ` ; ${horsZone} culture(s) hors zone vulnérable, sans plan exigé.` : '.'),
+    compte: avecPlan.length,
+    action:
+      calcules.length < exigees.length
+        ? 'Établissez ou complétez les plans depuis l’onglet Apports de chaque parcelle.'
+        : null,
     documents: [],
   });
 

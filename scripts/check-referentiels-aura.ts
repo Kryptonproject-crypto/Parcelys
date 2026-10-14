@@ -242,8 +242,10 @@ async function main(): Promise<void> {
     const [ref] = await prisma.$queryRaw<Array<{ amm: string; crop_label: string; dose_value: string; dose_unit: string }>>`
       SELECT i.amm, i.crop_label, i.dose_value, i.dose_unit FROM ift_references i
       JOIN regulatory_referentials r ON r.id = i.referential_id AND r.code = 'ift-doses-reference' AND r.version = '2026'
-      WHERE i.amm IS NOT NULL AND i.dose_value ~ '^[0-9]+(\\.[0-9]+)?$' AND i.dose_unit = 'L/ha'
+      WHERE i.amm IS NOT NULL AND i.dose_value ~ '^[0-9]+(\\.[0-9]+)?$' AND upper(i.dose_unit) = 'L/HA'
+        AND i.target_label IS NULL AND i.category <> 'Traitement de semences'
       ORDER BY i.amm LIMIT 1`;
+    attendu(Boolean(ref), 'IFT 2026 : une dose de référence à la culture en L/HA existe dans le fichier importé');
     if (ref) {
       const surface = Number((await prisma.parcel.findUniqueOrThrow({ where: { id: pHors } })).areaHa);
       await prisma.phytosanitaryApplication.create({
@@ -254,7 +256,8 @@ async function main(): Promise<void> {
           amm: ref.amm,
           cropLabel: ref.crop_label,
           dose: Number(ref.dose_value),
-          doseUnit: ref.dose_unit,
+          // L'unité telle que Parcelys la saisit : le fichier écrit « L/HA ».
+          doseUnit: 'L/ha',
           quantityUsed: Number(ref.dose_value) * surface,
           quantityUnit: 'L',
           treatedAreaHa: surface,

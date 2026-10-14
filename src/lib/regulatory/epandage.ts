@@ -15,7 +15,7 @@ import {
   controlerApportPar,
   type ApportAControler,
 } from '@/lib/regulatory/programme-actions';
-import { traceEnClair, type Trace } from '@/lib/regulatory/regles';
+import { lireRegles, traceEnClair, type Trace } from '@/lib/regulatory/regles';
 import type { ClassementProduit } from '@/lib/regulatory/classement-produit';
 import type { ZoneKind } from '@prisma/client';
 
@@ -162,7 +162,22 @@ export async function controlerEpandage(params: {
   // les règles transcrites de l'arrêté régional, lues à la date de
   // l'épandage, chacune avec sa trace. Sans le produit, rien n'est opposable
   // — le type de fertilisant décide de presque tout.
-  if (params.produit) {
+  // Le moteur du programme d'actions ne s'emploie qu'avec des règles
+  // **structurées** (conditions de zone, de type de fertilisant, de culture) :
+  // une période chargée sans condition garde l'interprétation simple de
+  // `controlerPeriode`, et l'absence de toute règle son message.
+  const territoiresPar = await territoiresDeLaParcelle(params.parcelId);
+  const structurees = params.produit
+    ? (
+        await lireRegles({
+          referentiel: 'programme-actions-nitrates',
+          territoires: territoiresPar,
+          at: params.date,
+          codes: ['periode-interdiction-epandage'],
+        })
+      ).regles.some((r) => r.condition && Object.keys(r.condition).length > 0)
+    : false;
+  if (params.produit && structurees) {
     const apport: ApportAControler = {
       parcelId: params.parcelId,
       date: params.date,
@@ -187,7 +202,7 @@ export async function controlerEpandage(params: {
         date: params.date,
         effluent: params.effluent,
         enZoneVulnerable,
-        territoires: await territoiresDeLaParcelle(params.parcelId),
+        territoires: territoiresPar,
       }),
     );
   }
@@ -503,7 +518,9 @@ async function controlerDistances(params: {
 
     points.push({
       sujet,
-      verdict: qualifieParLeZonage ? 'alerte' : 'indetermine',
+      // La distance est mesurée ; seule la qualification de l'écoulement
+      // manque : « à vérifier », pas « non vérifiable ».
+      verdict: qualifieParLeZonage ? 'alerte' : 'verification',
       detail: qualifieParLeZonage
         ? `${quoi} se trouve à ${proche.distanceM.toFixed(0)} m du contour de la ` +
           `parcelle, pour ${exigee} m exigés (${reference}).`

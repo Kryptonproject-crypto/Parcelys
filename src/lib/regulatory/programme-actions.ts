@@ -390,6 +390,28 @@ export function controlePeriode(apport: ApportAControler, situation: Situation):
   const jour = jourDe(apport.date);
   const dansPeriode = periodes.find((p) => entreJours(jour, p.du, p.au));
 
+  // Une règle de période **sans condition** (chargée à la main pour un autre
+  // programme, par `npm run referentiels -- importer-regle`) vaut pour tout
+  // fertilisant, comme elle a été saisie : on ne lui prête pas les conditions
+  // du PAR7 d'Auvergne-Rhône-Alpes.
+  if (!regle.condition || Object.keys(regle.condition).length === 0) {
+    if (dansPeriode) {
+      const { verdict, mention } = selonZonage(situation, 'alerte', 'zv');
+      return {
+        sujet,
+        verdict,
+        detail: `Épandage le ${dateFr(apport.date)} : période d’interdiction du ${dansPeriode.du} au ${dansPeriode.au}.${mention}`,
+        trace: regle.trace,
+      };
+    }
+    return {
+      sujet,
+      verdict: 'ok',
+      detail: `Le ${dateFr(apport.date)} est hors des périodes d’interdiction chargées (${periodes.map((p) => `${p.du} → ${p.au}`).join(', ') || 'aucune'}).`,
+      trace: regle.trace,
+    };
+  }
+
   if (!dansPeriode) {
     return {
       sujet,

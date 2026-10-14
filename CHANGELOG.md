@@ -6,6 +6,89 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.9.9 — Les référentiels d'Auvergne-Rhône-Alpes, appliqués
+
+Les référentiels officiels fournis dans `data/referentiels-aura/` ne sont plus
+seulement affichés : ils décident des contrôles et des calculs. Ce qui manque
+reste « indéterminé » et le dit ; rien n'est complété par estimation.
+
+### Les textes, transcrits avec leur source
+
+Le 7e programme d'actions régional (arrêté n° 24-135 modifié par le n° 24-162),
+la liste des zones d'actions renforcées et le référentiel GREN (arrêté
+n° 24-147 et ses 21 fiches) sont transcrits en règles structurées, dans
+`data/referentiels-aura/transcriptions/`. Chaque règle porte son article, sa
+page, sa citation mot pour mot, son territoire et sa date d'entrée en vigueur ;
+chaque PDF cité est vérifié par son empreinte à l'import. Une règle se lit **à
+la date de l'intervention** : un apport de février 2024 n'est pas jugé selon un
+programme entré en vigueur en septembre 2024.
+
+Chaque constat affiche désormais la règle appliquée : texte, référentiel et
+version, territoire, période de validité, et la citation repliée.
+
+### Ce qui est contrôlé
+
+- **Apports** : à l'enregistrement, et dans la synthèse — allongement régional
+  de l'interdiction du type III, fractionnement, épandages sur couverts (azote
+  potentiellement libéré de la fiche GREN 19), digestats, mesures des ZAR.
+- **Couverts** : date limite d'implantation, destruction, légumineuses pures,
+  mesures des ZAR.
+- **Zones vulnérables** : la commune classée « quelques sections » laisse
+  l'appartenance indéterminée ; les sept communes retirées par le tribunal
+  administratif le 6 juin 2024 restent classées pour les campagnes
+  antérieures ; un bassin dont aucune commune n'est publiée ne vaut pas
+  « hors zone ».
+- **Zones d'actions renforcées** : reconstituées par l'aire d'alimentation du
+  captage quand elle existe (« à vérifier », la cartographie de la DREAL fait
+  foi), indéterminées sinon.
+- **Cours d'eau** : la BD TOPAGE situe les écoulements et mesure les distances ;
+  la bande enherbée et la ZNT restent « à vérifier » — la carte ne désigne ni
+  les cours d'eau BCAE ni les points d'eau préfectoraux.
+
+### La dose prévisionnelle, selon les fiches
+
+Nouvel écran **Plan prévisionnel de fumure**, culture par culture, depuis
+l'onglet Apports. La formule est celle de la fiche de la culture et de
+l'ex-région ; chaque terme est lu dans le tableau de la fiche ; le plan est
+enregistré avec son calcul et la trace de chaque règle. La dose n'est pas
+calculée quand un terme manque, et l'écran dit lequel. Un dépassement se
+justifie sur le même écran, avec les motifs de l'arrêté.
+
+Les produits organiques de l'exploitation se créent dans Paramètres, avec leur
+analyse et leur classement réglementaire choisi parmi les dénominations de la
+fiche GREN 19.
+
+### Corrigé
+
+- **IFT** : la dose de référence prise était la première ligne venue pour le
+  produit et la culture — parfois la dose de **traitement de semences**,
+  jusqu'à vingt fois plus élevée — et, à défaut, celle d'**une autre culture**.
+  C'est désormais la dose à la culture (ou à la cible saisie), jamais une autre.
+- **Unités** : une dose d'engrais en L/ha était comptée comme des kg/ha ; des
+  m³ d'un produit analysé à la tonne, comme des tonnes. Sans densité, l'azote
+  n'est plus calculé.
+- Réimporter une campagne IFT créait une seconde version active.
+- Le plan prévisionnel de fumure n'est plus exigé hors zone vulnérable, ni
+  dans la synthèse ni dans le dossier de contrôle.
+
+### Administration
+
+La page **Référentiels réglementaires** montre chaque version conservée :
+statut, version, millésime, territoire, source, date d'import, validité,
+nombre d'entrées, état de l'intégration et données manquantes, avec les
+fichiers sources vérifiés.
+
+### Mise à jour du Raspberry Pi
+
+`update-pi.sh` installe GDAL (`gdal-bin`). Après la mise à jour :
+
+```bash
+cd /opt/parcelys && sudo -u parcelys npm run referentiels:aura
+sudo -u parcelys npm run check:referentiels-aura
+```
+
+---
+
 ## 0.9.8 — La même carte au champ qu'au bureau
 
 La 0.9.7 avait ajouté une carte à l'application : des contours dessinés à la

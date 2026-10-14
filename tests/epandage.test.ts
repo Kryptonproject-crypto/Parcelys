@@ -267,11 +267,15 @@ describe('Contrôle avant épandage', () => {
       const { body } = await controler({});
       const distance = body.points.find((p) => p.sujet === 'Distance aux cours d’eau');
       // Le cours d'eau d'essai est à quelques centaines de mètres : une exigence
-      // de 100 km ne peut pas être satisfaite.
-      expect(distance?.verdict).toBe('alerte');
-      expect(distance?.detail).toContain('Distance mesurée');
+      // de 100 km ne peut pas être satisfaite. Mais la carte hydrographique
+      // localise les écoulements sans dire lesquels sont des cours d'eau au
+      // sens de l'arrêté : la distance est mesurée, le constat est « à
+      // vérifier » — jamais une non-conformité déduite de la seule carte.
+      expect(distance?.verdict).toBe('verification');
+      expect(distance?.detail).toMatch(/se trouve à \d+ m du contour de la parcelle, pour 100000 m exigés/);
+      expect(distance?.detail).toContain('cartographie départementale');
       // Et la phrase dit d'où part la mesure : du contour, pas du point épandu.
-      expect(distance?.detail).toContain('contour de la parcelle');
+      expect(distance?.detail).toContain('La mesure part du contour');
     });
   });
 
