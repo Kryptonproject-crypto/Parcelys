@@ -12,6 +12,8 @@ import {
 import { logAudit } from '@/lib/audit';
 import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
 import { badRequest, notFound } from '@/lib/api/errors';
+import { classementDuProduit } from '@/lib/regulatory/classement-produit';
+import { controlerApportPar } from '@/lib/regulatory/programme-actions';
 
 type Ctx = { params: Promise<Record<string, string>> };
 
@@ -77,6 +79,7 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
   // Teneurs issues du référentiel de l'exploitation (jamais du client).
   let mineral = null;
   let organic = null;
+  let regulatoryClass: unknown = null;
   let productLabel = input.productLabel;
 
   if (input.inputType === 'MINERAL' && input.fertilizerId) {
@@ -97,6 +100,7 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
       where: { id: input.organicInputId, OR: [{ farmId: null }, { farmId: ctx.farmId }] },
     });
     if (!organicInput) throw badRequest('Produit organique inconnu pour cette exploitation.');
+    regulatoryClass = organicInput.regulatoryClass;
     organic = {
       nContent: organicInput.nContent ? Number(organicInput.nContent) : null,
       pContent: organicInput.pContent ? Number(organicInput.pContent) : null,
@@ -179,10 +183,40 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
     metadata: { productLabel, dose: input.dose, doseUnit: input.doseUnit },
   });
 
+  // Le programme d'actions, opposé à l'apport tel qu'il vient d'être
+  // enregistré : période, fractionnement, couverts, digestat, ZAR — chaque
+  // constat avec sa règle. L'apport est enregistré quoi qu'il en soit : un
+  // registre faux serait pire qu'un registre annoté.
+  const { controles } = await controlerApportPar({
+    id: created.id,
+    parcelId: id,
+    date: input.appliedOn,
+    nature: input.inputType,
+    libelle: productLabel,
+    azoteTotalKgHa: nSupplied,
+    classement: classementDuProduit({
+      inputType: input.inputType,
+      nPercent: mineral?.nPercent ?? null,
+      regulatoryClass,
+    }),
+    cropYearId: input.cropYearId ?? null,
+  }).catch(() => ({
+    // Un contrôle qui n'a pas pu se faire se dit — il ne se tait pas.
+    controles: [
+      {
+        sujet: 'Programme d’actions nitrates',
+        verdict: 'indetermine' as const,
+        detail: 'Le contrôle n’a pas pu être effectué : l’apport est enregistré, vérifiez-le depuis la synthèse de conformité.',
+        trace: null,
+      },
+    ],
+  }));
+
   return ok(
     {
       item: created,
       computed: { totalQuantity, totalUnit, nSupplied, pSupplied, kSupplied },
+      controles: controles.filter((c) => c.verdict !== 'sans-objet'),
       message: 'Apport enregistré',
     },
     201,

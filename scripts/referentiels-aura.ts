@@ -255,7 +255,7 @@ async function integrerEphy(
     name: 'Catalogue des produits phytopharmaceutiques (E-Phy)',
     territory: 'FR',
     version: millesime,
-    sourceLabel: run.source,
+    sourceLabel: `ANSES — catalogue E-Phy des produits phytopharmaceutiques (décisions d’AMM, données ouvertes), archive ${path.basename(retenu.chemin)}`,
     sourceUrl: run.sourceUrl,
   });
   const avertissements = (run.errorMessage ?? '').split(' | ').filter(Boolean);

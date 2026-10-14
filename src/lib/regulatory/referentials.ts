@@ -513,7 +513,14 @@ export async function beginImport(params: {
       appliesTo: params.appliesTo ?? null,
       status: 'IMPORT_EN_COURS',
     },
-    update: { status: 'IMPORT_EN_COURS', sourceUrl: params.sourceUrl ?? null },
+    // Réimporter une version reprend aussi son libellé et sa source : ce sont
+    // eux que la page des référentiels et chaque constat affichent.
+    update: {
+      status: 'IMPORT_EN_COURS',
+      name: params.name,
+      sourceLabel: params.sourceLabel,
+      sourceUrl: params.sourceUrl ?? null,
+    },
   });
 
   const journal = await prisma.regulatoryImport.create({

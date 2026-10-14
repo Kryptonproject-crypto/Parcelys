@@ -255,6 +255,24 @@ describe('Programme d’actions régional AURA — règles appliquées', () => {
     expect(r.controles.find((c) => c.sujet.endsWith('légumineuses pures'))?.verdict).toBe('alerte');
   });
 
+  it('un couvert semé après le 15 octobre est « à vérifier » : les dispenses ne sont pas connues', async () => {
+    const id = await parcelle('Implantation tardive');
+    await culture(id, 'Blé tendre d’hiver', 2025, '2024-10-15', '2025-07-10');
+    const tardif = await cipan(id, '2025-10-25', null);
+    const dansLesTemps = await cipan(id, '2025-09-01', null);
+    const verdict = async (c: { sownOn: Date | null } & Record<string, unknown>) =>
+      controlerCouvertPar(c as never, await situationParcelle(id, c.sownOn!)).find(
+        (r) => r.sujet === 'Implantation du couvert',
+      );
+    const r = await verdict(tardif);
+    // Jamais « non respecté » : sol argileux, culture suivante porte-graines,
+    // pérenne ou alliacée dispensent, et Parcelys ne le sait pas.
+    expect(r?.verdict).toBe('verification');
+    expect(r?.detail).toMatch(/sauf dispense/);
+    expect(r?.trace?.texte).toContain('24-135');
+    expect((await verdict(dansLesTemps))?.verdict).toBe('ok');
+  });
+
   it('contrôle la destruction des couverts : 1er novembre, huit semaines', async () => {
     const id = await parcelle('Destructions');
     const tot = await cipan(id, '2025-08-20', '2025-10-05');

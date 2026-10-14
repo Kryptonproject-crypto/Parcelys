@@ -875,13 +875,17 @@ export function controlerCouvertPar(couvert: CouvertEnregistre, situation: Situa
       if (tardive && !exclu) {
         resultats.push({ sujet: 'Implantation du couvert', verdict: 'ok', detail: `Précédent « ${precedent!.nom} » récolté le ${dateFr(precedent!.recolte!)}, après le 1er octobre : la couverture n’était pas obligatoire.`, trace: dispense!.trace });
       } else {
-        const q = selonZonage(situation, 'alerte', 'zv');
+        // « À vérifier », pas « non respecté » : les dispenses (sol argileux
+        // justifié par analyse, culture suivante porte-graines, pérenne ou
+        // alliacée) dépendent de données que Parcelys n'a pas. Conclure à
+        // l'infraction serait trancher à leur place.
+        const q = selonZonage(situation, 'verification', 'zv');
         resultats.push({
           sujet: 'Implantation du couvert',
           verdict: q.verdict,
           detail:
             `Couvert semé le ${dateFr(couvert.sownOn)}, après le ${limite.split('-').reverse().join('/')}. ` +
-            'Sauf dispense (récolte du précédent après le 1er octobre hors maïs et sorgho grain, sol argileux justifié par analyse, culture porte-graines, pérenne ou alliacée suivante).' +
+            'La date limite s’applique sauf dispense : récolte du précédent après le 1er octobre (hors maïs et sorgho grain), sol argileux justifié par analyse, culture suivante porte-graines, pérenne ou alliacée. Vérifiez si l’une d’elles s’applique.' +
             q.mention,
           trace: implantation.trace,
         });

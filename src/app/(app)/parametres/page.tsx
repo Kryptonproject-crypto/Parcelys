@@ -141,7 +141,7 @@ export default async function SettingsPage() {
             description="Source des données réglementaires utilisées par Parcelys."
           />
 
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 [&>div]:min-w-0">
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-ink-3">
                 Produits en base

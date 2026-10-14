@@ -627,7 +627,15 @@ export function PlanFumureForm({
                           Sans objet : {t.sansObjet}
                         </label>
                       ) : null}
-                      {!saisie.sansObjet.includes(t.terme as never) && t.tableau ? champTableau(t.tableau, t.terme) : null}
+                      {!saisie.sansObjet.includes(t.terme as never) && t.tableau ? (
+                        t.tableau.cles.every((c) => c.partage === 'typeSol') ? (
+                          <p className="text-[12.5px] text-ink-3">
+                            Lu dans la fiche d’après le type de sol choisi plus haut.
+                          </p>
+                        ) : (
+                          champTableau(t.tableau, t.terme)
+                        )
+                      ) : null}
                       {!saisie.sansObjet.includes(t.terme as never) && t.coefficient ? champTableau(t.coefficient, 'Mhp-coefficient') : null}
                       {t.mesurable ? (
                         <div className="grid gap-2 sm:grid-cols-2">

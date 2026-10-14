@@ -36,7 +36,9 @@ const STATUTS: Record<string, { tone: 'green' | 'neutral' | 'amber' | 'red'; lib
 const date = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : null;
 
-function validite(v: VersionReferentiel): string {
+function validite(v: VersionReferentiel, code?: string): string {
+  // Les doses de référence IFT valent pour une campagne, que la version nomme.
+  if (code === 'ift-doses-reference' && /^\d{4}$/.test(v.version)) return `Campagne ${v.version}`;
   const du = date(v.appliesFrom);
   const au = date(v.appliesTo);
   if (!du && !au) return 'Non datée par la source';
@@ -130,12 +132,20 @@ export default async function ReferentialsPage() {
                           {STATUTS[v.status]?.libelle ?? v.status}
                         </Badge>
                       </Td>
-                      <Td className="max-w-[200px] text-xs">{v.version}</Td>
+                      <Td className="max-w-[200px] text-xs">
+                        <span className="line-clamp-3" title={v.version}>
+                          {v.version}
+                        </span>
+                      </Td>
                       <Td>{v.integration?.millesime ?? '—'}</Td>
                       <Td>{v.territory ?? 'National'}</Td>
-                      <Td className="max-w-[220px] text-xs">{v.sourceLabel}</Td>
+                      <Td className="min-w-[200px] max-w-[260px] text-xs">
+                        <span className="line-clamp-3" title={v.sourceLabel}>
+                          {v.sourceLabel}
+                        </span>
+                      </Td>
                       <Td>{date(v.importedAt) ?? '—'}</Td>
-                      <Td className="text-xs">{validite(v)}</Td>
+                      <Td className="text-xs">{validite(v, ref.code)}</Td>
                       <Td align="right" className="tabular-nums">
                         {v.recordCount.toLocaleString('fr-FR')}
                       </Td>
@@ -179,7 +189,7 @@ export default async function ReferentialsPage() {
                     </div>
                     <div>
                       <dt className="inline text-ink-3">Validité : </dt>
-                      <dd className="inline text-ink">{validite(v)}</dd>
+                      <dd className="inline text-ink">{validite(v, ref.code)}</dd>
                     </div>
                     <div>
                       <dt className="inline text-ink-3">Importé le : </dt>

@@ -11,6 +11,8 @@ import {
 import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { FlaskConical as IconFlask, Wheat as IconHarvest } from 'lucide-react';
 import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
+import type { ControleRegle } from '@/lib/regulatory/programme-actions';
+import { RegleTrace } from '@/components/regulatory/RegleTrace';
 
 /**
  * Saisie d'un apport.
@@ -44,6 +46,7 @@ export function FertilizationForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [controles, setControles] = useState<ControleRegle[] | null>(null);
 
   const selectedMineral = fertilizers.find((f) => f.id === productId) ?? null;
   const selectedOrganic = organicInputs.find((o) => o.id === productId) ?? null;
@@ -120,8 +123,20 @@ export function FertilizationForm({
     };
 
     try {
-      await apiPost(`/api/parcels/${parcelId}/fertilization`, payload);
+      const resultat = await apiPost<{ controles?: ControleRegle[] }>(
+        `/api/parcels/${parcelId}/fertilization`,
+        payload,
+      );
       router.refresh();
+      // Ce que le programme d'actions dit de cet apport : on le montre avant
+      // de fermer, avec la règle — un constat qui s'efface tout seul n'est
+      // pas lu.
+      const aLire = (resultat.controles ?? []).filter((c) => c.verdict !== 'ok');
+      if (aLire.length > 0) {
+        setControles(aLire);
+        setSubmitting(false);
+        return;
+      }
       onDone();
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -135,6 +150,33 @@ export function FertilizationForm({
   }
 
   const products = inputType === 'MINERAL' ? fertilizers : organicInputs;
+
+  // L'apport est enregistré : on montre ce que le programme d'actions en dit.
+  if (controles) {
+    const TONS = { alerte: 'danger', verification: 'warning', indetermine: 'info' } as const;
+    const TITRES = { alerte: 'Règle non respectée', verification: 'À vérifier', indetermine: 'Non vérifiable' } as const;
+    return (
+      <div className="space-y-3">
+        <Alert tone="success">Apport enregistré.</Alert>
+        <p className="text-[13.5px] text-ink-2">Ce que le programme d’actions nitrates en dit :</p>
+        {controles.map((c, i) => (
+          <Alert
+            key={`${c.sujet}-${i}`}
+            tone={TONS[c.verdict as keyof typeof TONS] ?? 'info'}
+            title={`${TITRES[c.verdict as keyof typeof TITRES] ?? c.verdict} — ${c.sujet}`}
+          >
+            {c.detail}
+            {c.trace ? <RegleTrace trace={c.trace} /> : null}
+          </Alert>
+        ))}
+        <div className="flex justify-end">
+          <Button type="button" onClick={onDone}>
+            Fermer
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>

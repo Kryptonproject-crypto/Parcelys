@@ -1,200 +1,196 @@
 # Référentiels réglementaires — Auvergne-Rhône-Alpes
 
-Ce document dit **ce qui a été intégré, d'où cela vient, et ce qui manque**. Il
-est tenu à jour avec le code : une donnée qui change de millésime change ici
-aussi.
+Ce document dit **ce qui est intégré, d'où cela vient, à quoi cela sert dans
+Parcelys, et ce qui manque**. Il est tenu à jour avec le code : une donnée qui
+change de millésime change ici aussi. La page **Administration → Référentiels**
+affiche les mêmes informations, lues en base.
 
-Les fichiers source sont dans `data/referentiels-aura/`.
+Les fichiers source sont dans `data/referentiels-aura/` ; les transcriptions des
+arrêtés, dans `data/referentiels-aura/transcriptions/` (voir son `README.md`).
 
 ---
 
-## Ce qui est réellement opposable aujourd'hui
-
-| Référentiel | Version / millésime | Territoire | Entrées | Utilisé par |
-| --- | --- | --- | --- | --- |
-| Catalogue E-Phy | **2026-10-13** | national | 15 156 produits, 81 613 usages, 1 338 substances, 29 641 conditions | contrôle de dose, ZNT, DAR, nombre d'applications, intervalle, conditions d'emploi |
-| Doses de référence IFT | **2026** et **2025** | national | 257 160 et 60 285 | calcul de l'IFT, par campagne |
-| Zones vulnérables nitrates | **2021**, mise à jour 12/05/2025 | AURA (84) | 1 125 communes | contexte réglementaire de la parcelle |
-| Aires d'alimentation de captage | **2026-09-15** | AURA (84) | 89 | contexte réglementaire de la parcelle |
-
-### Commandes d'import
+## Importer, vérifier
 
 ```bash
-# E-Phy — millésime le plus récent de l'archive fournie
-npm run ephy:sync -- --zip data/referentiels-aura/decisionamm-intrant-format-csv-20261013-utf8.zip
+# Tout, dans l'ordre (E-Phy, IFT, contour régional, zones vulnérables, AAC,
+# BD TOPAGE, captages, puis les règles du PAR7, des ZAR et du GREN)
+npm run referentiels:aura
 
-# IFT — une campagne à la fois, jamais deux
-npm run referentiels -- importer-ift --dossier data/referentiels-aura/02_IFT --campagne 2026
-npm run referentiels -- importer-ift --dossier data/referentiels-aura/02_IFT --campagne 2025
+# Une partie seulement
+npm run referentiels:aura -- --seulement cours-eau,captages
+npm run referentiels:aura -- --sans ephy,ift
 
-# Zones vulnérables (décompresser l'archive au préalable)
-npm run referentiels -- importer-zonage --code zones-vulnerables \
-  --fichier <…>/l_zv_s_r84.json --version "2021-maj-2025-05-12" \
-  --territoire 84 --srid 4326 --champ-code insee_com --champ-libelle nom_com
-
-# Aires d'alimentation de captage (découpage sur l'AURA par ogr2ogr)
-ogr2ogr -f GeoJSON aac_aura.geojson \
-  "/vsizip/data/referentiels-aura/07_AAC/AAC_FRA.gpkg.zip" AAC_FRA \
-  -t_srs EPSG:4326 -nlt MULTIPOLYGON \
-  -clipsrc data/referentiels-aura/00_LIMITES/region_aura.geojson
-npm run referentiels -- importer-zonage --code aires-alimentation-captage \
-  --fichier aac_aura.geojson --version 2026-09-15 --territoire 84 --srid 4326 \
-  --champ-code CdAAC --champ-libelle NomDeAACAdministratif
-
-# Après tout import de zonage
-npm run referentiels -- recalculer-contextes
+# Vérifier les moteurs sur les données importées (exploitation fictive posée
+# sur des emplacements réels, supprimée en partant)
+npm run check:referentiels-aura
 ```
 
+L'import a besoin de **GDAL** (`ogr2ogr`) : les GeoPackage nationaux sont chargés
+en flux, sans être tenus en mémoire. `scripts/install-pi.sh` et
+`scripts/update-pi.sh` l'installent (`gdal-bin`).
+
+Chaque fichier employé est **vérifié par son empreinte SHA-256**, enregistrée avec
+la version importée ; les PDF dont les règles sont transcrites sont vérifiés à
+chaque import — si l'un change, l'import s'arrête plutôt que d'opposer une
+transcription périmée.
+
 ---
 
-## Ce que les sources disent, et ce qu'elles ne disent pas
+## Ce qui est intégré
 
-### E-Phy — deux fichiers d'usages, deux contenus
-
-L'archive officielle porte **deux** fichiers d'usages, et les confondre coûte
-cher :
-
-| Fichier | Lignes | Porte le libellé de culture | Porte l'intervalle minimum | Usages retirés |
+| Référentiel | Version / millésime | Territoire | Contenu | Employé par |
 | --- | --- | --- | --- | --- |
-| `usages_des_produits_autorises_utf8.csv` | 19 594 | oui | **non** | non |
-| `produits_usages_utf8.csv` | 81 613 | non (code seul) | oui | **oui — 63 075** |
-
-Parcelys lit les deux : le premier sert de dictionnaire de libellés, le second
-donne la couverture et l'historique. Résultat : 100 % des usages importés
-portent une culture, et l'intervalle minimum est renseigné pour 7 215 d'entre
-eux — **exactement le compte du fichier source**. Pour les 92 % restants la
-source est muette, et le champ reste vide.
-
-Deux millésimes ont été fournis (08/09/2026 et 13/10/2026). Le plus récent est
-retenu ; l'autre est redondant.
-
-### IFT — la campagne 2025 est incomplète
-
-Le ministère publie un fichier par groupe de cultures, GCU1 à GCU6.
-
-| Campagne | Fichiers fournis | Doses | État |
-| --- | --- | --- | --- |
-| 2026 | GCU1 à GCU6 | 257 160 | complet |
-| 2025 | **GCU1 seul** | 60 285 | **partiel** — cinq groupes de cultures manquent |
-
-L'IFT d'une campagne se calcule avec les doses de cette campagne **et d'aucune
-autre**. Une campagne non importée n'est pas calculée : l'écran dit laquelle
-manque et lesquelles sont disponibles. Un IFT absent se voit ; un IFT faux ne se
-voit pas.
-
-### Zones vulnérables — un zonage à la commune
-
-Source : **DREAL Auvergne-Rhône-Alpes**, « Zones vulnérables 2021 à la pollution
-aux nitrates agricoles », révision du 12 mai 2025 à la suite des décisions du
-tribunal administratif du 6 juin 2024. Échelle 1:50 000.
-
-Textes fondateurs cités par la source :
-
-- arrêté **21-323 du 23 juillet 2021** — bassin Rhône-Méditerranée ;
-- arrêté du **30 août 2021** — bassin Loire-Bretagne.
-
-Bassins effectivement présents dans le fichier : **Rhône-Méditerranée** (627
-communes) et **Loire-Bretagne** (498). **Aucune commune Adour-Garonne**, bien
-que le résumé du jeu mentionne un arrêté pour ce bassin — l'AURA n'en compte
-pas, ou elles ne sont pas publiées ici.
-
-**La géométrie publiée est le contour communal, pas celui de la zone.** La
-généalogie du jeu le dit mot pour mot : « Établi à partir d'une liste des
-communes par arrêté préfectoral ».
-
-| Classement | Communes | Ce que Parcelys en conclut |
-| --- | --- | --- |
-| « toutes sections » | 907 | le contour communal **est** la zone : une parcelle qui le recoupe est **dedans** |
-| « quelques sections » | 218 | l'arrêté ne vise que certaines sections cadastrales, que le fichier ne nomme pas : **indéterminé** |
-
-Pour les 218 communes partiellement classées, conclure « dedans » classerait à
-tort, et « dehors » dispenserait à tort. Le contexte de la parcelle porte donc
-une indétermination explicite, avec ce qu'il faut consulter : l'arrêté de
-délimitation et les sections qu'il vise.
-
-Le **bassin** est conservé sur chaque zone : c'est lui qui désigne l'arrêté
-opposable.
-
-### Aires d'alimentation de captage — aucune n'est délimitée par arrêté
-
-Source : référentiel national des AAC (agences de l'eau), millésime interne du
-GeoPackage **2026-09-15**. 89 aires en Auvergne-Rhône-Alpes, réparties sur
-**trois bassins** : Rhône-Méditerranée (62), Loire-Bretagne (22),
-**Adour-Garonne (5)**.
-
-L'attribut `ArreteDelimitationAAC` vaut **False pour les 89**. Aucune de ces
-aires n'est donc délimitée par un arrêté préfectoral, et leur périmètre n'est
-pas opposable tel quel. L'attribut est conservé et affiché.
-
-Une AAC n'est **pas** un captage : le captage est l'ouvrage, l'AAC est la
-surface dont les eaux l'alimentent. Ce sont deux référentiels distincts dans
-Parcelys (`aires-alimentation-captage` et `captages`), de millésimes et de
-producteurs différents.
+| Catalogue E-Phy (ANSES) | **2026-10-13** | national | 15 156 produits (2 744 sans date de retrait), 8 237 substances, 81 613 usages dont 15 523 avec ZNT aquatique et 17 863 avec délai avant récolte, 29 641 conditions d'emploi | dose maximale, retrait, nombre d'applications, intervalle, DAR, ZNT, conditions d'emploi (sol drainé, délai de rentrée, abeilles, riverains) |
+| Doses de référence IFT | **2026** (GCU1 à GCU6) et **2025** (GCU1 seul) | national | 257 160 et 60 285 doses | IFT, **par campagne** |
+| Contour régional | empreinte `76ef7153ee54` | 84 | 1 contour | rattache la parcelle à l'AURA (et donc au PAR7 et au GREN) |
+| Zones vulnérables | **2021**, révision du 12/05/2025 | 84 | 1 125 communes (498 Loire-Bretagne, 627 Rhône-Méditerranée) | contexte de la parcelle, champ d'application du PAR7 et du plan de fumure |
+| Aires d'alimentation de captage | **2026-09-15** | 84 | 89 aires | contexte de la parcelle ; reconstitution des ZAR |
+| BD TOPAGE | **2026** | 84 | 402 215 tronçons, 18 796 cours d'eau, 97 903 surfaces, 3 894 plans d'eau, 3 bassins | bassin de la parcelle, distances, bande enherbée (à vérifier), ZNT (rappel) |
+| Captages (Sandre) | **2024-06-05** | 84 | 22 479 ouvrages, 23 787 points de prélèvement | contexte de la parcelle (distances) |
+| Programme d'actions régional (PAR7) | arrêté n° **24-135** du 19/07/2024 modifié par le n° **24-162** du 12/09/2024 | 84 | 34 règles, en vigueur depuis le 01/09/2024 | contrôle de chaque apport et de chaque couvert |
+| Zones d'actions renforcées | annexe 1 du PAR7 modifiée | 84 | 17 captages, 18 périmètres (11 reconstitués par l'AAC, 6 indéterminés) | prescriptions renforcées des ZAR |
+| Référentiel GREN | arrêté n° **24-147** du 07/08/2024 ; fiches du 21/06/2024 (fiche 19 du 15/07/2025) | 84 | 113 règles et tableaux | dose prévisionnelle (plan de fumure), Kéq, teneurs et azote potentiellement libéré des produits organiques |
 
 ---
 
-## Ce qui n'est pas intégré, et pourquoi
+## Comment chaque référentiel est réellement employé
 
-### Zones d'actions renforcées — aucune géométrie fournie
+### Une règle se lit à la date de l'intervention, sur le territoire de la parcelle
 
-Le seul fichier fourni (`04_ZAR/mzarvf.pdf`, « version juillet 2024 », DRAAF et
-DREAL AURA) est une fiche de deux pages. Elle contient :
+Toute règle transcrite porte son **texte** (arrêté, article, page), sa
+**citation** mot pour mot, son **territoire** et sa **date d'entrée en vigueur**.
+Elle n'est opposée qu'à une intervention datée **après** cette date, sur une
+parcelle dont le contour recoupe le **contour régional** importé. Un épandage de
+février 2024 relève du 6e programme (non fourni) : il ressort « indéterminé », pas
+contrôlé avec le 7e.
 
-- la **liste des captages classés en ZAR** en Auvergne-Rhône-Alpes (15 entrées,
-  avec commune et département) ;
-- les **mesures renforcées** applicables, chiffrées ;
-- la règle de délimitation : « Les limites des ZAR sont les aires
-  d'alimentation de captages **lorsqu'elles ont été délimitées**, sinon les
-  périmètres de protection du code de la santé, sinon, les communes »
-  (code de l'environnement, art. R.211-81-1 et R.211-81-1-1).
+Chaque constat affiche la trace de la règle : règle, texte, référentiel et
+version, territoire, période de validité, et la citation repliée.
 
-Elle ne contient **aucun périmètre géographique**. Et comme les 89 AAC d'AURA
-sont toutes sans arrêté de délimitation, la cascade de la fiche ne permet pas
-davantage de reconstituer les limites : il faudrait les périmètres de protection
-du code de la santé, qui ne sont pas dans les fichiers fournis.
+### Zones vulnérables : la commune n'est pas la zone
 
-L'appartenance d'une parcelle à une ZAR reste donc **indéterminée**. Les
-cartographies sont publiées par la DREAL AURA ; leur adresse figure dans la
-fiche.
-
-### Programme d'actions nitrates, GREN, captages, cours d'eau
-
-Fournis, analysés, **pas encore intégrés** :
-
-| Fichiers | État | Ce qu'il reste à faire |
+| Classement publié | Communes | Conclusion |
 | --- | --- | --- |
-| `05_PAN_PAR/` — 7 pièces, dont l'arrêté PAR7 et son modificatif | lus | transformer les périodes, plafonds et conditions en règles structurées |
-| `06_GREN/` — arrêté + 21 fiches techniques | lus | extraire les tableaux (besoin, fourniture du sol, coefficients) |
-| `09_CAPTAGES/` — ouvrages et points de prélèvement, France entière, 2024-06 | lus | **la colonne `geom` de `regulatory_zones` est un `MultiPolygon`** : des points n'y entrent pas. Une migration est nécessaire |
-| `08_BD_TOPAGE_AURA/` — 402 215 tronçons, 18 796 cours d'eau | lus | même contrainte : des lignes n'entrent pas dans un `MultiPolygon` |
+| « toutes sections » | 899 | le contour communal **est** la zone : **dedans** |
+| « quelques sections » | 219 | l'arrêté vise des sections que le fichier ne nomme pas : **indéterminé** |
+| « suppression » (décisions du TA du 6 juin 2024) | 7 | **classée jusqu'au 06/06/2024**, plus ensuite |
 
-La contrainte de type géométrique est structurelle et doit être traitée avant
-l'import des captages et de l'hydrographie : la lever revient à élargir la
-colonne en `geometry(Geometry, 4326)` et à vérifier que tous les calculs de
-surface existants continuent de fonctionner.
+Le classement est une **chronologie** : une commune retirée en 2024 reste classée
+pour les campagnes antérieures. Le bassin hydrographique de la parcelle est
+déterminé par la BD TOPAGE ; une parcelle d'un bassin dont aucune commune n'est
+publiée (Adour-Garonne) a un zonage **indéterminé**, pas « hors zone ».
 
-### Un fichier inutilisable
+### Zones d'actions renforcées
 
-`07_AAC/AAC.gpkg.zip` (4 222 976 octets) est une **archive tronquée** : l'en-tête
-nomme bien `AAC.gpkg`, mais le répertoire central du ZIP est absent. Ni `unzip`,
-ni Python, ni GDAL ne l'ouvrent. Aucune donnée n'en a été tirée — récupérer
-partiellement un référentiel réglementaire reviendrait à en inventer la partie
-manquante.
+La liste des captages vient de l'annexe 1 du PAR7 (modifiée par le n° 24-162).
+Aucune cartographie n'est fournie. Pour chaque captage :
 
-`07_AAC/AAC_FRA.gpkg.zip` couvre la France entière et contient les AAC d'AURA :
-rien n'est perdu.
+- quand une **aire d'alimentation** du référentiel national recoupe la commune
+  citée, elle sert de périmètre, **découpée à la région** — le périmètre est
+  marqué « reconstitué », et tout constat qui en dépend est « à vérifier » : la
+  cartographie de la DREAL fait foi ;
+- sinon, la commune citée sert d'emprise, et l'appartenance de la parcelle est
+  **indéterminée**.
+
+### Programme d'actions (PAR7)
+
+Contrôlés à l'enregistrement de chaque apport (affichés dans le formulaire) et
+dans la synthèse de conformité :
+
+- allongement régional de l'interdiction des fertilisants de type III
+  (15-28 février) avant une culture de printemps récoltée dans l'année ;
+- fractionnement des apports de type III (100 kg N/ha, adaptations du maïs, des
+  noyers, des engrais à libération progressive) ;
+- épandages sur CINE et CIE (plafonds d'azote potentiellement libéré, calculé
+  avec les coefficients de la fiche GREN 19) ;
+- phase liquide des digestats (sol nu, septembre) ;
+- couverture des sols : date limite d'implantation (« à vérifier » au-delà, les
+  dispenses n'étant pas connues de Parcelys), destruction (1er novembre, huit
+  semaines, sols argileux), destruction chimique, légumineuses pures ;
+- ZAR : interdiction d'épandage sur CINE, premier apport plafonné, couverts,
+  repousses, retournement de prairies ;
+- bande enherbée : un écoulement de la BD TOPAGE à moins de 5 m du contour rend
+  le point « à vérifier » — la couche « BCAE » qui désigne les cours d'eau
+  concernés n'est pas fournie, et la carte seule ne crée jamais l'obligation.
+
+Les autres règles du PAR7 sont **transcrites, importées et affichées** (page des
+référentiels, mentions des constats), mais pas opposées automatiquement : elles
+dépendent de données que Parcelys ne recueille pas — dispenses de couverture
+(taux d'argile, culture suivante porte-graines, pérenne ou alliacée, boues de
+papeterie), cannes de maïs (contours des PRA et des PPRI non fournis), repousses
+de céréales hors ZAR (taux de couverture), maraîchage en ZAR, analyse des
+digestats, durée recommandée, suivi des parcelles sans couvert, dérogations
+issues du 6e programme.
+
+Un fertilisant **minéral azoté** est de type III. Les autres types se
+**déclarent** sur la fiche du produit (Paramètres → Produits organiques), avec
+les dénominations de la fiche GREN 19 : Parcelys ne déduit pas le type d'un nom.
+
+### GREN : la dose prévisionnelle
+
+Écran **Plan prévisionnel de fumure**, par culture (onglet Apports de la
+parcelle). La fiche est choisie par la culture (fiche 1), la formule par
+l'ex-région (Auvergne : 03, 15, 43, 63 ; Rhône-Alpes : 01, 07, 26, 38, 42, 69, 73,
+74), à partir du **code INSEE de la parcelle**. Chaque terme est lu dans le
+tableau de la fiche ; Pf = b × y (plafond de 330 pour le colza), Nirr = V × C /
+443, Xpro = quantité × teneur × Kéq, Pi du colza par la matière verte, 1/CAU du
+maïs en Rhône-Alpes. L'objectif de rendement est la moyenne des cinq dernières
+campagnes de l'exploitation hors extrêmes, à défaut la fiche 20, à défaut une
+valeur déclarée et justifiée. La règle des petites doses s'applique (entre 0 et
+30 u : 30 u possibles ; bilan négatif : aucun apport).
+
+**Le calcul s'arrête** — et dit pourquoi — dès qu'un terme indispensable manque :
+cellule vide d'un tableau, tableau non transcrit pour l'ex-région, formule
+ambiguë, moins de cinq campagnes de rendement sans autre choix, fiche 19 absente
+à la date du bilan, terme « sans objet » non déclaré. Le plan est enregistré avec
+son calcul **tel qu'il a été fait** et la trace de chaque règle ; un dépassement
+du prévisionnel se justifie sur le même écran (motifs de l'art. 8 de l'arrêté).
+
+### E-Phy, IFT, ZNT, DAR
+
+- La **dose de référence IFT** est celle de la culture (ou de la cible saisie
+  quand elle est exactement celle du fichier) — jamais une dose de traitement de
+  semences, jamais celle d'une autre culture. Les noms de culture sont ceux du
+  catalogue E-Phy, choisis dans le panneau d'usage de la saisie.
+- La **ZNT aquatique** de l'usage est rappelée ; si un écoulement de la BD TOPAGE
+  passe à moins de cette distance du contour, il est nommé avec sa distance —
+  **sans conclure que la ZNT s'applique** : c'est la désignation des points
+  d'eau par arrêté préfectoral qui la rend applicable, et sa cartographie n'est
+  pas fournie.
+- Le **délai avant récolte** est opposé à la date de récolte de la culture.
 
 ---
 
-## Règles de tenue de ce référentiel
+## Ce qui manque, et ce que cela empêche
+
+| Donnée | Conséquence dans Parcelys |
+| --- | --- |
+| Périodes d'interdiction **nationales** (PAN), plafond de 170 kg N/ha et définition des types 0 à III | ces contrôles restent « indéterminés » ; seuls les renforcements régionaux sont opposés |
+| 6e programme d'actions (2018-248) et GREN de 2018 | les campagnes antérieures au 01/09/2024 ne sont pas contrôlées |
+| Fiche GREN 19 antérieure au 15/07/2025 | Kéq, teneurs et azote potentiellement libéré indisponibles avant cette date : Xpro et les plafonds CINE/CIE indéterminés |
+| Besoins du blé par variété (tableaux Arvalis – COMIFER) | l'exploitant déclare le besoin de sa variété, ou indique qu'elle n'est pas référencée |
+| Rf et Mh de la betterave en Rhône-Alpes ; Pi du maïs en Auvergne | dose non calculée dans ces cas (Pi = 0 déclaré lève l'ambiguïté du maïs) |
+| Cartographie DREAL des ZAR ; périmètres de protection de captage | ZAR reconstituées « à vérifier », 6 captages au périmètre indéterminé |
+| Couche « BCAE » ; cartographie départementale des points d'eau | bande enherbée et ZNT « à vérifier », jamais déduites de la carte |
+| Sections cadastrales des communes « quelques sections » | appartenance à la zone vulnérable indéterminée |
+| Groupes GCU2 à GCU6 de la campagne IFT 2025 | IFT 2025 de ces cultures non calculé |
+| Petites régions agricoles et zones PPRI | dérogations « cannes de maïs » non opposées (texte affiché) |
+| `07_AAC/AAC.gpkg.zip` | archive tronquée, écartée — `AAC_FRA.gpkg.zip` contient les mêmes aires |
+
+---
+
+## Règles de tenue
 
 1. **Une version par campagne pour l'IFT.** Les campagnes coexistent ; aucune ne
-   remplace l'autre. `finishImport` reçoit `remplaceLesVersionsAnterieures:
-   false` pour ce domaine.
-2. **Une version remplace la précédente pour un zonage.** Une nouvelle
-   délimitation se substitue à l'ancienne, qui passe en « remplacée » — jamais
-   supprimée, pour que les campagnes closes restent lisibles.
+   remplace l'autre.
+2. **Une version remplace la précédente pour un zonage ou un programme.** La
+   précédente passe en « remplacée » — jamais supprimée, pour que les campagnes
+   closes restent lisibles avec la règle de leur date.
 3. **Rien n'est déduit d'une donnée absente.** Un champ vide reste vide, une
-   appartenance indécidable reste indéterminée, et l'interface le dit.
-4. **Chaque règle porte sa source.** Référentiel, version, territoire, dates de
-   validité, et référence du texte quand elle existe.
+   appartenance indécidable reste indéterminée, un calcul incomplet ne donne pas
+   de chiffre — et l'interface dit pourquoi.
+4. **Chaque règle porte sa source** : texte, article, page, citation, version,
+   territoire, dates de validité.
+5. **Une transcription se vérifie** : `data/referentiels-aura/transcriptions/`
+   cite chaque PDF par son empreinte, et l'import refuse une source modifiée.
