@@ -40,7 +40,10 @@ const CHAMPS: WriteField[] = [
   { name: 'NUM_ILOT', type: 'C', length: 16 },
   { name: 'NUM_PARCEL', type: 'C', length: 16 },
   { name: 'CODE_CULTU', type: 'C', length: 12 },
-  { name: 'LIB_CULTU', type: 'C', length: 64 },
+  // Les libellés de la nomenclature PAC dépassent souvent 64 caractères
+  // (« Prairie permanente - herbe prédominante (ressources fourragères
+  // ligneuses absentes ou peu présentes) ») : 254, le maximum du dBASE III.
+  { name: 'LIB_CULTU', type: 'C', length: 254 },
   { name: 'SURF_HA', type: 'N', length: 14, decimals: 4 },
   { name: 'CAMPAGNE', type: 'N', length: 4, decimals: 0 },
 ];

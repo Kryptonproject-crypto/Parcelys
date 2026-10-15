@@ -5,6 +5,7 @@ import { roleHasPermission, ROLE_LABELS } from '@/lib/auth/rbac';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { FarmForm } from '@/app/(app)/parametres/FarmForm';
+import { SprayerForm } from '@/app/(app)/parametres/SprayerForm';
 import { AdvisorsPanel } from '@/app/(app)/parametres/AdvisorsPanel';
 import { OrganicProductsPanel } from '@/app/(app)/parametres/OrganicProductsPanel';
 import { optionsClassement } from '@/lib/regulatory/gren-options';
@@ -62,6 +63,16 @@ export default async function SettingsPage() {
             department: farm.department,
             latitude: farm.latitude,
             longitude: farm.longitude,
+          }}
+          canEdit={roleHasPermission(ctx.role, 'farm:update')}
+        />
+
+        <SprayerForm
+          sprayer={{
+            sprayerType: farm.sprayerType,
+            sprayerDriftReductionPct: farm.sprayerDriftReductionPct,
+            sprayerDriftEquipment: farm.sprayerDriftEquipment,
+            riverainCharterApplied: farm.riverainCharterApplied,
           }}
           canEdit={roleHasPermission(ctx.role, 'farm:update')}
         />

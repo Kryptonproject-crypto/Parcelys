@@ -477,38 +477,3 @@ export function rappelsConditions(
     ([famille, label]) => `${INTITULE[famille]} — ${produit} : « ${label.trim()} »`,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Mentions de danger et distances de sécurité « riverains »
-// ---------------------------------------------------------------------------
-
-/**
- * Mentions de danger cancérogènes, mutagènes ou toxiques pour la reproduction
- * (avérées : H340, H350, H360… ; suspectées : H341, H351, H361…).
- *
- * Ce sont elles qui rendent incompressibles certaines distances de sécurité
- * aux abords des habitations (arrêté du 4 mai 2017 modifié, articles 14-1 et
- * suivants). La largeur exacte dépend du texte en vigueur, de l'autorisation
- * du produit et, pour les CMR suspectés, d'une liste publiée au Bulletin
- * officiel : aucune n'est importée, si bien que Parcelys **ne chiffre pas**
- * la distance. Il dit au moment de pulvériser que le produit est concerné —
- * et c'est l'information qui manquait.
- */
-const MENTIONS_CMR = /^H3(40|41|50|51|60|61)/i;
-
-export function rappelDangersRiverains(params: {
-  produit: string;
-  dangers: Array<{ code: string; label: string | null }>;
-}): string | null {
-  const cmr = params.dangers.filter((d) => MENTIONS_CMR.test(d.code.trim()));
-  if (cmr.length === 0) return null;
-  const liste = cmr
-    .map((d) => `${d.code.trim()}${d.label ? ` (${d.label.replace(/\.$/, '')})` : ''}`)
-    .join(', ');
-  return (
-    `${params.produit} porte ${cmr.length > 1 ? 'les mentions de danger' : 'la mention de danger'} ${liste}. ` +
-    'Ces mentions imposent des distances de sécurité renforcées, non réductibles par la charte départementale, ' +
-    'aux abords des habitations et des lieux accueillant des personnes vulnérables (arrêté du 4 mai 2017 modifié). ' +
-    'Lisez la distance sur l’étiquette : Parcelys ne la calcule pas.'
-  );
-}

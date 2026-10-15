@@ -1322,6 +1322,23 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.10.2
+
+La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`).
+Elle renomme les cultures importées de TéléPAC sous leur seul code (« BTH »
+devient « Blé tendre d’hiver ») ; une culture que vous aviez renommée garde
+votre nom.
+
+Ensuite :
+
+1. **Paramètres → Pulvérisateur** : renseignez le type, le moyen anti-dérive
+   (la classe de réduction se lit sur la liste officielle, pour votre modèle de
+   buse et votre pression) et la charte riverains. Sans cela, Parcelys dit à
+   chaque traitement ce que la réduction demanderait, sans la supposer.
+2. **Relancez la compilation de l’APK** (Actions → « APK Android » → *Run
+   workflow*) et réinstallez-la : le rapprochement des cultures avec les
+   usages du catalogue, utilisé hors réseau, est dans l’application.
+
 ### Passer en 0.10.1
 
 La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`),

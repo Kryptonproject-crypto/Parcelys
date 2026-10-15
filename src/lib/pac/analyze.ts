@@ -24,6 +24,7 @@ import {
   type MappingChoice,
 } from '@/lib/pac/adapter';
 import type { Ring } from '@/lib/pac/shapefile';
+import { nomCulturePac } from '@/lib/pac/codes-cultures';
 
 /**
  * Ce qu'on propose de faire d'une entité importée.
@@ -58,7 +59,10 @@ export type AnalyzedFeature = {
   ilot: string | null;
   numero: string | null;
   cropCode: string | null;
+  /** Libellé porté par le dossier, s'il en porte un. */
   cropLabel: string | null;
+  /** Ce qu'on affiche : le libellé du dossier, sinon celui de la nomenclature, sinon le code. */
+  cropName: string | null;
 
   /** Géométrie ramenée au système interne, prête à afficher. */
   geojson: unknown | null;
@@ -460,8 +464,7 @@ export async function analyzeDossier(params: {
           externalId: pickAttribute(f.attributes, mapping.externalId),
           ilot: pickAttribute(f.attributes, mapping.ilot),
           numero: pickAttribute(f.attributes, mapping.numero),
-          cropCode: pickAttribute(f.attributes, mapping.cropCode),
-          cropLabel: pickAttribute(f.attributes, mapping.cropLabel),
+          ...culture(f.attributes, mapping),
           geojson: null,
           areaHa: null,
           declaredAreaHa: toNumber(pickAttribute(f.attributes, mapping.area)),
@@ -550,8 +553,7 @@ export async function analyzeDossier(params: {
         externalId: pickAttribute(f.attributes, mapping.externalId),
         ilot: pickAttribute(f.attributes, mapping.ilot),
         numero: pickAttribute(f.attributes, mapping.numero),
-        cropCode: pickAttribute(f.attributes, mapping.cropCode),
-        cropLabel: pickAttribute(f.attributes, mapping.cropLabel),
+        ...culture(f.attributes, mapping),
         geojson: projete?.geojson ?? null,
         areaHa: projete?.areaHa ?? null,
         declaredAreaHa: declared,
@@ -613,6 +615,19 @@ export async function analyzeDossier(params: {
 
 function layerIsIlot(layers: LayerAnalysis[], name: string): boolean {
   return layers.find((l) => l.name === name)?.isIlotLayer ?? false;
+}
+
+/**
+ * La culture déclarée d'une entité : son code, le libellé que porte le dossier
+ * (souvent aucun : l'export TéléPAC ne donne que le code), et le nom à afficher.
+ */
+function culture(
+  attributes: Record<string, string | number | null>,
+  mapping: FieldMapping,
+): { cropCode: string | null; cropLabel: string | null; cropName: string | null } {
+  const cropCode = pickAttribute(attributes, mapping.cropCode);
+  const cropLabel = pickAttribute(attributes, mapping.cropLabel);
+  return { cropCode, cropLabel, cropName: cropLabel?.trim() || nomCulturePac(cropCode) };
 }
 
 function toNumber(value: string | null): number | null {

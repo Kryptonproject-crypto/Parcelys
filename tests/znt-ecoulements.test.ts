@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  rappelDangersRiverains,
   rappelZnt,
   rappelZntEcoulements,
   zntAquatiqueApplicable,
@@ -106,25 +105,5 @@ describe('ZNT aquatique applicable à un usage', () => {
     });
     expect(r).toContain('ZNT aquatique de 5 m (largeur par défaut');
     expect(r).toContain('« Fossé »');
-  });
-});
-
-describe('Mentions de danger et riverains', () => {
-  it('signale un produit CMR, sans chiffrer une distance qu’il ne peut vérifier', () => {
-    const r = rappelDangersRiverains({
-      produit: 'PRODUIT ESSAI',
-      dangers: [
-        { code: 'H302', label: 'Nocif en cas d’ingestion' },
-        { code: 'H351', label: 'Susceptible de provoquer le cancer.' },
-      ],
-    });
-    expect(r).toContain('H351 (Susceptible de provoquer le cancer)');
-    expect(r).not.toContain('H302');
-    expect(r).toContain('Parcelys ne la calcule pas');
-    expect(r).not.toMatch(/\d+ ?m(è|e)tres/);
-  });
-
-  it('se tait pour un produit sans mention CMR', () => {
-    expect(rappelDangersRiverains({ produit: 'P', dangers: [{ code: 'H410', label: null }] })).toBeNull();
   });
 });

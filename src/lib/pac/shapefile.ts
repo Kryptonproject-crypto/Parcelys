@@ -485,7 +485,7 @@ function writeDbf(
       } else {
         // Latin-1 : c'est l'encodage d'un .dbf dBASE III. Les caractères hors
         // de cette table sont remplacés plutôt que d'écrire des octets faux.
-        text = String(value).slice(0, field.length).padEnd(field.length);
+        text = versLatin1(String(value)).slice(0, field.length).padEnd(field.length);
       }
       buffer.write(text.slice(0, field.length), at, 'latin1');
       at += field.length;
@@ -494,6 +494,44 @@ function writeDbf(
 
   buffer[buffer.length - 1] = 0x1a; // marque de fin de fichier
   return buffer;
+}
+
+/**
+ * Un texte écrivable en Latin-1.
+ *
+ * `Buffer.write(…, 'latin1')` ne remplace rien : il garde l'octet de poids
+ * faible de chaque caractère, et l'apostrophe typographique de « Blé tendre
+ * d’hiver » (U+2019) devenait l'octet 0x19, un caractère de contrôle. Les
+ * signes typographiques courants prennent leur équivalent Latin-1 ; ce qui
+ * reste hors de la table devient « ? », visible plutôt que faux.
+ */
+const EQUIVALENTS_LATIN1: Record<string, string> = {
+  '‘': "'",
+  '’': "'",
+  '‚': "'",
+  '“': '"',
+  '”': '"',
+  '„': '"',
+  '–': '-',
+  '—': '-',
+  '‑': '-',
+  '…': '...',
+  'œ': 'oe',
+  'Œ': 'OE',
+  '€': 'EUR',
+  '\u2009': ' ', // espace fine
+  '\u202f': ' ', // espace fine insécable
+  'ᵉ': 'e',
+  'ʳ': 'r',
+};
+
+export function versLatin1(texte: string): string {
+  let sortie = '';
+  for (const caractere of texte) {
+    const point = caractere.codePointAt(0)!;
+    sortie += point <= 0xff ? caractere : (EQUIVALENTS_LATIN1[caractere] ?? '?');
+  }
+  return sortie;
 }
 
 // ---------------------------------------------------------------------------

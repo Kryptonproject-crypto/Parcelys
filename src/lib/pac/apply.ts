@@ -26,6 +26,7 @@ import { notFound } from '@/lib/api/errors';
 import { GEOJSON_DECIMALES, saveParcelGeometry } from '@/lib/geo/repository';
 import { reverseGeocode } from '@/lib/geo/geocode';
 import type { AnalyzedFeature, MatchDecision } from '@/lib/pac/analyze';
+import { libelleCulturePac } from '@/lib/pac/codes-cultures';
 
 /**
  * Marque posée sur une culture créée par un import.
@@ -686,9 +687,10 @@ export async function applyImport(params: {
               data: {
                 farmId,
                 code,
-                // Le libellé du dossier quand il y en a un ; sinon le code
-                // lui-même. Jamais un nom deviné à partir du code.
-                name: feature.cropLabel?.trim() || code,
+                // Le libellé du dossier quand il y en a un ; sinon celui de la
+                // nomenclature des cultures PAC ; sinon le code lui-même.
+                // Jamais un nom deviné à partir du code.
+                name: feature.cropLabel?.trim() || libelleCulturePac(code) || code,
                 isCustom: true,
               },
               select: { id: true },

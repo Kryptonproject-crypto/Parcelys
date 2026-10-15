@@ -13,16 +13,24 @@
  * en déduire la saison d'implantation de la date de semis enregistrée, ou du
  * nom quand il la porte.
  *
+ * ## Les codes TéléPAC
+ *
+ * Une culture importée de TéléPAC prend le libellé de la nomenclature des
+ * cultures PAC (`@/lib/pac/codes-cultures`) : « BTH » s'appelle « Blé tendre
+ * d'hiver », et c'est ce nom qui est reconnu ici. Un nom qui n'est encore
+ * qu'un code de la nomenclature est lu à travers son libellé ; un code absent
+ * de la nomenclature n'est pas traduit, et la culture reste **non reconnue** —
+ * la règle qui en dépend reste indéterminée.
+ *
  * ## Ce qu'il s'interdit
  *
- * Traduire un code TéléPAC (« BTH », « CZH ») : aucun fichier fourni ne publie
- * la nomenclature, et Parcelys ne l'écrit pas de mémoire. Une culture dont le
- * nom n'est qu'un code reste **non reconnue**, et la règle qui en dépend reste
- * indéterminée — l'exploitant renomme la culture une fois, et c'est réglé pour
- * toutes les campagnes.
+ * Deviner une famille qu'aucun nom ne dit : « Mélange de légumineuses
+ * fourragères et de céréales » n'est pas une céréale à paille.
  *
  * Pur : sans base, sans date courante. Testable tel quel.
  */
+
+import { libelleCulturePac } from '@/lib/pac/codes-cultures';
 
 export type Famille =
   | 'cereale-paille'
@@ -60,7 +68,10 @@ export function cultureReglementaire(params: {
   /** Date de semis enregistrée, si elle l'est. */
   semis?: Date | null;
 }): CultureReglementaire {
-  const nom = normaliser(params.nom);
+  // « BTH » se lit « Blé tendre d'hiver » : un code de la nomenclature PAC,
+  // jamais un nom deviné.
+  const libellePac = libelleCulturePac(params.nom);
+  const nom = normaliser(libellePac ?? params.nom);
   const categorie = normaliser(params.categorie);
 
   let famille: Famille | null = null;
@@ -94,9 +105,10 @@ export function cultureReglementaire(params: {
     }
   }
 
+  const designation = libellePac ? `${params.nom} (${libellePac})` : params.nom;
   const preuve = famille
-    ? `« ${params.nom} » reconnue comme ${LIBELLES[famille]}${preuveSaison ? `, ${saison === 'hiver' ? 'd’hiver' : 'de printemps'} (${preuveSaison})` : ''}`
-    : `« ${params.nom ?? 'culture sans nom'} » n’est pas reconnue : renommez-la (ex. « Blé tendre d’hiver ») pour que les règles qui la visent s’appliquent`;
+    ? `« ${designation} » reconnue comme ${LIBELLES[famille]}${preuveSaison ? `, ${saison === 'hiver' ? 'd’hiver' : 'de printemps'} (${preuveSaison})` : ''}`
+    : `« ${designation ?? 'culture sans nom'} » n’est pas reconnue : renommez-la (ex. « Blé tendre d’hiver ») pour que les règles qui la visent s’appliquent`;
 
   return { famille, saison, preuve };
 }

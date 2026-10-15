@@ -17,6 +17,7 @@ import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
 import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
 import { RenameParcel } from '@/app/(app)/parcelles/[id]/RenameParcel';
+import { nomCulturePac } from '@/lib/pac/codes-cultures';
 import {
   Badge,
   Card,
@@ -313,7 +314,7 @@ export default async function ParcelPage({
             campagne: d.campaign.year,
             ilot: d.ilot?.numero ?? null,
             numero: d.numero,
-            culture: d.cropCode,
+            culture: nomCulturePac(d.cropCode),
           })),
         }}
         regulatoryContext={contexteReglementaire}

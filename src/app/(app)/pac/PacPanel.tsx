@@ -46,6 +46,7 @@ type Analysis = {
     numero: string | null;
     ilot: string | null;
     cropCode: string | null;
+    cropName: string | null;
     areaHa: number | null;
     declaredAreaHa: number | null;
     error: string | null;
@@ -488,7 +489,7 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
               >
                 <span>
                   Îlot {f.ilot ?? '—'} · parcelle {f.numero ?? '—'}
-                  {f.cropCode ? ` · ${f.cropCode}` : ''}
+                  {f.cropName ? ` · ${f.cropName}` : ''}
                   {f.areaHa !== null ? ` · ${f.areaHa.toFixed(2)} ha` : ''}
                 </span>
                 {f.error ? (

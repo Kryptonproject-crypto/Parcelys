@@ -202,6 +202,29 @@ Parcelys affiche les trois séparément, à l'usage près. **Une ZNT non publié
 s'affiche par un tiret, jamais par « 0 m »** : c'est une donnée absente, pas une
 absence de contrainte.
 
+### 5.1 Réduction selon le pulvérisateur (`src/lib/ephy/distances.ts`)
+
+Le pulvérisateur se déclare dans « Paramètres → Pulvérisateur » : type, classe
+de réduction de dérive de la liste officielle (0, 50, 66, 75 ou 90 %),
+matériel, charte riverains appliquée. Non renseigné, il n'est jamais supposé.
+
+| Distance | Règle appliquée | Ce qui reste à l'exploitant |
+|---|---|---|
+| ZNT aquatique 20 ou 50 m | 5 m avec un moyen ≥ 66 %, un dispositif végétalisé permanent ≥ 5 m le long du point d'eau et l'enregistrement (arrêté du 4 mai 2017, annexe 3) | La présence du dispositif végétalisé |
+| ZNT aquatique ≥ 100 m | Non réductible | — |
+| ZNT imposant un dispositif végétalisé | Texte de l'ANSES cité, réduction non calculée | L'étiquette |
+| Habitations, autorisation du produit | Son option selon le matériel déclaré (« 10 m avec 90 %, ou à défaut 20 m avec 66 % ») ; texte cité si sa portée dépend de l'usage | — |
+| Habitations, biocontrôle ou faible risque | Exempté | — |
+| Habitations, H300, H310, H330, H331, H334, H340, H350(i), H360… | 20 m incompressibles | — |
+| Habitations, H370, H372 | Indéterminée (liste des 20 m non confirmée) | L'étiquette |
+| Habitations, H341, H351, H361… | Indéterminée : 10 m si le produit est sur la liste ministérielle des CMR 2 | La liste |
+| Habitations, culture basse | 5 m ; 3 m avec un moyen ≥ 66 % et la charte appliquée | — |
+| Habitations, culture haute | 10 m ; réduction non chiffrée | La charte |
+
+La culture haute ou basse se lit sur l'usage E-Phy retenu (liste fermée), à
+défaut sur le nom de la culture ; fraisier, rosier, cultures ornementales ou
+florales restent indéterminés — la hauteur décide.
+
 ---
 
 ## 6. Sol drainé
@@ -304,5 +327,7 @@ SELECT count(*) FROM phyto_conditions WHERE concerns_drained_soil;
 - **Les mélanges.** Le catalogue documente les produits un par un ; Parcelys ne
   se prononce pas sur les associations.
 - **Les dérogations et arrêtés préfectoraux.** Hors du jeu de données.
+- **La liste ministérielle des produits CMR 2 soumis à 10 m** des habitations,
+  ni la liste des moyens réduisant la dérive : l'exploitant déclare sa classe.
 
 Dans tous ces cas, l'interface renvoie à l'étiquette du produit, qui fait foi.

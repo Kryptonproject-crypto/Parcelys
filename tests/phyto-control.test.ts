@@ -510,6 +510,83 @@ describe('Contrôles phytosanitaires (dose, retrait, sol drainé)', () => {
     expect(riverains).toContain('5 m');
   });
 
+  // -------------------------------------------------------------------------
+  // Pulvérisateur déclaré
+  // -------------------------------------------------------------------------
+
+  const pulverisateur = (corps: Record<string, unknown>) =>
+    client.put<{ message?: string; error?: { message: string } }>('/api/farms/pulverisateur', {
+      sprayerType: 'RAMPE',
+      driftReductionPct: null,
+      driftEquipment: null,
+      riverainCharterApplied: null,
+      ...corps,
+    });
+
+  it('dit si la ZNT peut être réduite selon le pulvérisateur déclaré', async () => {
+    // Non renseigné : la phrase dit ce que la réduction demanderait.
+    const avant = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé' });
+    const zntAvant = avant.warnings.find((w) => w.startsWith('ZNT aquatique de 20 m'));
+    expect(zntAvant).toContain('Renseignez votre pulvérisateur');
+
+    expect((await pulverisateur({ driftReductionPct: 66, driftEquipment: 'buses à injection d’air, 3 bar' })).status).toBe(200);
+    const equipe = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé', appliedOn: '2026-05-15' });
+    const zntEquipe = equipe.warnings.find((w) => w.startsWith('ZNT aquatique de 20 m'));
+    expect(zntEquipe).toContain('ramenée à 5 m');
+    expect(zntEquipe).toContain('buses à injection d’air, 3 bar');
+
+    expect((await pulverisateur({ driftReductionPct: 0 })).status).toBe(200);
+    const sans = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé', appliedOn: '2026-06-15' });
+    expect(sans.warnings.find((w) => w.startsWith('ZNT aquatique de 20 m'))).toContain('non réductible avec votre pulvérisateur');
+  });
+
+  it('calcule la distance aux habitations d’un produit dont l’autorisation n’en fixe pas', async () => {
+    await prisma.phytoCondition.deleteMany({ where: { productId: produitId, category: 'Riverains' } });
+    await pulverisateur({ driftReductionPct: 75, driftEquipment: 'buses 110-025', riverainCharterApplied: true });
+
+    const { warnings } = await enregistrer(parcelNonRenseigneeId, { cropLabel: 'Blé' });
+    const riverains = warnings.find((w) => w.startsWith('Riverains'));
+    expect(riverains).toContain('3 m avec votre pulvérisateur');
+    expect(riverains).toContain('charte d’engagements que vous appliquez');
+    expect(riverains).toContain('culture basse');
+  });
+
+  it('enregistre le pulvérisateur, refuse une classe inventée et réserve la modification au propriétaire', async () => {
+    const invente = await pulverisateur({ driftReductionPct: 60 });
+    expect(invente.status).toBe(400);
+
+    // Sans anti-dérive, pas de matériel à garder.
+    expect((await pulverisateur({ driftReductionPct: 0, driftEquipment: 'buses fantômes' })).status).toBe(200);
+    const ferme = await prisma.farm.findUniqueOrThrow({ where: { id: farmId } });
+    expect(ferme.sprayerType).toBe('RAMPE');
+    expect(ferme.sprayerDriftReductionPct).toBe(0);
+    expect(ferme.sprayerDriftEquipment).toBeNull();
+    expect(await prisma.auditLog.count({ where: { farmId, action: 'farm.sprayer_updated' } })).toBe(1);
+
+    const lecteur = await prisma.user.create({
+      data: {
+        email: 'lecteur@controle.test',
+        emailNormalized: 'lecteur@controle.test',
+        passwordHash: (await prisma.user.findFirstOrThrow({ where: { email: 'exploitant@controle.test' } })).passwordHash,
+        firstName: 'Lecteur',
+        lastName: 'Seul',
+        emailVerifiedAt: new Date(),
+        acceptedTermsAt: new Date(),
+        acceptedPrivacyAt: new Date(),
+        memberships: { create: { farmId, role: 'VIEWER' } },
+      },
+    });
+    const autre = new TestClient();
+    await autre.login(lecteur.email, 'MotDePasse1');
+    const refus = await autre.put('/api/farms/pulverisateur', {
+      sprayerType: 'RAMPE',
+      driftReductionPct: 90,
+      driftEquipment: null,
+      riverainCharterApplied: true,
+    });
+    expect(refus.status).toBe(403);
+  });
+
   it('n’oppose aucune limite quand le catalogue ne les chiffre pas', async () => {
     // Un produit dont l'usage ne porte ni nombre d'applications, ni intervalle,
     // ni délai : le silence du catalogue n'est ni une autorisation ni une

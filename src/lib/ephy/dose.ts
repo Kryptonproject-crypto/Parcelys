@@ -197,16 +197,66 @@ export function usageEnVigueurLe(
  * et l'inverse arrive aussi. Au-delà, on ne devine pas : « Orge » ne vaut pas
  * pour « Blé », et un rapprochement approximatif sur une dose réglementaire
  * serait pire que pas de rapprochement du tout.
+ *
+ * L'inclusion porte sur des **mots entiers** : les libellés de la nomenclature
+ * PAC sont longs, et un mot du catalogue logé dans un autre (« lin » dans
+ * « moulin ») ne désigne pas la même culture. Et ce qu'un libellé exclut
+ * l'est : « Maïs (hors maïs doux) » prend les usages du maïs, pas ceux du
+ * maïs doux.
  */
 export function usagesForCrop(usages: UsageForDose[], crop: string): UsageForDose[] {
-  const wanted = normalizeSearchTerm(crop);
-  if (wanted.length < 2) return [];
+  const exclus: string[] = [];
+  const sansExclusion = crop.replace(/\(\s*hors\s+([^)]*)\)/gi, (_, exclu: string) => {
+    exclus.push(motsDeCulture(exclu));
+    return ' ';
+  });
+  const wanted = motsDeCulture(sansExclusion);
+  if (wanted.trim().length < 2) return [];
+  const groupes = RATTACHEMENTS.filter((r) => r.culture.test(wanted)).map((r) => motsDeCulture(r.usage));
+  const semences = /\b(porte graine|semence)/.test(wanted);
 
   return usages.filter((usage) => {
-    const candidate = normalizeSearchTerm(usage.cropLabel ?? '');
-    if (candidate.length < 2) return false;
+    const candidate = motsDeCulture(usage.cropLabel ?? '');
+    if (candidate.trim().length < 2) return false;
+    if (exclus.some((exclu) => exclu.trim() && candidate.includes(exclu))) return false;
+    // Les usages « Porte graine » visent la production de semences : pas un
+    // maïs grain parce qu'il s'appelle « Maïs ».
+    if (candidate.startsWith(' porte graine') && !semences) return false;
+    if (groupes.includes(candidate)) return true;
     return candidate === wanted || candidate.includes(wanted) || wanted.includes(candidate);
   });
+}
+
+/**
+ * Cultures que le catalogue range sous un autre nom.
+ *
+ * Établis d'après le catalogue E-Phy lui-même : les usages « Blé » portent des
+ * conditions « Uniquement sur triticale… », « … triticale et épeautre » ; les
+ * usages « Crucifères oléagineuses », « Uniquement sur colza d'hiver… » ; les
+ * usages « Légumineuses fourragères » visent la luzerne. Rien d'autre n'est
+ * rattaché : sans preuve dans le catalogue, une culture reste sans usage.
+ */
+const RATTACHEMENTS: Array<{ culture: RegExp; usage: string }> = [
+  { culture: / (triticale|epeautre) /, usage: 'Blé' },
+  { culture: / (colza|navette|moutarde|cameline) /, usage: 'Crucifères oléagineuses' },
+  { culture: / luzerne /, usage: 'Légumineuses fourragères' },
+];
+
+/**
+ * Un libellé de culture réduit à ses mots, bordés d'espaces, au singulier :
+ * « Blé d’hiver » → « ble d hiver », « Prairies » → « prairie ».
+ *
+ * Le singulier est grossier — on retire le « s » ou le « x » final des mots de
+ * plus de trois lettres —, mais il s'applique des deux côtés : « Prairies » du
+ * catalogue et « prairie temporaire » de la déclaration se rejoignent.
+ */
+function motsDeCulture(texte: string): string {
+  const mots = normalizeSearchTerm(texte)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((mot) => (mot.length > 3 ? mot.replace(/[sx]$/, '') : mot));
+  return ` ${mots.join(' ')} `;
 }
 
 /**

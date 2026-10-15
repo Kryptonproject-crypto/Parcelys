@@ -360,35 +360,50 @@ model AppSetting {
 }
 
 model Farm {
-  id              String    @id @default(cuid())
+  id              String  @id @default(cuid())
   name            String
   siret           String?
-  addressLine     String?   @map("address_line")
-  postalCode      String?   @map("postal_code")
+  addressLine     String? @map("address_line")
+  postalCode      String? @map("postal_code")
   city            String?
   department      String?
-  country         String    @default("FR")
+  country         String  @default("FR")
   latitude        Float?
   longitude       Float?
-  weatherProvider String?   @map("weather_provider")
-  isDemo          Boolean   @default(false) @map("is_demo")
-  deletedAt       DateTime? @map("deleted_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  weatherProvider String? @map("weather_provider")
 
-  members         FarmMember[]
-  invitations     InvitationCode[]
-  engagements     AdvisoryEngagement[]
-  recommendations Recommendation[]
-  parcels         Parcel[]
-  crops           Crop[]
-  fertilizers     Fertilizer[]
-  organicInputs   OrganicInput[]
-  documents       Document[]
-  auditLogs       AuditLog[]
-  notifications   Notification[]
-  weatherRecords  WeatherRecord[]
-  sessions        Session[]
+  /// Pulvérisateur de l'exploitation, tel que l'exploitant le déclare. Sert à
+  /// dire, à la saisie d'un traitement, si la ZNT d'un point d'eau ou la
+  /// distance aux habitations peut être réduite. `null` : non renseigné —
+  /// jamais supposé.
+  sprayerType              SprayerType? @map("sprayer_type")
+  /// Réduction de dérive du moyen anti-dérive inscrit sur la liste officielle
+  /// du ministère, en % (50, 66, 75 ou 90) ; 0 : aucun moyen anti-dérive.
+  sprayerDriftReductionPct Int?         @map("sprayer_drift_reduction_pct")
+  /// Le matériel lui-même : buses, pression — ce qu'un contrôle demandera.
+  sprayerDriftEquipment    String?      @map("sprayer_drift_equipment")
+  /// L'exploitation applique-t-elle la charte d'engagements départementale
+  /// approuvée par le préfet (distances aux habitations) ?
+  riverainCharterApplied   Boolean?     @map("riverain_charter_applied")
+
+  isDemo    Boolean   @default(false) @map("is_demo")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  members           FarmMember[]
+  invitations       InvitationCode[]
+  engagements       AdvisoryEngagement[]
+  recommendations   Recommendation[]
+  parcels           Parcel[]
+  crops             Crop[]
+  fertilizers       Fertilizer[]
+  organicInputs     OrganicInput[]
+  documents         Document[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  weatherRecords    WeatherRecord[]
+  sessions          Session[]
   pacCampaigns      PacCampaign[]
   findings          ComplianceFinding[]
   stockItems        StockItem[]
@@ -396,6 +411,15 @@ model Farm {
 
   @@index([isDemo])
   @@map("farms")
+}
+
+/// Type de pulvérisateur.
+enum SprayerType {
+  RAMPE
+  JET_PORTE
+  PNEUMATIQUE
+  A_DOS
+  AUTRE
 }
 
 model FarmMember {
@@ -642,21 +666,21 @@ model Fertilizer {
 }
 
 model OrganicInput {
-  id          String   @id @default(cuid())
-  farmId      String?  @map("farm_id")
-  name        String
-  category    String?
-  nContent    Decimal? @map("n_content") @db.Decimal(8, 3)
-  pContent    Decimal? @map("p_content") @db.Decimal(8, 3)
-  kContent    Decimal? @map("k_content") @db.Decimal(8, 3)
-  dryMatter   Decimal? @map("dry_matter") @db.Decimal(6, 2)
+  id              String   @id @default(cuid())
+  farmId          String?  @map("farm_id")
+  name            String
+  category        String?
+  nContent        Decimal? @map("n_content") @db.Decimal(8, 3)
+  pContent        Decimal? @map("p_content") @db.Decimal(8, 3)
+  kContent        Decimal? @map("k_content") @db.Decimal(8, 3)
+  dryMatter       Decimal? @map("dry_matter") @db.Decimal(6, 2)
   /// Classement réglementaire déclaré : type de fertilisant au sens du
   /// programme national (0, I, II, III) et dénominations de la fiche GREN 19
   /// (teneur, Kéq, azote potentiellement libéré). Vide : non déclaré.
-  regulatoryClass Json? @map("regulatory_class")
-  defaultUnit String   @default("t/ha") @map("default_unit")
-  isCustom    Boolean  @default(false) @map("is_custom")
-  createdAt   DateTime @default(now()) @map("created_at")
+  regulatoryClass Json?    @map("regulatory_class")
+  defaultUnit     String   @default("t/ha") @map("default_unit")
+  isCustom        Boolean  @default(false) @map("is_custom")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   farm         Farm?                   @relation(fields: [farmId], references: [id], onDelete: Cascade)
   applications FertilizerApplication[]
@@ -956,26 +980,25 @@ model AgriculturalOperation {
    * vivent ici plutôt que dans un modèle séparé parce que l'irrigation **est**
    * un travail sur la parcelle, et qu'un second modèle en parallèle
    * dupliquerait parcelle, date, opérateur et météo.
-   *
    * `waterNitrateMgL` est la teneur en **nitrate** (NO₃), telle que les
    * analyses d'eau la rendent — pas la teneur en azote. Les confondre
    * surestimerait la fourniture d'un facteur 4,4 et conduirait à
    * sous-fertiliser.
    */
-  irrigationVolumeM3Ha Decimal? @map("irrigation_volume_m3_ha") @db.Decimal(10, 2)
-  irrigationMm         Decimal? @map("irrigation_mm") @db.Decimal(8, 2)
-  waterSource          String?  @map("water_source")
-  waterNitrateMgL      Decimal? @map("water_nitrate_mg_l") @db.Decimal(8, 2)
+  irrigationVolumeM3Ha Decimal?  @map("irrigation_volume_m3_ha") @db.Decimal(10, 2)
+  irrigationMm         Decimal?  @map("irrigation_mm") @db.Decimal(8, 2)
+  waterSource          String?   @map("water_source")
+  waterNitrateMgL      Decimal?  @map("water_nitrate_mg_l") @db.Decimal(8, 2)
   waterAnalysisOn      DateTime? @map("water_analysis_on")
-  waterAnalysisDocId   String?  @map("water_analysis_doc_id")
+  waterAnalysisDocId   String?   @map("water_analysis_doc_id")
 
-  notes           String?
-  createdById     String?       @map("created_by_id")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  notes       String?
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  parcel          Parcel    @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  createdBy       User?     @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  parcel           Parcel    @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  createdBy        User?     @relation("OperationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   waterAnalysisDoc Document? @relation("IrrigationWaterAnalysis", fields: [waterAnalysisDocId], references: [id], onDelete: SetNull)
 
   recommendations Recommendation[]
@@ -1011,32 +1034,31 @@ model WeatherRecord {
 }
 
 model Document {
-  id           String   @id @default(cuid())
-  farmId       String   @map("farm_id")
-  parcelId     String?  @map("parcel_id")
-  fileName     String   @map("file_name")
-  storageKey   String   @unique @map("storage_key")
-  mimeType     String   @map("mime_type")
-  sizeBytes    Int      @map("size_bytes")
-  checksum     String?
-  category     String   @default("AUTRE")
-  description  String?
+  id          String  @id @default(cuid())
+  farmId      String  @map("farm_id")
+  parcelId    String? @map("parcel_id")
+  fileName    String  @map("file_name")
+  storageKey  String  @unique @map("storage_key")
+  mimeType    String  @map("mime_type")
+  sizeBytes   Int     @map("size_bytes")
+  checksum    String?
+  category    String  @default("AUTRE")
+  description String?
 
   /**
    * Validité d'un justificatif, quand elle a un sens.
-   *
    * Un certificat individuel, un contrôle de pulvérisateur, une attestation de
    * conseil ont une date de fin. Parcelys **ne calcule pas** cette date : les
    * durées de validité relèvent de la réglementation et changent. Elle est
    * recopiée du document, et Parcelys se contente de signaler qu'elle est
    * passée.
    */
-  validFrom  DateTime? @map("valid_from")
-  validUntil DateTime? @map("valid_until")
+  validFrom    DateTime? @map("valid_from")
+  validUntil   DateTime? @map("valid_until")
   /// Numéro porté par la pièce (certificat, rapport de contrôle).
-  reference  String?
+  reference    String?
   /// Campagne à laquelle la pièce se rattache, quand elle en vise une.
-  campaignYear Int?    @map("campaign_year")
+  campaignYear Int?      @map("campaign_year")
 
   uploadedById String?  @map("uploaded_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -1199,7 +1221,7 @@ model PacFeature {
   /// Une colonne restreinte aux MultiPolygon les refuse purement et simplement,
   /// et l'import échoue sur des données parfaitement déclarées.
   geom   Unsupported("geometry(Geometry, 4326)")?
-  areaHa Decimal?                                @map("area_ha") @db.Decimal(12, 4)
+  areaHa Decimal?                                 @map("area_ha") @db.Decimal(12, 4)
 
   /// Géométrie d'origine, conservée telle qu'importée, dans son système de
   /// coordonnées d'origine. Reprojeter en 4326 pour l'affichage puis revenir en
@@ -1985,8 +2007,8 @@ model StockLot {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  item      StockItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  item      StockItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  document  Document?       @relation(fields: [documentId], references: [id], onDelete: SetNull)
   movements StockMovement[]
 
   @@index([itemId])
@@ -1996,8 +2018,8 @@ model StockLot {
 
 /// Un mouvement de stock. Le solde est la somme de ces lignes, rien d'autre.
 model StockMovement {
-  id     String @id @default(cuid())
-  itemId String @map("item_id")
+  id     String  @id @default(cuid())
+  itemId String  @map("item_id")
   lotId  String? @map("lot_id")
 
   kind       StockMovementKind
@@ -2023,12 +2045,12 @@ model StockMovement {
   createdById String?  @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  item                   StockItem                 @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  lot                    StockLot?                 @relation(fields: [lotId], references: [id], onDelete: SetNull)
-  phytoApplication       PhytosanitaryApplication? @relation(fields: [phytoApplicationId], references: [id], onDelete: SetNull)
-  fertilizerApplication  FertilizerApplication?    @relation(fields: [fertilizerApplicationId], references: [id], onDelete: SetNull)
-  operation              AgriculturalOperation?    @relation(fields: [operationId], references: [id], onDelete: SetNull)
-  createdBy              User?                     @relation("StockMovementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  item                  StockItem                 @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  lot                   StockLot?                 @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  phytoApplication      PhytosanitaryApplication? @relation(fields: [phytoApplicationId], references: [id], onDelete: SetNull)
+  fertilizerApplication FertilizerApplication?    @relation(fields: [fertilizerApplicationId], references: [id], onDelete: SetNull)
+  operation             AgriculturalOperation?    @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy             User?                     @relation("StockMovementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([itemId, occurredOn])
   @@index([lotId])
@@ -2088,7 +2110,7 @@ model SoilCover {
   /// Campagne de rattachement, quand elle est connue.
   cropYearId String? @map("crop_year_id")
 
-  kind SoilCoverKind
+  kind    SoilCoverKind
   /// Espèces semées, en clair (« moutarde blanche, phacélie »). Le mélange
   /// compte : certains programmes imposent une part de légumineuses ou
   /// l'interdisent.
@@ -2182,9 +2204,9 @@ model CampaignDocument {
   /// un registre incomplet reste incomplet, et l'effacer serait le maquiller.
   gaps String?
 
-  lockedAt    DateTime @default(now()) @map("locked_at")
-  lockedById  String?  @map("locked_by_id")
-  notes       String?
+  lockedAt   DateTime @default(now()) @map("locked_at")
+  lockedById String?  @map("locked_by_id")
+  notes      String?
 
   farm     Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
   lockedBy User? @relation("CampaignDocumentAuthor", fields: [lockedById], references: [id], onDelete: SetNull)

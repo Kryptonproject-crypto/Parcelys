@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma, resetDatabase, createUserWithFarm, testPolygon } from './helpers/db';
 import {
@@ -144,6 +146,71 @@ describe('Parcours PAC / TéléPAC', () => {
     expect(entites).toHaveLength(2);
     expect(entites.every((e) => e.parcelId !== null)).toBe(true);
     expect(entites.every((e) => e.ilotId === ilots[0]?.id)).toBe(true);
+  });
+
+  it('nomme les cultures importées d’après la nomenclature PAC, et garde le code pour TéléPAC', async () => {
+    const user = await createUserWithFarm({ email: 'pac-noms@ferme.test', farmName: 'GAEC PAC' });
+
+    const { analyse } = await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+      { num: '2', ilot: '10', culture: 'PPH', x: 651000, y: 6860000, cote: 300 },
+      { num: '3', ilot: '10', culture: 'QQQ', x: 652000, y: 6860000, cote: 300 },
+    ]);
+
+    // L'aperçu montre déjà le nom.
+    expect(analyse.features.map((f) => f.cropName)).toEqual([
+      'Blé tendre d’hiver',
+      'Prairie permanente - herbe prédominante (ressources fourragères ligneuses absentes ou peu présentes)',
+      // Un code hors nomenclature n'est pas traduit : il reste tel quel.
+      'QQQ',
+    ]);
+
+    const cultures = await prisma.crop.findMany({
+      where: { farmId: user.farmId },
+      orderBy: { code: 'asc' },
+      select: { code: true, name: true },
+    });
+    expect(cultures).toEqual([
+      { code: 'BTH', name: 'Blé tendre d’hiver' },
+      {
+        code: 'PPH',
+        name: 'Prairie permanente - herbe prédominante (ressources fourragères ligneuses absentes ou peu présentes)',
+      },
+      { code: 'QQQ', name: 'QQQ' },
+    ]);
+  });
+
+  it('renomme à la mise à jour les cultures qui ne portaient que leur code, jamais un nom choisi', async () => {
+    const user = await createUserWithFarm({ email: 'pac-migration@ferme.test', farmName: 'GAEC PAC' });
+    await prisma.crop.createMany({
+      data: [
+        { farmId: user.farmId, code: 'MIS', name: 'MIS', isCustom: true },
+        { farmId: user.farmId, code: 'CZH', name: ' czh ', isCustom: true },
+        { farmId: user.farmId, code: 'ORH', name: 'Escourgeon du haut', isCustom: true },
+        { farmId: user.farmId, code: 'QQQ', name: 'QQQ', isCustom: true },
+      ],
+    });
+
+    // La migration telle qu'elle s'appliquera sur le Raspberry Pi — deux fois,
+    // pour s'assurer qu'elle ne fait rien de plus la seconde.
+    const sql = readFileSync(
+      path.join(process.cwd(), 'prisma/migrations/20261016090000_noms_des_cultures_pac/migration.sql'),
+      'utf8',
+    );
+    await prisma.$executeRawUnsafe(sql);
+    await prisma.$executeRawUnsafe(sql);
+
+    const noms = Object.fromEntries(
+      (await prisma.crop.findMany({ where: { farmId: user.farmId }, select: { code: true, name: true } })).map(
+        (c) => [c.code, c.name],
+      ),
+    );
+    expect(noms).toEqual({
+      MIS: 'Maïs (hors maïs doux)',
+      CZH: 'Colza d’hiver',
+      ORH: 'Escourgeon du haut',
+      QQQ: 'QQQ',
+    });
   });
 
   it('rapproche un second import des parcelles déjà présentes au lieu de les dupliquer', async () => {

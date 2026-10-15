@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { classementDeclareSchema } from '@/lib/regulatory/classement-produit';
 import { geometrySchema } from '@/lib/geo/types';
+import { CLASSES_REDUCTION_DERIVE, TYPES_PULVERISATEUR } from '@/lib/shared/pulverisateur';
 import {
   DOCUMENT_CATEGORIES,
   DOSE_UNITS,
@@ -322,6 +323,29 @@ export const farmSchema = z.object({
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
 });
+
+/**
+ * Pulvérisateur de l'exploitation. Chaque champ peut rester « non renseigné »
+ * (`null`) : Parcelys ne suppose jamais un équipement qu'on ne lui a pas dit.
+ */
+export const sprayerSchema = z
+  .object({
+    sprayerType: z.enum(TYPES_PULVERISATEUR).nullable(),
+    driftReductionPct: z
+      .number()
+      .int()
+      .refine((v) => (CLASSES_REDUCTION_DERIVE as readonly number[]).includes(v), {
+        message: 'Classe de réduction de dérive inconnue (0, 50, 66, 75 ou 90 %).',
+      })
+      .nullable(),
+    driftEquipment: optionalText(200),
+    riverainCharterApplied: z.boolean().nullable(),
+  })
+  .transform((v) => ({
+    ...v,
+    // Sans moyen anti-dérive, il n'y a pas de matériel à décrire.
+    driftEquipment: v.driftReductionPct && v.driftReductionPct > 0 ? (v.driftEquipment ?? null) : null,
+  }));
 
 export const memberInviteSchema = z.object({
   email: z.string().trim().email('Adresse e-mail invalide'),

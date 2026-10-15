@@ -24,6 +24,9 @@ export type AuditAction =
   | 'account.data_exported'
   | 'farm.created'
   | 'farm.updated'
+  // Le pulvérisateur déclaré change les distances annoncées à la saisie :
+  // qui l'a déclaré, et quand, doit pouvoir se retrouver.
+  | 'farm.sprayer_updated'
   | 'farm.member_added'
   | 'farm.member_removed'
   | 'farm.member_role_changed'

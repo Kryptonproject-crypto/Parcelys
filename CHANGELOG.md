@@ -6,6 +6,80 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.10.2 — Les cultures sous leur vrai nom, le pulvérisateur de l'exploitation
+
+### « Blé tendre d'hiver », plus « BTH »
+
+Un dossier TéléPAC ne donne que le code de la culture ; Parcelys le prenait
+pour nom, et c'est « PPH », « PTR », « SNE » qui s'affichaient partout. Les
+cultures portent désormais le libellé de la nomenclature des cultures PAC
+(Agence Bio, 372 codes, version 2.7.0 du 1er octobre 2026) : « Prairie
+permanente - herbe prédominante (…) », « Autre prairie temporaire de 5 ans ou
+moins », « Surface agricole temporairement non exploitée ». Le code reste,
+pour l'export TéléPAC.
+
+La mise à jour renomme les cultures existantes **dont le nom est encore
+exactement le code** ; un nom choisi par l'exploitant n'est pas touché. Un
+code absent de la nomenclature reste affiché tel quel.
+
+Ce que cela change au-delà de l'affichage :
+
+- **Règles du programme d'actions nitrates** : elles reconnaissent une culture
+  à son nom. « BTH » n'était reconnu comme rien, et les règles visant les
+  céréales d'hiver restaient indéterminées ; « Blé tendre d'hiver » l'est.
+- **Usages E-Phy** : la dose, les ZNT et le nombre de passages se lisent sur
+  l'usage de la culture traitée. « BTH » n'en trouvait aucun. Le rapprochement
+  se fait maintenant sur des mots entiers, au singulier (« Prairies » du
+  catalogue, « prairie temporaire » de la déclaration), respecte les
+  exclusions (« Maïs (hors maïs doux) » ne prend pas les usages du maïs doux),
+  écarte les usages « Porte graine » d'une culture qui n'en est pas une, et
+  rattache le triticale et l'épeautre au blé, le colza aux crucifères
+  oléagineuses, la luzerne aux légumineuses fourragères — d'après les
+  conditions d'emploi du catalogue lui-même.
+- **Export shapefile** : le libellé de culture n'est plus tronqué à 64
+  caractères, et l'apostrophe typographique (« d’hiver ») ne devient plus un
+  caractère de contrôle dans le `.dbf`.
+
+### Le pulvérisateur de l'exploitation
+
+« Paramètres → **Pulvérisateur** » : le type (rampe, jet porté, pneumatique,
+à dos), le moyen anti-dérive — aucun, ou la classe de réduction de dérive de
+la liste officielle (50, 66, 75 ou 90 %) et le matériel —, et si
+l'exploitation applique la charte d'engagements riverains de son département.
+Chaque réponse peut rester « je ne sais pas » : Parcelys ne suppose jamais un
+équipement.
+
+À chaque traitement, Parcelys en tire :
+
+- **ZNT des points d'eau** : une ZNT de 20 ou 50 m peut être ramenée à 5 m
+  avec un moyen réduisant la dérive d'au moins 66 %, le long d'un point d'eau
+  bordé d'un dispositif végétalisé permanent d'au moins 5 m, le traitement
+  étant enregistré (arrêté du 4 mai 2017, annexe 3). La phrase le dit, sous
+  cette condition ; 100 m ne se réduit pas ; une autorisation qui impose
+  elle-même un dispositif végétalisé est citée mot pour mot.
+- **Distance aux habitations** : celle de l'autorisation du produit quand elle
+  en fixe une (537 produits), l'option retenue selon le matériel déclaré ;
+  sinon, l'arrêté : produits de biocontrôle et à faible risque exemptés ;
+  20 m incompressibles pour les mentions de danger les plus graves ; 10 m
+  pour une culture haute ; 5 m pour une culture basse, ramenés à 3 m avec un
+  matériel d'au moins 66 % et la charte. Pour un produit suspecté CMR, la
+  distance reste **indéterminée** (10 m s'il figure sur la liste ministérielle,
+  non importée), et la phrase le dit.
+
+### Ce qui manque toujours
+
+- **Points d'eau de l'Allier** (arrêté préfectoral et cartographie de la DDT).
+- **Liste ministérielle des produits CMR 2 à 10 m**, et confirmation des
+  mentions H370 et H372 dans la liste des 20 m.
+- **Charte riverains de l'Allier** : approuvée ou non, Parcelys ne le sait pas
+  — l'exploitant le déclare.
+- **Réduction de la distance aux habitations en culture haute** : selon la
+  culture et le matériel, non chiffrée.
+- **Position des habitations**, **distances d'épandage aux cours d'eau**
+  (programme d'actions national).
+
+---
+
 ## 0.10.1 — Réimport PAC qui ne réécrit rien, ZNT par défaut, stock au champ
 
 ### Réimporter son dossier PAC ne modifie plus les parcelles existantes

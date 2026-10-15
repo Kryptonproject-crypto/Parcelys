@@ -100,6 +100,31 @@ describe('Shapefile PAC', () => {
     expect(relu.features[0]?.rings[0]).toHaveLength(5);
   });
 
+  it('écrit en Latin-1 les signes typographiques des libellés, sans octet faux', async () => {
+    const champs: WriteField[] = [
+      { name: 'NOM', type: 'C', length: 40 },
+      { name: 'LIB_CULTU', type: 'C', length: 254 },
+    ];
+    const libelle =
+      'Prairie permanente - herbe prédominante (ressources fourragères ligneuses absentes ou peu présentes)';
+    const ecrit = writeShapefile(
+      [
+        { rings: [carre(650000, 6860000)], attributes: { NOM: 'Champ d’en haut – 2ᵉ', LIB_CULTU: 'Blé tendre d’hiver' } },
+        { rings: [carre(652000, 6862000)], attributes: { NOM: 'Œillet 漢', LIB_CULTU: libelle } },
+      ],
+      champs,
+      LAMBERT_93_PRJ,
+    );
+    // Aucun caractère de contrôle dans les enregistrements.
+    const enregistrements = ecrit.dbf.subarray(32 + champs.length * 32 + 1, ecrit.dbf.length - 1);
+    expect([...enregistrements].some((octet) => octet < 0x20)).toBe(false);
+
+    const relu = readShapefile({ shp: ecrit.shp, shx: ecrit.shx, dbf: ecrit.dbf, prj: ecrit.prj });
+    expect(relu.features[0]?.attributes).toMatchObject({ NOM: "Champ d'en haut - 2e", LIB_CULTU: "Blé tendre d'hiver" });
+    // Le libellé long n'est plus tronqué ; un caractère sans équivalent se voit.
+    expect(relu.features[1]?.attributes).toMatchObject({ NOM: 'OEillet ?', LIB_CULTU: libelle });
+  });
+
   it('respecte l’orientation des anneaux voulue par la spécification', async () => {
     // Un carré avec un trou. L'extérieur doit ressortir en sens horaire et le
     // trou en sens antihoraire, quel que soit l'ordre fourni.

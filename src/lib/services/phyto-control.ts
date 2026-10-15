@@ -3,16 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { checkDose, type UsageForDose } from '@/lib/ephy/dose';
 import { drainedSoilSeverity } from '@/lib/ephy/conditions';
 import {
+  familleDeLaCondition,
   rappelZnt,
   rappelZntEcoulements,
   zntAquatiqueApplicable,
-  rappelDangersRiverains,
   rappelsConditions,
   verifierDelaiAvantRecolte,
   verifierIntervalle,
   verifierNombreApplications,
 } from '@/lib/ephy/limites';
+import { classeDeCulture, rappelRiverains, reductionZntAquatique } from '@/lib/ephy/distances';
 import { isAuthorizedStatus } from '@/lib/ephy/search';
+import { PULVERISATEUR_NON_RENSEIGNE, type Pulverisateur } from '@/lib/shared/pulverisateur';
 import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { campagneCourante } from '@/lib/shared/campagne';
 
@@ -99,11 +101,32 @@ export async function buildPhytoWarnings(
     }),
     prisma.parcel.findUnique({
       where: { id: input.parcelId },
-      select: { drainedSoil: true },
+      select: {
+        drainedSoil: true,
+        // Le pulvérisateur déclaré : il dit si une ZNT ou une distance aux
+        // habitations peut être réduite.
+        farm: {
+          select: {
+            sprayerType: true,
+            sprayerDriftReductionPct: true,
+            sprayerDriftEquipment: true,
+            riverainCharterApplied: true,
+          },
+        },
+      },
     }),
   ]);
 
   if (!product) return warnings;
+
+  const pulverisateur: Pulverisateur = parcel?.farm
+    ? {
+        type: parcel.farm.sprayerType,
+        reductionDerivePct: parcel.farm.sprayerDriftReductionPct,
+        materiel: parcel.farm.sprayerDriftEquipment,
+        charteRiverains: parcel.farm.riverainCharterApplied,
+      }
+    : PULVERISATEUR_NON_RENSEIGNE;
 
   // --- Le produit est-il encore autorisé à la date du traitement ? ---------
   if (!isAuthorizedStatus(product.status)) {
@@ -206,6 +229,13 @@ export async function buildPhytoWarnings(
         ecoulements: await ecoulementsProches(input.parcelId),
         aquatique,
       }),
+      // Avec le pulvérisateur déclaré, la ZNT peut-elle être ramenée à 5 m ?
+      reductionZntAquatique({
+        produit: product.name,
+        aquatique,
+        conditions: product.conditions,
+        pulverisateur,
+      }),
     ];
 
     for (const limite of limites) if (limite) warnings.push(limite);
@@ -231,11 +261,29 @@ export async function buildPhytoWarnings(
   //
   // Publiées par l'ANSES dans le même fichier que les conditions de drainage,
   // et jusqu'ici jamais affichées. Le texte est celui de l'ANSES, mot pour mot.
-  for (const rappel of rappelsConditions(product.conditions, product.name)) {
+  // Les riverains à part : leur distance se calcule ci-dessous, avec le texte
+  // de l'ANSES quand il ne se lit pas sans risque.
+  const horsRiverains = product.conditions.filter(
+    (c) => familleDeLaCondition(c.category, c.label) !== 'riverains',
+  );
+  for (const rappel of rappelsConditions(horsRiverains, product.name)) {
     warnings.push(rappel);
   }
-  const riverains = rappelDangersRiverains({ produit: product.name, dangers: product.dangers });
-  if (riverains) warnings.push(riverains);
+
+  // --- Distance aux habitations -------------------------------------------
+  //
+  // L'autorisation du produit d'abord ; à défaut, l'arrêté du 4 mai 2017
+  // modifié selon les mentions de danger, la culture et le pulvérisateur.
+  warnings.push(
+    rappelRiverains({
+      produit: product.name,
+      mentionsAutorisees: product.authorizedMentions,
+      dangers: product.dangers,
+      conditions: product.conditions,
+      culture: classeDeCulture({ culture: crop, usage: usage?.cropLabel ?? null }),
+      pulverisateur,
+    }),
+  );
 
   return warnings;
 }

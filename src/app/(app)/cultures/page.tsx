@@ -124,9 +124,10 @@ export default async function CropsPage({
                 const share = totalArea > 0 ? (stats.areaHa / totalArea) * 100 : 0;
                 return (
                   <div key={name}>
-                    <div className="mb-1 flex items-baseline justify-between text-sm">
-                      <span className="font-medium text-ink">{name}</span>
-                      <span className="tabular-nums text-ink-3">
+                    <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                      {/* Les libellés PAC sont longs : le nom passe à la ligne, les chiffres restent d'un bloc. */}
+                      <span className="min-w-0 font-medium text-ink">{name}</span>
+                      <span className="shrink-0 whitespace-nowrap tabular-nums text-ink-3">
                         {formatNumberFr(stats.areaHa, 2)} ha · {stats.parcelCount} parcelle
                         {stats.parcelCount > 1 ? 's' : ''} · {share.toFixed(0)} %
                       </span>
@@ -208,7 +209,7 @@ export default async function CropsPage({
                   </Link>
                 </Td>
                 <Td align="right">{formatNumberFr(cy.parcel.areaHa, 4)} ha</Td>
-                <Td className="font-medium">{cy.crop.name}</Td>
+                <Td className="min-w-[11rem] max-w-[18rem] font-medium">{cy.crop.name}</Td>
                 <Td>{cy.variety ?? '—'}</Td>
                 <Td>{formatDateFr(cy.sowingDate)}</Td>
                 <Td>{formatDateFr(cy.expectedHarvestDate)}</Td>

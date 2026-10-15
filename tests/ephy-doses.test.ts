@@ -257,6 +257,44 @@ describe('Doses autorisées, ZNT et sols drainés', () => {
     expect(usagesForCrop(usages, 'Colza')).toHaveLength(0);
   });
 
+  it('lit les libellés de la nomenclature PAC : mots entiers, exclusions respectées', () => {
+    const usages = [
+      usage({ id: 'mais', cropLabel: 'Maïs' }),
+      usage({ id: 'doux', cropLabel: 'Maïs doux' }),
+      usage({ id: 'lin', cropLabel: 'Lin' }),
+      usage({ id: 'ble', cropLabel: 'Blé' }),
+    ];
+    // « hors maïs doux » exclut l'usage du maïs doux.
+    expect(usagesForCrop(usages, 'Maïs (hors maïs doux)').map((u) => u.id)).toEqual(['mais']);
+    // L'apostrophe typographique ne gêne pas.
+    expect(usagesForCrop(usages, 'Blé tendre d’hiver').map((u) => u.id)).toEqual(['ble']);
+    // Un mot logé dans un autre ne compte pas.
+    expect(usagesForCrop(usages, 'Parcelle du moulin')).toHaveLength(0);
+    // Sans exclusion, le maïs doux reste un maïs.
+    expect(usagesForCrop(usages, 'Maïs doux').map((u) => u.id)).toEqual(['mais', 'doux']);
+    // Les usages « Porte graine » ne valent que pour une production de semences.
+    const semences = [...usages, usage({ id: 'pg', cropLabel: 'Porte graine - Maïs' })];
+    expect(usagesForCrop(semences, 'Maïs (hors maïs doux)').map((u) => u.id)).toEqual(['mais']);
+    expect(usagesForCrop(semences, 'Porte graine - Maïs').map((u) => u.id)).toContain('pg');
+  });
+
+  it('retrouve l’usage sous lequel le catalogue range la culture déclarée', () => {
+    const usages = [
+      usage({ id: 'ble', cropLabel: 'Blé' }),
+      usage({ id: 'cruc', cropLabel: 'Crucifères oléagineuses' }),
+      usage({ id: 'leg', cropLabel: 'Légumineuses fourragères' }),
+      usage({ id: 'prairies', cropLabel: 'Prairies' }),
+      usage({ id: 'orge', cropLabel: 'Orge' }),
+    ];
+    expect(usagesForCrop(usages, 'Triticale d’hiver').map((u) => u.id)).toEqual(['ble']);
+    expect(usagesForCrop(usages, 'Colza d’hiver').map((u) => u.id)).toEqual(['cruc']);
+    expect(usagesForCrop(usages, 'Autre luzerne').map((u) => u.id)).toEqual(['leg']);
+    // « Prairies » au catalogue, « prairie » dans la déclaration.
+    expect(usagesForCrop(usages, 'Autre prairie temporaire de 5 ans ou moins').map((u) => u.id)).toEqual(['prairies']);
+    // Rien n'est rattaché sans preuve : l'avoine n'est pas un blé.
+    expect(usagesForCrop(usages, 'Avoine d’hiver')).toHaveLength(0);
+  });
+
   // -------------------------------------------------------------------------
   // Verdict de dose
   // -------------------------------------------------------------------------
