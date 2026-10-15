@@ -11,7 +11,6 @@ import {
   currentCampaignYear,
 } from '@/lib/constants/agronomy';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
-import { couchesPourExploitation } from '@/lib/regulatory/map-layers';
 import type { MapParcel } from '@/components/map/ParcelsMap';
 import { ParcelsViewSwitch } from '@/app/(app)/parcelles/ParcelsViewSwitch';
 import { CampagneBanniere, CampagneChamp } from '@/components/campagne/CampagneChamp';
@@ -115,7 +114,7 @@ export default async function ParcelsPage({
       : {}),
   };
 
-  const [parcels, crops, communes, geojson, totalCount, campagnes, couches] = await Promise.all([
+  const [parcels, crops, communes, geojson, totalCount, campagnes] = await Promise.all([
     prisma.parcel.findMany({
       where,
       include: {
@@ -147,9 +146,6 @@ export default async function ParcelsPage({
     getFarmParcelsGeoJSON(ctx.farmId, year),
     prisma.parcel.count({ where: { farmId: ctx.farmId, deletedAt: null } }),
     resumeCampagnes(ctx.farmId),
-    // Couches réglementaires, restreintes à l'emprise des parcelles : envoyer
-    // un zonage régional entier rendrait la carte inutilisable au champ.
-    couchesPourExploitation({ farmId: ctx.farmId }),
   ]);
 
   const visibleIds = new Set(parcels.map((p) => p.id));
@@ -344,7 +340,10 @@ export default async function ParcelsPage({
                   tileUrl={env.MAP_TILE_URL}
                   attribution={env.MAP_TILE_ATTRIBUTION}
                   heightClass="h-[620px]"
-                  regulatoryLayers={couches}
+                  // Couches réglementaires, restreintes à l'emprise des
+                  // parcelles et chargées à la demande : la carte s'affiche
+                  // sans les attendre.
+                  regulatoryLayersFarmId={ctx.farmId}
                 />
               ) : (
                 <div className="p-8">

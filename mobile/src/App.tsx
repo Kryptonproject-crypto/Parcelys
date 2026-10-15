@@ -14,6 +14,7 @@ import { fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
 import { synchronize, type SyncReport } from './lib/sync';
 import { syncStatusFrom, type SyncStatus } from '@commun/sync-status';
 import { writeSnapshot } from './lib/db';
+import { actualiserCouches, couchesAAfficher } from './lib/couches';
 import type { CachedParcel, Session, Snapshot } from './lib/types';
 import { LoginScreen } from './screens/Login';
 import { ParcelsScreen } from './screens/Parcels';
@@ -170,6 +171,10 @@ export function App() {
       setSnapshot(fresh);
       setActiveFarmId(fresh.farm.id);
       await saveActiveFarmId(fresh.farm.id);
+      // Les couches de la carte (cours d'eau d'abord), enregistrées pour être
+      // affichées au champ, sans réseau. En arrière-plan : la synchronisation
+      // ne les attend pas, et un échec laisse simplement les précédentes.
+      void actualiserCouches(session, fresh.farm.id, couchesAAfficher).catch(() => undefined);
     } catch (error) {
       // Hors ligne : le cache précédent reste affiché, c'est tout l'intérêt.
       if (!(error instanceof OfflineError)) throw error;

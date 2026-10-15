@@ -49,6 +49,7 @@ export type AuditAction =
   | 'cropyear.updated'
   | 'cropyear.deleted'
   | 'nitrogenplan.saved'
+  | 'stock.purchase'
   | 'nitrogenplan.deviation_justified'
   | 'fertilization.created'
   | 'fertilization.updated'

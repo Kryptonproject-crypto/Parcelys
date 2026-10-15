@@ -1,5 +1,6 @@
 import 'server-only';
-import type { ZoneKind } from '@prisma/client';
+import { createHash } from 'node:crypto';
+import { Prisma, type ZoneKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -100,8 +101,119 @@ export async function couchesPourExploitation(params: {
   /** Plafond par couche. Au-delà, la carte devient illisible autant que lourde. */
   maxParCouche?: number;
 }): Promise<CoucheReglementaire[]> {
+  return (await couchesAvecEmpreinte(params)).couches;
+}
+
+/**
+ * Les couches, et l'empreinte de ce dont elles dépendent.
+ *
+ * ## Pourquoi une mémoire
+ *
+ * Le calcul parcourt des dizaines de milliers de tronçons et simplifie des
+ * centaines de géométries : plus d'une demi-seconde, plusieurs sur un
+ * Raspberry Pi — à chaque ouverture d'une fiche de parcelle, pour un résultat
+ * qui ne change que si les parcelles ou les référentiels changent.
+ *
+ * Le résultat est donc gardé, sous une clé qui résume exactement ce dont il
+ * dépend : l'emprise des parcelles (qui bouge dès qu'un contour change) et
+ * l'état des référentiels (chaque import, remplacement ou suppression modifie
+ * leur nombre ou leur date de mise à jour). Une clé inchangée garantit un
+ * résultat inchangé ; la moindre modification en donne une autre, et le
+ * calcul est refait.
+ */
+export async function couchesAvecEmpreinte(params: {
+  farmId: string;
+  margeDegres?: number;
+  maxParCouche?: number;
+}): Promise<{ couches: CoucheReglementaire[]; empreinte: string }> {
   const marge = params.margeDegres ?? 0.02;
   const plafond = params.maxParCouche ?? 400;
+  // Le réseau hydrographique compte des milliers d'éléments autour d'une
+  // exploitation, et c'est lui qu'on regarde avant de traiter ou d'épandre
+  // (zones non traitées, distances d'épandage) : un plafond plus haut, pour
+  // que tout ce qui borde les parcelles y soit.
+  const plafondHydro = Math.max(plafond, PLAFOND_HYDROGRAPHIE);
+
+  const [etat] = await prisma.$queryRaw<
+    Array<{ boite: string | null; n: number; maj: Date | null }>
+  >`
+    SELECT
+      (SELECT ST_AsText(ST_Extent(pg.geom)::geometry)
+         FROM parcel_geometries pg
+         JOIN parcels p ON p.id = pg.parcel_id
+        WHERE p.farm_id = ${params.farmId}
+          AND p.deleted_at IS NULL
+          AND pg.is_current = true)                         AS boite,
+      (SELECT COUNT(*)::int FROM regulatory_referentials)   AS n,
+      (SELECT MAX(updated_at) FROM regulatory_referentials) AS maj
+  `;
+  const empreinte = createHash('sha256')
+    .update(
+      [
+        params.farmId,
+        etat?.boite ?? '-',
+        etat?.n ?? 0,
+        etat?.maj ? etat.maj.toISOString() : '-',
+        marge,
+        plafond,
+        plafondHydro,
+        VERSION_DES_COUCHES,
+      ].join('|'),
+    )
+    .digest('hex')
+    .slice(0, 32);
+
+  const gardees = MEMOIRE.get(empreinte);
+  if (gardees) {
+    // Remise en tête : la mémoire oublie d'abord ce qui n'a pas servi.
+    MEMOIRE.delete(empreinte);
+    MEMOIRE.set(empreinte, gardees);
+    return { couches: gardees, empreinte };
+  }
+
+  const couches = await calculerCouches(params.farmId, marge, plafond, plafondHydro);
+  MEMOIRE.set(empreinte, couches);
+  while (MEMOIRE.size > TAILLE_MEMOIRE) {
+    const plusAncienne = MEMOIRE.keys().next().value;
+    if (plusAncienne === undefined) break;
+    MEMOIRE.delete(plusAncienne);
+  }
+  return { couches, empreinte };
+}
+
+/**
+ * Quelques exploitations au plus : sur un Raspberry Pi, une ferme, parfois
+ * celles d'un conseiller. Chacune pèse de quelques centaines de kilo-octets à
+ * deux mégaoctets.
+ */
+const TAILLE_MEMOIRE = 6;
+const MEMOIRE = new Map<string, CoucheReglementaire[]>();
+
+/** À incrémenter quand le calcul des couches change de résultat. */
+const VERSION_DES_COUCHES = 3; // 2 : les plus proches d'abord ; 3 : eau coupée à l'emprise.
+
+const PLAFOND_HYDROGRAPHIE = 1000;
+const NATURES_HYDROGRAPHIQUES_CARTE = [
+  'COURS_EAU',
+  'TRONCON_HYDROGRAPHIQUE',
+  'SURFACE_HYDROGRAPHIQUE',
+  'PLAN_EAU',
+];
+
+/**
+ * Au-delà de cette distance (en degrés, environ 400 m sous nos latitudes), un
+ * élément n'est plus « au bord d'une parcelle » : il passe après ceux qui le
+ * sont, dans l'ordre de leur identifiant.
+ */
+const VOISINAGE_DEGRES = 0.005;
+
+async function calculerCouches(
+  farmId: string,
+  marge: number,
+  plafond: number,
+  plafondHydro: number,
+): Promise<CoucheReglementaire[]> {
+  const params = { farmId };
 
   /*
    * Plafond **par référentiel et par nature**, et géométrie simplifiée
@@ -133,16 +245,38 @@ export async function couchesPourExploitation(params: {
         AND p.deleted_at IS NULL
         AND pg.is_current = true
     ),
+    -- Ce qui borde les parcelles, et à quelle distance de la plus proche.
+    --
+    -- Le plafond par couche gardait les premiers éléments **par identifiant**,
+    -- c'est-à-dire au hasard : sur 15 000 tronçons dans l'emprise, le ruisseau
+    -- qui longe la parcelle pouvait ne pas être dessiné. Les plus proches
+    -- passent désormais d'abord, et le plafond n'écarte que les plus lointains.
+    proches AS (
+      SELECT z.id, MIN(ST_Distance(z.geom, pg.geom)) AS distance
+      FROM parcel_geometries pg
+      JOIN parcels p ON p.id = pg.parcel_id
+      JOIN regulatory_zones z ON ST_DWithin(z.geom, pg.geom, ${VOISINAGE_DEGRES}::float8)
+      JOIN regulatory_referentials r ON r.id = z.referential_id AND r.status = 'ACTIF'
+      WHERE p.farm_id = ${params.farmId}
+        AND p.deleted_at IS NULL
+        AND pg.is_current = true
+        AND z.kind::text NOT IN ('BASSIN_HYDROGRAPHIQUE', 'REGION_ADMINISTRATIVE')
+      GROUP BY z.id
+    ),
     candidats AS (
       SELECT
         z.id,
         r.code       AS ref_code,
         z.kind::text AS kind,
-        ROW_NUMBER() OVER (PARTITION BY r.code, z.kind ORDER BY z.id) AS rang,
+        ROW_NUMBER() OVER (
+          PARTITION BY r.code, z.kind
+          ORDER BY pr.distance ASC NULLS LAST, z.id
+        )            AS rang,
         COUNT(*)     OVER (PARTITION BY r.code, z.kind)               AS dans_emprise
       FROM regulatory_zones z
       JOIN regulatory_referentials r ON r.id = z.referential_id
       CROSS JOIN emprise e
+      LEFT JOIN proches pr ON pr.id = z.id
       WHERE r.status = 'ACTIF'
         AND z.geom IS NOT NULL
         AND e.boite IS NOT NULL
@@ -163,11 +297,34 @@ export async function couchesPourExploitation(params: {
       c.dans_emprise::int AS dans_emprise,
       -- Simplification légère : à l'échelle d'une parcelle, quelques mètres de
       -- généralisation ne se voient pas, et divisent le poids par cinq ou dix.
-      ST_AsGeoJSON(ST_SimplifyPreserveTopology(z.geom, 0.00005)) AS geojson
+      -- Six décimales : 11 cm, bien en deçà de la simplification ; au-delà, le
+      -- poids sans rien de visible.
+      --
+      -- Le réseau hydrographique est coupé à l'emprise : un « cours d'eau » de
+      -- BD TOPAGE est la rivière entière — la Loire, 20 000 sommets — dont
+      -- seuls quelques kilomètres passent sur la carte de l'exploitation.
+      -- Les zonages, eux, restent entiers : une commune classée se lit en
+      -- entier, coupée elle laisserait croire à une limite qui n'existe pas.
+      ST_AsGeoJSON(
+        ST_SimplifyPreserveTopology(
+          CASE
+            WHEN c.kind IN (${Prisma.join(NATURES_HYDROGRAPHIQUES_CARTE)})
+              THEN ST_ClipByBox2D(z.geom, e.boite::box2d)
+            ELSE z.geom
+          END,
+          0.00005
+        ),
+        6
+      ) AS geojson
     FROM candidats c
     JOIN regulatory_zones z ON z.id = c.id
     JOIN regulatory_referentials r ON r.id = z.referential_id
-    WHERE c.rang <= ${plafond}
+    CROSS JOIN emprise e
+    WHERE c.rang <= CASE
+                      WHEN c.kind IN (${Prisma.join(NATURES_HYDROGRAPHIQUES_CARTE)}) THEN ${plafondHydro}::int
+                      ELSE ${plafond}::int
+                    END
+    ORDER BY c.ref_code, c.kind, c.rang
   `;
 
   const parCouche = new Map<string, CoucheReglementaire>();

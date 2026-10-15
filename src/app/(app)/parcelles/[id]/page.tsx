@@ -13,8 +13,7 @@ import { currentCampaignYear, PARCEL_STATUS_LABELS } from '@/lib/constants/agron
 import { incoherencesDates } from '@/lib/regulatory/soil-cover';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
-import { computeParcelContext } from '@/lib/regulatory/geography';
-import { couchesPourExploitation } from '@/lib/regulatory/map-layers';
+import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
 import { ParcelActions } from '@/app/(app)/parcelles/[id]/ParcelActions';
 import { RenameParcel } from '@/app/(app)/parcelles/[id]/RenameParcel';
@@ -105,7 +104,6 @@ export default async function ParcelPage({
     phytoTreatments,
     operations,
     soilCovers,
-    couches,
     documents,
     history,
     crops,
@@ -141,7 +139,6 @@ export default async function ParcelPage({
       where: { parcelId: id },
       orderBy: [{ sownOn: 'desc' }, { createdAt: 'desc' }],
     }),
-    couchesPourExploitation({ farmId: ctx.farmId }),
     prisma.document.findMany({
       where: { parcelId: id },
       orderBy: { createdAt: 'desc' },
@@ -179,24 +176,20 @@ export default async function ParcelPage({
   );
 
   /**
-   * Contexte réglementaire, recalculé à l'affichage.
+   * Contexte réglementaire, à jour à l'affichage.
    *
-   * À l'affichage plutôt qu'à la création de la parcelle : un zonage importé
-   * après coup doit se répercuter sans qu'on ait à repasser sur chaque
-   * parcelle. Le calcul est une découpe PostGIS sur un index GiST, sans
-   * commune mesure avec le reste du chargement de la page.
+   * Un zonage importé après coup, un contour retracé doivent se répercuter
+   * sans qu'on ait à repasser sur chaque parcelle : le contexte enregistré
+   * n'est relu que si rien de ce dont il dépend n'a changé (son empreinte),
+   * et recalculé sinon. Le recalculer à chaque ouverture de la fiche coûtait
+   * plus d'une demi-seconde de découpes PostGIS — plusieurs sur un Raspberry
+   * Pi — pour un résultat identique.
    *
    * Un échec ne casse pas la fiche : le contexte vaut alors `null` et le bloc
    * affiche qu'il n'a pas été déterminé. Une parcelle doit rester consultable
    * même quand le moteur réglementaire a un problème.
    */
-  const contexteReglementaire = await computeParcelContext(id)
-    .then((contexte) => ({
-      ...contexte,
-      commune: parcel.commune,
-      computedAt: new Date().toISOString(),
-    }))
-    .catch(() => null);
+  const contexteReglementaire = await getOrComputeParcelContext(id).catch(() => null);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -277,7 +270,7 @@ export default async function ParcelPage({
               selectedId={parcel.id}
               readOnly
               heightClass="h-[320px]"
-              regulatoryLayers={couches}
+              regulatoryLayersFarmId={ctx.farmId}
             />
           </div>
         </Card>

@@ -1592,6 +1592,12 @@ model ParcelRegulatoryContext {
   /// appartenance, d'où ce champ distinct de `zones`.
   proximites Json @default("[]")
 
+  /// Ce dont le calcul dépendait : contour courant, commune, état des
+  /// référentiels. Tant qu'il est inchangé, le contexte enregistré est celui
+  /// qu'un nouveau calcul donnerait — on le relit au lieu de le recalculer.
+  /// Nul pour un contexte antérieur à ce champ : il est alors recalculé.
+  empreinte String?
+
   computedAt DateTime @default(now()) @map("computed_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 

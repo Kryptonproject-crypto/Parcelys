@@ -6,6 +6,97 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.10.0 — Le stock à la pulvérisation, une application rapide sur un Pi
+
+### Enregistrer un achat, traiter depuis son stock
+
+« Stocks → **Enregistrer un achat** » : le produit (choisi dans le catalogue
+E-Phy pour un phytosanitaire, dans le référentiel ou nommé pour le reste), la
+quantité reçue, la date, le numéro de lot, le fournisseur, la date limite
+d'utilisation et le prix. L'article, le lot et l'entrée en stock sont créés en
+une fois ; plusieurs produits d'une même facture s'enchaînent sans ressaisir la
+date ni le fournisseur. Une unité inconvertible (des kilos d'un produit suivi en
+litres) est refusée, sans rien laisser à moitié créé.
+
+À la saisie d'un traitement — sur le site comme sur l'application de terrain —
+les **produits en stock** sont proposés d'abord, avec leur reste ; le lot est
+présélectionné quand il n'y en a qu'un. Le traitement enregistré sort la
+quantité employée de ce lot. Un lot vide n'est plus proposé. Hors réseau,
+l'application propose les produits en stock de la dernière synchronisation.
+
+### Plus rapide, sans rien changer aux résultats
+
+Mesuré sur une exploitation fictive de 150 parcelles, avec les référentiels
+d'Auvergne-Rhône-Alpes importés (le Raspberry Pi est plusieurs fois plus lent,
+dans les mêmes proportions) :
+
+| | avant | après |
+| --- | --- | --- |
+| Tableau de bord | 9,6 s | 1,7 s — et la page s'affiche sans attendre la conformité |
+| Fiche d'une parcelle | 2,0 s, 2,2 Mo | 0,06 s, 70 Ko |
+| Conformité | 9,1 s | 2,0 s |
+| Dossier de contrôle | 8,5 s | 1,7 s |
+
+- **Distance aux cours d'eau** : la requête mesurait la distance géodésique de
+  la parcelle à la Loire entière (20 000 sommets) avant d'écarter ce qui était
+  trop loin. Les candidats sont désormais retenus à plat, puis seulement
+  mesurés : 50 ms → 6 ms par parcelle, mêmes conditions, même résultat.
+- **Contexte réglementaire** : la fiche d'une parcelle le recalculait à chaque
+  ouverture. Il est relu tant que son **empreinte** — contour, commune, état
+  des référentiels, version du calcul — est inchangée, et recalculé dès qu'elle
+  change. Ce qui corrige au passage un défaut : un contour retracé ne mettait
+  pas à jour le contexte lu par la synthèse de conformité tant que la fiche
+  n'avait pas été ouverte.
+- **Synthèse de conformité** : 6 789 requêtes pour une campagne, l'essentiel
+  relisant la même parcelle pour chacun de ses apports. Chaque fait est
+  désormais lu une fois par calcul (`src/lib/memoire-calcul.ts`) — 1 824
+  requêtes. Rien n'est gardé d'un calcul à l'autre : une anomalie corrigée
+  disparaît à l'affichage suivant.
+- **Couches de la carte** : calculées une fois tant que les parcelles et les
+  référentiels ne changent pas, et chargées quand on allume une couche plutôt
+  qu'intégrées à chaque page.
+- Vérification : les sorties de la synthèse, du dossier de contrôle et de
+  l'IFT ont été comparées avant et après sur l'exploitation fictive ; elles
+  sont identiques, à une exception près, voulue : voir ci-dessous.
+
+### Cours d'eau à égale distance : un ordre fixe
+
+Une parcelle traversée par plusieurs écoulements les a tous « à 0 m », et le
+contrôle de la bande enherbée en cite trois. Lesquels dépendait de l'ordre
+interne de la base, si bien que le message pouvait changer d'un affichage à
+l'autre. L'ordre est désormais fixé (distance, puis nature, libellé, code).
+Mêmes constats, mêmes niveaux, mêmes distances — seuls les écoulements cités
+à égalité peuvent différer de la version précédente. Les traitements d'un même
+jour, dans l'IFT, suivent de même l'ordre de saisie.
+
+### La carte de l'application : les cours d'eau
+
+La carte de l'application de terrain affiche les couches réglementaires du
+site, sous les parcelles : réseau hydrographique, plans d'eau et surfaces en
+eau d'office, zones vulnérables, zones d'actions renforcées, aires de captage
+et points de prélèvement à la demande. Elles sont enregistrées sur l'appareil
+à chaque synchronisation — retéléchargées seulement quand elles ont changé — et
+restent visibles sans réseau, avec leur source, leur version et leur date.
+L'écran rappelle qu'un tracé de la BD TOPAGE situe un écoulement, il ne dit
+pas s'il est cours d'eau BCAE ou point d'eau au sens de l'arrêté ZNT.
+
+Sur le site comme sur l'application, une couche trop fournie garde désormais
+les éléments **les plus proches des parcelles**, et non les premiers venus :
+sur 15 000 tronçons autour d'une exploitation, le plafond pouvait écarter le
+ruisseau qui longe la parcelle. Le plafond passe à 1 000 pour l'eau, dont les
+tracés sont coupés à l'emprise de l'exploitation (une rivière entière pesait
+plus d'un mégaoctet).
+
+### Raspberry Pi
+
+- `npm run contextes` met à jour les contextes réglementaires périmés ;
+  `update-pi.sh` le lance après le redémarrage.
+- L'import des référentiels d'Auvergne-Rhône-Alpes supprime ses tables
+  intermédiaires des zones vulnérables et des aires de captage une fois
+  versées.
+
+---
+
 ## 0.9.9 — Les référentiels d'Auvergne-Rhône-Alpes, appliqués
 
 Les référentiels officiels fournis dans `data/referentiels-aura/` ne sont plus

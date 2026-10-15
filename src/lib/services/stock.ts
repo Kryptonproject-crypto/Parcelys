@@ -769,3 +769,242 @@ export async function produitsImportables(
 
   return finaliser(acc);
 }
+
+// ---------------------------------------------------------------------------
+// Achats
+// ---------------------------------------------------------------------------
+
+export type Achat = {
+  category: StockCategory;
+  /** Produit du catalogue E-Phy, pour un phytosanitaire. */
+  phytoProductId?: string | null;
+  fertilizerId?: string | null;
+  organicInputId?: string | null;
+  /** Nom de l'article quand aucun référentiel ne le porte (semence, autre). */
+  name?: string | null;
+  quantity: number;
+  unit: string;
+  purchasedOn: Date;
+  lotNumber?: string | null;
+  supplier?: string | null;
+  expiresOn?: Date | null;
+  unitPrice?: number | null;
+  notes?: string | null;
+  createdById?: string | null;
+};
+
+/**
+ * Enregistre un achat : l'article (retrouvé, ou créé au premier achat), le lot
+ * et l'entrée en stock — en une fois.
+ *
+ * L'article d'un produit phytosanitaire se retrouve par son produit du
+ * catalogue, pas par son nom : deux achats du même produit vont au même
+ * article. Son unité est celle du premier achat ; un achat suivant dans une
+ * unité qui ne s'y convertit pas est refusé plutôt que converti à l'aveugle
+ * (des litres ne se changent pas en kilos sans densité).
+ *
+ * Rien n'est laissé à moitié : si l'entrée est refusée, le lot — et l'article
+ * s'il vient d'être créé — sont retirés.
+ */
+export async function enregistrerAchat(
+  farmId: string,
+  achat: Achat,
+): Promise<{ ok: true; itemId: string; lotId: string; cree: boolean } | RefusMouvement> {
+  if (!uniteConnue(achat.unit)) {
+    return { ok: false, raison: `Unité « ${achat.unit} » inconnue de Parcelys.` };
+  }
+  if (!Number.isFinite(achat.quantity) || achat.quantity <= 0) {
+    return { ok: false, raison: 'La quantité achetée doit être positive.' };
+  }
+
+  // Le nom et le rattachement viennent du référentiel quand il y en a un.
+  let nom = (achat.name ?? '').trim();
+  let rattachement: { phytoProductId?: string; fertilizerId?: string; organicInputId?: string } = {};
+  if (achat.phytoProductId) {
+    const produit = await prisma.phytosanitaryProduct.findUnique({
+      where: { id: achat.phytoProductId },
+      select: { id: true, name: true },
+    });
+    if (!produit) return { ok: false, raison: 'Produit introuvable au catalogue E-Phy.' };
+    nom = produit.name;
+    rattachement = { phytoProductId: produit.id };
+  } else if (achat.fertilizerId) {
+    const engrais = await prisma.fertilizer.findFirst({
+      where: { id: achat.fertilizerId, OR: [{ farmId }, { farmId: null }] },
+      select: { id: true, name: true },
+    });
+    if (!engrais) return { ok: false, raison: 'Engrais introuvable pour cette exploitation.' };
+    nom = engrais.name;
+    rattachement = { fertilizerId: engrais.id };
+  } else if (achat.organicInputId) {
+    const organique = await prisma.organicInput.findFirst({
+      where: { id: achat.organicInputId, OR: [{ farmId }, { farmId: null }] },
+      select: { id: true, name: true },
+    });
+    if (!organique) return { ok: false, raison: 'Produit organique introuvable pour cette exploitation.' };
+    nom = organique.name;
+    rattachement = { organicInputId: organique.id };
+  }
+  if (!nom) return { ok: false, raison: 'Nommez le produit acheté.' };
+  if (achat.category === 'PHYTOSANITAIRE' && !rattachement.phytoProductId) {
+    // Un produit phytosanitaire hors catalogue ne serait pas proposé à la
+    // saisie d'un traitement, ni contrôlé : on le refuse ici plutôt que de le
+    // laisser dormir dans le stock.
+    return { ok: false, raison: 'Choisissez le produit dans le catalogue E-Phy.' };
+  }
+
+  const champs = { id: true, archivedAt: true, phytoProductId: true, fertilizerId: true, organicInputId: true } as const;
+  // D'abord par le référentiel, ensuite par le nom.
+  let existant =
+    (rattachement.phytoProductId || rattachement.fertilizerId || rattachement.organicInputId
+      ? await prisma.stockItem.findFirst({
+          where: { farmId, category: achat.category, ...rattachement },
+          select: champs,
+        })
+      : null) ??
+    (await prisma.stockItem.findFirst({
+      where: { farmId, category: achat.category, name: nom },
+      select: champs,
+    }));
+  // Même nom, autre produit (deux AMM sous un nom commercial voisin) : ce
+  // n'est pas le même article, et le lot n'y va pas.
+  const autreProduit =
+    existant &&
+    ((rattachement.phytoProductId && existant.phytoProductId && existant.phytoProductId !== rattachement.phytoProductId) ||
+      (rattachement.fertilizerId && existant.fertilizerId && existant.fertilizerId !== rattachement.fertilizerId) ||
+      (rattachement.organicInputId && existant.organicInputId && existant.organicInputId !== rattachement.organicInputId));
+  if (autreProduit) {
+    existant = null;
+    if (rattachement.phytoProductId) {
+      const amm = (
+        await prisma.phytosanitaryProduct.findUnique({ where: { id: rattachement.phytoProductId }, select: { amm: true } })
+      )?.amm;
+      nom = `${nom} (AMM ${amm ?? '?'})`;
+    } else {
+      nom = `${nom} (2)`;
+    }
+  }
+
+  let itemId: string;
+  let cree = false;
+  if (existant) {
+    itemId = existant.id;
+    // Un article archivé qu'on rachète redevient suivi ; un article créé par
+    // son nom se rattache au référentiel au premier achat qui le désigne.
+    await prisma.stockItem.update({
+      where: { id: existant.id },
+      data: {
+        archivedAt: null,
+        ...(rattachement.phytoProductId && !existant.phytoProductId ? { phytoProductId: rattachement.phytoProductId } : {}),
+        ...(rattachement.fertilizerId && !existant.fertilizerId ? { fertilizerId: rattachement.fertilizerId } : {}),
+        ...(rattachement.organicInputId && !existant.organicInputId ? { organicInputId: rattachement.organicInputId } : {}),
+      },
+    });
+  } else {
+    const article = await prisma.stockItem.create({
+      data: { farmId, category: achat.category, name: nom, unit: normaliserUnite(achat.unit), ...rattachement },
+      select: { id: true },
+    });
+    itemId = article.id;
+    cree = true;
+  }
+
+  const lot = await prisma.stockLot.create({
+    data: {
+      itemId,
+      lotNumber: achat.lotNumber?.trim() || null,
+      supplier: achat.supplier?.trim() || null,
+      purchasedOn: achat.purchasedOn,
+      expiresOn: achat.expiresOn ?? null,
+      unitPrice: achat.unitPrice ?? null,
+      notes: achat.notes?.trim() || null,
+    },
+    select: { id: true },
+  });
+
+  const entree = await enregistrerMouvement(farmId, {
+    itemId,
+    lotId: lot.id,
+    kind: 'ENTREE',
+    occurredOn: achat.purchasedOn,
+    quantity: achat.quantity,
+    unit: achat.unit,
+    reason: 'Achat',
+    createdById: achat.createdById ?? null,
+  });
+  if (!entree.ok) {
+    await prisma.stockLot.delete({ where: { id: lot.id } });
+    if (cree) await prisma.stockItem.delete({ where: { id: itemId } });
+    return entree;
+  }
+  return { ok: true, itemId, lotId: lot.id, cree };
+}
+
+// ---------------------------------------------------------------------------
+// Ce qui est en stock, pour la saisie d'un traitement
+// ---------------------------------------------------------------------------
+
+export type LotPhytoDisponible = {
+  id: string;
+  itemId: string;
+  itemName: string;
+  phytoProductId: string | null;
+  lotNumber: string | null;
+  amm: string | null;
+  unit: string;
+  reste: number;
+  purchasedOn: string | null;
+  expiresOn: string | null;
+};
+
+/**
+ * Lots phytosanitaires encore en stock.
+ *
+ * Le solde est recalculé ici comme partout ailleurs : la somme des mouvements,
+ * jamais un compteur. Un lot vide est écarté — le proposer ferait saisir une
+ * sortie impossible.
+ */
+export async function lotsPhytoDisponibles(farmId: string): Promise<LotPhytoDisponible[]> {
+  const articles = await prisma.stockItem.findMany({
+    where: { farmId, archivedAt: null, category: 'PHYTOSANITAIRE' },
+    select: {
+      id: true,
+      name: true,
+      unit: true,
+      phytoProductId: true,
+      phytoProduct: { select: { amm: true } },
+      lots: {
+        where: { closedAt: null },
+        select: { id: true, lotNumber: true, purchasedOn: true, expiresOn: true },
+        orderBy: [{ purchasedOn: 'asc' }, { createdAt: 'asc' }],
+      },
+      movements: { select: { quantity: true, unit: true, lotId: true } },
+    },
+  });
+
+  const lots: LotPhytoDisponible[] = [];
+  for (const article of articles) {
+    for (const lot of article.lots) {
+      const solde = calculerSolde(
+        article.movements
+          .filter((m) => m.lotId === lot.id)
+          .map((m) => ({ quantity: Number(m.quantity), unit: m.unit })),
+        article.unit,
+      );
+      if (solde.quantite <= 0) continue;
+      lots.push({
+        id: lot.id,
+        itemId: article.id,
+        itemName: article.name,
+        phytoProductId: article.phytoProductId,
+        lotNumber: lot.lotNumber,
+        amm: article.phytoProduct?.amm ?? null,
+        unit: article.unit,
+        reste: solde.quantite,
+        purchasedOn: lot.purchasedOn ? lot.purchasedOn.toISOString() : null,
+        expiresOn: lot.expiresOn ? lot.expiresOn.toISOString() : null,
+      });
+    }
+  }
+  return lots.sort((a, b) => a.itemName.localeCompare(b.itemName));
+}

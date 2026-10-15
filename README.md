@@ -40,6 +40,7 @@ que sur un Raspberry Pi.
 | **Cultures** | Culture, variété, dates de semis et de récolte, rendement. Référentiel de 29 cultures + cultures personnalisées. Historique conservé campagne après campagne. |
 | **Apports** | Apports organiques et minéraux. Quantité totale calculée (`dose × surface`) et bilan des éléments fertilisants N, P₂O₅, K₂O — jamais estimé lorsque la teneur du produit est inconnue. |
 | **Phytosanitaire** | Saisie des traitements avec recherche du produit dans le catalogue officiel **E-Phy** (AMM, substances actives, usages autorisés), relevé automatique des conditions météo, registre généré automatiquement. |
+| **Stocks** | Achats enregistrés en une fois — produit (catalogue E-Phy pour un phytosanitaire), quantité reçue, lot, fournisseur, date limite d'utilisation, prix. Solde par lot, tenu par les mouvements. À la saisie d'un traitement, les produits **en stock** sont proposés d'abord, avec leur lot ; le traitement enregistré sort la quantité employée du lot. |
 | **Travaux** | Labour, déchaumage, semis, récolte, transport… avec matériel, opérateur et durée. |
 | **Météo** | Conditions actuelles, prévisions horaires et journalières sur la parcelle ou le siège d'exploitation. Évaluation de la fenêtre de traitement (vent, pluie, température). |
 | **Historique** | Chronologie complète par parcelle : cultures, récoltes, apports, traitements, travaux, documents. |
@@ -611,6 +612,11 @@ constantes vivent dans `src/lib/shared/carte.ts`, lues des deux côtés. Les
 contours viennent du cache de l'appareil et s'affichent avec ou sans réseau ;
 seul le fond de plan demande une connexion, et l'écran le dit quand il manque.
 Un appui sur une parcelle ouvre sa fiche, d'où l'on renomme ou l'on saisit.
+Les **couches réglementaires** du site s'y superposent : cours d'eau, plans
+d'eau et surfaces en eau affichés d'office, les autres à la demande. Elles sont
+enregistrées sur l'appareil à chaque synchronisation — et retéléchargées
+seulement quand elles ont changé —, si bien qu'au bord d'une parcelle, sans
+réseau, on voit encore où passe le ruisseau.
 
 ```bash
 cd mobile
@@ -645,9 +651,10 @@ reste un refus et qu'il faut corriger la saisie ; le voyant rouge le signale.
 
 La superficie affichée pendant le relevé est une **estimation** calculée sur le
 téléphone ; celle qui fait foi est calculée par PostGIS à l'enregistrement, et
-l'écran le dit. Hors ligne, les produits phytosanitaires proposés sont ceux que
-l'exploitation a **réellement employés** depuis douze mois, avec leur AMM
-d'origine ; la recherche dans le catalogue officiel E-Phy reste en ligne.
+l'écran le dit. Hors ligne, les produits phytosanitaires proposés sont ceux
+**en stock**, avec leur lot, puis ceux que l'exploitation a **réellement
+employés** depuis douze mois, avec leur AMM d'origine ; la recherche dans le
+catalogue officiel E-Phy reste en ligne.
 
 ### Configuration côté serveur
 

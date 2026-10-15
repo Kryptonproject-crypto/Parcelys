@@ -17,7 +17,7 @@ l'administration restent sur l'application web, où ils se font au bureau.
 | --- | --- |
 | **Connexion** | Adresse e-mail et mot de passe — rien d'autre. L'application se connecte à **parcelys.fr**, adresse inscrite à la compilation. Le jeton de session est conservé par l'appareil (stockage natif), jamais dans un cookie. |
 | **Parcelles** | Liste et recherche, servies par le cache local : disponibles hors réseau. |
-| **Carte** | La même carte que sur le site : Leaflet, fonds **Satellite** (imagerie Esri) et **Plan**, mêmes couleurs de parcelles. Position de l'appareil et précision annoncée. Toucher une parcelle ouvre sa fiche. Les contours viennent du cache : ils s'affichent avec ou sans réseau, seul le fond de plan demande une connexion. |
+| **Carte** | La même carte que sur le site : Leaflet, fonds **Satellite** (imagerie Esri) et **Plan**, mêmes couleurs de parcelles. Position de l'appareil et précision annoncée. Toucher une parcelle ouvre sa fiche. Les contours viennent du cache : ils s'affichent avec ou sans réseau, seul le fond de plan demande une connexion. **Couches réglementaires** sous les parcelles : cours d'eau, plans d'eau et surfaces en eau affichés d'office, zones vulnérables, zones d'actions renforcées, aires de captage et points de prélèvement à allumer — enregistrés sur l'appareil, donc visibles hors réseau. |
 | **Relever une parcelle** | Contour au GPS, en **marchant la limite** (un point tous les 10 m) ou en **posant un sommet** à chaque angle. Surface et périmètre calculés en direct. |
 | **Fiche parcelle** | Quatre saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé (irrigation comprise), couvert d'interculture. Et le renommage : c'est devant la parcelle qu'on sait comment elle s'appelle. |
 | **Synchronisation** | File d'attente visible, envoi automatique dès qu'il y a du réseau et quelque chose en attente, envoi manuel toujours possible, motif de refus affiché pour chaque saisie rejetée. |
@@ -25,9 +25,10 @@ l'administration restent sur l'application web, où ils se font au bureau.
 ### Ce qu'elle ne fait pas, volontairement
 
 - **Aucune donnée réglementaire n'est produite par l'application.** Hors ligne,
-  la liste de produits proposée est celle des produits **réellement employés**
-  sur l'exploitation depuis douze mois, avec leur AMM d'origine. La recherche
-  dans le catalogue officiel E-Phy reste en ligne, sur l'application web.
+  la saisie d'un traitement propose d'abord les produits **en stock**, avec
+  leur lot, puis ceux **réellement employés** sur l'exploitation depuis douze
+  mois, avec leur AMM d'origine. La recherche dans le catalogue officiel E-Phy
+  reste en ligne, sur l'application web.
 - **La superficie affichée pendant le relevé est une estimation** (excès
   sphérique, calculé sur le téléphone). La valeur qui fait foi est celle que
   PostGIS calcule à l'enregistrement, sur l'ellipsoïde WGS84. L'écran le dit.
@@ -41,9 +42,16 @@ l'administration restent sur l'application web, où ils se font au bureau.
   pas.
 - **L'aperçu du relevé reste un tracé, pas une carte** : il montre la forme
   relevée au GPS, il ne situe pas la parcelle.
-- **Les couches réglementaires ne sont pas sur la carte de l'application.**
-  Elles sont sur celle du site : les embarquer hors ligne alourdirait chaque
-  synchronisation.
+- **Les couches réglementaires situent, elles ne qualifient pas.** Le réseau
+  de la BD TOPAGE, simplifié à quelques mètres près, dit où passe un
+  écoulement ; il ne dit pas s'il figure à la carte des cours d'eau BCAE ni
+  parmi les points d'eau de l'arrêté ZNT du département — l'écran le rappelle.
+  Les couches sont enregistrées à chaque synchronisation, mais **retéléchargées
+  seulement quand elles ont changé** (empreinte calculée par le serveur :
+  contours des parcelles, référentiels importés) : une synchronisation
+  ordinaire n'en transfère rien. Autour de l'exploitation, chaque couche garde
+  les éléments **les plus proches des parcelles** (1 000 pour l'eau, 400 pour
+  le reste) ; la légende dit combien sont affichés sur combien.
 - **Aucune période réglementaire n'est affichée pour les couverts.** Les dates
   de couverture obligatoire relèvent du programme d'actions régional ; les
   inventer ici donnerait une échéance fausse à un exploitant qui n'a pas de

@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ApiRequestError, apiPost } from '@/lib/client/api';
+import { ApiRequestError, apiFetch, apiPost } from '@/lib/client/api';
 import { DOSE_UNITS } from '@/lib/constants/agronomy';
 import { computeTotalQuantity } from '@/lib/services/fertilization';
 import {
@@ -12,6 +12,16 @@ import {
 import { PhytoUsagePanel } from '@/components/forms/PhytoUsagePanel';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 import type { CropYearRow } from '@/app/(app)/parcelles/[id]/types';
+
+/** Un produit en stock, avec ses lots et ce qu'il en reste. */
+type ProduitEnStock = {
+  produit: EphyProduct;
+  unite: string | null;
+  reste: number;
+  lots: Array<{ id: string; lotNumber: string | null; reste: number; unit: string; purchasedOn: string | null; expiresOn: string | null }>;
+};
+
+const quantite = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 3 });
 
 export function PhytoForm({
   parcelId,
@@ -43,6 +53,37 @@ export function PhytoForm({
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [enStock, setEnStock] = useState<ProduitEnStock[]>([]);
+  const [stockLotId, setStockLotId] = useState('');
+  const [catalogue, setCatalogue] = useState(false);
+  const [enregistre, setEnregistre] = useState(false);
+
+  // Le stock d'abord : ce que l'on pulvérise est, le plus souvent, ce que
+  // l'on a acheté. La recherche au catalogue reste à un clic.
+  useEffect(() => {
+    // Le stock de l'exploitation de la parcelle, pas celui de l'exploitation
+    // active : un compte peut en avoir plusieurs.
+    void apiFetch<{ produits: ProduitEnStock[] }>(
+      `/api/stocks/phyto?parcelId=${encodeURIComponent(parcelId)}`,
+    )
+      .then((d) => setEnStock(d.produits))
+      .catch(() => setEnStock([]));
+  }, [parcelId]);
+
+  const stockDuProduit = product ? enStock.find((s) => s.produit.id === product.id) ?? null : null;
+
+  function choisirEnStock(s: ProduitEnStock) {
+    setProduct(s.produit);
+    // Un seul lot entamable : c'est lui. Plusieurs : l'exploitant choisit,
+    // le bidon en main.
+    setStockLotId(s.lots.length === 1 ? (s.lots[0]?.id ?? '') : '');
+  }
+
+  function choisirProduit(p: EphyProduct | null) {
+    setProduct(p);
+    const s = p ? enStock.find((e) => e.produit.id === p.id) : undefined;
+    setStockLotId(s && s.lots.length === 1 ? (s.lots[0]?.id ?? '') : '');
+  }
 
   const preview = useMemo(() => {
     const doseValue = Number(dose);
@@ -96,6 +137,8 @@ export function PhytoForm({
       weatherWindKmh: String(form.get('weatherWindKmh') ?? '') || undefined,
       weatherHumidity: String(form.get('weatherHumidity') ?? '') || undefined,
       weatherSummary: String(form.get('weatherSummary') ?? '') || undefined,
+      // Le lot employé : le serveur en sort la quantité utilisée.
+      ...(stockLotId && stockDuProduit ? { stockLotId } : {}),
     };
 
     try {
@@ -105,8 +148,11 @@ export function PhytoForm({
       );
       router.refresh();
       if (result.warnings?.length) {
+        // Les avertissements restent à l'écran jusqu'à ce qu'on les ferme :
+        // ZNT, délai avant récolte, stock — ils se lisent, ils ne défilent pas.
         setWarnings(result.warnings);
-        setTimeout(onDone, 2000);
+        setEnregistre(true);
+        setSubmitting(false);
       } else {
         onDone();
       }
@@ -121,6 +167,24 @@ export function PhytoForm({
     }
   }
 
+  if (enregistre) {
+    return (
+      <div className="space-y-3">
+        <Alert tone="success">Traitement enregistré.</Alert>
+        {warnings.map((warning) => (
+          <Alert key={warning} tone="warning">
+            {warning}
+          </Alert>
+        ))}
+        <div className="flex justify-end">
+          <Button type="button" onClick={onDone}>
+            Fermer
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       {error ? <Alert tone="danger">{error}</Alert> : null}
@@ -130,12 +194,69 @@ export function PhytoForm({
         </Alert>
       ))}
 
-      <Field
-        label="Produit phytopharmaceutique"
-        hint="Recherchez le produit dans le catalogue officiel E-Phy pour renseigner automatiquement l'AMM et les substances actives."
-      >
-        <EphyProductSearch selected={product} onSelect={setProduct} />
-      </Field>
+      {!product && enStock.length > 0 && !catalogue ? (
+        <Field label="Produit — dans votre stock" hint="Les produits achetés et encore en stock. Le lot choisi sera déduit de la quantité utilisée.">
+          <ul className="space-y-1.5">
+            {enStock.map((s) => (
+              <li key={s.produit.id}>
+                <button
+                  type="button"
+                  onClick={() => choisirEnStock(s)}
+                  className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-left hover:bg-surface-2"
+                >
+                  <span className="block text-[14px] font-medium text-ink">{s.produit.name}</span>
+                  <span className="block text-[12.5px] text-ink-3">
+                    AMM {s.produit.amm} · reste {quantite(s.reste)} {s.unite ?? ''} · {s.lots.length} lot{s.lots.length > 1 ? 's' : ''}
+                    {s.produit.authorized ? '' : ' · retiré du marché'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => setCatalogue(true)}
+            className="mt-2 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+          >
+            Autre produit — chercher dans le catalogue E-Phy
+          </button>
+        </Field>
+      ) : (
+        <Field
+          label="Produit phytopharmaceutique"
+          hint="Recherchez le produit dans le catalogue officiel E-Phy pour renseigner automatiquement l'AMM et les substances actives."
+        >
+          <EphyProductSearch selected={product} onSelect={choisirProduit} />
+          {!product && enStock.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setCatalogue(false)}
+              className="mt-2 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+            >
+              Revenir aux produits en stock
+            </button>
+          ) : null}
+        </Field>
+      )}
+
+      {stockDuProduit ? (
+        <Field
+          label="Lot employé"
+          htmlFor="stockLotId"
+          hint="La quantité utilisée sera sortie de ce lot. Sans lot, le traitement est enregistré mais le stock ne bouge pas."
+        >
+          <Select id="stockLotId" value={stockLotId} onChange={(e) => setStockLotId(e.target.value)}>
+            <option value="">— Aucun lot (stock non mouvementé) —</option>
+            {stockDuProduit.lots.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.lotNumber ? `Lot ${l.lotNumber}` : 'Lot sans numéro'} · reste {quantite(l.reste)} {l.unit}
+                {l.purchasedOn ? ` · acheté le ${new Date(l.purchasedOn).toLocaleDateString('fr-FR')}` : ''}
+                {l.expiresOn ? ` · DLU ${new Date(l.expiresOn).toLocaleDateString('fr-FR')}` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
 
       {!product ? (
         <div className="grid gap-4 rounded-lg border border-ble-500/30 bg-ble-50/60 dark:bg-ble-700/15 p-3 sm:grid-cols-2">

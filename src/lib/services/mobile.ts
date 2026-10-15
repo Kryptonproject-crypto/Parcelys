@@ -9,7 +9,7 @@ import {
   SOIL_COVER_KINDS,
   currentCampaignYear,
 } from '@/lib/constants/agronomy';
-import { calculerSolde } from '@/lib/stock/balance';
+import { lotsPhytoDisponibles } from '@/lib/services/stock';
 import { listRecommendations } from '@/lib/services/advisory';
 import { getEphySourceInfo, getProductUsages } from '@/lib/ephy/search';
 import type { OfflineCatalogueEntry } from '@/lib/ephy/catalogue-local';
@@ -141,9 +141,14 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
   // Les produits sont pris dans l'ordre d'utilisation la plus récente — les
   // plus susceptibles de resservir.
   const PLAFOND_CATALOGUE = 60;
-  const aveclAmm = [...products.values()].filter(
-    (p): p is typeof p & { amm: string } => Boolean(p.amm),
-  );
+  const lotsPhyto = await lotsPhytoDisponibles(ctx.farmId);
+  // Les produits achetés et encore en stock passent en tête, même s'ils n'ont
+  // jamais servi : ce sont eux que l'on va pulvériser.
+  const enStock = [...new Set(lotsPhyto.map((l) => l.amm).filter((a): a is string => Boolean(a)))];
+  const employes = [...products.values()]
+    .map((p) => p.amm)
+    .filter((a): a is string => Boolean(a));
+  const aveclAmm = [...new Set([...enStock, ...employes])].map((amm) => ({ amm }));
   const catalogueHorsLigne: OfflineCatalogueEntry[] = [];
   let catalogueTronque = 0;
 
@@ -220,7 +225,6 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         : ['PROPOSED', 'ACCEPTED'],
   });
 
-  const lotsPhyto = await lotsPhytoDisponibles(ctx.farmId);
 
   return {
     syncedAt: new Date().toISOString(),
@@ -399,65 +403,3 @@ export async function getChangesSince(ctx: FarmContext, since: Date) {
   };
 }
 
-/**
- * Lots phytosanitaires dont il reste quelque chose.
- *
- * Le solde est recalculé ici comme partout ailleurs : la somme des mouvements,
- * jamais un compteur. Un lot vide est écarté — le proposer ferait saisir une
- * sortie impossible, et le refus arriverait au retour du réseau, quand la
- * parcelle est loin.
- */
-async function lotsPhytoDisponibles(farmId: string): Promise<
-  Array<{
-    id: string;
-    itemId: string;
-    itemName: string;
-    lotNumber: string | null;
-    amm: string | null;
-    unit: string;
-    reste: number;
-    expiresOn: string | null;
-  }>
-> {
-  const articles = await prisma.stockItem.findMany({
-    where: { farmId, archivedAt: null, category: 'PHYTOSANITAIRE' },
-    select: {
-      id: true,
-      name: true,
-      unit: true,
-      phytoProduct: { select: { amm: true } },
-      lots: {
-        where: { closedAt: null },
-        select: { id: true, lotNumber: true, expiresOn: true },
-      },
-      movements: { select: { quantity: true, unit: true, lotId: true } },
-    },
-  });
-
-  const lots: Awaited<ReturnType<typeof lotsPhytoDisponibles>> = [];
-
-  for (const article of articles) {
-    for (const lot of article.lots) {
-      const solde = calculerSolde(
-        article.movements
-          .filter((m) => m.lotId === lot.id)
-          .map((m) => ({ quantity: Number(m.quantity), unit: m.unit })),
-        article.unit,
-      );
-      if (solde.quantite <= 0) continue;
-
-      lots.push({
-        id: lot.id,
-        itemId: article.id,
-        itemName: article.name,
-        lotNumber: lot.lotNumber,
-        amm: article.phytoProduct?.amm ?? null,
-        unit: article.unit,
-        reste: solde.quantite,
-        expiresOn: lot.expiresOn ? lot.expiresOn.toISOString() : null,
-      });
-    }
-  }
-
-  return lots.sort((a, b) => a.itemName.localeCompare(b.itemName));
-}

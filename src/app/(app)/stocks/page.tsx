@@ -17,6 +17,9 @@ import {
 } from '@/components/ui';
 import { UNITES_COURANTES } from '@/lib/stock/units';
 import { ImporterProduits } from './ImporterProduits';
+import { EnregistrerAchat } from './EnregistrerAchat';
+import { prisma } from '@/lib/prisma';
+import { roleHasPermission } from '@/lib/auth/rbac';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Stocks' };
@@ -54,10 +57,21 @@ const TONS_ALERTE = {
 export default async function StocksPage() {
   const ctx = await requirePageFarmAccess('record:read');
 
-  const [articles, nonRattachees] = await Promise.all([
+  const [articles, nonRattachees, engrais, organiques] = await Promise.all([
     etatStocks(ctx.farmId),
     utilisationsNonRattachees(ctx.farmId, { limite: 25 }),
+    prisma.fertilizer.findMany({
+      where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.organicInput.findMany({
+      where: { OR: [{ farmId: null }, { farmId: ctx.farmId }] },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
   ]);
+  const peutEcrire = roleHasPermission(ctx.role, 'record:write');
 
   const parCategorie = new Map<string, typeof articles>();
   for (const article of articles) {
@@ -142,6 +156,10 @@ export default async function StocksPage() {
         produit employé pour la première fois cette semaine est à importer comme
         les autres.
       */}
+      {peutEcrire ? (
+        <EnregistrerAchat unites={UNITES_COURANTES} engrais={engrais} organiques={organiques} />
+      ) : null}
+
       <ImporterProduits unitesCourantes={UNITES_COURANTES} />
 
       {articles.length === 0 ? (

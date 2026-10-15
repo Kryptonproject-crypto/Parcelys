@@ -17,6 +17,7 @@ import { checkDose, usagesForCrop } from '@partage/dose';
 import {
   chercherHorsLigne,
   ficheHorsLigne,
+  produitEmbarque,
   provenanceHorsLigne,
   retiresMasques,
 } from '@partage/catalogue-local';
@@ -240,6 +241,34 @@ export function EntryScreen({
   }, [catalogQuery, online, includeWithdrawn, context.session, referential]);
 
   /** Un produit choisi au catalogue : nom, AMM et substances viennent de lui. */
+  // Les lots en stock, regroupés par produit.
+  const stockParProduit = (() => {
+    const groupes = new Map<string, { cle: string; nom: string; amm: string | null; unit: string; reste: number; lots: Array<{ id: string }> }>();
+    for (const lot of referential?.phytoLots ?? []) {
+      const cle = lot.amm ?? lot.itemId;
+      const g = groupes.get(cle) ?? { cle, nom: lot.itemName, amm: lot.amm, unit: lot.unit, reste: 0, lots: [] };
+      g.reste += lot.reste;
+      g.lots.push({ id: lot.id });
+      groupes.set(cle, g);
+    }
+    return [...groupes.values()].sort((a, b) => a.nom.localeCompare(b.nom));
+  })();
+
+  function choisirEnStock(s: (typeof stockParProduit)[number]): void {
+    const embarque = s.amm ? produitEmbarque(referential, s.amm) : null;
+    if (embarque) {
+      pickCatalogProduct(embarque as CatalogProduct);
+    } else {
+      // Produit en stock mais pas embarqué (catalogue non importé) : nommé
+      // tel quel, et marqué non vérifié comme toute saisie libre.
+      setProductName(s.nom);
+      setAmm(s.amm ?? '');
+      setVerified(false);
+    }
+    // Un seul lot : c'est lui. Plusieurs : on choisit dans la liste.
+    setStockLotId(s.lots.length === 1 ? (s.lots[0]?.id ?? '') : '');
+  }
+
   function pickCatalogProduct(product: CatalogProduct): void {
     setProductName(product.name);
     setAmm(product.amm);
@@ -565,6 +594,32 @@ export function EntryScreen({
         {kind === 'phyto' ? (
           <>
             {/*
+              Le stock d'abord : ce que l'on pulvérise est ce que l'on a
+              acheté. Choisir un produit en stock pose aussi son lot — et
+              fonctionne sans réseau, le produit étant embarqué.
+            */}
+            {!productName && stockParProduit.length > 0 ? (
+              <Field label="Dans votre stock" hint="Touchez le produit employé : son lot sera déduit de la quantité utilisée.">
+                <ul className="space-y-1.5">
+                  {stockParProduit.map((s) => (
+                    <li key={s.cle}>
+                      <button
+                        type="button"
+                        onClick={() => choisirEnStock(s)}
+                        className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-left active:bg-surface-2"
+                      >
+                        <span className="block text-[14px] font-medium text-ink">{s.nom}</span>
+                        <span className="block text-[12.5px] text-ink-3">
+                          {s.amm ? `AMM ${s.amm} · ` : ''}reste {s.reste.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {s.unit} · {s.lots.length} lot{s.lots.length > 1 ? 's' : ''}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </Field>
+            ) : null}
+
+            {/*
               Recherche au catalogue officiel — même source que le site. Elle
               exige du réseau : le catalogue compte des dizaines de milliers de
               fiches, hors de question de l'embarquer. Sans réseau, la saisie
@@ -864,7 +919,9 @@ export function EntryScreen({
                   onChange={(event) => setStockLotId(event.target.value)}
                 >
                   <option value="">— Aucun lot rattaché —</option>
-                  {referential?.phytoLots?.map((lot) => (
+                  {(referential?.phytoLots ?? [])
+                    .filter((lot) => !amm || !lot.amm || lot.amm === amm)
+                    .map((lot) => (
                     <option key={lot.id} value={lot.id}>
                       {lot.itemName}
                       {lot.lotNumber ? ` · lot ${lot.lotNumber}` : ' · sans numéro'}

@@ -418,6 +418,17 @@ case "$SANTE" in
           cd $APP_DIR && sudo -u $SERVICE_USER npm run preflight" ;;
 esac
 
+# Contextes réglementaires des parcelles : seuls ceux que la mise à jour a
+# périmés sont recalculés. Fait ici plutôt qu'au premier rapport de
+# conformité, qui sinon recalculerait toutes les parcelles d'un coup devant
+# l'exploitant. Un échec n'est pas bloquant : le calcul se fera à la demande.
+printf '  · contextes réglementaires des parcelles…\n'
+if as_service npm run --silent contextes >/tmp/parcelys-update-contextes.log 2>&1; then
+  ok "$(tail -1 /tmp/parcelys-update-contextes.log)"
+else
+  warn "Contextes non recalculés (journal : /tmp/parcelys-update-contextes.log) : ils le seront à la demande."
+fi
+
 # La version servie est la preuve que c'est bien la nouvelle qui tourne.
 SERVIE=$(curl -fsS --max-time 10 "http://127.0.0.1:$PORT/api/mobile/version" 2>/dev/null \
   | sed -n 's/.*"server":"\([^"]*\)".*/\1/p' || echo '')

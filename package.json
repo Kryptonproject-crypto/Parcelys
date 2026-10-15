@@ -1,6 +1,6 @@
 {
   "name": "parcelys",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "private": true,
   "description": "Parcelys — logiciel de gestion parcellaire agricole (SaaS)",
   "engines": {
@@ -24,6 +24,7 @@
     "ephy:sync": "tsx --conditions=react-server scripts/ephy-sync.ts",
     "postinstall": "prisma generate",
     "maintenance": "tsx scripts/maintenance.ts",
+    "contextes": "tsx --conditions=react-server scripts/contextes.ts",
     "admin": "tsx --conditions=react-server scripts/admin.ts",
     "reset:data": "tsx --conditions=react-server scripts/reset-data.ts",
     "version:bump": "node scripts/bump-version.mjs",

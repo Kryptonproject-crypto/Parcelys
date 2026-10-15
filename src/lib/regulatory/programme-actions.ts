@@ -1,7 +1,9 @@
 import 'server-only';
+import { memoise } from '@/lib/memoire-calcul';
 import type { CoverDestructionMethod, SoilCoverKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
+  cheminsDEauDuContexte,
   getOrComputeParcelContext,
   plusProches,
   NATURES_HYDROGRAPHIQUES,
@@ -76,8 +78,12 @@ export function entreJours(jour: string, du: string, au: string): boolean {
   return jour >= du || jour <= au;
 }
 
+// Un seul formateur : `toLocaleDateString` en recrée un à chaque appel, et un
+// rapport de campagne en formate des milliers. Même sortie (jj/mm/aaaa).
+const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC' });
+
 function dateFr(date: Date): string {
-  return date.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
+  return FORMAT_DATE.format(date);
 }
 
 function jours(debut: Date, fin: Date): number {
@@ -142,7 +148,13 @@ function lireReglesEnCache(
   const cle = `${referentiel}|${territoires.join(',')}|${date.toISOString().slice(0, 10)}`;
   const deja = cache?.get(cle);
   if (deja) return deja;
-  const lecture = lireRegles({ referentiel, territoires, at: date });
+  // Sans cache de règles, la mémoire du calcul en cours (s'il y en a un) —
+  // à la date exacte, comme la lecture qu'elle remplace.
+  const lecture = cache
+    ? lireRegles({ referentiel, territoires, at: date })
+    : memoise(`regles:${referentiel}|${territoires.join(',')}|${date.toISOString()}`, () =>
+        lireRegles({ referentiel, territoires, at: date }),
+      );
   cache?.set(cle, lecture);
   return lecture;
 }
@@ -152,6 +164,37 @@ export async function situationParcelle(
   date: Date,
   cache?: CacheRegles,
 ): Promise<Situation> {
+  // Ce qui ne dépend pas de la date, lu une fois par parcelle et par calcul :
+  // un rapport de campagne demande la situation d'une même parcelle pour
+  // chacun de ses apports et de ses couverts.
+  const base = await memoise(`situation:${parcelId}`, () => baseDeSituation(parcelId));
+  const { parcelle, contexte, territoires, cultures, couverts } = base;
+
+  const zarZones = (contexte?.zones ?? []).filter((z) => z.kind === 'ZONE_ACTION_RENFORCEE');
+  const [par, gren] = await Promise.all([
+    lireReglesEnCache(cache, REFERENTIEL_PAR, territoires, date),
+    lireReglesEnCache(cache, REFERENTIEL_GREN, territoires, date),
+  ]);
+
+  return {
+    parcelId,
+    parcelName: parcelle.name,
+    date,
+    zv: statutZonage(contexte, 'ZONE_VULNERABLE', date),
+    zar: {
+      statut: statutZonage(contexte, 'ZONE_ACTION_RENFORCEE', date),
+      reconstitue: zarZones.some((z) => z.attributes?.reconstitue === true),
+      captages: [...new Set(zarZones.map((z) => String(z.attributes?.captage ?? z.label)))],
+    },
+    territoires: [...territoires],
+    par,
+    gren,
+    cultures: [...cultures],
+    couverts: [...couverts],
+  };
+}
+
+async function baseDeSituation(parcelId: string) {
   const parcelle = await prisma.parcel.findUniqueOrThrow({
     where: { id: parcelId },
     select: { id: true, name: true },
@@ -159,10 +202,7 @@ export async function situationParcelle(
   const contexte = await getOrComputeParcelContext(parcelId).catch(() => null);
   const territoires = await territoiresDeLaParcelle(parcelId);
 
-  const zarZones = (contexte?.zones ?? []).filter((z) => z.kind === 'ZONE_ACTION_RENFORCEE');
-  const [par, gren, cultures, couverts] = await Promise.all([
-    lireReglesEnCache(cache, REFERENTIEL_PAR, territoires, date),
-    lireReglesEnCache(cache, REFERENTIEL_GREN, territoires, date),
+  const [cultures, couverts] = await Promise.all([
     prisma.cropYear.findMany({
       where: { parcelId },
       select: {
@@ -191,32 +231,27 @@ export async function situationParcelle(
   ]);
 
   return {
-    parcelId,
-    parcelName: parcelle.name,
-    date,
-    zv: statutZonage(contexte, 'ZONE_VULNERABLE', date),
-    zar: {
-      statut: statutZonage(contexte, 'ZONE_ACTION_RENFORCEE', date),
-      reconstitue: zarZones.some((z) => z.attributes?.reconstitue === true),
-      captages: [...new Set(zarZones.map((z) => String(z.attributes?.captage ?? z.label)))],
-    },
+    parcelle,
+    contexte,
     territoires,
-    par,
-    gren,
-    cultures: cultures.map((c) => ({
-      id: c.id,
-      campaignYear: c.campaignYear,
-      nom: c.crop.name,
-      semis: c.sowingDate,
-      recolte: c.actualHarvestDate ?? c.expectedHarvestDate,
-      recolteSource: c.actualHarvestDate ? 'réalisée' : c.expectedHarvestDate ? 'prévue' : null,
-      reglementaire: cultureReglementaire({
+    cultures: cultures.map(
+      (c): CultureEnregistree => ({
+        id: c.id,
+        campaignYear: c.campaignYear,
         nom: c.crop.name,
-        categorie: c.crop.category,
         semis: c.sowingDate,
+        recolte: c.actualHarvestDate ?? c.expectedHarvestDate,
+        recolteSource: c.actualHarvestDate ? 'réalisée' : c.expectedHarvestDate ? 'prévue' : null,
+        reglementaire: cultureReglementaire({
+          nom: c.crop.name,
+          categorie: c.crop.category,
+          semis: c.sowingDate,
+        }),
       }),
-    })),
-    couverts: couverts.map((c) => ({ ...c, areaHa: c.areaHa === null ? null : Number(c.areaHa) })),
+    ),
+    couverts: couverts.map(
+      (c): CouvertEnregistre => ({ ...c, areaHa: c.areaHa === null ? null : Number(c.areaHa) }),
+    ),
   };
 }
 
@@ -1012,7 +1047,12 @@ export async function controleBandeEnherbee(
   const regle = regleDe(situation.par, 'bande-enherbee-cours-eau');
   if (!regle) return null;
   const largeur = Number(regle.valeur.largeurMinimaleMetres);
-  const proches = await plusProches(parcelId, NATURES_HYDROGRAPHIQUES, { rayonM: largeur, limite: 3 });
+  // Le contexte de la parcelle a déjà mesuré ses cours d'eau proches : on y
+  // lit la réponse quand il la donne exactement, on la mesure sinon.
+  const contexte = await getOrComputeParcelContext(parcelId).catch(() => null);
+  const proches =
+    cheminsDEauDuContexte(contexte, largeur, 3) ??
+    (await plusProches(parcelId, NATURES_HYDROGRAPHIQUES, { rayonM: largeur, limite: 3 }));
   if (proches.length === 0) return null;
   const quoi = proches
     .map((p) => `${p.label}${typeof p.attributes?.NatureTH === 'string' ? ` (${p.attributes.NatureTH})` : ''} à ${p.distanceM.toFixed(0)} m`)

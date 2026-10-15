@@ -16,6 +16,14 @@ import {
   lignesDEtiquette,
 } from '@commun/carte';
 import { Badge, Banner, Card, Header, formatDateFr } from '../components/ui';
+import {
+  actualiserCouches,
+  couchesAAfficher,
+  lireCouches,
+  retenirCouchesChoisies,
+  type CouchesEnregistrees,
+} from '../lib/couches';
+import { OfflineError } from '../lib/api';
 
 /**
  * Le parcellaire sur une carte.
@@ -51,7 +59,8 @@ type Fond = 'plan' | 'satellite';
 type GeometrieLeaflet = Parameters<typeof L.geoJSON>[0];
 
 export function CarteScreen({ context }: { context: AppContext }) {
-  const { snapshot, online, navigate, back } = context;
+  const { snapshot, online, navigate, back, session } = context;
+  const farmId = context.activeFarmId ?? snapshot?.farm.id ?? null;
 
   const conteneur = useRef<HTMLDivElement | null>(null);
   const carte = useRef<L.Map | null>(null);
@@ -64,6 +73,14 @@ export function CarteScreen({ context }: { context: AppContext }) {
   const [position, setPosition] = useState<Position | null>(null);
   const [erreurGps, setErreurGps] = useState<string | null>(null);
   const [fondManquant, setFondManquant] = useState(false);
+
+  // Couches réglementaires : enregistrées sur l'appareil, actualisées quand
+  // il y a du réseau (cf. `lib/couches`).
+  const zones = useRef<Map<string, L.GeoJSON>>(new Map());
+  const [enregistrees, setEnregistrees] = useState<CouchesEnregistrees | null>(null);
+  const [actives, setActives] = useState<string[] | null>(null);
+  const [chargement, setChargement] = useState<string | null>(null);
+  const [erreurCouche, setErreurCouche] = useState<string | null>(null);
 
   // Le clic sur une parcelle est posé une fois pour toutes sur la couche
   // Leaflet ; il doit pourtant appeler la navigation la plus récente. Sans
@@ -153,6 +170,7 @@ export function CarteScreen({ context }: { context: AppContext }) {
       carte.current = null;
       fonds.current = null;
       couches.current.clear();
+      zones.current.clear();
       repere.current = null;
     };
     // Les fonds sont construits une seule fois : changer d'instance de carte à
@@ -226,6 +244,107 @@ export function CarteScreen({ context }: { context: AppContext }) {
       }
     }
   }, [avecContour]);
+
+  // --- Couches réglementaires : d'abord l'appareil, puis le serveur -------
+  useEffect(() => {
+    if (!farmId) return;
+    let abandonne = false;
+    void (async () => {
+      const locales = await lireCouches(farmId);
+      if (abandonne) return;
+      if (locales) {
+        setEnregistrees(locales);
+        setActives((a) => a ?? couchesAAfficher(locales.couches));
+      }
+      if (!online) return;
+      try {
+        const fraiches = await actualiserCouches(session, farmId, couchesAAfficher);
+        if (abandonne) return;
+        setEnregistrees(fraiches);
+        setActives((a) => a ?? couchesAAfficher(fraiches.couches));
+      } catch {
+        // Hors réseau ou serveur indisponible : ce qui est enregistré reste.
+      }
+    })();
+    return () => {
+      abandonne = true;
+    };
+  }, [farmId, online, session]);
+
+  async function basculerCouche(code: string): Promise<void> {
+    if (!farmId) return;
+    const actuelles = actives ?? [];
+    const allumer = !actuelles.includes(code);
+    const suivantes = allumer ? [...actuelles, code] : actuelles.filter((c) => c !== code);
+    setActives(suivantes);
+    retenirCouchesChoisies(suivantes);
+    setErreurCouche(null);
+    if (!allumer || enregistrees?.geometries[code]) return;
+
+    setChargement(code);
+    try {
+      setEnregistrees(await actualiserCouches(session, farmId, () => [code]));
+    } catch (erreur) {
+      setActives(actuelles);
+      retenirCouchesChoisies(actuelles);
+      setErreurCouche(
+        erreur instanceof OfflineError
+          ? 'Cette couche n’est pas encore enregistrée sur l’appareil : elle se chargera avec du réseau.'
+          : 'Cette couche n’a pas pu être chargée.',
+      );
+    } finally {
+      setChargement(null);
+    }
+  }
+
+  useEffect(() => {
+    const map = carte.current;
+    if (!map) return;
+    const registre = zones.current;
+    const voulues = actives ?? [];
+
+    for (const [code, couche] of registre) {
+      if (!voulues.includes(code)) {
+        couche.remove();
+        registre.delete(code);
+      }
+    }
+
+    for (const code of voulues) {
+      if (registre.has(code)) continue;
+      const definition = enregistrees?.couches.find((c) => c.code === code);
+      const entites = enregistrees?.geometries[code];
+      if (!definition || !entites) continue;
+
+      // Comme sur le site : sous les parcelles, sans intercepter le doigt —
+      // toucher une parcelle doit l'ouvrir, même au-dessus d'un ruisseau.
+      const couche = L.geoJSON(
+        { type: 'FeatureCollection', features: entites } as unknown as GeometrieLeaflet,
+        {
+          style: {
+            color: definition.color,
+            weight: 2,
+            opacity: 0.9,
+            fillColor: definition.color,
+            fillOpacity: 0.12,
+          },
+          pointToLayer: (_entite, point) =>
+            L.circleMarker(point, {
+              radius: 4,
+              color: definition.color,
+              weight: 1.5,
+              fillColor: definition.color,
+              fillOpacity: 0.6,
+              interactive: false,
+            }),
+          interactive: false,
+        },
+      );
+      couche.addTo(map);
+      couche.bringToBack();
+      registre.set(code, couche);
+    }
+  }, [actives, enregistrees]);
 
   // --- La parcelle désignée ------------------------------------------------
   useEffect(() => {
@@ -520,6 +639,60 @@ export function CarteScreen({ context }: { context: AppContext }) {
             )}
           </>
         )}
+
+        {avecContour.length > 0 && enregistrees && enregistrees.couches.length > 0 ? (
+          <Card>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-ink-3">
+              Couches réglementaires
+            </h2>
+            {erreurCouche ? (
+              <p className="mt-1.5 text-[12.5px] leading-snug text-ble-600 dark:text-ble-400">{erreurCouche}</p>
+            ) : null}
+            <ul className="mt-2 space-y-2.5">
+              {enregistrees.couches.map((couche) => {
+                const active = (actives ?? []).includes(couche.code);
+                return (
+                  <li key={couche.code}>
+                    <label className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => void basculerCouche(couche.code)}
+                        className="mt-0.5 h-5 w-5 shrink-0 accent-champ-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            aria-hidden
+                            className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                            style={{ backgroundColor: couche.color }}
+                          />
+                          <span className="text-[14px] text-ink">{couche.label}</span>
+                          {chargement === couche.code ? (
+                            <span className="text-[12px] text-ink-3">chargement…</span>
+                          ) : null}
+                        </span>
+                        {/* La provenance accompagne la couche, comme sur le site. */}
+                        <span className="block text-[11.5px] leading-snug text-ink-3">
+                          {couche.source.label} — version {couche.source.version}
+                          {couche.rendues < couche.total
+                            ? ` · les ${couche.rendues} plus proches de vos parcelles, sur ${couche.total}`
+                            : ''}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2.5 text-[11.5px] leading-snug text-ink-3">
+              Enregistrées sur l’appareil le {formatDateFr(enregistrees.recuesLe)} : elles
+              s’affichent aussi sans réseau. Un tracé simplifié à quelques mètres près situe un
+              cours d’eau ; il ne remplace pas la cartographie officielle des cours d’eau BCAE et
+              ZNT de votre département.
+            </p>
+          </Card>
+        ) : null}
 
         {sansContour.length > 0 ? (
           <Card>

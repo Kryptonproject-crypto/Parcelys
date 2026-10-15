@@ -154,6 +154,46 @@ export async function fetchSnapshot(
   });
 }
 
+/** Une couche réglementaire de la carte, sans ses géométries. */
+export type CoucheCarte = {
+  code: string;
+  kind: string;
+  label: string;
+  color: string;
+  source: { label: string; version: string; territory: string | null };
+  rendues: number;
+  total: number;
+};
+
+export type EntiteCarte = { type: 'Feature'; properties: unknown; geometry: unknown };
+
+/**
+ * Les couches réglementaires de l'exploitation — cours d'eau, zones
+ * vulnérables, captages… — sans leurs géométries, et l'empreinte qui dit si
+ * celles déjà enregistrées sur l'appareil sont encore à jour.
+ */
+export async function fetchCouchesCarte(
+  session: Session,
+  farmId: string,
+): Promise<{ empreinte: string; couches: CoucheCarte[] }> {
+  return request(session.serverUrl, `/api/regulatory/map-layers?farmId=${encodeURIComponent(farmId)}`, {
+    token: session.token,
+  });
+}
+
+/** Les géométries d'une couche. */
+export async function fetchGeometriesCouche(
+  session: Session,
+  farmId: string,
+  code: string,
+): Promise<{ code: string; features: EntiteCarte[] }> {
+  return request(
+    session.serverUrl,
+    `/api/regulatory/map-layers?farmId=${encodeURIComponent(farmId)}&couche=${encodeURIComponent(code)}`,
+    { token: session.token },
+  );
+}
+
 export type PushResponse = {
   syncedAt: string;
   applied: number;

@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { dansUnCalcul } from '@/lib/memoire-calcul';
 import { computeFarmIft } from '@/lib/regulatory/ift';
 import { buildNitrogenBalance, comparePlanToActual } from '@/lib/regulatory/nitrogen';
 import { getOrComputeParcelContext, porteeDuClassement, statutZonage } from '@/lib/regulatory/geography';
@@ -97,8 +98,19 @@ const VIDE: Record<FindingLevel, number> = {
  * données du moment. Figer les anomalies en base obligerait à les invalider à
  * chaque correction, et une anomalie corrigée qui subsiste à l'écran fait
  * perdre confiance dans toutes les autres.
+ *
+ * Calculée dans sa propre mémoire (`dansUnCalcul`) : la situation d'une
+ * parcelle n'y est lue qu'une fois, quel que soit le nombre de ses apports.
+ * Rien n'en est gardé d'un appel à l'autre.
  */
-export async function buildComplianceReport(params: {
+export function buildComplianceReport(params: {
+  farmId: string;
+  campaignYear: number;
+}): Promise<ComplianceReport> {
+  return dansUnCalcul(() => construireRapport(params));
+}
+
+async function construireRapport(params: {
   farmId: string;
   campaignYear: number;
 }): Promise<ComplianceReport> {

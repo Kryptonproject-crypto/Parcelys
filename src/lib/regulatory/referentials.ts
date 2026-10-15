@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { memoise } from '@/lib/memoire-calcul';
 import type { Prisma, RegulatoryDomain, ReferentialStatus } from '@prisma/client';
 import type { Manque } from '@/lib/regulatory/transcription';
 
@@ -413,6 +414,20 @@ export async function resolveReferential(params: {
   /** Codes de territoire du plus précis au plus général, ex. `['45', '24', 'FR']`. */
   territories: Array<string | null>;
   /** Date à laquelle la règle doit être en vigueur. */
+  at: Date;
+}) {
+  // Une synthèse de campagne pose la même question pour chaque parcelle d'un
+  // même territoire : la réponse est gardée le temps du calcul (`memoise`),
+  // sous une clé qui reprend toute la question — date comprise.
+  return memoise(
+    `referentiel:${params.code}|${params.territories.map((t) => t ?? '∅').join(',')}|${params.at.toISOString()}`,
+    () => chercherReferentiel(params),
+  );
+}
+
+async function chercherReferentiel(params: {
+  code: string;
+  territories: Array<string | null>;
   at: Date;
 }) {
   const candidats = params.territories.filter(

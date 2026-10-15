@@ -149,7 +149,7 @@ export async function searchProducts(params: {
   };
 }
 
-function toHit(p: {
+export function toHit(p: {
   id: string;
   amm: string;
   name: string;

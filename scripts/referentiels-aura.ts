@@ -589,6 +589,8 @@ async function etapeZonesVulnerables(dossier: string, gdal: ReturnType<typeof co
       };
     },
   );
+  // Table intermédiaire : versée, elle ne sert plus et occuperait la carte SD.
+  await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "stg_zv"');
 }
 
 // ---------------------------------------------------------------------------
@@ -676,6 +678,7 @@ async function etapeAac(dossier: string, gdal: ReturnType<typeof connexionGdal>)
       };
     },
   );
+  await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "stg_aac"');
 }
 
 // ---------------------------------------------------------------------------

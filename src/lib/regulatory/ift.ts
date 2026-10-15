@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { dansUnCalcul, memoise } from '@/lib/memoire-calcul';
 import { convertDose, parseCatalogDose } from '@/lib/ephy/dose';
 import { normalizeSearchTerm } from '@/lib/ephy/schema';
 
@@ -175,9 +176,14 @@ async function findReference(params: {
   }
 
   if (params.amm) {
-    const lignes = await prisma.iftReference.findMany({
-      where: { referentialId: params.referentialId, amm: params.amm, cropNormalized },
-    });
+    // Le même produit sur la même culture revient d'un traitement à l'autre :
+    // lu une fois par calcul (cf. `memoise`).
+    const amm = params.amm;
+    const lignes = await memoise(`ift:${params.referentialId}|${amm}|${cropNormalized}`, () =>
+      prisma.iftReference.findMany({
+        where: { referentialId: params.referentialId, amm, cropNormalized },
+      }),
+    );
     const cultures = lignes.filter((l) => l.category !== SEGMENT_SEMENCES);
     const cible = params.targetLabel ? normalizeSearchTerm(params.targetLabel) : null;
     const aLaCible = cible
@@ -203,9 +209,11 @@ async function findReference(params: {
 
   // Sans numéro d'AMM : une dose « à la culture » sans produit, si le
   // référentiel en publie une (le fichier national n'en contient pas).
-  const parCulture = await prisma.iftReference.findFirst({
-    where: { referentialId: params.referentialId, cropNormalized, amm: null, targetLabel: null },
-  });
+  const parCulture = await memoise(`ift-culture:${params.referentialId}|${cropNormalized}`, () =>
+    prisma.iftReference.findFirst({
+      where: { referentialId: params.referentialId, cropNormalized, amm: null, targetLabel: null },
+    }),
+  );
   return parCulture
     ? { reference: parCulture }
     : { reference: null, reason: 'Numéro d’AMM absent : la dose de référence ne peut pas être retrouvée.' };
@@ -217,7 +225,15 @@ async function findReference(params: {
  * Les traitements viennent du registre existant : aucune ressaisie, et l'IFT
  * suit automatiquement toute correction apportée à une intervention.
  */
-export async function computeFarmIft(params: {
+export function computeFarmIft(params: {
+  farmId: string;
+  campaignYear: number;
+  parcelId?: string;
+}): Promise<IftSummary> {
+  return dansUnCalcul(() => calculerIftExploitation(params));
+}
+
+async function calculerIftExploitation(params: {
   farmId: string;
   campaignYear: number;
   parcelId?: string;
@@ -273,7 +289,10 @@ export async function computeFarmIft(params: {
       product: { select: { productType: true } },
       cropYear: { include: { crop: { select: { name: true } } } },
     },
-    orderBy: { appliedOn: 'asc' },
+    // Des traitements du même jour : dans l'ordre de saisie. Sans départage,
+    // la base les rend dans un ordre quelconque, qui change d'un affichage à
+    // l'autre sans que rien n'ait changé.
+    orderBy: [{ appliedOn: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
   });
 
   const caveats: string[] = [];

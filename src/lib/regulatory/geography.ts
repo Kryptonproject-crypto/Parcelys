@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import type { ZoneKind } from '@prisma/client';
 import { porteeDuClassement } from '@/lib/regulatory/portee';
+import { memoise } from '@/lib/memoire-calcul';
 
 /**
  * Le contexte réglementaire d'une parcelle, déduit de sa géométrie.
@@ -288,38 +289,71 @@ export async function plusProches(
 ): Promise<Proximite[]> {
   const rayon = options.rayonM ?? RAYON_RECHERCHE_M;
   const limite = options.limite ?? 10;
+  // Une synthèse de campagne mesure la même parcelle pour chaque apport : la
+  // mesure est gardée le temps du calcul (cf. `memoise`).
+  return [
+    ...(await memoise(`proches:${parcelId}|${natures.join(',')}|${rayon}|${limite}`, () =>
+      mesurerPlusProches(parcelId, natures, rayon, limite),
+    )),
+  ];
+}
 
+async function mesurerPlusProches(
+  parcelId: string,
+  natures: ZoneKind[],
+  rayon: number,
+  limite: number,
+): Promise<Proximite[]> {
+
+  // Les candidats sont d'abord retenus à plat (`ST_DWithin` sur la géométrie),
+  // puis seulement mesurés sur l'ellipsoïde. Sans la barrière `MATERIALIZED`,
+  // le planificateur évalue la distance géodésique en premier — sur chaque
+  // candidat de l'index, y compris des rivières entières de 20 000 sommets
+  // (la Loire, l'Allier) dont l'emprise couvre le département : 50 ms par
+  // parcelle pour, le plus souvent, ne rien retenir. Les conditions sont les
+  // mêmes, seul leur ordre change : le résultat est identique.
   const lignes = await prisma.$queryRaw<LigneProximite[]>`
     WITH p AS (
       SELECT pg.geom, ST_Y(ST_Centroid(pg.geom)) AS lat
       FROM parcel_geometries pg
       WHERE pg.parcel_id = ${parcelId} AND pg.is_current = true
       LIMIT 1
+    ),
+    candidats AS MATERIALIZED (
+      SELECT z.kind, z.code, z.label, z.attributes, z.geom, p.geom AS parcelle,
+             r.code AS ref_code, r.version AS ref_version,
+             r.source_label AS ref_source, r.territory AS ref_territory
+      FROM p
+      JOIN regulatory_zones z
+        ON ST_DWithin(
+             z.geom,
+             p.geom,
+             ${rayon}::float8 / (111320.0 * GREATEST(cos(radians(p.lat)), 0.1))
+           )
+      JOIN regulatory_referentials r
+        ON r.id = z.referential_id AND r.status = 'ACTIF'
+      WHERE z.kind::text IN (${Prisma.join(natures)})
+        AND COALESCE(z.attributes->>'TronconFic', '0') <> '1'
     )
     SELECT
-      z.kind::text                                       AS kind,
-      z.code                                             AS code,
-      z.label                                            AS label,
-      z.attributes                                       AS attributes,
-      ST_Distance(z.geom::geography, p.geom::geography)  AS distance_m,
-      ST_Intersects(z.geom, p.geom)                      AS dedans,
-      r.code                                             AS ref_code,
-      r.version                                          AS ref_version,
-      r.source_label                                     AS ref_source,
-      r.territory                                        AS ref_territory
-    FROM p
-    JOIN regulatory_zones z
-      ON ST_DWithin(
-           z.geom,
-           p.geom,
-           ${rayon}::float8 / (111320.0 * GREATEST(cos(radians(p.lat)), 0.1))
-         )
-    JOIN regulatory_referentials r
-      ON r.id = z.referential_id AND r.status = 'ACTIF'
-    WHERE z.kind::text IN (${Prisma.join(natures)})
-      AND COALESCE(z.attributes->>'TronconFic', '0') <> '1'
-      AND ST_Distance(z.geom::geography, p.geom::geography) <= ${rayon}::float8
-    ORDER BY distance_m ASC
+      c.kind::text                                            AS kind,
+      c.code                                                  AS code,
+      c.label                                                 AS label,
+      c.attributes                                            AS attributes,
+      ST_Distance(c.geom::geography, c.parcelle::geography)   AS distance_m,
+      ST_Intersects(c.geom, c.parcelle)                       AS dedans,
+      c.ref_code                                              AS ref_code,
+      c.ref_version                                           AS ref_version,
+      c.ref_source                                            AS ref_source,
+      c.ref_territory                                         AS ref_territory
+    FROM candidats c
+    WHERE ST_Distance(c.geom::geography, c.parcelle::geography) <= ${rayon}::float8
+    -- Départage explicite : une parcelle traversée par trois écoulements les a
+    -- tous à 0 m, et sans lui la base choisit au hasard lesquels citer — le
+    -- message changeait d'un affichage à l'autre. Avec lui, l'ordre est total :
+    -- les premiers éléments d'un rayon sont les premiers de tout rayon plus
+    -- large, ce qui permet de les lire dans le contexte enregistré.
+    ORDER BY distance_m ASC, kind ASC, label ASC, code ASC NULLS LAST
     LIMIT ${limite}
   `;
 
@@ -337,6 +371,45 @@ export async function plusProches(
       territory: ligne.ref_territory,
     },
   }));
+}
+
+/** Éléments gardés par famille (hydrographie, prélèvements) dans le contexte. */
+const PROCHES_PAR_FAMILLE = 10;
+
+/**
+ * Les éléments hydrographiques à moins de `rayonM` du contour, lus dans le
+ * contexte enregistré — ou `null` quand il ne suffit pas à répondre
+ * **exactement** comme `plusProches` le ferait.
+ *
+ * Le contexte garde les dix éléments hydrographiques les plus proches à moins
+ * de 500 m, mesurés par la même requête et dans son ordre — total : distance,
+ * puis nature, libellé, code. Ceux qui sont à moins de `rayonM` en sont donc
+ * les premiers, dans le même ordre — à deux réserves près, qui renvoient à la
+ * requête :
+ *
+ *  · la liste est pleine et son dernier élément est encore dans le rayon :
+ *    un onzième, non gardé, pourrait l'être aussi ;
+ *  · une distance gardée (arrondie au décimètre) tombe à moins d'un demi-
+ *    décimètre de la limite : l'arrondi ne dit plus de quel côté elle est.
+ *
+ * Le contexte doit être à jour : `getOrComputeParcelContext` le garantit par
+ * son empreinte.
+ */
+export function cheminsDEauDuContexte(
+  contexte: ParcelContext | null,
+  rayonM: number,
+  limite: number,
+): Proximite[] | null {
+  if (!contexte || !Number.isFinite(rayonM) || rayonM > RAYON_RECHERCHE_M) return null;
+  const famille = contexte.proximites.filter((p) => NATURES_HYDROGRAPHIQUES.includes(p.kind));
+  const MARGE_ARRONDI = 0.051;
+
+  if (famille.some((p) => Math.abs(p.distanceM - rayonM) <= MARGE_ARRONDI)) return null;
+  const derniere = famille[famille.length - 1];
+  if (famille.length >= PROCHES_PAR_FAMILLE && derniere && derniere.distanceM <= rayonM + MARGE_ARRONDI) {
+    return null;
+  }
+  return famille.filter((p) => p.distanceM < rayonM).slice(0, limite);
 }
 
 /**
@@ -425,6 +498,10 @@ const ZONAGES_ATTENDUS: Array<{
  * faux sans le dire.
  */
 export async function computeParcelContext(parcelId: string): Promise<ParcelContext> {
+  // Prise avant le calcul : un import qui aboutirait pendant celui-ci
+  // changerait l'empreinte courante, et le contexte serait recalculé à la
+  // lecture suivante — jamais l'inverse.
+  const empreinte = await empreinteDuContexte(parcelId);
   const parcelle = await prisma.parcel.findUnique({
     where: { id: parcelId },
     select: { id: true, commune: true, inseeCode: true },
@@ -447,13 +524,13 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
       reason: 'La parcelle n’a pas de contour tracé.',
       remedy: 'Tracez ou importez le contour de la parcelle.',
     });
-    return enregistrer(parcelle, [], unresolved, []);
+    return enregistrer(parcelle, [], unresolved, [], empreinte);
   }
 
   const zones = await computeZoneIntersections(parcelId);
   const proximites = [
-    ...(await plusProches(parcelId, NATURES_HYDROGRAPHIQUES, { limite: 10 })),
-    ...(await plusProches(parcelId, NATURES_PRELEVEMENT, { limite: 10 })),
+    ...(await plusProches(parcelId, NATURES_HYDROGRAPHIQUES, { limite: PROCHES_PAR_FAMILLE })),
+    ...(await plusProches(parcelId, NATURES_PRELEVEMENT, { limite: PROCHES_PAR_FAMILLE })),
   ];
 
   // Quels zonages n'ont pas pu être déterminés, et pourquoi.
@@ -462,21 +539,28 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
   // le cas des zones d'actions renforcées, publiées en liste de captages sans
   // périmètre. Sans cette précaution, l'absence de recoupement se lirait
   // « hors ZAR » alors qu'elle veut dire « on ne sait pas où passe la ZAR ».
+  //
+  // « Au moins une géométrie » suffit : compter les 550 000 zones de BD TOPAGE
+  // pour le savoir coûtait une demi-seconde par parcelle.
   const referentielsActifs = await prisma.$queryRaw<
-    Array<{ code: string; avec_geometrie: bigint; notes: string | null }>
+    Array<{ code: string; avec_geometrie: boolean; notes: string | null }>
   >`
-    SELECT r.code, COUNT(z.geom)::bigint AS avec_geometrie, r.notes
+    SELECT r.code, r.notes,
+           EXISTS (
+             SELECT 1 FROM regulatory_zones z
+             WHERE z.referential_id = r.id AND z.geom IS NOT NULL
+           ) AS avec_geometrie
     FROM regulatory_referentials r
-    LEFT JOIN regulatory_zones z ON z.referential_id = r.id
     WHERE r.status = 'ACTIF' AND r.domain = 'ZONAGE'
-    GROUP BY r.code, r.notes
   `;
+  // Deux versions actives d'un même code (territoires différents) : il suffit
+  // que l'une porte des géométries, comme le faisait le regroupement par code.
   const disponibles = new Set(
-    referentielsActifs.filter((r) => Number(r.avec_geometrie) > 0).map((r) => r.code),
+    referentielsActifs.filter((r) => r.avec_geometrie).map((r) => r.code),
   );
   const sansGeometrie = new Map(
     referentielsActifs
-      .filter((r) => Number(r.avec_geometrie) === 0)
+      .filter((r) => !r.avec_geometrie && !disponibles.has(r.code))
       .map((r) => [r.code, r.notes]),
   );
 
@@ -537,7 +621,7 @@ export async function computeParcelContext(parcelId: string): Promise<ParcelCont
     });
   }
 
-  return enregistrer(parcelle, zones, unresolved, proximites);
+  return enregistrer(parcelle, zones, unresolved, proximites, empreinte);
 }
 
 /**
@@ -592,6 +676,7 @@ async function enregistrer(
   zones: ZoneIntersection[],
   unresolved: Unresolved[],
   proximites: Proximite[],
+  empreinte: string | null,
 ): Promise<ParcelContext> {
   const versions = [
     ...new Map(
@@ -618,6 +703,7 @@ async function enregistrer(
     proximites: proximites as unknown as Prisma.InputJsonValue,
     referentialVersions: versions as unknown as Prisma.InputJsonValue,
     unresolved: unresolved as unknown as Prisma.InputJsonValue,
+    empreinte,
     computedAt: new Date(),
   };
 
@@ -636,6 +722,52 @@ async function enregistrer(
   };
 }
 
+/**
+ * Version du calcul du contexte. À incrémenter quand `computeParcelContext`
+ * change de résultat pour des données identiques : les contextes enregistrés
+ * par la version précédente seront alors recalculés à leur prochaine lecture.
+ */
+const VERSION_DU_CALCUL = 2; // 2 : départage des proximités à égale distance.
+
+/**
+ * Ce dont dépend le contexte d'une parcelle, résumé en une chaîne.
+ *
+ * Le contexte est une fonction du contour courant de la parcelle, de sa
+ * commune, et des référentiels importés. Chaque nouveau contour est une
+ * nouvelle ligne (identifiant neuf) ; chaque import, remplacement ou échec
+ * modifie la ligne du référentiel (`updated_at`), et une suppression change
+ * leur nombre. Deux empreintes égales garantissent donc qu'un nouveau calcul
+ * donnerait le contexte déjà enregistré.
+ */
+async function empreinteDuContexte(parcelId: string): Promise<string | null> {
+  const [ligne] = await prisma.$queryRaw<
+    Array<{
+      geom_id: string | null;
+      commune: string | null;
+      insee: string | null;
+      n: number;
+      maj: Date | null;
+    }>
+  >`
+    SELECT
+      (SELECT pg.id FROM parcel_geometries pg
+        WHERE pg.parcel_id = p.id AND pg.is_current = true LIMIT 1)  AS geom_id,
+      p.commune                                                     AS commune,
+      p.insee_code                                                  AS insee,
+      (SELECT COUNT(*)::int FROM regulatory_referentials)           AS n,
+      (SELECT MAX(updated_at) FROM regulatory_referentials)         AS maj
+    FROM parcels p
+    WHERE p.id = ${parcelId}
+  `;
+  if (!ligne) return null;
+  return [
+    `v${VERSION_DU_CALCUL}`,
+    `contour:${ligne.geom_id ?? '-'}`,
+    `commune:${ligne.commune ?? '-'}/${ligne.insee ?? '-'}`,
+    `referentiels:${ligne.n}/${ligne.maj ? ligne.maj.toISOString() : '-'}`,
+  ].join('|');
+}
+
 /** Contexte enregistré d'une parcelle, tel qu'il sera affiché. */
 export async function getParcelContext(
   parcelId: string,
@@ -644,7 +776,20 @@ export async function getParcelContext(
     where: { parcelId },
   });
   if (!ligne) return null;
+  return versContexte(parcelId, ligne);
+}
 
+function versContexte(
+  parcelId: string,
+  ligne: {
+    commune: string | null;
+    computedAt: Date;
+    zones: Prisma.JsonValue;
+    proximites: Prisma.JsonValue;
+    unresolved: Prisma.JsonValue;
+    referentialVersions: Prisma.JsonValue;
+  },
+): ParcelContext & { computedAt: string; commune: string | null } {
   return {
     parcelId,
     commune: ligne.commune,
@@ -658,22 +803,34 @@ export async function getParcelContext(
 }
 
 /**
- * Contexte de la parcelle, calculé s'il n'existe pas encore.
+ * Contexte de la parcelle, à jour : relu s'il l'est, recalculé sinon.
  *
- * La synthèse de conformité passe par ici. Se contenter de lire le contexte
- * enregistré donnerait, sur une exploitation où personne n'a encore ouvert
- * chaque fiche de parcelle, un rapport disant « contexte non calculé » partout
- * — ce qui n'apprend rien et oblige à visiter les parcelles une à une pour
- * obtenir un rapport utilisable.
+ * La synthèse de conformité et la fiche de parcelle passent par ici. Se
+ * contenter de lire le contexte enregistré donnerait, sur une exploitation où
+ * personne n'a encore ouvert chaque fiche de parcelle, un rapport disant
+ * « contexte non calculé » partout — et, après une modification du contour
+ * ou un import de zonage, un contexte périmé sans que rien ne le dise.
  *
- * Le calcul n'est fait qu'une fois : ensuite le contexte enregistré sert, et
- * seul un import de zonage le périme (cf. `recomputeFarmContexts`).
+ * L'empreinte tranche : inchangée, le contexte enregistré est exactement celui
+ * qu'un nouveau calcul donnerait, et le relire évite une demi-seconde de
+ * découpes PostGIS par parcelle — sur un Raspberry Pi, plusieurs secondes.
  */
 export async function getOrComputeParcelContext(
   parcelId: string,
 ): Promise<(ParcelContext & { computedAt: string; commune: string | null }) | null> {
-  const existant = await getParcelContext(parcelId);
-  if (existant) return existant;
+  return memoise(`contexte:${parcelId}`, () => contexteAJour(parcelId));
+}
+
+async function contexteAJour(
+  parcelId: string,
+): Promise<(ParcelContext & { computedAt: string; commune: string | null }) | null> {
+  const [ligne, empreinte] = await Promise.all([
+    prisma.parcelRegulatoryContext.findUnique({ where: { parcelId } }),
+    empreinteDuContexte(parcelId),
+  ]);
+  if (ligne && empreinte !== null && ligne.empreinte === empreinte) {
+    return versContexte(parcelId, ligne);
+  }
 
   try {
     await computeParcelContext(parcelId);
@@ -747,6 +904,12 @@ export function departementDepuisInsee(insee: string | null): string | null {
  * région voisine sans que rien ne le signale.
  */
 export async function territoiresDeLaParcelle(parcelId: string): Promise<string[]> {
+  // Copie : la liste gardée le temps du calcul ne doit pas être modifiée par
+  // l'un de ceux qui la demandent.
+  return [...(await memoise(`territoires:${parcelId}`, () => lireTerritoires(parcelId)))];
+}
+
+async function lireTerritoires(parcelId: string): Promise<string[]> {
   const parcelle = await prisma.parcel.findUnique({
     where: { id: parcelId },
     select: { inseeCode: true, farm: { select: { department: true } } },

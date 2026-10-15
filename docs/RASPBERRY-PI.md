@@ -1318,6 +1318,30 @@ cd /opt/parcelys && sudo bash scripts/update-pi.sh
 
 C'est tout. Le script enchaîne sauvegarde, récupération du code, dépendances,
 migrations, compilation et redémarrage — **en s'arrêtant à la première erreur**.
+Il termine en mettant à jour le contexte réglementaire des parcelles qui en ont
+besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
+référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
+
+### Passer en 0.10.0
+
+**Une mise à jour plus longue que d'habitude, une seule fois.** La version
+change la façon dont le contexte réglementaire d'une parcelle est gardé : à la
+fin de la mise à jour, le contexte de chaque parcelle est recalculé — compter
+une à trois secondes par parcelle sur un Pi. L'application répond pendant ce
+temps ; le script affiche le nombre de parcelles traitées. Si l'étape échoue,
+rien n'est perdu : le calcul se fera à la première consultation.
+
+Ensuite, l'application est nettement plus rapide : le tableau de bord
+s'affiche sans attendre la synthèse de conformité, qui arrive dans la foulée ;
+la fiche d'une parcelle ne recalcule plus ses zonages à chaque ouverture et ne
+charge plus les couches de la carte avant qu'on les allume.
+
+Les **numéros de lot** et le **stock** : enregistrez vos achats dans « Stocks →
+Enregistrer un achat » ; à la saisie d'un traitement, sur le site comme sur
+l'application, les produits en stock sont proposés d'abord.
+
+Sur l'application de terrain, **mettez à jour l'APK** pour voir les cours
+d'eau sur la carte.
 
 ### Passer en 0.9.0
 

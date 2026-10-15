@@ -220,6 +220,15 @@ export function chercherHorsLigne(
     .slice(0, 15);
 }
 
+/** Un produit embarqué, par AMM — pour le choisir depuis le stock, hors réseau. */
+export function produitEmbarque(
+  referential: CatalogueEmbarque | null | undefined,
+  amm: string,
+): ProduitLocal | null {
+  const entree = (referential?.phytoCatalogue ?? []).find((e) => e.amm === amm);
+  return entree ? versProduit(entree) : null;
+}
+
 /** Combien de produits retirés la recherche a-t-elle masqués ? */
 export function retiresMasques(
   referential: CatalogueEmbarque | null | undefined,

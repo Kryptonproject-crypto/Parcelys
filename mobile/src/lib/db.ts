@@ -50,6 +50,18 @@ export async function writeSnapshot(snapshot: Snapshot): Promise<void> {
   await (await db()).put(CACHE_STORE, snapshot, SNAPSHOT_KEY);
 }
 
+/**
+ * Une valeur quelconque du cache, sous sa clé : les couches réglementaires de
+ * la carte, par exemple, qui doivent rester affichables hors réseau.
+ */
+export async function readCached<T>(key: string): Promise<T | null> {
+  return ((await (await db()).get(CACHE_STORE, key)) as T) ?? null;
+}
+
+export async function writeCached<T>(key: string, value: T): Promise<void> {
+  await (await db()).put(CACHE_STORE, value, key);
+}
+
 export async function clearCache(): Promise<void> {
   const database = await db();
   await database.clear(CACHE_STORE);

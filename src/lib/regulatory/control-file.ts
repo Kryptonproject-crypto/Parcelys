@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import type { CampaignDocumentKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { dansUnCalcul } from '@/lib/memoire-calcul';
 import { buildComplianceReport } from '@/lib/regulatory/compliance';
 import { getReferentialStates } from '@/lib/regulatory/referentials';
 import { cahierEpandage } from '@/lib/regulatory/organic-nitrogen';
@@ -115,7 +116,19 @@ function empreinte(valeur: unknown): string {
   return createHash('sha256').update(JSON.stringify(valeur)).digest('hex');
 }
 
-export async function assemblerDossier(params: {
+/**
+ * Le dossier de contrôle d'une campagne — voir `assemblerDossierCalcule`.
+ * Calculé dans sa propre mémoire, que partage la synthèse qu'il appelle.
+ */
+export function assemblerDossier(params: {
+  farmId: string;
+  campaignYear: number;
+  aujourdHui?: Date;
+}): Promise<DossierControle> {
+  return dansUnCalcul(() => assemblerDossierCalcule(params));
+}
+
+async function assemblerDossierCalcule(params: {
   farmId: string;
   campaignYear: number;
   aujourdHui?: Date;

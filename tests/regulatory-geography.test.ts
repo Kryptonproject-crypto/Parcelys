@@ -4,6 +4,7 @@ import { importZoneCollection } from '../src/lib/regulatory/import-zones';
 import {
   computeParcelContext,
   computeZoneIntersections,
+  getOrComputeParcelContext,
   getParcelContext,
   statutZonage,
   zoneOf,
@@ -266,6 +267,51 @@ describe('Contexte réglementaire de la parcelle', () => {
     expect(relu?.computedAt).toBeTruthy();
     expect(relu?.referentialVersions[0]?.code).toBe('zones-vulnerables');
   });
+
+  // -------------------------------------------------------------------------
+  // Contexte enregistré : relu tant qu'il est à jour, recalculé dès qu'il ne
+  // l'est plus. Le relire évite des découpes PostGIS coûteuses ; le relire
+  // périmé afficherait un zonage faux sans le dire.
+
+  it('relit le contexte enregistré tant que rien de ce dont il dépend n’a changé', async () => {
+    await importerZone(rectangle(1.87, 48.07, 1.91, 48.1));
+    const parcelleId = await creerParcelle('Relue', 1.88, 48.08, 1.89, 48.086);
+
+    const premier = await getOrComputeParcelContext(parcelleId);
+    const second = await getOrComputeParcelContext(parcelleId);
+    expect(second?.computedAt).toBe(premier?.computedAt);
+    expect(statutZonage(second, 'ZONE_VULNERABLE')).toBe('dedans');
+  });
+
+  it('recalcule le contexte quand le contour change', async () => {
+    await importerZone(rectangle(1.87, 48.07, 1.91, 48.1));
+    const parcelleId = await creerParcelle('Déplacée', 1.88, 48.08, 1.89, 48.086);
+    expect(statutZonage(await getOrComputeParcelContext(parcelleId), 'ZONE_VULNERABLE')).toBe('dedans');
+
+    // Contour retracé hors de la zone : l'ancien contexte ne vaut plus rien.
+    await saveParcelGeometry(prisma, parcelleId, rectangle(1.95, 48.2, 1.96, 48.206));
+    expect(statutZonage(await getOrComputeParcelContext(parcelleId), 'ZONE_VULNERABLE')).toBe('dehors');
+  });
+
+  it('recalcule le contexte après l’import d’un zonage', async () => {
+    const parcelleId = await creerParcelle('Avant import', 1.88, 48.08, 1.89, 48.086);
+    expect(statutZonage(await getOrComputeParcelContext(parcelleId), 'ZONE_VULNERABLE')).toBe('indetermine');
+
+    await importerZone(rectangle(1.87, 48.07, 1.91, 48.1));
+    expect(statutZonage(await getOrComputeParcelContext(parcelleId), 'ZONE_VULNERABLE')).toBe('dedans');
+  });
+
+  it('recalcule un contexte enregistré avant l’empreinte', async () => {
+    await importerZone(rectangle(1.87, 48.07, 1.91, 48.1));
+    const parcelleId = await creerParcelle('Ancienne', 1.88, 48.08, 1.89, 48.086);
+    await computeParcelContext(parcelleId);
+    // Un contexte d'une version antérieure, faux et sans empreinte.
+    await prisma.parcelRegulatoryContext.update({
+      where: { parcelId: parcelleId },
+      data: { zones: [], empreinte: null },
+    });
+    expect(statutZonage(await getOrComputeParcelContext(parcelleId), 'ZONE_VULNERABLE')).toBe('dedans');
+  });
 });
 
 /*
@@ -525,4 +571,5 @@ describe('Zonage publié à la commune', () => {
     const contexte = await computeParcelContext(parcelleId);
     expect(statutZonage(contexte, 'ZONE_VULNERABLE')).toBe('dedans');
   });
+
 });

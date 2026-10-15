@@ -69,7 +69,16 @@ type Props = {
    * les rendraient illisibles.
    */
   regulatoryLayers?: MapRegulatoryLayer[];
+  /**
+   * Exploitation dont charger les couches réglementaires **à la demande** :
+   * la légende après l'affichage de la carte, les géométries d'une couche
+   * quand on l'allume. Elles pèsent jusqu'à deux mégaoctets ; les intégrer à
+   * la page la ralentissait pour des couches qu'on n'allume presque jamais.
+   */
+  regulatoryLayersFarmId?: string;
 };
+
+type Entite = MapRegulatoryLayer['features'][number];
 
 /** Carte de consultation : affiche les parcelles et permet d'en sélectionner une. */
 export function ParcelsMap({
@@ -82,7 +91,8 @@ export function ParcelsMap({
   linkBase = '/parcelles',
   heightClass = 'h-[420px]',
   showLayerSwitch = true,
-  regulatoryLayers = [],
+  regulatoryLayers: couchesFournies = [],
+  regulatoryLayersFarmId,
 }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +102,53 @@ export function ParcelsMap({
   const [baseLayer, setBaseLayer] = useState<BaseLayerKey>('plan');
   const zonesRef = useRef<Map<string, L.GeoJSON>>(new Map());
   const [couchesActives, setCouchesActives] = useState<string[]>([]);
+  const [couchesChargees, setCouchesChargees] = useState<MapRegulatoryLayer[]>([]);
+  const [geometries, setGeometries] = useState<Record<string, Entite[]>>({});
+  const [enChargement, setEnChargement] = useState<string[]>([]);
+  const [erreurCouche, setErreurCouche] = useState<string | null>(null);
+  const regulatoryLayers = regulatoryLayersFarmId ? couchesChargees : couchesFournies;
+
+  // La légende, une fois la carte affichée : rien ne retarde la page.
+  useEffect(() => {
+    if (!regulatoryLayersFarmId) return;
+    let annule = false;
+    void fetch(`/api/regulatory/map-layers?farmId=${encodeURIComponent(regulatoryLayersFarmId)}`, {
+      credentials: 'same-origin',
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ couches: MapRegulatoryLayer[] }>) : null))
+      .then((corps) => {
+        if (!annule && corps) {
+          setCouchesChargees(corps.couches.map((c) => ({ ...c, features: [] })));
+        }
+      })
+      .catch(() => {
+        // Sans couches, la carte des parcelles reste entière : rien à signaler
+        // de plus que l'absence de la légende.
+      });
+    return () => {
+      annule = true;
+    };
+  }, [regulatoryLayersFarmId]);
+
+  async function chargerCouche(code: string) {
+    if (!regulatoryLayersFarmId || geometries[code] || enChargement.includes(code)) return;
+    setEnChargement((l) => [...l, code]);
+    setErreurCouche(null);
+    try {
+      const r = await fetch(
+        `/api/regulatory/map-layers?farmId=${encodeURIComponent(regulatoryLayersFarmId)}&couche=${encodeURIComponent(code)}`,
+        { credentials: 'same-origin' },
+      );
+      if (!r.ok) throw new Error(String(r.status));
+      const corps = (await r.json()) as { features: Entite[] };
+      setGeometries((g) => ({ ...g, [code]: corps.features }));
+    } catch {
+      setErreurCouche('Cette couche n’a pas pu être chargée. Réessayez.');
+      setCouchesActives((liste) => liste.filter((c) => c !== code));
+    } finally {
+      setEnChargement((l) => l.filter((c) => c !== code));
+    }
+  }
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -212,11 +269,14 @@ export function ParcelsMap({
       if (registre.has(code)) continue;
       const definition = regulatoryLayers.find((c) => c.code === code);
       if (!definition) continue;
+      // Chargée à la demande : posée quand ses géométries sont arrivées.
+      const entites = regulatoryLayersFarmId ? geometries[code] : definition.features;
+      if (!entites) continue;
 
       const couche = L.geoJSON(
         {
           type: 'FeatureCollection',
-          features: definition.features,
+          features: entites,
         } as unknown as GeoJSON.FeatureCollection,
         {
           style: {
@@ -246,7 +306,7 @@ export function ParcelsMap({
       couche.bringToBack();
       registre.set(code, couche);
     }
-  }, [couchesActives, regulatoryLayers]);
+  }, [couchesActives, regulatoryLayers, geometries, regulatoryLayersFarmId]);
 
   // Recentre sur la parcelle sélectionnée.
   useEffect(() => {
@@ -301,22 +361,25 @@ export function ParcelsMap({
       {regulatoryLayers.length > 0 ? (
         <div className="mt-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
           <p className="text-[12.5px] font-medium text-ink-2">Couches réglementaires</p>
+          {erreurCouche ? <p className="mt-1 text-[12px] text-red-700 dark:text-red-400">{erreurCouche}</p> : null}
           <ul className="mt-1.5 space-y-1.5">
             {regulatoryLayers.map((couche) => {
               const active = couchesActives.includes(couche.code);
+              const charge = enChargement.includes(couche.code);
               return (
                 <li key={couche.code}>
                   <label className="flex cursor-pointer items-start gap-2">
                     <input
                       type="checkbox"
                       checked={active}
-                      onChange={() =>
+                      onChange={() => {
+                        if (!active) void chargerCouche(couche.code);
                         setCouchesActives((liste) =>
                           liste.includes(couche.code)
                             ? liste.filter((c) => c !== couche.code)
                             : [...liste, couche.code],
-                        )
-                      }
+                        );
+                      }}
                       className="mt-0.5 h-4 w-4 shrink-0 accent-champ-600"
                     />
                     <span className="min-w-0">
@@ -327,13 +390,14 @@ export function ParcelsMap({
                           style={{ backgroundColor: couche.color }}
                         />
                         <span className="text-[13px] text-ink">{couche.label}</span>
+                        {charge ? <span className="text-[11.5px] text-ink-3">chargement…</span> : null}
                       </span>
                       {/* La provenance accompagne la couche, jamais ailleurs. */}
                       <span className="block text-[11.5px] leading-snug text-ink-3">
                         {couche.source.label} — version {couche.source.version}
                         {couche.source.territory ? ` · ${couche.source.territory}` : ''}
                         {couche.rendues < couche.total
-                          ? ` · ${couche.rendues} zone(s) affichées sur ${couche.total} (emprise de vos parcelles)`
+                          ? ` · les ${couche.rendues} plus proches de vos parcelles, sur ${couche.total} dans leur emprise`
                           : ''}
                       </span>
                     </span>
