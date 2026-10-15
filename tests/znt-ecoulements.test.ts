@@ -51,7 +51,7 @@ describe('ZNT aquatique applicable à un usage', () => {
   const sans = { zntAquaticM: null, conditions: [], culturesDuProduit: ['Blé*Désherbage'] };
 
   it('prend la valeur de l’usage quand le catalogue en donne une', () => {
-    expect(zntAquatiqueApplicable({ ...sans, zntAquaticM: '20.0' })).toEqual({ origine: 'usage', metres: 20 });
+    expect(zntAquatiqueApplicable({ ...sans, zntAquaticM: '20.0' })).toEqual({ origine: 'usage', metres: 20, ecrit: '20.0' });
   });
 
   it('ne devine pas une valeur illisible', () => {

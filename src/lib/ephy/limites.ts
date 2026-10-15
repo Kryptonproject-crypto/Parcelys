@@ -253,7 +253,8 @@ export function rappelZnt(params: {
 
   if (params.aquatique) {
     const a = params.aquatique;
-    if (a.origine === 'usage') parties.push(`milieu aquatique ${a.metres} m`);
+    // La valeur telle que le catalogue l'écrit, comme les deux autres ZNT.
+    if (a.origine === 'usage') parties.push(`milieu aquatique ${a.ecrit} m`);
     else if (a.origine === 'defaut') {
       parties.push(
         `milieu aquatique ${a.metres} m — l’autorisation n’en fixe pas : largeur minimale de l’${SOURCE_ZNT_PAR_DEFAUT}, sauf mention contraire sur l’étiquette`,
@@ -294,7 +295,7 @@ export const SOURCE_ZNT_PAR_DEFAUT =
 
 /** La ZNT aquatique d'un usage, et d'où elle vient. */
 export type ZntAquatique =
-  | { origine: 'usage'; metres: number }
+  | { origine: 'usage'; metres: number; /** Telle que le catalogue l'écrit (« 20.0 »). */ ecrit: string }
   | { origine: 'conditions'; texte: string; metres: number | null }
   | { origine: 'defaut'; metres: number }
   | { origine: 'indeterminee'; raison: string };
@@ -323,7 +324,7 @@ export function zntAquatiqueApplicable(params: {
   if (brut !== '' && brut !== '-') {
     const metres = entierDuCatalogue(brut);
     return metres !== null
-      ? { origine: 'usage', metres }
+      ? { origine: 'usage', metres, ecrit: brut }
       : { origine: 'indeterminee', raison: `valeur du catalogue « ${brut} » non exploitable` };
   }
 
