@@ -4,11 +4,19 @@ import { enqueue } from '../lib/db';
 import { searchCatalog, type CatalogProduct } from '../lib/api';
 import { chercherHorsLigne } from '@partage/catalogue-local';
 import { Banner, Button, Field, Header, Input, Select, today } from '../components/ui';
+import { etatDuProduit } from '@commun/produits';
 
 /** Unités d'achat : celles d'un bidon, d'un sac, d'une boîte. */
 const UNITES = ['L', 'mL', 'kg', 'g', 'unité'];
 
-type ProduitChoisi = { id: string; name: string; amm: string };
+type ProduitChoisi = {
+  id: string;
+  name: string;
+  amm: string;
+  authorized: boolean;
+  withdrawnAt: string | null;
+  finUtilisation?: string | null;
+};
 
 /**
  * Enregistrer un achat de produit phytosanitaire, depuis le téléphone.
@@ -31,6 +39,10 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
   const [recherche, setRecherche] = useState('');
   const [resultats, setResultats] = useState<ProduitChoisi[] | null>(null);
   const [etatRecherche, setEtatRecherche] = useState<'repos' | 'recherche' | 'vide' | 'erreur'>('repos');
+  // Un bidon acheté avant le retrait du produit se range aussi en stock : les
+  // retirés se cherchent sur demande (les encore utilisables sortent d'office).
+  const [avecRetires, setAvecRetires] = useState(false);
+  const [retiresMasques, setRetiresMasques] = useState(0);
   const [produit, setProduit] = useState<ProduitChoisi | null>(null);
   const [quantite, setQuantite] = useState('');
   const [unite, setUnite] = useState('L');
@@ -50,19 +62,21 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
       return;
     }
     if (!online) {
-      const locaux = chercherHorsLigne(referential, terme).map((p) => ({ id: p.id, name: p.name, amm: p.amm }));
+      const locaux = chercherHorsLigne(referential, terme, avecRetires);
       setResultats(locaux);
+      setRetiresMasques(0);
       setEtatRecherche(locaux.length > 0 ? 'repos' : 'vide');
       return;
     }
     const moi = (jeton.current += 1);
     setEtatRecherche('recherche');
     const minuteur = setTimeout(() => {
-      void searchCatalog(session, terme)
+      void searchCatalog(session, terme, avecRetires)
         .then((r) => {
           if (moi !== jeton.current) return;
-          const trouves = r.results.map((p: CatalogProduct) => ({ id: p.id, name: p.name, amm: p.amm }));
+          const trouves: ProduitChoisi[] = r.results.map((p: CatalogProduct) => p);
           setResultats(trouves);
+          setRetiresMasques(r.withdrawnHidden);
           setEtatRecherche(trouves.length > 0 ? 'repos' : 'vide');
         })
         .catch(() => {
@@ -72,7 +86,7 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
         });
     }, 400);
     return () => clearTimeout(minuteur);
-  }, [recherche, online, referential, session]);
+  }, [recherche, online, referential, session, avecRetires]);
 
   async function enregistrer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,6 +142,11 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
             <div className="min-w-0">
               <p className="font-semibold text-ink">{produit.name}</p>
               <p className="text-[12.5px] text-ink-3">AMM {produit.amm}</p>
+              {produit.authorized ? null : (
+                <p className="mt-0.5 text-[12.5px] font-medium text-ble-600 dark:text-ble-400">
+                  {etatDuProduit(produit).libelle}
+                </p>
+              )}
             </div>
             <button type="button" className="text-[13px] font-medium text-accent-ink" onClick={() => setProduit(null)}>
               Changer
@@ -147,7 +166,9 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
             {etatRecherche === 'recherche' ? <p className="mt-1.5 text-[13px] text-ink-3">Recherche…</p> : null}
             {etatRecherche === 'vide' ? (
               <p className="mt-1.5 text-[13px] text-ink-3">
-                {online ? 'Aucun produit trouvé.' : 'Aucun produit embarqué ne correspond : la recherche complète demande du réseau.'}
+                {online
+                  ? 'Aucun produit autorisé trouvé. Tapez le numéro d’AMM de l’étiquette : il trouve aussi les produits retirés.'
+                  : 'Aucun produit embarqué ne correspond : la recherche complète demande du réseau.'}
               </p>
             ) : null}
             {etatRecherche === 'erreur' ? (
@@ -164,10 +185,25 @@ export function NewPurchaseScreen({ context }: { context: AppContext }) {
                     >
                       <span className="block text-[14px] font-medium text-ink">{p.name}</span>
                       <span className="block text-[12.5px] text-ink-3">AMM {p.amm}</span>
+                      {p.authorized ? null : (
+                        <span className="mt-0.5 block text-[12px] font-medium text-ble-600 dark:text-ble-400">
+                          {etatDuProduit(p).libelle}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
               </ul>
+            ) : null}
+            {retiresMasques > 0 && !avecRetires ? (
+              <button
+                type="button"
+                onClick={() => setAvecRetires(true)}
+                className="mt-2 text-left text-[13px] font-medium text-accent-ink underline"
+              >
+                {retiresMasques} produit{retiresMasques > 1 ? 's' : ''} retiré{retiresMasques > 1 ? 's' : ''} du marché
+                correspond{retiresMasques > 1 ? 'ent' : ''} aussi — les afficher
+              </button>
             ) : null}
           </Field>
         )}

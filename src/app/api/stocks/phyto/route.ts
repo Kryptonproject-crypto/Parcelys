@@ -23,7 +23,16 @@ export const GET = route(async (request: NextRequest) => {
   const ids = [...new Set(lots.map((l) => l.phytoProductId).filter((id): id is string => Boolean(id)))];
   const produits = await prisma.phytosanitaryProduct.findMany({
     where: { id: { in: ids } },
-    include: { substances: { include: { substance: { select: { name: true } } } } },
+    include: {
+      substances: { include: { substance: { select: { name: true } } } },
+      // Jusqu'où un produit retiré s'emploie encore : dit à côté du bidon.
+      usages: {
+        where: { endUsage: { not: null } },
+        select: { endUsage: true },
+        orderBy: { endUsage: 'desc' },
+        take: 1,
+      },
+    },
   });
   const parId = new Map(produits.map((p) => [p.id, toHit(p)]));
   return ok({

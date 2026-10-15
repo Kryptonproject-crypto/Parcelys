@@ -6,6 +6,34 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.10.4 — Les produits retirés encore utilisables
+
+Un produit retiré du marché n'est pas forcément interdit : l'ANSES publie,
+usage par usage, une **date de fin d'utilisation** — le délai d'écoulement
+des stocks. Jusque-là, un bidon acheté avant le retrait s'emploie
+légalement. Cas réel : ANKORA (AMM 2230520), retiré le 10/12/2025,
+utilisable sur blé et orge jusqu'au 10/12/2026 — introuvable dans
+l'application, et, une fois saisi, signalé à tort comme irrégulier.
+
+- **Recherche** : un produit retiré encore dans son délai est proposé
+  d'office, après les autorisés, avec la mention « Retiré le 10/12/2025 —
+  utilisable jusqu'au 10/12/2026 ». Le **numéro d'AMM exact** trouve
+  toujours son produit, retiré ou non : c'est celui qu'on lit sur
+  l'étiquette. Les autres retirés restent derrière « les afficher ».
+- **Achat dans l'application** : l'écran « Enregistrer un achat » propose
+  lui aussi d'afficher les produits retirés ; il ne le pouvait pas.
+- **Usages** : la fiche d'un produit donnait ses seuls usages autorisés ; ceux
+  d'un produit retiré encore dans leur délai en font partie, avec leur dose
+  et leurs ZNT. ANKORA n'avait plus ni culture ni dose de référence.
+- **Contrôle à la saisie** : l'avertissement se fonde sur la fin
+  d'utilisation, plus sur la date de retrait — rappel de la date limite
+  pendant le délai, alerte au-delà. La dose se juge à la date du
+  traitement, sur le site comme dans l'application.
+- Hors réseau, la recherche dans les produits embarqués suit les mêmes
+  règles.
+
+---
+
 ## 0.10.3 — Une interface qui tient sur un téléphone, des listes qu'on lit
 
 ### Ce qui était cassé

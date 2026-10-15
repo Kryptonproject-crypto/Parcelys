@@ -55,14 +55,20 @@ catalogue erroné alors qu'il était simplement complet.
 
 Ce que fait Parcelys :
 
-- la recherche **écarte les produits retirés par défaut** ;
-- elle dit toujours **combien** ont été écartés (`withdrawnHidden`) ;
-- un clic les rappelle — ils restent nécessaires pour compléter un registre
-  antérieur au retrait ;
-- un produit retiré est badgé « Retiré du marché » avec sa date de retrait, et
-  sélectionner un produit retiré affiche un avertissement ;
-- enregistrer un traitement à une date **postérieure** au retrait déclenche un
-  avertissement au serveur (`buildPhytoWarnings`).
+- la recherche **écarte les produits retirés devenus inutilisables** ;
+- elle **garde ceux encore dans leur délai d'écoulement** : l'ANSES publie,
+  usage par usage, une date de fin d'utilisation (`end_usage_at`) ; tant
+  qu'elle n'est pas passée, un stock acheté avant le retrait s'emploie. Ils
+  sortent après les autorisés, badgés « Retiré le … — utilisable jusqu'au … » ;
+- le **numéro d'AMM exact** trouve toujours son produit, retiré ou non ;
+- elle dit toujours **combien** ont été écartés (`withdrawnHidden`), et un clic
+  les rappelle — ils restent nécessaires pour compléter un registre antérieur ;
+- la fiche d'usages (`getProductUsages`) rend les usages en vigueur **et** ceux
+  encore dans leur délai, avec `endUsage` : la dose se juge à la date du
+  traitement (`usageEnVigueurLe`) ;
+- au serveur (`buildPhytoWarnings`), un traitement d'un produit retiré
+  rappelle sa date limite pendant le délai, et avertit au-delà de la fin
+  d'utilisation — plus dès la date de retrait.
 
 Les produits retirés ne sont jamais supprimés de la base : un traitement de 2019
 porte légitimement sur un produit retiré depuis, et le registre doit rester

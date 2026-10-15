@@ -34,6 +34,7 @@ import {
   today,
 } from '../components/ui';
 import { uniteAffichee } from '@commun/unites';
+import { etatDuProduit } from '@commun/produits';
 
 export type EntryKind = 'phyto' | 'apport' | 'travaux' | 'couvert';
 
@@ -126,6 +127,9 @@ export function EntryScreen({
   >('idle');
   const [verified, setVerified] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
+  // Pour un produit retiré : sa date de retrait et sa fin d'utilisation. Tant
+  // que celle-ci n'est pas passée, le produit s'emploie (délai d'écoulement).
+  const [retrait, setRetrait] = useState<{ withdrawnAt: string | null; finUtilisation: string | null } | null>(null);
   /** Produits retirés du marché écartés de la dernière recherche. */
   const [withdrawnHidden, setWithdrawnHidden] = useState(0);
   const [includeWithdrawn, setIncludeWithdrawn] = useState(false);
@@ -276,6 +280,11 @@ export function EntryScreen({
     setSubstances(product.substances.join(', '));
     setVerified(true);
     setWithdrawn(!product.authorized);
+    setRetrait(
+      product.authorized
+        ? null
+        : { withdrawnAt: product.withdrawnAt, finUtilisation: product.finUtilisation ?? null },
+    );
     setCatalogQuery('');
     setCatalogHits(null);
     setCatalogState('idle');
@@ -331,6 +340,7 @@ export function EntryScreen({
     setProductName(value);
     setVerified(false);
     setWithdrawn(false);
+    setRetrait(null);
 
     // Un produit déjà employé a de bonnes chances d'être embarqué : sa fiche
     // officielle est posée si elle existe. Auparavant, choisir un produit dans
@@ -341,6 +351,19 @@ export function EntryScreen({
     if (embarquee) {
       setVerified(true);
       setWithdrawn(!embarquee.product.authorized);
+      setRetrait(
+        embarquee.product.authorized
+          ? null
+          : {
+              withdrawnAt: embarquee.product.withdrawnAt,
+              finUtilisation:
+                embarquee.usages
+                  .map((u) => u.endUsage)
+                  .filter((d): d is string => Boolean(d))
+                  .sort()
+                  .pop() ?? null,
+            },
+      );
       if (embarquee.crops.length === 1) {
         setCropLabel(embarquee.crops[0] ?? '');
       } else if (parcel.cropName) {
@@ -367,8 +390,19 @@ export function EntryScreen({
           crop: cropLabel || parcel.cropName,
           dose: Number(phytoDose),
           doseUnit: phytoUnit,
+          // Les usages se jugent à la date du traitement : un usage retiré
+          // vaut jusqu'à sa fin d'utilisation.
+          at: new Date(`${date}T12:00:00Z`),
         })
       : null;
+
+  /** L'état d'un produit retiré à la date du traitement : encore utilisable, ou non. */
+  const etatRetrait = withdrawn
+    ? etatDuProduit(
+        { authorized: false, withdrawnAt: retrait?.withdrawnAt ?? null, finUtilisation: retrait?.finUtilisation ?? null },
+        new Date(`${date}T12:00:00Z`),
+      )
+    : null;
 
   /** Usages de la culture retenue, pour afficher ZNT et délais. */
   const usagesCulture: CatalogUsage[] =
@@ -600,7 +634,13 @@ export function EntryScreen({
               fonctionne sans réseau, le produit étant embarqué.
             */}
             {!productName && stockParProduit.length > 0 ? (
-              <Field label="Dans votre stock" hint="Touchez le produit employé : son lot sera déduit de la quantité utilisée.">
+              // Un groupe, pas un `<label>` : une étiquette englobant des
+              // boutons donnait son texte au premier d'entre eux, qui ne
+              // s'annonçait plus par le nom du produit.
+              <div className="space-y-1.5" role="group" aria-labelledby="stock-titre">
+                <span id="stock-titre" className="block text-sm font-medium text-ink-2">
+                  Dans votre stock
+                </span>
                 <ul className="space-y-1.5">
                   {stockParProduit.map((s) => (
                     <li key={s.cle}>
@@ -617,7 +657,10 @@ export function EntryScreen({
                     </li>
                   ))}
                 </ul>
-              </Field>
+                <span className="block text-[13px] text-ink-3">
+                  Touchez le produit employé : son lot sera déduit de la quantité utilisée.
+                </span>
+              </div>
             ) : null}
 
             {/*
@@ -689,15 +732,7 @@ export function EntryScreen({
                         AMM {product.amm}
                         {product.holder ? ` · ${product.holder}` : ''}
                       </span>
-                      <span
-                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[12px] ${
-                          product.authorized
-                            ? 'bg-champ-50 text-champ-700'
-                            : 'bg-brique-50 text-brique-700'
-                        }`}
-                      >
-                        {product.authorized ? 'Autorisé' : 'Retiré du marché'}
-                      </span>
+                      <EtatProduit produit={product} />
                     </button>
                   </li>
                 ))}
@@ -740,11 +775,20 @@ export function EntryScreen({
             ) : null}
 
             {withdrawn ? (
-              <Banner tone="warning">
-                Ce produit ne figure plus parmi les produits autorisés du
-                catalogue E-Phy. Il reste saisissable pour compléter un registre
-                antérieur à son retrait ; l&apos;appliquer aujourd&apos;hui ne l&apos;est pas.
-              </Banner>
+              etatRetrait?.ton === 'delai' ? (
+                <Banner tone="warning">
+                  {etatRetrait.libelle}. Retiré du marché mais encore dans son délai
+                  d&apos;écoulement : un stock acheté avant le retrait s&apos;emploie
+                  jusqu&apos;à cette date, sur les usages que le catalogue publiait.
+                  Après, l&apos;appliquer est interdit.
+                </Banner>
+              ) : (
+                <Banner tone="danger">
+                  {etatRetrait?.libelle ?? 'Retiré du marché'}. Il reste saisissable
+                  pour compléter un registre antérieur ; l&apos;appliquer à cette date
+                  ne l&apos;est pas.
+                </Banner>
+              )
             ) : null}
 
             {/* --- Usages autorisés, dose retenue, ZNT --------------------- */}
@@ -1162,5 +1206,20 @@ export function EntryScreen({
         </Button>
       </ActionBar>
     </form>
+  );
+}
+
+/** Autorisé, retiré mais encore utilisable, ou interdit — en clair. */
+function EtatProduit({ produit }: { produit: CatalogProduct }) {
+  const etat = etatDuProduit(produit);
+  const tons = {
+    autorise: 'bg-champ-50 text-champ-700 dark:bg-champ-500/15 dark:text-champ-400',
+    delai: 'bg-ble-500/15 text-ble-600 dark:text-ble-400',
+    interdit: 'bg-brique-50 text-brique-700 dark:bg-brique-500/15 dark:text-brique-500',
+  } as const;
+  return (
+    <span className={`mt-1 inline-block max-w-full rounded-full px-2 py-0.5 text-[12px] ${tons[etat.ton]}`}>
+      {etat.libelle}
+    </span>
   );
 }

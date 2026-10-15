@@ -293,6 +293,11 @@ export type CatalogProduct = {
   authorized: boolean;
   /** Date de retrait publiée par l'ANSES, au format ISO. */
   withdrawnAt: string | null;
+  /**
+   * Retiré : fin d'utilisation la plus tardive de ses usages (ISO) — il
+   * s'emploie encore jusque-là. Absent d'un serveur antérieur à la 0.10.4.
+   */
+  finUtilisation?: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];

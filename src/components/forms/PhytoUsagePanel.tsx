@@ -43,6 +43,7 @@ export function PhytoUsagePanel({
   dose,
   doseUnit,
   parcelDrained,
+  appliedOn,
 }: {
   productId: string | null;
   /** Culture retenue pour la comparaison (libellé E-Phy ou saisie). */
@@ -52,6 +53,11 @@ export function PhytoUsagePanel({
   doseUnit: string;
   /** `null` = non renseigné sur la parcelle, et non « non drainé ». */
   parcelDrained: boolean | null;
+  /**
+   * Date du traitement (`aaaa-mm-jj`). Les usages se jugent à cette date : un
+   * usage retiré vaut jusqu'à sa fin d'utilisation publiée.
+   */
+  appliedOn?: string;
 }) {
   const [data, setData] = useState<ProductUsages | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,13 +98,15 @@ export function PhytoUsagePanel({
   const doseNombre = Number(dose);
   const controle = useMemo(() => {
     if (!data || !Number.isFinite(doseNombre) || doseNombre <= 0) return null;
+    const le = appliedOn ? new Date(`${appliedOn}T12:00:00Z`) : new Date();
     return checkDose({
       usages: data.usages,
       crop: crop || null,
       dose: doseNombre,
       doseUnit,
+      at: Number.isNaN(le.getTime()) ? new Date() : le,
     });
-  }, [data, crop, doseNombre, doseUnit]);
+  }, [data, crop, doseNombre, doseUnit, appliedOn]);
 
   /** Usages en vigueur pour la culture retenue, pour le tableau des ZNT. */
   const usagesCulture = useMemo(() => {

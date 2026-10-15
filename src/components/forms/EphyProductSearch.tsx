@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/client/api';
 import { Alert, Badge, Spinner } from '@/components/ui';
+import { etatDuProduit } from '@/lib/shared/produits';
 
 export type EphyProduct = {
   id: string;
@@ -12,6 +13,8 @@ export type EphyProduct = {
   status: string | null;
   authorized: boolean;
   withdrawnAt: string | null;
+  /** Retiré : utilisable jusqu'à cette date (délai d'écoulement), si l'ANSES la publie. */
+  finUtilisation?: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];
@@ -105,13 +108,15 @@ export function EphyProductSearch({
   const lastSync = dateCourte(source?.lastSyncAt ?? null);
 
   if (selected) {
-    const retraitLe = dateCourte(selected.withdrawnAt);
+    const etat = etatDuProduit(selected);
     return (
       <div
         className={`rounded-lg border p-3.5 ${
-          selected.authorized
+          etat.ton === 'autorise'
             ? 'border-champ-300 bg-accent-soft'
-            : 'border-brique-400 bg-brique-50 dark:bg-brique-700/15'
+            : etat.ton === 'delai'
+              ? 'border-ble-300 bg-ble-50 dark:bg-ble-700/15'
+              : 'border-brique-400 bg-brique-50 dark:bg-brique-700/15'
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -129,8 +134,8 @@ export function EphyProductSearch({
             ) : null}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {selected.status ? (
-                <Badge tone={selected.authorized ? 'green' : 'red'}>
-                  {selected.authorized ? 'Autorisé' : 'Retiré du marché'}
+                <Badge tone={etat.ton === 'autorise' ? 'green' : etat.ton === 'delai' ? 'amber' : 'red'}>
+                  {etat.libelle}
                 </Badge>
               ) : null}
               {selected.formulation ? <Badge>{selected.formulation}</Badge> : null}
@@ -146,12 +151,17 @@ export function EphyProductSearch({
           </button>
         </div>
 
-        {!selected.authorized ? (
+        {etat.ton === 'delai' ? (
+          <p className="mt-2.5 rounded-md bg-ble-100 px-2.5 py-2 text-[13px] leading-relaxed text-ble-800 dark:bg-ble-700/25 dark:text-ble-200">
+            Produit retiré du marché, encore dans son délai d’écoulement : un
+            stock acheté avant le retrait s’emploie jusqu’au{' '}
+            {dateCourte(selected.finUtilisation ?? null)}, sur les usages que le
+            catalogue publiait. Après cette date, l’appliquer est interdit.
+          </p>
+        ) : etat.ton === 'interdit' ? (
           <p className="mt-2.5 rounded-md bg-brique-100 px-2.5 py-2 text-[13px] leading-relaxed text-brique-700 dark:bg-brique-700/25 dark:text-brique-200">
-            Ce produit ne figure plus parmi les produits autorisés du catalogue
-            E-Phy{retraitLe ? ` (retrait au ${retraitLe})` : ''}. Il reste
-            sélectionnable pour compléter un registre antérieur au retrait ;
-            l’appliquer aujourd’hui ne l’est pas.
+            {etat.libelle}. Il reste sélectionnable pour compléter un registre
+            antérieur ; l’appliquer aujourd’hui ne l’est pas.
           </p>
         ) : null}
 
@@ -211,21 +221,22 @@ export function EphyProductSearch({
                     {product.substances.join(', ')}
                   </p>
                 ) : null}
-                <span
-                  className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[12.5px] font-medium sm:text-[11px] ${
-                    product.authorized
-                      ? 'bg-accent-soft text-champ-800 dark:text-champ-300'
-                      : 'bg-brique-100 text-brique-700 dark:bg-brique-700/30 dark:text-brique-200'
-                  }`}
-                >
-                  {product.authorized
-                    ? 'Autorisé'
-                    : `Retiré${
-                        dateCourte(product.withdrawnAt)
-                          ? ` le ${dateCourte(product.withdrawnAt)}`
-                          : ' du marché'
+                {(() => {
+                  const etat = etatDuProduit(product);
+                  return (
+                    <span
+                      className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[12.5px] font-medium sm:text-[11px] ${
+                        etat.ton === 'autorise'
+                          ? 'bg-accent-soft text-champ-800 dark:text-champ-300'
+                          : etat.ton === 'delai'
+                            ? 'bg-ble-100 text-ble-800 dark:bg-ble-700/30 dark:text-ble-200'
+                            : 'bg-brique-100 text-brique-700 dark:bg-brique-700/30 dark:text-brique-200'
                       }`}
-                </span>
+                    >
+                      {etat.libelle}
+                    </span>
+                  );
+                })()}
               </button>
             </li>
           ))}

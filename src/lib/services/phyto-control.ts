@@ -128,14 +128,37 @@ export async function buildPhytoWarnings(
       }
     : PULVERISATEUR_NON_RENSEIGNE;
 
-  // --- Le produit est-il encore autorisé à la date du traitement ? ---------
+  // --- Le produit est-il encore utilisable à la date du traitement ? -------
+  //
+  // Retiré ne veut pas dire interdit : l'ANSES publie, usage par usage, une
+  // fin d'utilisation — le délai d'écoulement des stocks. Jusque-là, un bidon
+  // acheté avant le retrait s'emploie légalement. Avertir dès la date de
+  // retrait faisait passer pour irrégulier un traitement qui ne l'est pas.
   if (!isAuthorizedStatus(product.status)) {
     const retrait = product.withdrawnAt;
-    if (retrait && input.appliedOn > retrait) {
+    const finUtilisation = product.usages
+      .map((u) => u.endUsage)
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    const jour = (d: Date) => d.toLocaleDateString('fr-FR', { timeZone: 'UTC' });
+    if (finUtilisation && input.appliedOn > finUtilisation) {
+      warnings.push(
+        `${product.name} ne pouvait plus être utilisé à la date de ce traitement : ` +
+          `retiré du catalogue E-Phy${retrait ? ` le ${jour(retrait)}` : ''}, sa fin ` +
+          `d’utilisation était le ${jour(finUtilisation)}. Vérifiez la date saisie ou le produit employé.`,
+      );
+    } else if (finUtilisation && retrait && input.appliedOn > retrait) {
+      warnings.push(
+        `${product.name} est retiré du catalogue E-Phy depuis le ${jour(retrait)} ; ` +
+          `son utilisation reste permise jusqu’au ${jour(finUtilisation)} (délai d’écoulement des stocks), ` +
+          'sur les usages que le catalogue publiait. Après cette date, il ne pourra plus être appliqué.',
+      );
+    } else if (retrait && input.appliedOn > retrait) {
       warnings.push(
         `${product.name} a été retiré du catalogue E-Phy le ` +
           `${retrait.toLocaleDateString('fr-FR')}, soit avant la date de ce ` +
-          'traitement. Vérifiez la date saisie ou le produit employé.',
+          'traitement, et le catalogue ne publie pas de fin d’utilisation. ' +
+          'Vérifiez la date saisie ou le produit employé.',
       );
     } else if (!retrait) {
       warnings.push(

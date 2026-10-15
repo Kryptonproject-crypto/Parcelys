@@ -70,6 +70,11 @@ export type CatalogUsage = {
   zntArthropodM: string | null;
   zntPlantM: string | null;
   conditions: string | null;
+  /**
+   * Fin d'utilisation publiée (ISO), pour un usage retiré encore dans son
+   * délai d'écoulement. Absente des instantanés antérieurs à la 0.10.4.
+   */
+  endUsage?: string | null;
 };
 
 /**
@@ -129,6 +134,8 @@ export type ProduitLocal = {
   status: string | null;
   authorized: boolean;
   withdrawnAt: string | null;
+  /** Retiré : fin d'utilisation la plus tardive de ses usages (délai d'écoulement). */
+  finUtilisation: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];
@@ -172,6 +179,24 @@ function normaliser(valeur: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
+/**
+ * La fin d'utilisation la plus tardive des usages d'un produit retiré : tant
+ * qu'elle n'est pas passée, le produit s'emploie encore (délai d'écoulement).
+ */
+export function finUtilisationEmbarquee(entree: OfflineCatalogueEntry): string | null {
+  if (entree.authorized) return null;
+  const fins = entree.usages
+    .map((u) => u.endUsage)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  return fins[fins.length - 1] ?? null;
+}
+
+function encoreUtilisable(entree: OfflineCatalogueEntry, maintenant: Date): boolean {
+  const fin = finUtilisationEmbarquee(entree);
+  return Boolean(fin && new Date(fin).getTime() >= maintenant.getTime());
+}
+
 function versProduit(entree: OfflineCatalogueEntry): ProduitLocal {
   return {
     id: entree.productId,
@@ -181,6 +206,7 @@ function versProduit(entree: OfflineCatalogueEntry): ProduitLocal {
     status: entree.status,
     authorized: entree.authorized,
     withdrawnAt: entree.withdrawnAt,
+    finUtilisation: finUtilisationEmbarquee(entree),
     formulation: entree.formulation,
     productType: entree.productType,
     substances: entree.substances,
@@ -200,6 +226,7 @@ export function chercherHorsLigne(
   referential: CatalogueEmbarque | null | undefined,
   terme: string,
   inclureRetires = false,
+  maintenant: Date = new Date(),
 ): ProduitLocal[] {
   const catalogue = referential?.phytoCatalogue ?? [];
   const cherche = normaliser(terme);
@@ -211,7 +238,10 @@ export function chercherHorsLigne(
 
   return catalogue
     .filter((entree) => {
-      if (!inclureRetires && !entree.authorized) return false;
+      // Un retiré encore dans son délai d'écoulement s'emploie : il sort
+      // d'office. Le numéro d'AMM exact, lu sur le bidon, aussi.
+      const exact = chiffres.length >= 6 && entree.amm === chiffres;
+      if (!inclureRetires && !entree.authorized && !exact && !encoreUtilisable(entree, maintenant)) return false;
       if (chiffres.length >= 4 && entree.amm.startsWith(chiffres)) return true;
       if (normaliser(entree.name).includes(cherche)) return true;
       return entree.substances.some((s: string) => normaliser(s).includes(cherche));

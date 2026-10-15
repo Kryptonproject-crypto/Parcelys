@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma, resetDatabase } from './helpers/db';
 import { importEphyData } from '../src/lib/ephy/import';
-import { getEphySourceInfo, searchProducts, getProductDetail } from '../src/lib/ephy/search';
+import { getEphySourceInfo, searchProducts, getProductDetail, getProductUsages } from '../src/lib/ephy/search';
 import { resolveDataFile } from '../src/lib/ephy/schema';
 
 /**
@@ -351,6 +351,55 @@ describe('Référentiel E-Phy', () => {
     // La date de retrait est restituée telle que publiée (15/03/2024).
     const retire = tous.results.find((r) => r.amm === '9900002');
     expect(retire?.withdrawnAt?.slice(0, 10)).toBe('2024-03-15');
+  });
+
+  /**
+   * Retiré ne veut pas dire interdit : jusqu'à la fin d'utilisation publiée,
+   * un bidon acheté avant le retrait s'emploie. Constaté sur l'exploitation :
+   * ANKORA (AMM 2230520), retiré le 10/12/2025, utilisable jusqu'au
+   * 10/12/2026, était introuvable dans l'application.
+   */
+  it('propose un produit retiré encore dans son délai d’écoulement, et l’AMM exacte', async () => {
+    await importEphyData(
+      { products: toWindows1252(PRODUCTS_CSV) },
+      { sourceLabel: 'échantillon de test' },
+    );
+    const beta = await prisma.phytosanitaryProduct.findUniqueOrThrow({ where: { amm: '9900002' } });
+    const fin = new Date('2026-12-10T00:00:00Z');
+    await prisma.phytoUsage.create({
+      data: {
+        productId: beta.id,
+        cropLabel: 'Blé',
+        cropNormalized: 'ble',
+        usageLabel: 'Blé*Désherbage',
+        doseValue: '0.6',
+        doseUnit: 'L/ha',
+        status: 'Retrait',
+        endUsage: fin,
+      },
+    });
+
+    // Dans le délai : proposé d'office, après les autorisés, avec sa date.
+    const dansLeDelai = await searchProducts({ query: 'PRODUIT TEST', at: new Date('2026-10-15T00:00:00Z') });
+    expect(dansLeDelai.results.map((r) => r.amm)).toEqual(['9900001', '9900003', '9900002']);
+    expect(dansLeDelai.results[2]?.finUtilisation?.slice(0, 10)).toBe('2026-12-10');
+    expect(dansLeDelai.withdrawnHidden).toBe(0);
+
+    // Son usage « Retrait » vaut encore : la fiche le donne, avec sa fin.
+    const usages = await getProductUsages('9900002', new Date('2026-10-15T00:00:00Z'));
+    expect(usages?.crops).toEqual(['Blé']);
+    expect(usages?.usages[0]?.endUsage?.slice(0, 10)).toBe('2026-12-10');
+
+    // Le délai passé : écarté de nouveau, et la fiche n'a plus d'usage.
+    const apres = await searchProducts({ query: 'PRODUIT TEST', at: new Date('2026-12-11T00:00:00Z') });
+    expect(apres.results.map((r) => r.amm)).not.toContain('9900002');
+    expect(apres.withdrawnHidden).toBe(1);
+    expect((await getProductUsages('9900002', new Date('2026-12-11T00:00:00Z')))?.usages).toHaveLength(0);
+
+    // Mais le numéro lu sur l'étiquette le trouve toujours.
+    const parAmm = await searchProducts({ query: '9900002', at: new Date('2027-06-01T00:00:00Z') });
+    expect(parAmm.results.map((r) => r.amm)).toEqual(['9900002']);
+    expect(parAmm.results[0]?.authorized).toBe(false);
   });
 
   it('compte les produits autorisés séparément du catalogue complet', async () => {

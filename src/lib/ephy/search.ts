@@ -15,6 +15,12 @@ export type ProductSearchHit = {
   authorized: boolean;
   /** Date de retrait publiée par l'ANSES, au format ISO. */
   withdrawnAt: string | null;
+  /**
+   * Pour un produit retiré : la date de fin d'utilisation la plus tardive de
+   * ses usages, au format ISO — le produit peut encore être appliqué jusque-là
+   * (délai d'écoulement des stocks). `null` si l'ANSES n'en publie pas.
+   */
+  finUtilisation: string | null;
   formulation: string | null;
   productType: string | null;
   substances: string[];
@@ -69,23 +75,34 @@ export async function getEphySourceInfo(): Promise<ProductSearchResponse['source
 /**
  * Recherche un produit par nom commercial, second nom ou numéro d'AMM.
  *
- * **Les produits retirés sont écartés par défaut.** Le catalogue officiel est
- * un historique : à l'édition du 8 septembre 2026, il compte 15 139 produits
- * dont 12 449 retirés du marché. Les lister comme les autres — ce que faisait
- * la version précédente — noyait les quelques produits utilisables sous une
- * majorité de produits qu'on n'a plus le droit d'appliquer, et donnait
- * l'impression d'un catalogue faux alors qu'il est simplement complet.
+ * **Les produits retirés et devenus inutilisables sont écartés par défaut.**
+ * Le catalogue officiel est un historique : à l'édition du 8 septembre 2026,
+ * il compte 15 139 produits dont 12 449 retirés du marché. Les lister comme
+ * les autres noyait les quelques produits utilisables sous une majorité de
+ * produits qu'on n'a plus le droit d'appliquer.
  *
- * On ne les supprime pas pour autant : un traitement enregistré en 2019 porte
- * légitimement sur un produit retiré depuis, et le registre doit rester
- * vérifiable. `includeWithdrawn` les fait réapparaître, et la réponse dit
- * toujours combien ont été écartés.
+ * Trois exceptions, parce qu'elles correspondent à des produits qu'on a
+ * réellement en main :
+ *
+ *   · un produit retiré **encore dans son délai d'écoulement** — l'ANSES
+ *     publie, usage par usage, une date de fin d'utilisation ; tant qu'elle
+ *     n'est pas passée, le bidon acheté avant le retrait s'emploie
+ *     légalement. Il est proposé d'office, après les autorisés, avec sa date ;
+ *   · une recherche par **numéro d'AMM exact** : on lit le numéro sur
+ *     l'étiquette, le produit doit sortir, retiré ou non ;
+ *   · `includeWithdrawn`, qui fait réapparaître tous les autres — un
+ *     traitement enregistré en 2019 porte légitimement sur un produit retiré
+ *     depuis.
+ *
+ * La réponse dit toujours combien de produits ont été écartés.
  */
 export async function searchProducts(params: {
   query: string;
   /** Inclure les produits retirés du marché. Faux par défaut. */
   includeWithdrawn?: boolean;
   limit?: number;
+  /** Date de référence du délai d'écoulement ; aujourd'hui par défaut. */
+  at?: Date;
 }): Promise<ProductSearchResponse> {
   const source = await getEphySourceInfo();
   const query = params.query.trim();
@@ -95,10 +112,11 @@ export async function searchProducts(params: {
   if (query.length < 2 || !source.configured) return vide;
 
   const normalized = normalizeSearchTerm(query);
-  const isAmm = /^\d{6,10}$/.test(query.replace(/\s/g, ''));
+  const chiffres = query.replace(/\s/g, '');
+  const isAmm = /^\d{6,10}$/.test(chiffres);
 
   const matchQuery = isAmm
-    ? { amm: { contains: query.replace(/\s/g, '') } }
+    ? { amm: { contains: chiffres } }
     : {
         OR: [
           { normalizedName: { contains: normalized } },
@@ -108,17 +126,40 @@ export async function searchProducts(params: {
         ],
       };
 
+  const maintenant = params.at ?? new Date();
   const autorise = { status: { contains: 'autoris', mode: 'insensitive' as const } };
+  const encoreUtilisable = { usages: { some: { endUsage: { gte: maintenant } } } };
   const enAutorise = { AND: [matchQuery, autorise] };
-  const enRetire = { AND: [matchQuery, { NOT: autorise }] };
+  const enDelai = { AND: [matchQuery, { NOT: autorise }, encoreUtilisable] };
+  // Le numéro exact lu sur l'étiquette : retiré ou non, il sort.
+  const ammExact = isAmm ? { amm: chiffres } : null;
+  const enRetire = {
+    AND: [
+      matchQuery,
+      { NOT: autorise },
+      { NOT: encoreUtilisable },
+      ...(params.includeWithdrawn || !ammExact ? [] : [ammExact]),
+    ],
+  };
+  const montrerRetires = params.includeWithdrawn || Boolean(ammExact);
 
   const inclure = {
     substances: { include: { substance: { select: { name: true } } } },
+    // La fin d'utilisation la plus tardive : jusqu'où le produit s'emploie.
+    usages: {
+      where: { endUsage: { not: null } },
+      select: { endUsage: true },
+      orderBy: { endUsage: 'desc' as const },
+      take: 1,
+    },
   } as const;
 
-  const [nbAutorises, nbRetires, autorises] = await Promise.all([
+  const [nbAutorises, nbEnDelai, nbRetires, autorises] = await Promise.all([
     prisma.phytosanitaryProduct.count({ where: enAutorise }),
-    prisma.phytosanitaryProduct.count({ where: enRetire }),
+    prisma.phytosanitaryProduct.count({ where: enDelai }),
+    prisma.phytosanitaryProduct.count({
+      where: { AND: [matchQuery, { NOT: autorise }, { NOT: encoreUtilisable }] },
+    }),
     prisma.phytosanitaryProduct.findMany({
       where: enAutorise,
       take: limit,
@@ -127,25 +168,39 @@ export async function searchProducts(params: {
     }),
   ]);
 
-  // Les autorisés d'abord, en deux requêtes plutôt qu'un tri sur `status` :
-  // classer « AUTORISE » avant « RETIRE » par ordre alphabétique marcherait
-  // aujourd'hui et cesserait de marcher le jour où l'ANSES ajoute un état.
-  const manquants = limit - autorises.length;
-  const retires =
-    params.includeWithdrawn && manquants > 0
+  // Les autorisés d'abord, puis les retirés encore utilisables, puis les
+  // autres retirés s'ils sont demandés — en requêtes séparées plutôt qu'un tri
+  // sur `status`, qui cesserait de marcher le jour où l'ANSES ajoute un état.
+  const enDelaiTrouves =
+    limit - autorises.length > 0
       ? await prisma.phytosanitaryProduct.findMany({
-          where: enRetire,
-          take: manquants,
+          where: enDelai,
+          take: limit - autorises.length,
           orderBy: [{ name: 'asc' }],
           include: inclure,
         })
       : [];
+  const reste = limit - autorises.length - enDelaiTrouves.length;
+  const retires =
+    montrerRetires && reste > 0
+      ? await prisma.phytosanitaryProduct.findMany({
+          where: enRetire,
+          take: reste,
+          orderBy: [{ name: 'asc' }],
+          include: inclure,
+        })
+      : [];
+  const retiresMontres = params.includeWithdrawn
+    ? nbRetires
+    : ammExact
+      ? await prisma.phytosanitaryProduct.count({ where: enRetire })
+      : 0;
 
   return {
     source,
-    total: params.includeWithdrawn ? nbAutorises + nbRetires : nbAutorises,
-    withdrawnHidden: params.includeWithdrawn ? 0 : nbRetires,
-    results: [...autorises, ...retires].map(toHit),
+    total: nbAutorises + nbEnDelai + retiresMontres,
+    withdrawnHidden: nbRetires - retiresMontres,
+    results: [...autorises, ...enDelaiTrouves, ...retires].map(toHit),
   };
 }
 
@@ -159,15 +214,20 @@ export function toHit(p: {
   formulation: string | null;
   productType: string | null;
   substances: Array<{ substance: { name: string } }>;
+  /** Les usages portant une fin d'utilisation, la plus tardive en tête. */
+  usages?: Array<{ endUsage: Date | null }>;
 }): ProductSearchHit {
+  const autorise = isAuthorizedStatus(p.status);
+  const fin = p.usages?.map((u) => u.endUsage).filter((d): d is Date => d !== null).sort((a, b) => b.getTime() - a.getTime())[0];
   return {
     id: p.id,
     amm: p.amm,
     name: p.name,
     holder: p.holder,
     status: p.status,
-    authorized: isAuthorizedStatus(p.status),
+    authorized: autorise,
     withdrawnAt: p.withdrawnAt?.toISOString() ?? null,
+    finUtilisation: autorise ? null : (fin?.toISOString() ?? null),
     formulation: p.formulation,
     productType: p.productType,
     substances: p.substances.map((s) => s.substance.name),
@@ -241,12 +301,23 @@ export type ProductUsagesResponse = {
  */
 export async function getProductUsages(
   idOrAmm: string,
+  /** Date de référence du délai d'écoulement ; aujourd'hui par défaut. */
+  at: Date = new Date(),
 ): Promise<ProductUsagesResponse | null> {
   const product = await prisma.phytosanitaryProduct.findFirst({
     where: { OR: [{ id: idOrAmm }, { amm: idOrAmm }] },
     include: {
       usages: {
-        where: { status: { contains: 'autoris', mode: 'insensitive' } },
+        // Les usages en vigueur, et ceux d'un produit retiré encore dans leur
+        // délai d'écoulement : jusqu'à leur fin d'utilisation, ils
+        // s'appliquent légalement, avec leur dose et leurs ZNT. Sans eux, un
+        // produit retiré mais utilisable n'avait plus ni culture ni dose.
+        where: {
+          OR: [
+            { status: { contains: 'autoris', mode: 'insensitive' } },
+            { endUsage: { gte: at } },
+          ],
+        },
         orderBy: [{ cropLabel: 'asc' }, { targetLabel: 'asc' }],
         take: 800,
       },
@@ -291,6 +362,9 @@ export async function getProductUsages(
       zntArthropodM: u.zntArthropodM,
       zntPlantM: u.zntPlantM,
       conditions: u.conditions,
+      // La fin d'utilisation : c'est elle qui dit, à la date du traitement, si
+      // l'usage d'un produit retiré vaut encore.
+      endUsage: u.endUsage?.toISOString() ?? null,
     })),
     drainedSoilRestrictions: product.conditions.map((c) => ({
       category: c.category,

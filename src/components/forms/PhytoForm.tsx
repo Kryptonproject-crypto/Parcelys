@@ -14,6 +14,7 @@ import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/compon
 import type { CropYearRow } from '@/app/(app)/parcelles/[id]/types';
 import { nomCourtDeCulture } from '@/lib/shared/cultures';
 import { uniteAffichee } from '@/lib/shared/unites';
+import { etatDuProduit } from '@/lib/shared/produits';
 
 /** Un produit en stock, avec ses lots et ce qu'il en reste. */
 type ProduitEnStock = {
@@ -50,6 +51,9 @@ export function PhytoForm({
   const [treatedArea, setTreatedArea] = useState(parcelAreaHa.toFixed(4));
   const [cropYearId, setCropYearId] = useState('');
   const [cropLabel, setCropLabel] = useState('');
+  // La date décide quels usages valent : un produit retiré s'emploie jusqu'à
+  // sa fin d'utilisation, pas au-delà.
+  const [appliedOn, setAppliedOn] = useState(() => new Date().toISOString().slice(0, 10));
   const [captureWeather, setCaptureWeather] = useState(hasLocation);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,7 +213,7 @@ export function PhytoForm({
                   <span className="block text-[14px] font-medium text-ink">{s.produit.name}</span>
                   <span className="block text-[12.5px] text-ink-3">
                     AMM {s.produit.amm} · reste {quantite(s.reste)} {s.unite ?? ''} · {s.lots.length} lot{s.lots.length > 1 ? 's' : ''}
-                    {s.produit.authorized ? '' : ' · retiré du marché'}
+                    {s.produit.authorized ? '' : ` · ${etatDuProduit(s.produit).libelle.toLowerCase()}`}
                   </span>
                 </button>
               </li>
@@ -291,7 +295,8 @@ export function PhytoForm({
             id="appliedOn"
             name="appliedOn"
             type="date"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            value={appliedOn}
+            onChange={(e) => setAppliedOn(e.target.value)}
             required
           />
         </Field>
@@ -383,6 +388,7 @@ export function PhytoForm({
         dose={dose}
         doseUnit={doseUnit}
         parcelDrained={parcelDrained}
+        appliedOn={appliedOn}
       />
 
       {preview ? (

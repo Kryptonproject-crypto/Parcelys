@@ -273,6 +273,58 @@ describe('Contrôles phytosanitaires (dose, retrait, sol drainé)', () => {
     ).toBe(false);
   });
 
+  /**
+   * Retiré ne veut pas dire interdit : jusqu'à la fin d'utilisation publiée
+   * (délai d'écoulement), le produit s'emploie. Cas réel : ANKORA, retiré le
+   * 10/12/2025, utilisable jusqu'au 10/12/2026.
+   */
+  it('ne reproche pas un produit retiré employé dans son délai d’écoulement, et le reproche après', async () => {
+    const ankora = await prisma.phytosanitaryProduct.create({
+      data: {
+        amm: '9990009',
+        name: 'PRODUIT EN DÉLAI',
+        normalizedName: 'produit en delai',
+        status: 'RETIRE',
+        withdrawnAt: new Date('2025-12-10T00:00:00Z'),
+        usages: {
+          create: [
+            {
+              usageLabel: 'Blé*Trt Part.Aer.*Désherbage',
+              cropLabel: 'Blé',
+              cropNormalized: 'ble',
+              doseValue: '0.6',
+              doseUnit: 'L/ha',
+              status: 'Retrait',
+              endUsage: new Date('2026-12-10T00:00:00Z'),
+            },
+          ],
+        },
+      },
+    });
+    const saisir = (appliedOn: string, dose = 0.6) =>
+      client.post<{ warnings?: string[] }>(`/api/parcels/${parcelNonRenseigneeId}/phytosanitary`, {
+        appliedOn,
+        productId: ankora.id,
+        productName: 'PRODUIT EN DÉLAI',
+        cropLabel: 'Blé',
+        dose,
+        doseUnit: 'L/ha',
+        treatedAreaHa: 1,
+      });
+
+    const dansLeDelai = (await saisir('2026-10-15')).body.warnings ?? [];
+    const rappel = dansLeDelai.find((w) => w.includes('PRODUIT EN DÉLAI est retiré'));
+    expect(rappel).toContain('reste permise jusqu’au 10/12/2026');
+    expect(dansLeDelai.some((w) => w.includes('ne pouvait plus être utilisé'))).toBe(false);
+    // L'usage « Retrait » vaut encore : la dose se compare, sans « usage inconnu ».
+    expect(dansLeDelai.some((w) => w.includes('Aucun usage autorisé'))).toBe(false);
+    const surdose = (await saisir('2026-11-15', 2)).body.warnings ?? [];
+    expect(surdose.some((w) => w.includes('Surdosage'))).toBe(true);
+
+    const apres = (await saisir('2026-12-11')).body.warnings ?? [];
+    expect(apres.find((w) => w.includes('ne pouvait plus être utilisé'))).toContain('fin d’utilisation était le 10/12/2026');
+  });
+
   // -------------------------------------------------------------------------
   // Sol drainé
   // -------------------------------------------------------------------------
