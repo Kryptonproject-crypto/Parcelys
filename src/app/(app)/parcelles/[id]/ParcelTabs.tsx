@@ -34,6 +34,7 @@ import {
 import type { ParcelTabsProps } from '@/app/(app)/parcelles/[id]/types';
 import { ParcelContextCard } from '@/components/regulatory/ParcelContextCard';
 import { IconAttachment, IconCrops, IconDocuments, IconFile, IconHistory, IconImage, IconInputs, IconOperation, IconPhyto } from '@/components/ui/icons';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 const TABS = [
   { key: 'general', label: 'Général' },
@@ -315,7 +316,9 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         </Badge>
                       ) : null}
                     </Td>
-                    <Td className="font-medium">{cy.cropName}</Td>
+                    <Td className="font-medium">
+                      <span title={cy.cropName}>{nomCourtDeCulture(cy.cropName)}</span>
+                    </Td>
                     <Td>{cy.variety ?? '—'}</Td>
                     <Td>{formatDateFr(cy.sowingDate)}</Td>
                     <Td>{formatDateFr(cy.expectedHarvestDate)}</Td>
@@ -452,7 +455,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
                 {cropYears.map((cy) => (
                   <li key={cy.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                     <span className="text-sm text-ink">
-                      {cy.cropName} — campagne {cy.campaignYear}
+                      {nomCourtDeCulture(cy.cropName)} — campagne {cy.campaignYear}
                     </span>
                     <span className="flex items-center gap-2.5">
                       {cy.planFumure ? (
@@ -1004,7 +1007,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
           parcelId={parcel.id}
           cropYears={cropYears.map((cy) => ({
             id: cy.id,
-            label: `${cy.campaignYear} — ${cy.cropName}`,
+            label: `${cy.campaignYear} — ${nomCourtDeCulture(cy.cropName)}`,
           }))}
           onDone={() => setModal(null)}
         />

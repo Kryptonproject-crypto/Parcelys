@@ -12,6 +12,8 @@ import {
 import { PhytoUsagePanel } from '@/components/forms/PhytoUsagePanel';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 import type { CropYearRow } from '@/app/(app)/parcelles/[id]/types';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
+import { uniteAffichee } from '@/lib/shared/unites';
 
 /** Un produit en stock, avec ses lots et ce qu'il en reste. */
 type ProduitEnStock = {
@@ -249,7 +251,7 @@ export function PhytoForm({
             <option value="">— Aucun lot (stock non mouvementé) —</option>
             {stockDuProduit.lots.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.lotNumber ? `Lot ${l.lotNumber}` : 'Lot sans numéro'} · reste {quantite(l.reste)} {l.unit}
+                {l.lotNumber ? `Lot ${l.lotNumber}` : 'Lot sans numéro'} · reste {quantite(l.reste)} {uniteAffichee(l.unit)}
                 {l.purchasedOn ? ` · acheté le ${new Date(l.purchasedOn).toLocaleDateString('fr-FR')}` : ''}
                 {l.expiresOn ? ` · DLU ${new Date(l.expiresOn).toLocaleDateString('fr-FR')}` : ''}
               </option>
@@ -303,7 +305,7 @@ export function PhytoForm({
             <option value="">— Non rattaché —</option>
             {cropYears.map((cy) => (
               <option key={cy.id} value={cy.id}>
-                {cy.cropName} — campagne {cy.campaignYear}
+                {nomCourtDeCulture(cy.cropName)} — campagne {cy.campaignYear}
               </option>
             ))}
           </Select>

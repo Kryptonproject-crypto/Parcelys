@@ -3,6 +3,7 @@ import type { AppContext } from '../App';
 import { readOutbox } from '../lib/db';
 import type { QueuedOperation } from '../lib/types';
 import { Badge, Button, Card, EmptyState, Header, formatDateFr } from '../components/ui';
+import { uniteAffichee } from '@commun/unites';
 
 /**
  * Le stock phytosanitaire, au champ.
@@ -95,14 +96,14 @@ export function StockScreen({ context }: { context: AppContext }) {
                   {p.amm ? <p className="text-[12.5px] text-ink-3">AMM {p.amm}</p> : null}
                 </div>
                 <Badge tone="green">
-                  {quantite(p.reste)} {p.unit}
+                  {quantite(p.reste)} {uniteAffichee(p.unit)}
                 </Badge>
               </div>
               <ul className="mt-2 space-y-0.5">
                 {p.lots.map((lot) => (
                   <li key={lot.id} className="text-[12.5px] text-ink-2">
                     {lot.lotNumber ? `Lot ${lot.lotNumber}` : 'Lot sans numéro'} · reste {quantite(lot.reste)}{' '}
-                    {lot.unit}
+                    {uniteAffichee(lot.unit)}
                     {lot.expiresOn ? ` · DLU ${formatDateFr(lot.expiresOn)}` : ''}
                   </li>
                 ))}

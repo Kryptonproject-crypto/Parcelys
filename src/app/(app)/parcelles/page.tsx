@@ -17,6 +17,13 @@ import { CampagneBanniere, CampagneChamp } from '@/components/campagne/CampagneC
 import { campagneARecommander, resumeCampagnes } from '@/lib/services/campagnes';
 import { identifiantsParcellesTrouvees } from '@/lib/services/recherche-parcelles';
 import {
+  COULEUR_FAMILLE,
+  comparerParcelles,
+  familleVisuelle,
+  nomCourtDeCulture,
+  nomDitLeNumero,
+} from '@/lib/shared/cultures';
+import {
   Badge,
   Card,
   EmptyState,
@@ -148,6 +155,10 @@ export default async function ParcelsPage({
     resumeCampagnes(ctx.farmId),
   ]);
 
+  // « Îlot 2 » avant « Îlot 10 », « 4-3 » avant « 4-26 » : l'ordre de la
+  // déclaration, pas l'ordre alphabétique.
+  parcels.sort(comparerParcelles);
+
   const visibleIds = new Set(parcels.map((p) => p.id));
   const mapParcels: MapParcel[] = geojson.features
     .filter((f) => visibleIds.has(f.properties.id))
@@ -206,116 +217,116 @@ export default async function ParcelsPage({
             }}
           />
 
-          {/* Filtres */}
+          {/*
+            Filtres : la recherche, la culture et la campagne d'abord — ce
+            qu'on cherche neuf fois sur dix. Le reste dans « Plus de filtres »,
+            ouvert d'office quand l'un d'eux est actif.
+          */}
           <Card className="mb-5">
-            <form method="get" className="grid gap-3 md:grid-cols-5">
-              <div className="md:col-span-2">
-                <label htmlFor="q" className="mb-1 block text-xs font-medium text-ink-2">
-                  Recherche
-                </label>
-                <Input
-                  id="q"
-                  name="q"
-                  type="search"
-                  defaultValue={params.q ?? ''}
-                  placeholder="Nom, n° interne, commune, lieu-dit…"
-                />
-              </div>
+            <form method="get" className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-start">
+                <div className="min-w-0">
+                  <label htmlFor="q" className="mb-1 block text-xs font-medium text-ink-2">
+                    Recherche
+                  </label>
+                  <Input
+                    id="q"
+                    name="q"
+                    type="search"
+                    defaultValue={params.q ?? ''}
+                    placeholder="Nom, n° interne, commune, lieu-dit…"
+                  />
+                </div>
 
-              <div>
-                <label htmlFor="culture" className="mb-1 block text-xs font-medium text-ink-2">
-                  Culture
-                </label>
-                <Select
-                  id="culture"
-                  name="culture"
-                  defaultValue={params.culture ?? ''}
-                >
-                  <option value="">Toutes</option>
-                  {crops.map((crop) => (
-                    <option key={crop.id} value={crop.id}>
-                      {crop.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <div>
-                <label htmlFor="statut" className="mb-1 block text-xs font-medium text-ink-2">
-                  Statut
-                </label>
-                <Select
-                  id="statut"
-                  name="statut"
-                  defaultValue={params.statut ?? ''}
-                >
-                  <option value="">Tous</option>
-                  {Object.entries(PARCEL_STATUS_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <CampagneChamp campagnes={campagnes} annee={year} />
-
-              <div className="md:col-span-2">
-                <label htmlFor="type" className="mb-1 block text-xs font-medium text-ink-2">
-                  Type de parcelle
-                </label>
-                <Select
-                  id="type"
-                  name="type"
-                  defaultValue={params.type ?? ''}
-                >
-                  <option value="">Tous</option>
-                  {PARCEL_TYPES.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="commune" className="mb-1 block text-xs font-medium text-ink-2">
-                  Commune
-                </label>
-                <Select
-                  id="commune"
-                  name="commune"
-                  defaultValue={params.commune ?? ''}
-                >
-                  <option value="">Toutes</option>
-                  {communes.map((c) =>
-                    c.commune ? (
-                      <option key={c.commune} value={c.commune}>
-                        {c.commune}
+                <div className="min-w-0">
+                  <label htmlFor="culture" className="mb-1 block text-xs font-medium text-ink-2">
+                    Culture
+                  </label>
+                  <Select id="culture" name="culture" defaultValue={params.culture ?? ''}>
+                    <option value="">Toutes</option>
+                    {crops.map((crop) => (
+                      <option key={crop.id} value={crop.id}>
+                        {nomCourtDeCulture(crop.name)}
                       </option>
-                    ) : null,
-                  )}
-                </Select>
+                    ))}
+                  </Select>
+                </div>
+
+                <div className="min-w-0">
+                  <CampagneChamp campagnes={campagnes} annee={year} />
+                </div>
+
+                <div className="flex items-end gap-2 md:pt-5">
+                  <button
+                    type="submit"
+                    className="h-10 flex-1 rounded-lg bg-champ-600 px-4 text-sm font-medium text-white transition hover:bg-champ-700 md:flex-none"
+                  >
+                    Filtrer
+                  </button>
+                  {hasFilters ? (
+                    <Link
+                      href="/parcelles"
+                      className="flex h-10 items-center rounded-lg border border-line-strong px-3 text-sm text-ink-2 transition hover:bg-surface-2"
+                    >
+                      Réinitialiser
+                    </Link>
+                  ) : null}
+                </div>
               </div>
+
+              <details
+                className="group"
+                open={Boolean(params.statut || params.type || params.commune) || undefined}
+              >
+                <summary className="cursor-pointer select-none text-sm font-medium text-champ-700 hover:underline dark:text-champ-400">
+                  Plus de filtres
+                </summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="min-w-0">
+                    <label htmlFor="statut" className="mb-1 block text-xs font-medium text-ink-2">
+                      Statut
+                    </label>
+                    <Select id="statut" name="statut" defaultValue={params.statut ?? ''}>
+                      <option value="">Tous</option>
+                      {Object.entries(PARCEL_STATUS_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="min-w-0">
+                    <label htmlFor="type" className="mb-1 block text-xs font-medium text-ink-2">
+                      Type de parcelle
+                    </label>
+                    <Select id="type" name="type" defaultValue={params.type ?? ''}>
+                      <option value="">Tous</option>
+                      {PARCEL_TYPES.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="min-w-0">
+                    <label htmlFor="commune" className="mb-1 block text-xs font-medium text-ink-2">
+                      Commune
+                    </label>
+                    <Select id="commune" name="commune" defaultValue={params.commune ?? ''}>
+                      <option value="">Toutes</option>
+                      {communes.map((c) =>
+                        c.commune ? (
+                          <option key={c.commune} value={c.commune}>
+                            {c.commune}
+                          </option>
+                        ) : null,
+                      )}
+                    </Select>
+                  </div>
+                </div>
+              </details>
 
               <input type="hidden" name="vue" value={view} />
-
-              <div className="flex items-end gap-2">
-                <button
-                  type="submit"
-                  className="h-10 flex-1 rounded-lg bg-champ-600 px-4 text-sm font-medium text-white transition hover:bg-champ-700"
-                >
-                  Filtrer
-                </button>
-                {hasFilters ? (
-                  <Link
-                    href="/parcelles"
-                    className="flex h-10 items-center rounded-lg border border-line-strong px-3 text-sm text-ink-2 transition hover:bg-surface-2"
-                  >
-                    Réinitialiser
-                  </Link>
-                ) : null}
-              </div>
             </form>
           </Card>
 
@@ -387,8 +398,8 @@ export default async function ParcelsPage({
                     <Td align="right">{formatNumberFr(parcel.areaHa, 4)} ha</Td>
                     <Td>
                       {parcel.cropYears[0] ? (
-                        <span>
-                          {parcel.cropYears[0].crop.name}
+                        <span title={parcel.cropYears[0].crop.name}>
+                          {nomCourtDeCulture(parcel.cropYears[0].crop.name)}
                           {parcel.cropYears[0].variety ? (
                             <span className="text-ink-3">
                               {' '}
@@ -416,67 +427,78 @@ export default async function ParcelsPage({
               </tbody>
             </TableWrapper>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {parcels.map((parcel) => (
-                <Link
-                  key={parcel.id}
-                  href={lienFiche(parcel.id)}
-                  className="rounded-xl border border-line bg-surface p-4 transition hover:border-champ-300 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-semibold text-ink">
-                        {parcel.name}
-                      </h3>
-                      {parcel.internalNumber ? (
-                        <p className="text-xs text-ink-3">
-                          N° {parcel.internalNumber}
-                        </p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {parcels.map((parcel) => {
+                const culture = parcel.cropYears[0]?.crop.name ?? null;
+                const precisions = [
+                  nomDitLeNumero(parcel.name, parcel.internalNumber) ? null : `N° ${parcel.internalNumber}`,
+                  parcel.lieuDit,
+                  parcel.commune,
+                ].filter(Boolean);
+                const interventions =
+                  parcel._count.fertilizations + parcel._count.phytoTreatments + parcel._count.operations;
+                return (
+                  <Link
+                    key={parcel.id}
+                    href={lienFiche(parcel.id)}
+                    className="group flex min-w-0 flex-col rounded-xl border border-line bg-surface p-4 transition hover:border-champ-300 hover:shadow-md"
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold text-ink group-hover:text-champ-700 dark:group-hover:text-champ-400">
+                          {parcel.name}
+                        </h3>
+                        {precisions.length > 0 ? (
+                          <p className="truncate text-xs text-ink-3">{precisions.join(' · ')}</p>
+                        ) : null}
+                      </div>
+                      <p className="shrink-0 text-lg font-semibold tabular-nums text-ink">
+                        {formatNumberFr(parcel.areaHa, 2)}
+                        <span className="ml-0.5 text-xs font-normal text-ink-3">ha</span>
+                      </p>
+                    </div>
+
+                    <p className="mt-3 flex min-w-0 items-center gap-2 text-sm" title={culture ?? undefined}>
+                      {culture ? (
+                        <>
+                          <span
+                            aria-hidden
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: COULEUR_FAMILLE[familleVisuelle(culture)] }}
+                          />
+                          <span className="truncate text-ink-2">{nomCourtDeCulture(culture)}</span>
+                        </>
+                      ) : (
+                        <span className="text-ble-600 dark:text-ble-400">Culture {year} non renseignée</span>
+                      )}
+                    </p>
+
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2.5 text-xs text-ink-3">
+                      <span className="flex gap-3.5">
+                        <span className="flex items-center gap-1" title="Apports">
+                          <IconInputs size={13} aria-hidden />
+                          {parcel._count.fertilizations}
+                        </span>
+                        <span className="flex items-center gap-1" title="Traitements">
+                          <IconPhyto size={13} aria-hidden />
+                          {parcel._count.phytoTreatments}
+                        </span>
+                        <span className="flex items-center gap-1" title="Travaux">
+                          <IconOperation size={13} aria-hidden />
+                          {parcel._count.operations}
+                        </span>
+                        <span className="sr-only">{interventions} intervention(s)</span>
+                      </span>
+                      {/* « En production » est l'état ordinaire : seul l'inhabituel s'affiche. */}
+                      {parcel.status !== 'ACTIVE' ? (
+                        <Badge tone={STATUS_TONES[parcel.status] ?? 'neutral'}>
+                          {PARCEL_STATUS_LABELS[parcel.status] ?? parcel.status}
+                        </Badge>
                       ) : null}
                     </div>
-                    <Badge tone={STATUS_TONES[parcel.status] ?? 'neutral'}>
-                      {PARCEL_STATUS_LABELS[parcel.status] ?? parcel.status}
-                    </Badge>
-                  </div>
-
-                  <p className="mt-3 text-2xl font-semibold tabular-nums text-champ-700 dark:text-champ-400">
-                    {formatNumberFr(parcel.areaHa, 2)}
-                    <span className="ml-1 text-sm font-normal text-ink-3">ha</span>
-                  </p>
-
-                  <dl className="mt-3 space-y-1 text-sm">
-                    <div className="flex gap-2">
-                      <dt className="text-ink-3">Commune :</dt>
-                      <dd className="truncate text-ink">
-                        {parcel.commune ?? '—'}
-                      </dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="text-ink-3">Culture :</dt>
-                      <dd className="truncate text-ink">
-                        {parcel.cropYears[0]?.crop.name ?? (
-                          <span className="text-ble-600">Non renseignée</span>
-                        )}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <div className="mt-3 flex gap-4 border-t border-line pt-2.5 text-xs text-ink-3">
-                    <span className="flex items-center gap-1" title="Apports">
-                      <IconInputs size={13} aria-hidden />
-                      {parcel._count.fertilizations}
-                    </span>
-                    <span className="flex items-center gap-1" title="Traitements">
-                      <IconPhyto size={13} aria-hidden />
-                      {parcel._count.phytoTreatments}
-                    </span>
-                    <span className="flex items-center gap-1" title="Travaux">
-                      <IconOperation size={13} aria-hidden />
-                      {parcel._count.operations}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </>

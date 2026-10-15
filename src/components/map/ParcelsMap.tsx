@@ -9,11 +9,11 @@ import {
   configureLeaflet,
   FRANCE_CENTER,
   FRANCE_ZOOM,
-  PARCEL_STYLE,
   PARCEL_STYLE_SELECTED,
   type BaseLayerKey,
 } from '@/components/map/leaflet-setup';
-import { lignesDEtiquette } from '@/lib/shared/carte';
+import { lignesDEtiquette, styleParcelle } from '@/lib/shared/carte';
+import { LegendeCultures } from '@/components/ui/LegendeCultures';
 import type { MultiPolygonGeometry } from '@/lib/geo/types';
 
 export type MapParcel = {
@@ -210,7 +210,7 @@ export function ParcelsMap({
 
     for (const parcel of parcels) {
       const layer = L.geoJSON(parcel.geometry, {
-        style: parcel.id === selectedId ? PARCEL_STYLE_SELECTED : PARCEL_STYLE,
+        style: parcel.id === selectedId ? PARCEL_STYLE_SELECTED : styleParcelle(parcel.crop),
       });
 
       // Le contenu du libellé vient du terrain commun : l'application de
@@ -241,7 +241,7 @@ export function ParcelsMap({
 
       layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.45 }));
       layer.on('mouseout', () =>
-        layer.setStyle(parcel.id === selectedId ? PARCEL_STYLE_SELECTED : PARCEL_STYLE),
+        layer.setStyle(parcel.id === selectedId ? PARCEL_STYLE_SELECTED : styleParcelle(parcel.crop)),
       );
 
       layer.addTo(map);
@@ -362,6 +362,10 @@ export function ParcelsMap({
         className={`${heightClass} w-full overflow-hidden rounded-xl border border-line`}
       />
 
+      {parcels.length > 1 ? (
+        <LegendeCultures noms={parcels.map((p) => p.crop)} className="mt-2 px-0.5" />
+      ) : null}
+
       {/*
         Sous la carte et non par-dessus : sur un téléphone, un panneau flottant
         recouvrirait justement les parcelles qu'on veut situer.
@@ -372,8 +376,16 @@ export function ParcelsMap({
         </p>
       ) : null}
       {regulatoryLayers.length > 0 ? (
-        <div className="mt-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
-          <p className="text-[12.5px] font-medium text-ink-2">Couches réglementaires</p>
+        // Repliées par défaut : la liste est longue, et la carte passe avant.
+        <details className="mt-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+          <summary className="cursor-pointer select-none text-[12.5px] font-medium text-ink-2">
+            Couches réglementaires
+            <span className="ml-1.5 font-normal text-ink-3">
+              {couchesActives.length > 0
+                ? `${couchesActives.length} affichée${couchesActives.length > 1 ? 's' : ''} sur ${regulatoryLayers.length}`
+                : `${regulatoryLayers.length} disponibles — cours d’eau, zonages…`}
+            </span>
+          </summary>
           {erreurCouche ? <p className="mt-1 text-[12px] text-red-700 dark:text-red-400">{erreurCouche}</p> : null}
           <ul className="mt-1.5 space-y-1.5">
             {regulatoryLayers.map((couche) => {
@@ -419,7 +431,7 @@ export function ParcelsMap({
               );
             })}
           </ul>
-        </div>
+        </details>
       ) : null}
     </div>
   );

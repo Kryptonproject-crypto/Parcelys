@@ -13,6 +13,7 @@ import { FlaskConical as IconFlask, Wheat as IconHarvest } from 'lucide-react';
 import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
 import type { ControleRegle } from '@/lib/regulatory/programme-actions';
 import { RegleTrace } from '@/components/regulatory/RegleTrace';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 /**
  * Saisie d'un apport.
@@ -226,7 +227,7 @@ export function FertilizationForm({
             <option value="">— Non rattaché —</option>
             {cropYears.map((cy) => (
               <option key={cy.id} value={cy.id}>
-                {cy.cropName} — campagne {cy.campaignYear}
+                {nomCourtDeCulture(cy.cropName)} — campagne {cy.campaignYear}
               </option>
             ))}
           </Select>

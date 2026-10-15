@@ -13,6 +13,7 @@ import {
   formatDateFr,
 } from '@/components/ui';
 import { IconHistory } from '@/components/ui/icons';
+import { comparerParcelles, libelleParcelle } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Historique' };
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export default async function HistoryPage({
     where: { farmId: ctx.farmId, deletedAt: null },
     select: { id: true, name: true, internalNumber: true },
     orderBy: { name: 'asc' },
-  });
+  }).then((liste) => liste.sort(comparerParcelles));
 
   const parcelIds =
     params.parcelle && parcels.some((p) => p.id === params.parcelle)
@@ -97,8 +98,7 @@ export default async function HistoryPage({
               <option value="">Toutes les parcelles</option>
               {parcels.map((parcel) => (
                 <option key={parcel.id} value={parcel.id}>
-                  {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                  {parcel.name}
+                  {libelleParcelle(parcel)}
                 </option>
               ))}
             </Select>

@@ -33,6 +33,7 @@ import {
   formatDateFr,
   today,
 } from '../components/ui';
+import { uniteAffichee } from '@commun/unites';
 
 export type EntryKind = 'phyto' | 'apport' | 'travaux' | 'couvert';
 
@@ -610,7 +611,7 @@ export function EntryScreen({
                       >
                         <span className="block text-[14px] font-medium text-ink">{s.nom}</span>
                         <span className="block text-[12.5px] text-ink-3">
-                          {s.amm ? `AMM ${s.amm} · ` : ''}reste {s.reste.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {s.unit} · {s.lots.length} lot{s.lots.length > 1 ? 's' : ''}
+                          {s.amm ? `AMM ${s.amm} · ` : ''}reste {s.reste.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {uniteAffichee(s.unit)} · {s.lots.length} lot{s.lots.length > 1 ? 's' : ''}
                         </span>
                       </button>
                     </li>
@@ -925,7 +926,7 @@ export function EntryScreen({
                     <option key={lot.id} value={lot.id}>
                       {lot.itemName}
                       {lot.lotNumber ? ` · lot ${lot.lotNumber}` : ' · sans numéro'}
-                      {` · reste ${lot.reste} ${lot.unit}`}
+                      {` · reste ${lot.reste} ${uniteAffichee(lot.unit)}`}
                     </option>
                   ))}
                 </Select>

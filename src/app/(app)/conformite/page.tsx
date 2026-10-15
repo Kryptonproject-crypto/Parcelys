@@ -4,8 +4,9 @@ import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { buildComplianceReport } from '@/lib/regulatory/compliance';
 import { computeFarmIft } from '@/lib/regulatory/ift';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
-import { Badge, Card, PageHeader } from '@/components/ui';
-import { RegleTrace } from '@/components/regulatory/RegleTrace';
+import { Card, PageHeader } from '@/components/ui';
+import { GroupeConstats, TONS_CONSTAT as TONS } from '@/components/regulatory/GroupeConstats';
+import { regrouperConstats } from '@/lib/regulatory/regrouper-constats';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Conformité' };
@@ -19,13 +20,6 @@ export const metadata: Metadata = { title: 'Conformité' };
  *
  * Il ne dit jamais « vous êtes conforme ». Voir `buildComplianceReport`.
  */
-
-const TONS: Record<string, { badge: 'green' | 'neutral' | 'amber' | 'red'; libelle: string }> = {
-  OK: { badge: 'green', libelle: 'Vérifié' },
-  INDETERMINE: { badge: 'neutral', libelle: 'Non vérifiable' },
-  VERIFICATION: { badge: 'amber', libelle: 'À vérifier' },
-  ANOMALIE: { badge: 'red', libelle: 'Anomalie' },
-};
 
 const DOMAINES: Record<string, string> = {
   ZONAGE: 'Zonages',
@@ -76,7 +70,7 @@ export default async function CompliancePage({
         <p className="mt-3 text-[13.5px]">
           <Link
             href={`/conformite/dossier?annee=${campagne}`}
-            className="text-champ-700 underline-offset-2 hover:underline"
+            className="text-champ-700 underline-offset-2 hover:underline dark:text-champ-400"
           >
             Ouvrir le dossier de contrôle de la campagne {campagne}
           </Link>
@@ -133,40 +127,25 @@ export default async function CompliancePage({
         ))}
       </Card>
 
-      {[...parDomaine.entries()].map(([domaine, findings]) => (
-        <Card key={domaine} className="mb-4">
-          <h2 className="text-[16px] font-semibold text-ink">
-            {DOMAINES[domaine] ?? domaine}
-          </h2>
-          <ul className="mt-3 space-y-2.5">
-            {findings.map((finding, index) => (
-              <li
-                key={`${finding.code}-${finding.parcelId ?? index}`}
-                className="rounded-lg border border-line p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={TONS[finding.level]?.badge ?? 'neutral'}>
-                    {TONS[finding.level]?.libelle}
-                  </Badge>
-                  <span className="text-[14.5px] font-medium text-ink">{finding.title}</span>
-                </div>
-                <p className="mt-1 text-[13.5px] leading-relaxed text-ink-2">{finding.detail}</p>
-                {finding.action ? (
-                  <p className="mt-1.5 text-[13px] text-ink-3">→ {finding.action}</p>
-                ) : null}
-                {finding.trace ? (
-                  <RegleTrace trace={finding.trace} />
-                ) : finding.sourceLabel ? (
-                  <p className="mt-1.5 border-t border-line pt-1.5 text-[11.5px] text-ink-3">
-                    Règle issue de {finding.sourceLabel}
-                    {finding.referentialVersion ? `, version ${finding.referentialVersion}` : ''}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ))}
+      {[...parDomaine.entries()].map(([domaine, findings]) => {
+        const groupes = regrouperConstats(findings);
+        return (
+          <Card key={domaine} className="mb-4">
+            <h2 className="text-[16px] font-semibold text-ink">
+              {DOMAINES[domaine] ?? domaine}
+              <span className="ml-2 text-[13px] font-normal text-ink-3">
+                {findings.length} constat{findings.length > 1 ? 's' : ''}
+                {groupes.length < findings.length ? `, ${groupes.length} distinct${groupes.length > 1 ? 's' : ''}` : ''}
+              </span>
+            </h2>
+            <ul className="mt-3 space-y-2.5">
+              {groupes.map((groupe) => (
+                <GroupeConstats key={groupe.cle} groupe={groupe} />
+              ))}
+            </ul>
+          </Card>
+        );
+      })}
 
       {rapport.findings.length === 0 ? (
         <Card>

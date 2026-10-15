@@ -27,6 +27,7 @@ import {
   IconPlus,
   IconRegistry,
 } from '@/components/ui/icons';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Parcelle suivie' };
 export const dynamic = 'force-dynamic';
@@ -119,7 +120,7 @@ export default async function ExpertParcelPage({
         />
         <StatCard
           label={`Culture ${year}`}
-          value={current?.crop.name ?? '—'}
+          value={nomCourtDeCulture(current?.crop.name) ?? '—'}
           hint={current?.variety ?? 'Aucune culture déclarée'}
           icon={IconParcels}
         />
@@ -202,7 +203,7 @@ export default async function ExpertParcelPage({
                   >
                     <span className="min-w-0">
                       <span className="block font-medium text-ink">
-                        {entry.crop.name}
+                        {nomCourtDeCulture(entry.crop.name)}
                       </span>
                       {entry.variety ? (
                         <span className="block text-[12.5px] text-ink-3">

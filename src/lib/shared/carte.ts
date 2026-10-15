@@ -1,3 +1,5 @@
+import { COULEUR_FAMILLE, familleVisuelle, nomCourtDeCulture, nomDitLeNumero } from './cultures';
+
 /**
  * Apparence de la carte des parcelles, partagée entre le site et l'application.
  *
@@ -8,9 +10,9 @@
  * toujours par diverger, et l'exploitant verrait alors ses parcelles d'une
  * couleur au bureau et d'une autre au champ, sans comprendre pourquoi.
  *
- * Ce fichier n'importe rien — il est lu par `mobile/`, dont les dépendances ne
- * sont pas installées à la racine. Il ne contient donc aucune référence à
- * Leaflet : seulement les valeurs que Leaflet consomme.
+ * Ce fichier n'importe que le terrain commun — il est lu par `mobile/`, dont
+ * les dépendances ne sont pas installées à la racine. Il ne contient donc
+ * aucune référence à Leaflet : seulement les valeurs que Leaflet consomme.
  */
 
 /** Tracé d'une parcelle au repos. */
@@ -21,6 +23,17 @@ export const STYLE_PARCELLE = {
   fillColor: '#4b8b3d',
   fillOpacity: 0.25,
 } as const;
+
+/**
+ * Tracé d'une parcelle selon sa culture : la couleur de sa famille (prairies,
+ * céréales, maïs…), la même que dans les listes. Sans culture, le vert
+ * habituel. La parcelle désignée garde son ocre : elle doit ressortir.
+ */
+export function styleParcelle(cropName: string | null | undefined) {
+  if (!cropName) return STYLE_PARCELLE;
+  const couleur = COULEUR_FAMILLE[familleVisuelle(cropName)];
+  return { ...STYLE_PARCELLE, color: couleur, fillColor: couleur, fillOpacity: 0.32 };
+}
 
 /** Tracé de la parcelle désignée : elle doit se distinguer d'un coup d'œil. */
 export const STYLE_PARCELLE_CHOISIE = {
@@ -116,14 +129,17 @@ export function lignesDEtiquette(parcelle: {
   areaHa: number;
   cropName: string | null;
 }): string[] {
-  const titre = parcelle.internalNumber
-    ? `${parcelle.internalNumber} · ${parcelle.name}`
-    : parcelle.name;
+  // « 4-3 · Îlot 4 — parcelle 3 » disait deux fois la même chose.
+  const titre =
+    parcelle.internalNumber && !nomDitLeNumero(parcelle.name, parcelle.internalNumber)
+      ? `${parcelle.internalNumber} · ${parcelle.name}`
+      : parcelle.name;
+  const culture = nomCourtDeCulture(parcelle.cropName);
 
   return [
     titre,
     `${parcelle.areaHa.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} ha`,
-    ...(parcelle.cropName ? [parcelle.cropName] : []),
+    ...(culture ? [culture] : []),
     ...(parcelle.commune ? [parcelle.commune] : []),
   ];
 }

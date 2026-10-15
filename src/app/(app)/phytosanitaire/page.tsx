@@ -24,6 +24,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import { IconPhyto } from '@/components/ui/icons';
+import { comparerParcelles, libelleParcelle, nomCourtDeCulture } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Phytosanitaire' };
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ export default async function PhytosanitaryPage({
     where: { farmId: ctx.farmId, deletedAt: null },
     select: { id: true, name: true, internalNumber: true },
     orderBy: { name: 'asc' },
-  });
+  }).then((liste) => liste.sort(comparerParcelles));
   const parcelIds = parcels.map((p) => p.id);
 
   const where: Prisma.PhytosanitaryApplicationWhereInput = {
@@ -184,8 +185,7 @@ export default async function PhytosanitaryPage({
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
                 <option key={parcel.id} value={parcel.id}>
-                  {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                  {parcel.name}
+                  {libelleParcelle(parcel)}
                 </option>
               ))}
             </Select>
@@ -252,11 +252,14 @@ export default async function PhytosanitaryPage({
                     href={`/parcelles/${row.parcel.id}?onglet=phytosanitaire`}
                     className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
-                    {row.parcel.internalNumber ? `${row.parcel.internalNumber} — ` : ''}
-                    {row.parcel.name}
+                    {libelleParcelle(row.parcel)}
                   </Link>
                 </Td>
-                <Td>{row.cropYear?.crop.name ?? row.cropLabel ?? '—'}</Td>
+                <Td>
+                  <span title={row.cropYear?.crop.name ?? row.cropLabel ?? undefined}>
+                    {nomCourtDeCulture(row.cropYear?.crop.name ?? row.cropLabel) ?? '—'}
+                  </span>
+                </Td>
                 <Td className="font-medium">{row.productName}</Td>
                 <Td>
                   {row.amm ? (

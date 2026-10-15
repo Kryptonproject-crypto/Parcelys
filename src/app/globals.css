@@ -173,6 +173,19 @@ body {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
+/*
+ * Un élément de grille ne s'élargit jamais au-delà de sa colonne.
+ *
+ * Par défaut, un élément de grille ne descend pas sous la largeur de son
+ * contenu le plus long ; un libellé de la nomenclature PAC passé en
+ * `truncate` élargissait sa colonne, puis la page, et le téléphone affichait
+ * le site dézoomé. La troncature et les tableaux défilants font alors leur
+ * travail.
+ */
+.grid > * {
+  min-width: 0;
+}
+
 ::selection {
   background: var(--accent-soft);
   color: var(--accent-ink);

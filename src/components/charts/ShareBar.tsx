@@ -89,7 +89,9 @@ export function ShareBar({
       </div>
 
       {/* Légende — toujours présente, avec la valeur en clair. */}
-      <ul className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+      {/* `grid-cols-1` : une colonne implicite prend la largeur du plus long
+          libellé, et la légende élargissait la page sur un téléphone. */}
+      <ul className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
         {slices.map((slice) => (
           <li
             key={slice.label}

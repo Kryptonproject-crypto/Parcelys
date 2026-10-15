@@ -1322,6 +1322,13 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.10.3
+
+La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`),
+puis **relancez la compilation de l’APK** (Actions → « APK Android » → *Run
+workflow*) et réinstallez-la : le nouvel écran d’accueil, le filtre par
+culture et les couleurs de la carte sont dans l’application.
+
 ### Passer en 0.10.2
 
 La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`).

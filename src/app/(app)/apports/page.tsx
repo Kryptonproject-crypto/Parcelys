@@ -21,6 +21,8 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import { IconInputs } from '@/components/ui/icons';
+import { comparerParcelles, nomCourtDeCulture } from '@/lib/shared/cultures';
+import { libelleParcelle } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Apports' };
 export const dynamic = 'force-dynamic';
@@ -39,7 +41,7 @@ export default async function FertilizationPage({
     where: { farmId: ctx.farmId, deletedAt: null },
     select: { id: true, name: true, internalNumber: true },
     orderBy: { name: 'asc' },
-  });
+  }).then((liste) => liste.sort(comparerParcelles));
   const parcelIds = parcels.map((p) => p.id);
 
   const where: Prisma.FertilizerApplicationWhereInput = {
@@ -113,8 +115,7 @@ export default async function FertilizationPage({
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
                 <option key={parcel.id} value={parcel.id}>
-                  {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                  {parcel.name}
+                  {libelleParcelle(parcel)}
                 </option>
               ))}
             </Select>
@@ -225,11 +226,12 @@ export default async function FertilizationPage({
                     href={`/parcelles/${row.parcel.id}?onglet=apports`}
                     className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
-                    {row.parcel.internalNumber ? `${row.parcel.internalNumber} — ` : ''}
-                    {row.parcel.name}
+                    {libelleParcelle(row.parcel)}
                   </Link>
                 </Td>
-                <Td>{row.cropYear?.crop.name ?? '—'}</Td>
+                <Td>
+                  <span title={row.cropYear?.crop.name}>{nomCourtDeCulture(row.cropYear?.crop.name) ?? '—'}</span>
+                </Td>
                 <Td>
                   <Badge tone={row.inputType === 'ORGANIC' ? 'green' : 'blue'}>
                     {row.inputType === 'ORGANIC' ? 'Organique' : 'Minéral'}

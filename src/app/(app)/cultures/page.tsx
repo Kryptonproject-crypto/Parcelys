@@ -21,6 +21,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import { IconCrops } from '@/components/ui/icons';
+import { COULEUR_FAMILLE, familleVisuelle, nomCourtDeCulture, nomDitLeNumero } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Cultures' };
 export const dynamic = 'force-dynamic';
@@ -124,18 +125,30 @@ export default async function CropsPage({
                 const share = totalArea > 0 ? (stats.areaHa / totalArea) * 100 : 0;
                 return (
                   <div key={name}>
-                    <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                      {/* Les libellés PAC sont longs : le nom passe à la ligne, les chiffres restent d'un bloc. */}
-                      <span className="min-w-0 font-medium text-ink">{name}</span>
-                      <span className="shrink-0 whitespace-nowrap tabular-nums text-ink-3">
+                    <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
+                      {/* La forme courte, le libellé entier au survol. Sur un
+                          téléphone, les chiffres passent sous le nom plutôt
+                          que de le tronquer. */}
+                      <span className="flex min-w-[9rem] flex-1 items-center gap-2 font-medium text-ink" title={name}>
+                        <span
+                          aria-hidden
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: COULEUR_FAMILLE[familleVisuelle(name)] }}
+                        />
+                        <span className="truncate">{nomCourtDeCulture(name)}</span>
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap pl-[1.125rem] tabular-nums text-ink-3 sm:pl-0">
                         {formatNumberFr(stats.areaHa, 2)} ha · {stats.parcelCount} parcelle
                         {stats.parcelCount > 1 ? 's' : ''} · {share.toFixed(0)} %
                       </span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-surface-3">
                       <div
-                        className="h-full rounded-full bg-champ-500"
-                        style={{ width: `${Math.max(share, 1)}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(share, 1)}%`,
+                          backgroundColor: COULEUR_FAMILLE[familleVisuelle(name)],
+                        }}
                       />
                     </div>
                   </div>
@@ -204,12 +217,16 @@ export default async function CropsPage({
                     href={`/parcelles/${cy.parcel.id}?onglet=culture`}
                     className="font-medium text-champ-700 dark:text-champ-400 hover:underline"
                   >
-                    {cy.parcel.internalNumber ? `${cy.parcel.internalNumber} — ` : ''}
+                    {cy.parcel.internalNumber && !nomDitLeNumero(cy.parcel.name, cy.parcel.internalNumber)
+                      ? `${cy.parcel.internalNumber} — `
+                      : ''}
                     {cy.parcel.name}
                   </Link>
                 </Td>
                 <Td align="right">{formatNumberFr(cy.parcel.areaHa, 4)} ha</Td>
-                <Td className="min-w-[11rem] max-w-[18rem] font-medium">{cy.crop.name}</Td>
+                <Td className="min-w-[11rem] max-w-[18rem] font-medium">
+                  <span title={cy.crop.name}>{nomCourtDeCulture(cy.crop.name)}</span>
+                </Td>
                 <Td>{cy.variety ?? '—'}</Td>
                 <Td>{formatDateFr(cy.sowingDate)}</Td>
                 <Td>{formatDateFr(cy.expectedHarvestDate)}</Td>
@@ -255,7 +272,7 @@ export default async function CropsPage({
                       <Td>
                         <Link
                           href={`/parcelles/${rotation.parcelId}`}
-                          className="text-champ-700 underline-offset-2 hover:underline"
+                          className="text-champ-700 underline-offset-2 hover:underline dark:text-champ-400"
                         >
                           {rotation.parcelName}
                         </Link>
@@ -319,7 +336,7 @@ export default async function CropsPage({
         <div className="flex flex-wrap gap-1.5">
           {referential.map((crop) => (
             <Badge key={crop.id} tone={crop.isCustom ? 'blue' : 'neutral'}>
-              {crop.name}
+              <span title={crop.name}>{nomCourtDeCulture(crop.name)}</span>
             </Badge>
           ))}
         </div>

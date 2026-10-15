@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { Badge, Card } from '@/components/ui';
+import { Card } from '@/components/ui';
+import { GroupeConstats, TONS_CONSTAT as TONS } from '@/components/regulatory/GroupeConstats';
+import { regrouperConstats } from '@/lib/regulatory/regrouper-constats';
 import type { ComplianceReport } from '@/lib/regulatory/compliance';
 
 /**
@@ -17,16 +19,6 @@ import type { ComplianceReport } from '@/lib/regulatory/compliance';
  * huit gris sait qu'il n'a rien vérifié du tout ; un exploitant qui verrait huit
  * verts croirait le contraire.
  */
-
-const TONS: Record<
-  string,
-  { badge: 'green' | 'neutral' | 'amber' | 'red'; libelle: string }
-> = {
-  OK: { badge: 'green', libelle: 'Vérifié' },
-  INDETERMINE: { badge: 'neutral', libelle: 'Non vérifiable' },
-  VERIFICATION: { badge: 'amber', libelle: 'À vérifier' },
-  ANOMALIE: { badge: 'red', libelle: 'Anomalie' },
-};
 
 export function ComplianceCard({ report }: { report: ComplianceReport }) {
   const { counts } = report;
@@ -83,41 +75,19 @@ export function ComplianceCard({ report }: { report: ComplianceReport }) {
         </div>
       ) : null}
 
+      {/*
+        Les constats identiques réunis : « Parcelle en zone vulnérable — 120
+        parcelles » une fois, au lieu de cent vingt cartes qui noyaient
+        l'anomalie unique.
+      */}
       {report.findings.length > 0 ? (
         <ul className="mt-4 space-y-2">
-          {report.findings
-            .filter((f) => f.level === 'ANOMALIE' || f.level === 'VERIFICATION')
+          {regrouperConstats(
+            report.findings.filter((f) => f.level === 'ANOMALIE' || f.level === 'VERIFICATION'),
+          )
             .slice(0, 4)
-            .map((finding, index) => (
-              <li
-                key={`${finding.code}-${finding.parcelId ?? index}`}
-                className="rounded-lg border border-line p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={TONS[finding.level]?.badge ?? 'neutral'}>
-                    {TONS[finding.level]?.libelle}
-                  </Badge>
-                  <span className="text-[14px] font-medium text-ink">
-                    {finding.title}
-                  </span>
-                </div>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
-                  {finding.detail}
-                </p>
-                {finding.action ? (
-                  <p className="mt-1 text-[12.5px] text-ink-3">→ {finding.action}</p>
-                ) : null}
-                {/* La source : d'où vient la règle invoquée, dans quelle
-                    version. Sans elle, une alerte n'est qu'une opinion. */}
-                {finding.sourceLabel ? (
-                  <p className="mt-1 text-[11.5px] text-ink-3">
-                    {finding.sourceLabel}
-                    {finding.referentialVersion
-                      ? ` — version ${finding.referentialVersion}`
-                      : ''}
-                  </p>
-                ) : null}
-              </li>
+            .map((groupe) => (
+              <GroupeConstats key={groupe.cle} groupe={groupe} detailDeplie={false} />
             ))}
         </ul>
       ) : null}

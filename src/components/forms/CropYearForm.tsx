@@ -6,6 +6,7 @@ import { ApiRequestError, apiPost } from '@/lib/client/api';
 import { YIELD_UNITS, currentCampaignYear } from '@/lib/constants/agronomy';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 export function CropYearForm({
   parcelId,
@@ -113,7 +114,7 @@ export function CropYearForm({
             <option value="">— Choisir —</option>
             {crops.map((crop) => (
               <option key={crop.id} value={crop.id}>
-                {crop.name}
+                {nomCourtDeCulture(crop.name)}
                 {crop.category ? ` (${crop.category})` : ''}
               </option>
             ))}

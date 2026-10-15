@@ -108,7 +108,7 @@ export default async function ControlFilePage({
                 <p className="mt-1 text-[13.5px] leading-relaxed text-ink-2">{piece.detail}</p>
                 <p className="mt-0.5 text-[12.5px] text-ink-3">{piece.usage}</p>
                 {piece.action ? (
-                  <p className="mt-1 text-[13px] text-champ-700">{piece.action}</p>
+                  <p className="mt-1 text-[13px] text-champ-700 dark:text-champ-400">{piece.action}</p>
                 ) : null}
               </li>
             ))}
@@ -224,7 +224,7 @@ export default async function ControlFilePage({
           ))}
         </ul>
         <p className="mt-3 text-[13px] text-ink-3">
-          <Link href="/conformite" className="text-champ-700 underline-offset-2 hover:underline">
+          <Link href="/conformite" className="text-champ-700 underline-offset-2 hover:underline dark:text-champ-400">
             Voir la synthèse de conformité
           </Link>{' '}
           — elle dit ce qui cloche dans les données ; ce dossier dit ce qui manque

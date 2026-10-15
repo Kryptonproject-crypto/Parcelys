@@ -48,6 +48,7 @@ import {
   IconWeather,
   type LucideIcon,
 } from '@/components/ui/icons';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Tableau de bord' };
 export const dynamic = 'force-dynamic';
@@ -118,7 +119,7 @@ export default async function DashboardPage() {
 
   const shares = buildShares(
     data.stats.currentCrops.map((crop) => ({
-      label: crop.cropName,
+      label: nomCourtDeCulture(crop.cropName) ?? crop.cropName,
       value: crop.areaHa,
       detail: `${crop.parcelCount} parcelle${crop.parcelCount > 1 ? 's' : ''}`,
     })),

@@ -6,6 +6,64 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.10.3 — Une interface qui tient sur un téléphone, des listes qu'on lit
+
+### Ce qui était cassé
+
+Les libellés de la nomenclature PAC (« Prairie permanente - herbe
+prédominante (ressources fourragères ligneuses absentes ou peu présentes) »)
+cassaient les listes : dans l'application, la culture poussait le nom de la
+parcelle hors de sa carte et l'écran glissait sur le côté ; sur le site, la
+page Parcelles et le tableau de bord s'élargissaient à 800 px, si bien qu'un
+téléphone les affichait dézoomés. Un élément de grille ne s'élargit plus
+au-delà de sa colonne, les étiquettes s'arrêtent sur des points de
+suspension, et le contrôle automatique des pages mesure désormais la largeur
+de l'appareil, plus celle de la fenêtre.
+
+### L'application de terrain
+
+- **Accueil** : quatre tuiles à portée de pouce (Où suis-je ?, Carte, Stock,
+  Conseils), une recherche avec effacement, un **filtre par culture** (« Prairie
+  permanente 58 », « Blé tendre d'hiver 12 »…) et une liste compacte : le nom,
+  la culture et sa couleur, la surface. Les parcelles se suivent dans l'ordre
+  des îlots (4-3 avant 4-26, Îlot 2 avant Îlot 10).
+- **Carte** : chaque parcelle prend la couleur de sa famille de culture
+  (prairies, céréales, maïs, oléagineux, protéagineux, fourrages, non
+  cultivé), avec la légende sous la carte.
+- **Fiche** : la culture en entier, sous la surface ; le numéro n'est plus
+  répété quand le nom le dit déjà.
+- Le voyant de synchronisation dit « À jour » en plus court ; le stock écrit
+  « L » et « mL ».
+
+### Le site
+
+- **Parcelles** : recherche, culture et campagne sur une ligne, le reste sous
+  « Plus de filtres » ; des cartes lisibles (nom, surface, culture et sa
+  couleur, interventions), « En production » n'étant plus affiché puisque
+  c'est l'état ordinaire ; ordre naturel des numéros, aussi dans les listes de
+  choix des registres, apports, traitements, documents, exports et de
+  l'historique.
+- **Conformité et tableau de bord** : les constats identiques sont regroupés —
+  « Parcelle en zone vulnérable · 53 parcelles » une fois, au lieu de
+  cinquante-trois cartes. Le détail parcelle par parcelle reste à un clic ; le
+  plus grave vient en tête.
+- **Cartes** : couleur par culture et légende, comme dans l'application ; les
+  couches réglementaires se replient sous la carte.
+- **Cultures** : la répartition prend les couleurs des familles et les noms
+  courts, le libellé entier au survol.
+- Les liens verts restent lisibles en mode sombre.
+
+### Audit
+
+Les 71 pages du site, sur ordinateur et sur téléphone, et les 14 écrans de
+l'application ont été parcourus automatiquement sur une exploitation de 134
+parcelles : aucune erreur, aucun débordement. Parcours réels vérifiés dans le
+navigateur : achat d'un produit, traitement pris dans le stock (le lot
+diminue), apport, et chacun des 24 exports (PDF, Excel, CSV), l'export
+TéléPAC, le dossier de contrôle et l'export des données du compte.
+
+---
+
 ## 0.10.2 — Les cultures sous leur vrai nom, le pulvérisateur de l'exploitation
 
 ### « Blé tendre d'hiver », plus « BTH »

@@ -8,14 +8,16 @@ import { GeolocationDenied, watchPosition } from '../lib/geolocation';
 import {
   FOND_PLAN_DEFAUT,
   FOND_SATELLITE,
-  STYLE_PARCELLE,
+  styleParcelle,
   STYLE_PARCELLE_CHOISIE,
   STYLE_POSITION,
   STYLE_PRECISION,
   ZOOM_MAX_CADRAGE,
   lignesDEtiquette,
 } from '@commun/carte';
-import { Badge, Banner, Card, Header, formatDateFr } from '../components/ui';
+import { Banner, Card, Header, formatDateFr } from '../components/ui';
+import { LegendeCultures, PointCulture } from '../components/culture';
+import { nomCourtDeCulture } from '@commun/cultures';
 import {
   actualiserCouches,
   couchesAAfficher,
@@ -227,7 +229,7 @@ export function CarteScreen({ context }: { context: AppContext }) {
 
     for (const parcel of avecContour) {
       const couche = L.geoJSON(parcel.geometry as unknown as GeometrieLeaflet, {
-        style: STYLE_PARCELLE,
+        style: styleParcelle(parcel.cropName),
       });
 
       /*
@@ -368,7 +370,11 @@ export function CarteScreen({ context }: { context: AppContext }) {
   // --- La parcelle désignée ------------------------------------------------
   useEffect(() => {
     for (const [id, couche] of couches.current) {
-      couche.setStyle(id === selection ? STYLE_PARCELLE_CHOISIE : STYLE_PARCELLE);
+      couche.setStyle(
+        id === selection
+          ? STYLE_PARCELLE_CHOISIE
+          : styleParcelle(avecContour.find((p) => p.id === id)?.cropName),
+      );
       if (id === selection) couche.bringToFront();
     }
   }, [selection]);
@@ -488,7 +494,7 @@ export function CarteScreen({ context }: { context: AppContext }) {
         title="Carte du parcellaire"
         subtitle={
           avecContour.length > 0
-            ? `${avecContour.length} parcelle(s) avec contour`
+            ? `${avecContour.length} parcelle${avecContour.length > 1 ? 's' : ''} sur la carte`
             : 'Aucun contour relevé'
         }
         onBack={back}
@@ -579,6 +585,8 @@ export function CarteScreen({ context }: { context: AppContext }) {
               l'instance — pour le plan. Aucune saisie d'utilisateur n'arrive
               ici.
             */}
+            <LegendeCultures noms={avecContour.map((p) => p.cropName)} />
+
             <p
               className="px-1 text-[11px] leading-snug text-ink-3"
               dangerouslySetInnerHTML={{
@@ -626,6 +634,12 @@ export function CarteScreen({ context }: { context: AppContext }) {
                         cropName: parcelleChoisie.cropName,
                       })[0]}
                     </p>
+                    {parcelleChoisie.cropName ? (
+                      <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
+                        <PointCulture nom={parcelleChoisie.cropName} />
+                        <span className="truncate">{nomCourtDeCulture(parcelleChoisie.cropName)}</span>
+                      </p>
+                    ) : null}
                     <p className="mt-0.5 text-[13px] text-ink-3">
                       {[
                         formatAreaHa(parcelleChoisie.areaHa),
@@ -645,9 +659,6 @@ export function CarteScreen({ context }: { context: AppContext }) {
                       Ouvrir la fiche pour renommer ou saisir une intervention →
                     </p>
                   </div>
-                  {parcelleChoisie.cropName ? (
-                    <Badge tone="green">{parcelleChoisie.cropName}</Badge>
-                  ) : null}
                 </div>
               </Card>
             ) : (

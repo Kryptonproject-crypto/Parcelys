@@ -19,6 +19,7 @@ import {
   StatCard,
 } from '@/components/ui';
 import { IconInputs, IconRain, IconTemperature, IconWeather, IconWind } from '@/components/ui/icons';
+import { libelleParcelle } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Météo' };
 export const dynamic = 'force-dynamic';
@@ -158,8 +159,7 @@ export default async function WeatherPage({
                 <option value="">Siège de l&apos;exploitation</option>
                 {parcels.map((parcel) => (
                   <option key={parcel.id} value={parcel.id}>
-                    {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                    {parcel.name}
+                    {libelleParcelle(parcel)}
                   </option>
                 ))}
               </Select>

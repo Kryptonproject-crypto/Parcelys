@@ -12,6 +12,7 @@ import {
   IconPhyto,
   IconTrend,
 } from '@/components/ui/icons';
+import { libelleParcelle } from '@/lib/shared/cultures';
 
 const DATASETS = [
   {
@@ -253,8 +254,7 @@ export function ExportBuilder({
                           : 'border-line bg-surface text-ink-2 hover:border-line-strong'
                       }`}
                     >
-                      {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                      {parcel.name}
+                      {libelleParcelle(parcel)}
                     </button>
                   );
                 })}

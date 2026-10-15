@@ -3,7 +3,9 @@ import type { AppContext } from '../App';
 import type { CachedParcel } from '../lib/types';
 import { formatAreaHa } from '../lib/geo';
 import { enqueue } from '../lib/db';
-import { Badge, Banner, Button, Card, Field, Header, Input } from '../components/ui';
+import { Banner, Button, Card, Field, Header, Input } from '../components/ui';
+import { PointCulture } from '../components/culture';
+import { nomDitLeNumero } from '@commun/cultures';
 
 /**
  * Fiche d'une parcelle : ce qu'on en sait, et ce qu'on peut y saisir.
@@ -167,7 +169,11 @@ export function ParcelScreen({
       <Header
         title={parcel.name}
         subtitle={
-          [parcel.internalNumber, parcel.lieuDit, parcel.commune]
+          [
+            nomDitLeNumero(parcel.name, parcel.internalNumber) ? null : parcel.internalNumber,
+            parcel.lieuDit,
+            parcel.commune,
+          ]
             .filter(Boolean)
             .join(' · ') || undefined
         }
@@ -238,26 +244,22 @@ export function ParcelScreen({
         ) : null}
 
         <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                Superficie
-              </p>
-              <p className="mt-0.5 text-[26px] font-bold tabular-nums text-ink">
-                {formatAreaHa(parcel.areaHa)}
-              </p>
-              <p className="text-[12px] text-ink-3">calculée par PostGIS</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">Superficie</p>
+          <p className="mt-0.5 text-[28px] font-bold leading-tight tabular-nums text-ink">
+            {formatAreaHa(parcel.areaHa)}
+          </p>
+          {/* Le libellé entier ici, et non la forme courte des listes : c'est
+              la fiche, on a la place de le lire. */}
+          <div className="mt-3 flex items-start gap-2.5 border-t border-line pt-3">
+            {parcel.cropName ? <PointCulture nom={parcel.cropName} className="mt-1.5" /> : null}
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">Culture</p>
+              {parcel.cropName ? (
+                <p className="text-[15px] font-medium leading-snug text-ink">{parcel.cropName}</p>
+              ) : (
+                <p className="text-[15px] text-ble-600 dark:text-ble-400">Non renseignée</p>
+              )}
             </div>
-            {parcel.cropName ? (
-              <div className="text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                  Culture
-                </p>
-                <div className="mt-1">
-                  <Badge tone="green">{parcel.cropName}</Badge>
-                </div>
-              </div>
-            ) : null}
           </div>
         </Card>
 

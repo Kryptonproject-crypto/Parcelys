@@ -20,6 +20,7 @@ import {
   formatNumberFr,
 } from '@/components/ui';
 import { IconRegistry } from '@/components/ui/icons';
+import { comparerParcelles, libelleParcelle } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Registres' };
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,7 @@ export default async function RegistersPage({
       where: { farmId: ctx.farmId, deletedAt: null },
       select: { id: true, name: true, internalNumber: true },
       orderBy: { name: 'asc' },
-    }),
+    }).then((liste) => liste.sort(comparerParcelles)),
     getEphySourceInfo(),
   ]);
 
@@ -128,8 +129,7 @@ export default async function RegistersPage({
                 <option value="">Toutes</option>
                 {parcels.map((parcel) => (
                   <option key={parcel.id} value={parcel.id}>
-                    {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                    {parcel.name}
+                    {libelleParcelle(parcel)}
                   </option>
                 ))}
               </Select>
@@ -236,8 +236,7 @@ export default async function RegistersPage({
               <tr key={row.id}>
                 <Td>{formatDateFr(row.appliedOn)}</Td>
                 <Td>
-                  {row.parcel.internalNumber ? `${row.parcel.internalNumber} — ` : ''}
-                  {row.parcel.name}
+                  {libelleParcelle(row.parcel)}
                 </Td>
                 <Td>{row.cropYear?.crop.name ?? row.cropLabel ?? '—'}</Td>
                 <Td className="font-medium">{row.productName}</Td>

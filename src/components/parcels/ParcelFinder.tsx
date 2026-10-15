@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Input, formatNumberFr } from '@/components/ui';
 import { IconSearch } from '@/components/ui/icons';
 import { contientSansAccent } from '@/lib/shared/texte';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 /**
  * Trouver une parcelle dans une liste qui en compte cent.
@@ -115,7 +116,7 @@ export function ParcelFinder({
                   <span className="block truncate text-[12.5px] text-ink-3">
                     {[
                       parcel.internalNumber,
-                      parcel.crop ?? 'sans culture déclarée',
+                      nomCourtDeCulture(parcel.crop) ?? 'sans culture déclarée',
                       parcel.commune,
                     ]
                       .filter(Boolean)

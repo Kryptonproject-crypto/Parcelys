@@ -14,6 +14,7 @@ import {
   formatDateFr,
 } from '@/components/ui';
 import { IconAttachment, IconDocuments, IconFile, IconImage } from '@/components/ui/icons';
+import { comparerParcelles, libelleParcelle } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Documents' };
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,7 @@ export default async function DocumentsPage({
       where: { farmId: ctx.farmId, deletedAt: null },
       select: { id: true, name: true, internalNumber: true },
       orderBy: { name: 'asc' },
-    }),
+    }).then((liste) => liste.sort(comparerParcelles)),
   ]);
 
   const totalSize = documents.reduce((sum, d) => sum + d.sizeBytes, 0);
@@ -88,8 +89,7 @@ export default async function DocumentsPage({
               <option value="">Toutes</option>
               {parcels.map((parcel) => (
                 <option key={parcel.id} value={parcel.id}>
-                  {parcel.internalNumber ? `${parcel.internalNumber} — ` : ''}
-                  {parcel.name}
+                  {libelleParcelle(parcel)}
                 </option>
               ))}
             </Select>
@@ -148,8 +148,7 @@ export default async function DocumentsPage({
                   href={`/parcelles/${doc.parcel.id}?onglet=documents`}
                   className="mt-1 block truncate text-sm text-champ-700 dark:text-champ-400 hover:underline"
                 >
-                  {doc.parcel.internalNumber ? `${doc.parcel.internalNumber} — ` : ''}
-                  {doc.parcel.name}
+                  {libelleParcelle(doc.parcel)}
                 </Link>
               ) : null}
 

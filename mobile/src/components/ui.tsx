@@ -192,9 +192,11 @@ export function Badge({
   } as const;
 
   return (
+    // Bornée à la largeur disponible : un libellé trop long s'arrête sur des
+    // points de suspension au lieu de pousser l'écran hors du téléphone.
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
+        'inline-block max-w-full truncate rounded-full px-2 py-0.5 align-middle text-[12px] font-medium',
         tones[tone],
       )}
     >
@@ -313,31 +315,36 @@ export const today = (): string => {
 // diverge de celle du moteur est une pastille qui finira par ne rien afficher.
 export type SyncTone = SyncStatus;
 
-const SYNC_LOOK: Record<SyncTone, { point: string; texte: string; libelle: string }> = {
+const SYNC_LOOK: Record<SyncTone, { point: string; texte: string; libelle: string; court: string }> = {
   synchronise: {
     point: 'bg-champ-500',
     texte: 'text-champ-700 dark:text-champ-400',
     libelle: 'Synchronisé',
+    court: 'À jour',
   },
   'en-cours': {
     point: 'bg-ble-500 animate-pulse',
     texte: 'text-ble-600 dark:text-ble-400',
     libelle: 'Envoi en cours',
+    court: 'Envoi…',
   },
   'en-attente': {
     point: 'bg-ciel-500',
     texte: 'text-ciel-600 dark:text-ciel-500',
     libelle: 'À envoyer',
+    court: 'À envoyer',
   },
   erreur: {
     point: 'bg-brique-500',
     texte: 'text-brique-600 dark:text-brique-500',
     libelle: 'Échec d’envoi',
+    court: 'Échec',
   },
   'hors-ligne': {
     point: 'bg-ink-3',
     texte: 'text-ink-3',
     libelle: 'Hors connexion',
+    court: 'Hors ligne',
   },
 };
 
@@ -345,17 +352,21 @@ export function SyncBadge({
   status,
   pending = 0,
   onClick,
+  compact = false,
 }: {
   status: SyncTone;
   /** Nombre de saisies en attente, ajouté au libellé quand il y en a. */
   pending?: number;
   onClick?: () => void;
+  /** Mot court, pour un en-tête où le nom de l'exploitation doit rester lisible. */
+  compact?: boolean;
 }) {
   const look = SYNC_LOOK[status];
+  const mot = compact ? look.court : look.libelle;
   const libelle =
     pending > 0 && (status === 'en-attente' || status === 'hors-ligne' || status === 'erreur')
-      ? `${look.libelle} · ${pending}`
-      : look.libelle;
+      ? `${mot} · ${pending}`
+      : mot;
 
   const contenu = (
     <>
@@ -385,7 +396,7 @@ export function SyncBadge({
       type="button"
       onClick={onClick}
       className={cn(classes, 'min-h-[44px] active:bg-line')}
-      aria-label={`${libelle} — ouvrir la synchronisation`}
+      aria-label={`${look.libelle}${pending > 0 ? ` · ${pending}` : ''} — ouvrir la synchronisation`}
     >
       {contenu}
     </button>

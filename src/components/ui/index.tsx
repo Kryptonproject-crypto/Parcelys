@@ -266,13 +266,16 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] sm:text-[11.5px] font-medium ring-1 ring-inset',
+        // Bornée à la largeur disponible : un libellé long (une culture de la
+        // nomenclature PAC) s'arrête sur des points de suspension au lieu
+        // d'élargir la page sur un téléphone.
+        'inline-flex max-w-full min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] sm:text-[11.5px] font-medium ring-1 ring-inset',
         BADGE_TONES[tone],
         className,
       )}
     >
-      {Icon ? <Icon size={12} aria-hidden /> : null}
-      {children}
+      {Icon ? <Icon size={12} aria-hidden className="shrink-0" /> : null}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }

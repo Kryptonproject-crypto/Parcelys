@@ -25,6 +25,7 @@ import {
   PageHeader,
   formatNumberFr,
 } from '@/components/ui';
+import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 export const dynamic = 'force-dynamic';
 
@@ -230,7 +231,9 @@ export default async function ParcelPage({
             </Badge>
             {currentCrop ? (
               <Badge tone="green">
-                {currentCrop.crop.name} — campagne {year}
+                <span title={currentCrop.crop.name}>
+                  {nomCourtDeCulture(currentCrop.crop.name)} — campagne {year}
+                </span>
               </Badge>
             ) : (
               <Badge tone="amber">Culture {year} non renseignée</Badge>

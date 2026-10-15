@@ -4,6 +4,7 @@ import { requirePageFarmAccess } from '@/lib/auth/page-guards';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
 import { ExportBuilder } from '@/app/(app)/exports/ExportBuilder';
 import { PageHeader } from '@/components/ui';
+import { comparerParcelles } from '@/lib/shared/cultures';
 
 export const metadata: Metadata = { title: 'Exportations' };
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,7 @@ export default async function ExportsPage({
     where: { farmId: ctx.farmId, deletedAt: null },
     select: { id: true, name: true, internalNumber: true },
     orderBy: { name: 'asc' },
-  });
+  }).then((liste) => liste.sort(comparerParcelles));
 
   const years = Array.from({ length: 10 }, (_, i) => currentCampaignYear() + 1 - i);
 

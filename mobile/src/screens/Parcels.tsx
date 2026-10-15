@@ -7,6 +7,19 @@ import {
   formatDistance,
 } from '../lib/geo';
 import { contientSansAccent } from '@commun/texte';
+import { comparerParcelles, nomCourtDeCulture, nomDitLeNumero } from '@commun/cultures';
+import { PointCulture } from '../components/culture';
+import {
+  IconeCarte,
+  IconeConseil,
+  IconeFermer,
+  IconeLocaliser,
+  IconePlus,
+  IconeRecherche,
+  IconeReglages,
+  IconeStock,
+  IconeSuite,
+} from '../components/icones';
 import { GeolocationDenied, currentPosition } from '../lib/geolocation';
 import type { CachedParcel, Position } from '../lib/types';
 
@@ -36,10 +49,8 @@ function centroidGeometrie(
   return { lng: somme.x / points.length, lat: somme.y / points.length };
 }
 import {
-  Badge,
   Banner,
   Button,
-  Card,
   EmptyState,
   Header,
   Input,
@@ -58,6 +69,7 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
   const { snapshot, online, pending, syncStatus, navigate, back, isExpert, readOnly } =
     context;
   const [search, setSearch] = useState('');
+  const [culture, setCulture] = useState<string | null>(null);
   const [localisation, setLocalisation] = useState<'repos' | 'recherche' | 'erreur'>(
     'repos',
   );
@@ -134,17 +146,35 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
    */
   const parcels = useMemo(() => {
     const term = search.trim();
-    const all = snapshot?.parcels ?? [];
-    if (!term) return all;
-    return all.filter((parcel) =>
-      contientSansAccent(
+    const all = [...(snapshot?.parcels ?? [])].sort(comparerParcelles);
+    return all.filter((parcel) => {
+      if (culture === SANS_CULTURE ? parcel.cropName : culture && parcel.cropName !== culture) return false;
+      if (!term) return true;
+      return contientSansAccent(
         [parcel.name, parcel.internalNumber, parcel.commune, parcel.lieuDit, parcel.cropName]
           .filter(Boolean)
           .join(' '),
         term,
-      ),
-    );
-  }, [snapshot, search]);
+      );
+    });
+  }, [snapshot, search, culture]);
+
+  /**
+   * Les cultures de l'exploitation, de la plus fréquente à la plus rare : sur
+   * cent parcelles, c'est par la culture qu'on cherche « mes blés ».
+   */
+  const cultures = useMemo(() => {
+    const parCulture = new Map<string, number>();
+    let sans = 0;
+    for (const parcel of snapshot?.parcels ?? []) {
+      if (parcel.cropName) parCulture.set(parcel.cropName, (parCulture.get(parcel.cropName) ?? 0) + 1);
+      else sans += 1;
+    }
+    return {
+      liste: [...parCulture].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr')),
+      sans,
+    };
+  }, [snapshot]);
 
   const totalArea = (snapshot?.parcels ?? []).reduce(
     (sum, parcel) => sum + parcel.areaHa,
@@ -157,21 +187,19 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         title={snapshot?.farm.name ?? 'Parcelys'}
         subtitle={
           snapshot
-            ? `${snapshot.parcels.length} parcelle(s) · ${formatAreaHa(totalArea)}`
+            ? `${snapshot.parcels.length} parcelle${snapshot.parcels.length > 1 ? 's' : ''} · ${formatAreaHa(totalArea)}`
             : 'Aucune donnée en cache'
         }
         // L'expert revient à son portefeuille ; l'exploitant est déjà chez lui.
         {...(isExpert ? { onBack: back } : {})}
         action={
-          <div className="flex items-center gap-1">
-            {/* Le voyant remplace l'ancienne icône de file : il porte l'état,
-                le nombre en attente et la navigation vers l'écran d'envoi.
-                Deux indicateurs pour la même chose finissaient par se
-                contredire — l'icône ne savait dire que « il y en a », pas
-                « ça n'est pas parti ». */}
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Le voyant porte l'état, le nombre en attente et la navigation
+                vers l'écran d'envoi. */}
             <SyncBadge
               status={syncStatus}
               pending={pending}
+              compact
               onClick={() => navigate({ name: 'queue' })}
             />
             <button
@@ -180,22 +208,13 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
               aria-label="Réglages"
               className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-2 active:bg-surface-2"
             >
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-                <path
-                  d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 003.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 3.68 1.65 1.65 0 009 2.17V2a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0020.32 8c.14.35.4.65.74.83H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <IconeReglages size={21} />
             </button>
           </div>
         }
       />
 
-      <div className="flex-1 space-y-3 px-4 py-4">
+      <div className="flex-1 space-y-4 px-4 pb-4 pt-3">
         {!online ? (
           <div className="flex items-center gap-2 rounded-xl border border-ble-500/40 bg-ble-500/10 px-3.5 py-2.5 text-[13.5px] text-ble-600 dark:text-ble-400">
             <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-current" />
@@ -211,100 +230,76 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         ) : null}
 
         {snapshot ? (
-          <button
-            type="button"
-            onClick={() => navigate({ name: 'recommendations' })}
-            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3.5 text-left active:bg-surface-2"
-          >
-            <span className="min-w-0">
-              <span className="block font-semibold text-ink">Préconisations</span>
-              <span className="block text-[13px] text-ink-3">
-                {waiting > 0
-                  ? `${waiting} en attente de décision`
-                  : isExpert
-                    ? 'Vos conseils pour ce domaine'
-                    : 'Les conseils reçus de votre expert'}
-              </span>
-            </span>
-            {waiting > 0 ? (
-              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-ble-500 px-1.5 text-[12px] font-bold text-white">
-                {waiting}
-              </span>
-            ) : (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-                className="shrink-0 text-ink-3"
-              >
-                <path
-                  d="M9 5l7 7-7 7"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </button>
-        ) : null}
-
-        {snapshot ? (
           <>
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Rechercher une parcelle"
-              inputMode="search"
-              autoCapitalize="none"
-            />
-
             {/*
-              « Où suis-je ? » — la question qu'on se pose vraiment au champ.
-              Chercher par le nom suppose qu'on le connaisse ; sur cent
-              parcelles importées d'un dossier PAC, les noms sont « Îlot 39 —
-              parcelle 3 » et personne ne les a en tête.
-
-              Le calcul se fait dans le téléphone, à partir des géométries déjà
-              en cache : la réponse arrive sans réseau, ce qui est précisément
-              la situation.
+              Les quatre gestes du champ, à portée de pouce. « Où suis-je ? »
+              répond par un nom, la carte par un dessin : les deux se calculent
+              dans le téléphone, depuis les contours en cache, donc sans réseau.
             */}
-            {/*
-              La carte répond à la même famille de question, autrement : « où
-              suis-je » répond par un nom, la carte répond par un dessin. Les
-              deux se dessinent depuis les contours déjà en cache, donc sans
-              réseau — la liste ci-dessous dit laquelle, la carte dit laquelle
-              est à côté de laquelle.
-            */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="secondary"
-                full
-                loading={localisation === 'recherche'}
+            <div className="grid grid-cols-4 gap-2">
+              <Tuile
+                libelle="Où suis-je ?"
+                icone={<IconeLocaliser />}
+                chargement={localisation === 'recherche'}
                 onClick={() => void ouLeSuisJe()}
-              >
-                Où suis-je ?
-              </Button>
-              <Button
-                variant="secondary"
-                full
-                onClick={() => navigate({ name: 'carte' })}
-              >
-                Voir la carte
-              </Button>
+              />
+              <Tuile libelle="Carte" icone={<IconeCarte />} onClick={() => navigate({ name: 'carte' })} />
+              <Tuile libelle="Stock" icone={<IconeStock />} onClick={() => navigate({ name: 'stock' })} />
+              <Tuile
+                libelle="Conseils"
+                icone={<IconeConseil />}
+                pastille={waiting}
+                onClick={() => navigate({ name: 'recommendations' })}
+              />
             </div>
-
-            {/* Le stock : ce qui reste, et l'achat noté à l'arrivée des bidons. */}
-            <Button variant="secondary" full onClick={() => navigate({ name: 'stock' })}>
-              Stock phytosanitaire
-            </Button>
 
             {messageLocalisation ? (
               <Banner tone={localisation === 'erreur' ? 'warning' : 'info'}>
                 {messageLocalisation}
               </Banner>
+            ) : null}
+
+            <label className="relative block">
+              <span className="sr-only">Rechercher une parcelle</span>
+              <IconeRecherche size={19} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Nom, numéro, culture, commune…"
+                inputMode="search"
+                autoCapitalize="none"
+                className="pl-11 pr-11"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Effacer la recherche"
+                  className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-ink-3 active:bg-surface-2"
+                >
+                  <IconeFermer size={18} />
+                </button>
+              ) : null}
+            </label>
+
+            {cultures.liste.length > 1 ? (
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                <Puce actif={culture === null} onClick={() => setCulture(null)}>
+                  Toutes <span className="tabular-nums text-ink-3">{snapshot.parcels.length}</span>
+                </Puce>
+                {cultures.liste.map(([nom, nombre]) => (
+                  <Puce key={nom} actif={culture === nom} onClick={() => setCulture(culture === nom ? null : nom)}>
+                    <PointCulture nom={nom} />
+                    <span className="max-w-[10rem] truncate">{nomCourtDeCulture(nom)}</span>
+                    <span className="tabular-nums text-ink-3">{nombre}</span>
+                  </Puce>
+                ))}
+                {cultures.sans > 0 ? (
+                  <Puce actif={culture === SANS_CULTURE} onClick={() => setCulture(culture === SANS_CULTURE ? null : SANS_CULTURE)}>
+                    Sans culture <span className="tabular-nums text-ink-3">{cultures.sans}</span>
+                  </Puce>
+                ) : null}
+              </div>
             ) : null}
           </>
         ) : null}
@@ -316,40 +311,29 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
           />
         ) : parcels.length === 0 ? (
           <EmptyState
-            title={search ? 'Aucun résultat' : 'Aucune parcelle'}
+            title={search || culture ? 'Aucun résultat' : 'Aucune parcelle'}
             description={
-              search
+              search || culture
                 ? 'Aucune parcelle ne correspond à cette recherche.'
                 : 'Relevez votre première parcelle en marchant son contour.'
             }
           />
         ) : (
-          <ul className="space-y-2.5">
-            {parcels.map((parcel) => (
-              <li key={parcel.id}>
-                <Card onClick={() => navigate({ name: 'parcel', parcelId: parcel.id })}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-ink">{parcel.name}</p>
-                      <p className="truncate text-[13.5px] text-ink-3">
-                        {[parcel.internalNumber, parcel.commune]
-                          .filter(Boolean)
-                          .join(' · ') || 'Sans référence'}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-right">
-                      <span className="block font-semibold tabular-nums text-ink">
-                        {formatAreaHa(parcel.areaHa)}
-                      </span>
-                      {parcel.cropName ? (
-                        <Badge tone="green">{parcel.cropName}</Badge>
-                      ) : null}
-                    </span>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          <section>
+            {search || culture ? (
+              <p className="mb-2 px-1 text-[13px] text-ink-3">
+                {parcels.length} parcelle{parcels.length > 1 ? 's' : ''} ·{' '}
+                {formatAreaHa(parcels.reduce((somme, parcel) => somme + parcel.areaHa, 0))}
+              </p>
+            ) : null}
+            <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+              {parcels.map((parcel) => (
+                <li key={parcel.id}>
+                  <LigneParcelle parcel={parcel} onClick={() => navigate({ name: 'parcel', parcelId: parcel.id })} />
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
 
@@ -361,30 +345,115 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         {/* Un expert missionné ne relève pas de parcelle : il conseille. */}
         {readOnly ? (
           <Button full onClick={() => navigate({ name: 'new-recommendation' })}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M12 5v14M5 12h14"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-              />
-            </svg>
+            <IconePlus size={20} />
             Rédiger une préconisation
           </Button>
         ) : (
           <Button full onClick={() => navigate({ name: 'new-parcel' })}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M12 5v14M5 12h14"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-              />
-            </svg>
+            <IconePlus size={20} />
             Relever une parcelle
           </Button>
         )}
       </div>
     </div>
+  );
+}
+
+/** Filtre « sans culture » : une valeur qu'aucun nom de culture ne peut prendre. */
+const SANS_CULTURE = '\u0000sans-culture';
+
+/**
+ * Une parcelle dans la liste : le nom, la culture en clair et sa couleur, la
+ * surface. Rien ne déborde : un nom ou une culture trop longs s'arrêtent sur
+ * des points de suspension, la surface reste lisible.
+ */
+function LigneParcelle({ parcel, onClick }: { parcel: CachedParcel; onClick: () => void }) {
+  const precisions = [
+    nomDitLeNumero(parcel.name, parcel.internalNumber) ? null : parcel.internalNumber,
+    parcel.lieuDit,
+    parcel.commune,
+  ].filter(Boolean);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold text-ink">{parcel.name}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-ink-3">
+          {parcel.cropName ? (
+            <>
+              <PointCulture nom={parcel.cropName} />
+              <span className="truncate text-ink-2">{nomCourtDeCulture(parcel.cropName)}</span>
+            </>
+          ) : (
+            <span className="truncate text-ble-600 dark:text-ble-400">Culture non renseignée</span>
+          )}
+          {precisions.length > 0 ? (
+            <span className="shrink-0 truncate">· {precisions.join(' · ')}</span>
+          ) : null}
+        </span>
+      </span>
+      <span className="shrink-0 text-right font-semibold tabular-nums text-ink">
+        {formatAreaHa(parcel.areaHa)}
+      </span>
+      <IconeSuite size={16} className="shrink-0 text-ink-3" />
+    </button>
+  );
+}
+
+function Tuile({
+  libelle,
+  icone,
+  onClick,
+  chargement = false,
+  pastille = 0,
+}: {
+  libelle: string;
+  icone: React.ReactNode;
+  onClick: () => void;
+  chargement?: boolean;
+  pastille?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={chargement}
+      className="relative flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-1 py-2.5 text-ink active:bg-surface-2 disabled:opacity-60"
+    >
+      <span className="text-accent-ink">{chargement ? <span className="block h-[22px] w-[22px] animate-spin rounded-full border-2 border-current border-t-transparent" /> : icone}</span>
+      <span className="text-[12.5px] font-medium leading-tight">{libelle}</span>
+      {pastille > 0 ? (
+        <span className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-ble-500 px-1 text-[11px] font-bold text-white">
+          {pastille}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function Puce({
+  actif,
+  onClick,
+  children,
+}: {
+  actif: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={actif}
+      className={cn(
+        'flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium',
+        actif ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-surface text-ink-2 active:bg-surface-2',
+      )}
+    >
+      {children}
+    </button>
   );
 }

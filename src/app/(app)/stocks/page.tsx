@@ -20,6 +20,7 @@ import { ImporterProduits } from './ImporterProduits';
 import { EnregistrerAchat } from './EnregistrerAchat';
 import { prisma } from '@/lib/prisma';
 import { roleHasPermission } from '@/lib/auth/rbac';
+import { uniteAffichee } from '@/lib/shared/unites';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Stocks' };
@@ -196,7 +197,7 @@ export default async function StocksPage() {
                   <p className="text-[20px] font-semibold tabular-nums text-ink">
                     {formatNumberFr(article.solde.quantite, 3)}{' '}
                     <span className="text-[13px] font-normal text-ink-3">
-                      {article.unit}
+                      {uniteAffichee(article.unit)}
                     </span>
                   </p>
                 </div>
@@ -237,7 +238,7 @@ export default async function StocksPage() {
                             <Td>
                               <Link
                                 href={`/stocks/lots/${lot.id}`}
-                                className="text-champ-700 underline-offset-2 hover:underline"
+                                className="text-champ-700 underline-offset-2 hover:underline dark:text-champ-400"
                               >
                                 {lot.lotNumber ?? 'Sans numéro'}
                               </Link>
@@ -246,7 +247,7 @@ export default async function StocksPage() {
                             <Td>{lot.purchasedOn ? formatDateFr(lot.purchasedOn) : '—'}</Td>
                             <Td>{lot.expiresOn ? formatDateFr(lot.expiresOn) : '—'}</Td>
                             <Td className="text-right tabular-nums">
-                              {formatNumberFr(lot.reste.quantite, 3)} {article.unit}
+                              {formatNumberFr(lot.reste.quantite, 3)} {uniteAffichee(article.unit)}
                             </Td>
                           </Tr>
                         ))}

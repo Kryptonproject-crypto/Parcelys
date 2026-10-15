@@ -13,6 +13,7 @@ import {
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
+import { uniteAffichee } from '@/lib/shared/unites';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Traçabilité d’un lot' };
@@ -74,7 +75,7 @@ export default async function LotPage({
           <div>
             <dt className="text-[12.5px] text-ink-3">Reste</dt>
             <dd className="text-[14px] font-semibold tabular-nums text-ink">
-              {formatNumberFr(trace.reste.quantite, 3)} {trace.lot.unit}
+              {formatNumberFr(trace.reste.quantite, 3)} {uniteAffichee(trace.lot.unit)}
             </dd>
           </div>
         </dl>
