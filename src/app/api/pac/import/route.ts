@@ -109,7 +109,18 @@ export const PUT = route(async (request: NextRequest) => {
 
   const choices = safeJson(form.get('choices'));
   const sridOverride = safeJson(form.get('sridOverride'));
-  const decisions = (safeJson(form.get('decisions')) ?? []) as FeatureDecision[];
+  // Seules les décisions connues passent : une valeur inattendue retomberait
+  // sinon dans une branche qu'on n'a pas prévue.
+  const DECISIONS = ['keep', 'update', 'create', 'ignore'];
+  const brutes = safeJson(form.get('decisions'));
+  const decisions = (Array.isArray(brutes) ? brutes : []).filter(
+    (d): d is FeatureDecision =>
+      !!d &&
+      typeof d === 'object' &&
+      typeof (d as FeatureDecision).layer === 'string' &&
+      typeof (d as FeatureDecision).index === 'number' &&
+      DECISIONS.includes((d as FeatureDecision).decision),
+  );
 
   try {
     // On rejoue l'analyse plutôt que de faire confiance à un aperçu renvoyé par
@@ -156,6 +167,7 @@ export const PUT = route(async (request: NextRequest) => {
       metadata: {
         year,
         created: resultat.created,
+        kept: resultat.kept,
         updated: resultat.updated,
         files: files.map((f) => f.name),
       },
@@ -165,8 +177,10 @@ export const PUT = route(async (request: NextRequest) => {
       {
         ...resultat,
         message:
-          `${resultat.created} parcelle(s) créée(s), ${resultat.updated} mise(s) à jour, ` +
-          `${resultat.crops} culture(s) rattachée(s). ` +
+          `${resultat.created} parcelle(s) ajoutée(s), ${resultat.kept} déjà présente(s) conservée(s) sans modification` +
+          (resultat.updated > 0 ? `, ${resultat.updated} contour(s) remplacé(s) à votre demande` : '') +
+          ', ' +
+          `${resultat.crops} culture(s) déclarée(s) rattachée(s). ` +
           "Une sauvegarde a été prise avant l'import." +
           // TéléPAC réattribue les numéros libérés d'une campagne à l'autre.
           // Quand deux parcelles distinctes revendiquent le même, Parcelys ne

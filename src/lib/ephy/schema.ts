@@ -147,6 +147,15 @@ export const USAGE_COLUMNS: ColumnMap<UsageField> = {
 
 export type ConditionField = 'amm' | 'category' | 'label';
 
+export type DangerField = 'amm' | 'code' | 'label';
+
+/** Colonnes de `produits_phrases_de_risque_utf8.csv`. */
+export const DANGER_COLUMNS: ColumnMap<DangerField> = {
+  amm: ['numero amm', 'numero d amm', 'n amm', 'amm'],
+  code: ['libelle court phrase de risque', 'phrase de risque libelle court', 'libelle court'],
+  label: ['libelle long phrase de risque', 'phrase de risque libelle long', 'libelle long'],
+};
+
 /** Colonnes de `produits_condition_emploi_utf8.csv`. */
 export const CONDITION_COLUMNS: ColumnMap<ConditionField> = {
   amm: ['numero amm', 'numero d amm', 'n amm', 'amm'],
@@ -251,6 +260,8 @@ export const DATA_FILE_PATTERNS: Record<EphyRole, RegExp[]> = {
   allUsages: [/^produits_usages(?:_utf8)?\.csv$/i],
   substances: [/^substances?_actives?(?:_utf8)?\.csv$/i],
   conditions: [/^produits_condition_emploi(?:_utf8)?\.csv$/i],
+  /** Mentions de danger (H…, EUH…), par produit. */
+  dangers: [/^produits_phrases_de_risque(?:_utf8)?\.csv$/i],
 };
 
 export type EphyRole =
@@ -258,7 +269,8 @@ export type EphyRole =
   | 'usages'
   | 'allUsages'
   | 'substances'
-  | 'conditions';
+  | 'conditions'
+  | 'dangers';
 
 const ROLE_LABELS: Record<EphyRole, string> = {
   products: 'produits',
@@ -266,6 +278,7 @@ const ROLE_LABELS: Record<EphyRole, string> = {
   allUsages: 'usages (retirés compris)',
   substances: 'substances actives',
   conditions: "conditions d'emploi",
+  dangers: 'mentions de danger',
 };
 
 /**

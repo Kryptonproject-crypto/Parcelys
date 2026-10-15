@@ -5,7 +5,9 @@
  *
  *   1. sauvegarde de l'état actuel des parcelles ;
  *   2. écriture des entités PAC ;
- *   3. création ou mise à jour des parcelles Parcelys ;
+ *   3. création des parcelles nouvelles ; les parcelles déjà présentes sont
+ *      conservées telles quelles (seul ce qui était vide est complété), et
+ *      leur contour n'est remplacé que sur demande explicite ;
  *   4. enregistrement de ce qui a changé.
  *
  * La sauvegarde vient d'abord parce qu'une sauvegarde prise après coup ne sert
@@ -47,6 +49,8 @@ export type ApplyResult = {
   importId: string;
   snapshotId: string;
   created: number;
+  /** Parcelles déjà présentes, rattachées à la campagne sans être réécrites. */
+  kept: number;
   updated: number;
   ignored: number;
   ilots: number;
@@ -425,6 +429,7 @@ export async function applyImport(params: {
 
       // --- Entités et parcelles -------------------------------------------
       let created = 0;
+      let kept = 0;
       let culturesRattachees = 0;
       let updated = 0;
       let ignored = 0;
@@ -435,7 +440,9 @@ export async function applyImport(params: {
         if (params.ilotLayers.includes(feature.layer)) continue;
 
         const cle = `${feature.layer}#${feature.index}`;
-        const decision = parDecision.get(cle)?.decision ?? (feature.match ? 'update' : 'create');
+        // Par défaut, une parcelle déjà présente est conservée telle quelle :
+        // seul un choix explicite (`update`) remplace son contour.
+        const decision = parDecision.get(cle)?.decision ?? (feature.match ? 'keep' : 'create');
 
         if (decision === 'ignore' || feature.error) {
           ignored += 1;
@@ -469,7 +476,40 @@ export async function applyImport(params: {
             parDecision.get(cle)?.parcelId ?? feature.match?.parcelId ?? null,
           );
 
-          if (decision === 'update' && cible) {
+          if (decision === 'keep' && cible) {
+            /**
+             * Conservée telle quelle.
+             *
+             * Le nom, le numéro interne, le contour et la commune sont ceux que
+             * l'exploitant a — peut-être corrigés, renommés. L'import ne fait
+             * que compléter ce qui était **vide** (numéro PAC, commune), puis
+             * rattache l'entité de la campagne et la culture déclarée, plus
+             * bas. Une valeur déjà présente n'est jamais remplacée.
+             */
+            const actuelle = await tx.parcel.findFirst({
+              where: { id: cible, farmId, deletedAt: null },
+              select: { pacId: true, inseeCode: true, commune: true },
+            });
+            if (!actuelle) {
+              throw notFound(
+                'Une des parcelles visées par cet import est introuvable dans ' +
+                  "cette exploitation. Relancez l'analyse du dossier.",
+              );
+            }
+            const lieu = localisation(feature);
+            const manquants: Prisma.ParcelUpdateManyMutationInput = {};
+            const pacDeclare = feature.externalId ?? feature.numero ?? null;
+            if (!actuelle.pacId && pacDeclare) manquants.pacId = pacDeclare;
+            if (!actuelle.inseeCode && lieu?.inseeCode) manquants.inseeCode = lieu.inseeCode;
+            if (!actuelle.commune && lieu?.commune) manquants.commune = lieu.commune;
+            if (Object.keys(manquants).length > 0) {
+              await tx.parcel.updateMany({ where: { id: cible, farmId, deletedAt: null }, data: manquants });
+            }
+
+            parcelId = cible;
+            touchees.add(cible);
+            kept += 1;
+          } else if (decision === 'update' && cible) {
             const avant = await tx.$queryRaw<Array<{ area: number | null; geojson: string | null }>>`
               SELECT ST_Area(geom::geography) / 10000.0 AS area,
                      ST_AsGeoJSON(geom, ${GEOJSON_DECIMALES}::int) AS geojson
@@ -715,11 +755,12 @@ export async function applyImport(params: {
           sourceFiles: params.sourceFiles as unknown as Prisma.InputJsonValue,
           detectedSrid: params.detectedSrid,
           srcLabel: params.sridLabel,
-          featureCount: created + updated,
+          featureCount: created + updated + kept,
           ilotCount,
           areaHa: params.features.reduce((s, f) => s + (f.areaHa ?? 0), 0),
           report: {
             created,
+            kept,
             updated,
             ignored,
             orphans: orphelines.map((o) => ({ id: o.id, name: o.name })),
@@ -741,6 +782,7 @@ export async function applyImport(params: {
         importId: importe.id,
         snapshotId: snapshot.id,
         created,
+        kept,
         updated,
         ignored,
         ilots: ilotCount,

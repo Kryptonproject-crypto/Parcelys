@@ -115,6 +115,38 @@ describe('Référentiel E-Phy', () => {
     expect(usage.decisionDate?.toISOString().slice(0, 10)).toBe('2023-01-12');
   });
 
+  it('importe les mentions de danger, une par code, et les remplace à l’import suivant', async () => {
+    // L'en-tête officiel, espace final compris : « Libellé court phrase de risque ».
+    const dangers = (lignes: string[]) =>
+      toWindows1252(
+        ['numero AMM;nom produit;Libellé court phrase de risque ;Libellé long phrase de risque;', ...lignes].join('\r\n'),
+      );
+    const premier = await importEphyData(
+      {
+        products: toWindows1252(PRODUCTS_CSV),
+        dangers: dangers([
+          '9900001;PRODUIT TEST ALPHA;H351;Susceptible de provoquer le cancer;',
+          '9900001;PRODUIT TEST ALPHA;H410;Très toxique pour les organismes aquatiques;',
+          '9900001;PRODUIT TEST ALPHA;H351;Susceptible de provoquer le cancer;',
+        ]),
+      },
+      { sourceLabel: 'échantillon de test' },
+    );
+    expect(premier.dangerCount).toBe(2);
+    const alpha = await prisma.phytosanitaryProduct.findUniqueOrThrow({
+      where: { amm: '9900001' },
+      include: { dangers: { orderBy: { code: 'asc' } } },
+    });
+    expect(alpha.dangers.map((d) => d.code)).toEqual(['H351', 'H410']);
+
+    // Classification révisée : l'ancienne mention ne survit pas.
+    await importEphyData(
+      { products: toWindows1252(PRODUCTS_CSV), dangers: dangers(['9900001;PRODUIT TEST ALPHA;H410;Très toxique;']) },
+      { sourceLabel: 'échantillon de test' },
+    );
+    expect(await prisma.phytoHazardStatement.count({ where: { productId: alpha.id } })).toBe(1);
+  });
+
   it('conserve la date de retrait des produits retirés', async () => {
     await importEphyData(
       { products: toWindows1252(PRODUCTS_CSV) },

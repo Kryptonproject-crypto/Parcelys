@@ -35,6 +35,12 @@ export const SYNC_OPERATION_KINDS = [
   'recommendation.create',
   /** Réponse de l'exploitation à une préconisation reçue. */
   'recommendation.respond',
+  /**
+   * Achat enregistré depuis le téléphone : les bidons arrivent à la ferme, pas
+   * au bureau. Rejoué sur la route du site, qui crée l'article, le lot et
+   * l'entrée en stock — et refuse ce qu'elle refuserait en ligne.
+   */
+  'stock.purchase',
 ] as const;
 
 export type SyncOperationKind = (typeof SYNC_OPERATION_KINDS)[number];

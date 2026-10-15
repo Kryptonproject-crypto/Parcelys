@@ -79,6 +79,8 @@ describe('Parcours PAC / TéléPAC', () => {
     farmId: string,
     userId: string,
     parcelles: Parameters<typeof dossierPac>[0],
+    /** Reprendre le contour du dossier pour les parcelles déjà présentes. */
+    options: { reprendreLesContours?: boolean } = {},
   ) {
     const dossier = await readDossier(dossierPac(parcelles), 2026);
     const analyse = await analyzeDossier({
@@ -93,7 +95,11 @@ describe('Parcours PAC / TéléPAC', () => {
       year: 2026,
       userId,
       features: analyse.features,
-      decisions: [],
+      decisions: options.reprendreLesContours
+        ? analyse.features
+            .filter((f) => f.match)
+            .map((f) => ({ layer: f.layer, index: f.index, decision: 'update' as const }))
+        : [],
       sourceFiles: dossier.layers.map((l) => l.name),
       detectedSrid: analyse.layers[0]?.srid ?? null,
       sridLabel: analyse.layers[0]?.sridLabel ?? '',
@@ -152,7 +158,10 @@ describe('Parcours PAC / TéléPAC', () => {
     // Le rapprochement doit reconnaître la même emprise.
     expect(analyse.features[0]?.match).not.toBeNull();
     expect(analyse.features[0]?.match?.overlap ?? 0).toBeGreaterThan(0.99);
-    expect(resultat.updated).toBe(1);
+    expect(analyse.features[0]?.match?.contourIdentique).toBe(true);
+    // Déjà présente : conservée, pas réécrite.
+    expect(resultat.kept).toBe(1);
+    expect(resultat.updated).toBe(0);
     expect(resultat.created).toBe(0);
 
     expect(await prisma.parcel.count({ where: { farmId: user.farmId, deletedAt: null } })).toBe(1);
@@ -262,10 +271,14 @@ describe('Parcours PAC / TéléPAC', () => {
     await importer(user.farmId, user.id, [
       { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
     ]);
-    // Deuxième import, parcelle agrandie : même emprise, donc rapprochement.
-    await importer(user.farmId, user.id, [
-      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 500 },
-    ]);
+    // Deuxième import, parcelle agrandie : même emprise, donc rapprochement —
+    // et l'exploitant choisit de reprendre le nouveau contour.
+    await importer(
+      user.farmId,
+      user.id,
+      [{ num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 500 }],
+      { reprendreLesContours: true },
+    );
 
     const parcelle = await prisma.parcel.findFirstOrThrow({ where: { farmId: user.farmId } });
     const versions = await prisma.parcelGeometry.findMany({
@@ -284,9 +297,12 @@ describe('Parcours PAC / TéléPAC', () => {
     await importer(user.farmId, user.id, [
       { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
     ]);
-    await importer(user.farmId, user.id, [
-      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 500 },
-    ]);
+    await importer(
+      user.farmId,
+      user.id,
+      [{ num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 500 }],
+      { reprendreLesContours: true },
+    );
 
     const changements = await prisma.pacChange.findMany({
       where: { campaign: { farmId: user.farmId } },
@@ -301,6 +317,91 @@ describe('Parcours PAC / TéléPAC', () => {
     expect(miseAJour?.newGeojson).not.toBeNull();
     expect(Number(miseAJour?.previousAreaHa)).toBeCloseTo(16, 1);
     expect(Number(miseAJour?.newAreaHa)).toBeCloseTo(25, 1);
+  });
+
+  it('réimport : garde le nom donné, les numéros TéléPAC et le contour, et n’ajoute que la nouvelle', async () => {
+    const user = await createUserWithFarm({ email: 'pac-renom@ferme.test', farmName: 'GAEC PAC' });
+    const dossier = [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+      { num: '2', ilot: '10', culture: 'MIS', x: 651000, y: 6860000, cote: 300 },
+    ];
+    await importer(user.farmId, user.id, dossier);
+
+    // L'exploitant renomme la parcelle 10-1 comme il l'appelle.
+    const avant = await prisma.parcel.findFirstOrThrow({
+      where: { farmId: user.farmId, internalNumber: '10-1' },
+    });
+    await prisma.parcel.update({ where: { id: avant.id }, data: { name: 'La Croix Rouge' } });
+    const versionsAvant = await prisma.parcelGeometry.count({ where: { parcelId: avant.id } });
+
+    // Réimport du même dossier, avec une parcelle de plus.
+    const { resultat } = await importer(user.farmId, user.id, [
+      ...dossier,
+      { num: '3', ilot: '11', culture: 'TRN', x: 652000, y: 6860000, cote: 200 },
+    ]);
+    expect(resultat.created).toBe(1);
+    expect(resultat.kept).toBe(2);
+    expect(resultat.updated).toBe(0);
+
+    const apres = await prisma.parcel.findUniqueOrThrow({ where: { id: avant.id } });
+    expect(apres.name).toBe('La Croix Rouge');
+    expect(apres.internalNumber).toBe('10-1');
+    expect(apres.pacId).toBe(avant.pacId);
+    expect(Number(apres.areaHa)).toBe(Number(avant.areaHa));
+    // Aucun contour réécrit : pas de nouvelle version.
+    expect(await prisma.parcelGeometry.count({ where: { parcelId: avant.id } })).toBe(versionsAvant);
+
+    // Les numéros de la déclaration restent rattachés à la parcelle renommée.
+    const declaree = await prisma.pacFeature.findFirstOrThrow({
+      where: { parcelId: avant.id, kind: 'PARCELLE' },
+      include: { ilot: true },
+    });
+    expect([declaree.ilot?.numero, declaree.numero]).toEqual(['10', '1']);
+
+    expect(await prisma.parcel.count({ where: { farmId: user.farmId, deletedAt: null } })).toBe(3);
+  });
+
+  it('réimport : un contour changé dans TéléPAC est signalé, et n’est repris que sur demande', async () => {
+    const user = await createUserWithFarm({ email: 'pac-contour@ferme.test', farmName: 'GAEC PAC' });
+    await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+    ]);
+    const parcelle = await prisma.parcel.findFirstOrThrow({ where: { farmId: user.farmId } });
+
+    const agrandie = [{ num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 500 }];
+    const { analyse, resultat } = await importer(user.farmId, user.id, agrandie);
+    expect(analyse.features[0]?.match?.contourIdentique).toBe(false);
+    expect(analyse.features[0]?.match?.reason).toMatch(/Contour différent/);
+    expect(resultat.kept).toBe(1);
+    // Sans demande : 16 ha, comme avant.
+    expect(Number((await prisma.parcel.findUniqueOrThrow({ where: { id: parcelle.id } })).areaHa)).toBeCloseTo(16, 1);
+
+    await importer(user.farmId, user.id, agrandie, { reprendreLesContours: true });
+    expect(Number((await prisma.parcel.findUniqueOrThrow({ where: { id: parcelle.id } })).areaHa)).toBeCloseTo(25, 1);
+  });
+
+  it('réimport : complète ce qui manquait sur une parcelle saisie à la main, sans rien remplacer', async () => {
+    const user = await createUserWithFarm({ email: 'pac-complete@ferme.test', farmName: 'GAEC PAC' });
+    // La même pièce, saisie à la main avant tout import, sans numéro PAC.
+    const premier = await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+    ]);
+    void premier;
+    const parcelle = await prisma.parcel.findFirstOrThrow({ where: { farmId: user.farmId } });
+    await prisma.parcel.update({
+      where: { id: parcelle.id },
+      data: { name: 'Le Grand Champ', pacId: null, parcelType: 'OWNED', lieuDit: 'Les Rivaux' },
+    });
+
+    await importer(user.farmId, user.id, [
+      { num: '1', ilot: '10', culture: 'BTH', x: 650000, y: 6860000, cote: 400 },
+    ]);
+    const apres = await prisma.parcel.findUniqueOrThrow({ where: { id: parcelle.id } });
+    expect(apres.name).toBe('Le Grand Champ');
+    expect(apres.lieuDit).toBe('Les Rivaux');
+    expect(apres.parcelType).toBe('OWNED');
+    // Le numéro PAC, vide, est complété.
+    expect(apres.pacId).not.toBeNull();
   });
 
   it('sauvegarde avant d’importer, et sait revenir en arrière', async () => {

@@ -757,6 +757,7 @@ model PhytosanitaryProduct {
   substances      ProductSubstance[]
   usages          PhytoUsage[]
   conditions      PhytoCondition[]
+  dangers         PhytoHazardStatement[]
   applications    PhytosanitaryApplication[]
   stockItems      StockItem[]
   recommendations Recommendation[]
@@ -836,6 +837,21 @@ model PhytoCondition {
   @@index([productId])
   @@index([productId, concernsDrainedSoil])
   @@map("phyto_conditions")
+}
+
+/// Mentions de danger d'un produit (« H351 », « EUH401 »…), telles que l'ANSES
+/// les publie dans `produits_phrases_de_risque`. Ce sont elles qui commandent,
+/// avec l'autorisation, les distances de sécurité aux abords des habitations.
+model PhytoHazardStatement {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  code      String
+  label     String?
+
+  product PhytosanitaryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("phyto_hazard_statements")
 }
 
 model EphySyncRun {

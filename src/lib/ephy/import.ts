@@ -10,6 +10,7 @@ import {
 } from '@/lib/ephy/parser';
 import {
   CONDITION_COLUMNS,
+  DANGER_COLUMNS,
   PRODUCT_COLUMNS,
   REQUIRED_PRODUCT_FIELDS,
   SUBSTANCE_COLUMNS,
@@ -40,6 +41,8 @@ export type ImportSource = {
   substances?: Buffer;
   /** Contenu du CSV « conditions d'emploi » (optionnel). */
   conditions?: Buffer;
+  /** Contenu du CSV « phrases de risque » — les mentions de danger (optionnel). */
+  dangers?: Buffer;
 };
 
 export type ImportReport = {
@@ -47,6 +50,7 @@ export type ImportReport = {
   substanceCount: number;
   usageCount: number;
   conditionCount: number;
+  dangerCount: number;
   warnings: string[];
 };
 
@@ -110,6 +114,16 @@ export async function importEphyData(
       );
     }
 
+    const dangerCount = source.dangers
+      ? await importDangers(source.dangers, ammToId, warnings)
+      : 0;
+    if (!source.dangers) {
+      warnings.push(
+        'Aucun fichier de mentions de danger fourni : les distances de sécurité aux abords ' +
+          'des habitations ne peuvent pas être rapprochées des produits.',
+      );
+    }
+
     await prisma.ephySyncRun.update({
       where: { id: run.id },
       data: {
@@ -122,7 +136,7 @@ export async function importEphyData(
       },
     });
 
-    return { productCount, substanceCount, usageCount, conditionCount, warnings };
+    return { productCount, substanceCount, usageCount, conditionCount, dangerCount, warnings };
   } catch (error) {
     await prisma.ephySyncRun.update({
       where: { id: run.id },
@@ -559,6 +573,54 @@ async function importConditions(
 }
 
 /** Dernière synchronisation réussie, affichée dans l'interface. */
+/**
+ * Importe les mentions de danger (`produits_phrases_de_risque_utf8.csv`).
+ *
+ * Une ligne par mention et par produit : « H351 — Susceptible de provoquer le
+ * cancer ». Remplacées intégralement à chaque import, comme les conditions :
+ * une classification révisée par l'ANSES ne doit pas laisser l'ancienne en
+ * base.
+ */
+async function importDangers(
+  buffer: Buffer,
+  ammToId: Map<string, string>,
+  warnings: string[],
+): Promise<number> {
+  const rows = parseCsv(buffer);
+  if (rows.length === 0) return 0;
+
+  const { resolved } = resolveColumns(Object.keys(rows[0] ?? {}), DANGER_COLUMNS);
+  if (!resolved.amm || !resolved.code) {
+    warnings.push('Fichier des mentions de danger ignoré : numéro d’AMM ou code introuvable.');
+    return 0;
+  }
+
+  const byProduct = new Map<string, Array<{ productId: string; code: string; label: string | null }>>();
+  for (const row of rows) {
+    const amm = pick(row, resolved, 'amm');
+    const productId = amm ? ammToId.get(amm) : undefined;
+    const code = pick(row, resolved, 'code')?.trim();
+    if (!productId || !code) continue;
+    const bucket = byProduct.get(productId) ?? [];
+    // Le fichier répète parfois une mention : une seule suffit.
+    if (!bucket.some((d) => d.code === code)) {
+      bucket.push({ productId, code, label: pick(row, resolved, 'label')?.trim() || null });
+    }
+    byProduct.set(productId, bucket);
+  }
+
+  let total = 0;
+  for (const idBatch of chunk([...byProduct.keys()], 200)) {
+    await prisma.phytoHazardStatement.deleteMany({ where: { productId: { in: idBatch } } });
+    const payload = idBatch.flatMap((id) => byProduct.get(id) ?? []);
+    for (const dataBatch of chunk(payload, BATCH_SIZE)) {
+      await prisma.phytoHazardStatement.createMany({ data: dataBatch });
+      total += dataBatch.length;
+    }
+  }
+  return total;
+}
+
 export async function getLastSuccessfulSync() {
   return prisma.ephySyncRun.findFirst({
     where: { status: 'SUCCESS' },

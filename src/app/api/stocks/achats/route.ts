@@ -30,7 +30,9 @@ const Achat = z.object({
  * lot et l'entrée en stock, en une fois.
  */
 export const POST = route(async (request: NextRequest) => {
-  const ctx = await requireFarmAccess('record:write');
+  // `farmId` : l'application de terrain désigne l'exploitation qu'elle a
+  // embarquée, qui n'est pas forcément l'exploitation active du compte.
+  const ctx = await requireFarmAccess('record:write', request.nextUrl.searchParams.get('farmId'));
   const body = await parseBody(request, Achat);
   const jour = (iso: string) => new Date(`${iso}T12:00:00Z`);
   if (jour(body.purchasedOn) > new Date(Date.now() + 86_400_000)) {

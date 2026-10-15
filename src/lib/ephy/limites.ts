@@ -30,7 +30,10 @@
  *     inexploitable, ou tue ;
  *   · aucun avertissement n'est produit quand la donnée manque. Le silence du
  *     catalogue n'est pas une autorisation, mais ce n'est pas non plus une
- *     infraction — et annoncer l'un ou l'autre serait inventer ;
+ *     infraction — et annoncer l'un ou l'autre serait inventer. Une seule
+ *     exception, parce que le texte la tranche : la ZNT aquatique, dont
+ *     l'arrêté du 4 mai 2017 fixe la largeur minimale quand l'autorisation se
+ *     tait (cf. `zntAquatiqueApplicable`) ;
  *   · chaque phrase dit **la valeur saisie, la valeur du catalogue, la règle et
  *     la correction**. Un avertissement qu'on ne peut pas vérifier soi-même ne
  *     sert qu'à inquiéter.
@@ -234,6 +237,12 @@ export function rappelZnt(params: {
   zntAquaticM: string | null;
   zntArthropodM: string | null;
   zntPlantM: string | null;
+  /**
+   * ZNT aquatique résolue (cf. `zntAquatiqueApplicable`). Fournie, elle
+   * remplace `zntAquaticM` : elle sait dire le défaut réglementaire et les
+   * ZNT écrites dans les conditions d'emploi, que la colonne ignore.
+   */
+  aquatique?: ZntAquatique;
 }): string | null {
   const parties: string[] = [];
   const ajouter = (libelle: string, brut: string | null) => {
@@ -242,16 +251,110 @@ export function rappelZnt(params: {
     parties.push(`${libelle} ${valeur} m`);
   };
 
-  ajouter('milieu aquatique', params.zntAquaticM);
+  if (params.aquatique) {
+    const a = params.aquatique;
+    if (a.origine === 'usage') parties.push(`milieu aquatique ${a.metres} m`);
+    else if (a.origine === 'defaut') {
+      parties.push(
+        `milieu aquatique ${a.metres} m — l’autorisation n’en fixe pas : largeur minimale de l’${SOURCE_ZNT_PAR_DEFAUT}, sauf mention contraire sur l’étiquette`,
+      );
+    } else if (a.origine === 'conditions') {
+      parties.push(`milieu aquatique selon la condition d’emploi de l’ANSES : « ${a.texte} »`);
+    } else {
+      parties.push(`milieu aquatique indéterminée (${a.raison})`);
+    }
+  } else {
+    ajouter('milieu aquatique', params.zntAquaticM);
+  }
   ajouter('arthropodes non cibles', params.zntArthropodM);
   ajouter('plantes non cibles', params.zntPlantM);
 
   if (parties.length === 0) return null;
 
   return (
-    `Zones non traitées à respecter pour ${params.produit} : ${parties.join(', ')}. ` +
+    `Zones non traitées à respecter pour ${params.produit} : ${parties.join(' ; ')}. ` +
     'Parcelys ne mesure pas ces distances sur le terrain — vérifiez-les avant le passage.'
   );
+}
+
+/**
+ * ZNT aquatique par défaut, quand ni l'autorisation ni l'étiquette n'en fixent.
+ *
+ * « En l'absence de mention relative aux zones non traitées dans ces décisions
+ * et sur l'étiquetage, l'utilisation des produits doit être réalisée en
+ * respectant une zone non traitée d'une largeur minimale de 5 mètres. »
+ * — arrêté du 4 mai 2017, article 12-III.
+ *
+ * L'article 13-II en exempte les produits autorisés sur plantes aquatiques ou
+ * semi-aquatiques ou sur rizière.
+ */
+export const ZNT_AQUATIQUE_PAR_DEFAUT_M = 5;
+export const SOURCE_ZNT_PAR_DEFAUT =
+  'arrêté du 4 mai 2017 relatif à la mise sur le marché et à l’utilisation des produits phytopharmaceutiques, article 12-III';
+
+/** La ZNT aquatique d'un usage, et d'où elle vient. */
+export type ZntAquatique =
+  | { origine: 'usage'; metres: number }
+  | { origine: 'conditions'; texte: string; metres: number | null }
+  | { origine: 'defaut'; metres: number }
+  | { origine: 'indeterminee'; raison: string };
+
+/**
+ * La ZNT aquatique applicable à un usage.
+ *
+ * Dans cet ordre, et sans rien deviner :
+ *
+ *  1. la colonne « ZNT aquatique » de l'usage, si elle porte un nombre ;
+ *     une valeur illisible (« 5 à 20 ») laisse la ZNT indéterminée ;
+ *  2. sinon, une condition d'emploi du produit qui parle de zone non traitée
+ *     — 1 173 produits l'écrivent là plutôt que dans la colonne. Son texte est
+ *     rendu tel quel ; la largeur n'en est tirée que si le texte n'en cite
+ *     qu'une ;
+ *  3. sinon, un produit autorisé sur plantes aquatiques ou rizière : exempté
+ *     du défaut (art. 13-II), la ZNT reste à lire sur l'étiquette ;
+ *  4. sinon, le défaut réglementaire de 5 m (art. 12-III).
+ */
+export function zntAquatiqueApplicable(params: {
+  zntAquaticM: string | null;
+  conditions: Array<{ label: string }>;
+  culturesDuProduit: Array<string | null>;
+}): ZntAquatique {
+  const brut = (params.zntAquaticM ?? '').trim();
+  if (brut !== '' && brut !== '-') {
+    const metres = entierDuCatalogue(brut);
+    return metres !== null
+      ? { origine: 'usage', metres }
+      : { origine: 'indeterminee', raison: `valeur du catalogue « ${brut} » non exploitable` };
+  }
+
+  const mentions = params.conditions
+    .map((c) => c.label.replace(/^Condition\s*:\s*/i, '').trim())
+    // Une ZNT « par rapport à la zone non cultivée adjacente » protège les
+    // arthropodes, pas l'eau : seules comptent celles qui visent l'eau.
+    .filter((t) => /zone non trait|\bZNT\b/i.test(t) && /points? d['’]eau|aquatique|cours d['’]eau/i.test(t));
+  if (mentions.length > 0) {
+    const largeurs = new Set<number>();
+    for (const t of mentions) {
+      for (const m of t.matchAll(/zone non trait\S*\s+(?:d['’]une largeur\s+)?(?:de\s+)?(\d+)\s*m/gi)) {
+        largeurs.add(Number(m[1]));
+      }
+    }
+    return {
+      origine: 'conditions',
+      texte: [...new Set(mentions)].slice(0, 2).join(' / '),
+      metres: largeurs.size === 1 ? [...largeurs][0]! : null,
+    };
+  }
+
+  if (params.culturesDuProduit.some((c) => c && /\briz|rizi[eè]re|aquatique/i.test(c))) {
+    return {
+      origine: 'indeterminee',
+      raison:
+        'produit autorisé sur plantes aquatiques ou rizière, exempté de la largeur par défaut (arrêté du 4 mai 2017, art. 13-II) : voir l’étiquette',
+    };
+  }
+
+  return { origine: 'defaut', metres: ZNT_AQUATIQUE_PAR_DEFAUT_M };
 }
 
 /**
@@ -268,8 +371,15 @@ export function rappelZntEcoulements(params: {
   produit: string;
   zntAquaticM: string | null;
   ecoulements: Array<{ label: string; nature: string | null; distanceM: number; dedans: boolean; source: string }>;
+  /** ZNT résolue : prime sur `zntAquaticM`, et dit si elle vient du défaut. */
+  aquatique?: ZntAquatique;
 }): string | null {
-  const znt = entierDuCatalogue(params.zntAquaticM);
+  const a = params.aquatique;
+  const znt = a
+    ? a.origine === 'indeterminee'
+      ? null
+      : a.metres
+    : entierDuCatalogue(params.zntAquaticM);
   if (znt === null || znt <= 0) return null;
   const proches = params.ecoulements
     .filter((e) => e.dedans || e.distanceM <= znt)
@@ -282,8 +392,10 @@ export function rappelZntEcoulements(params: {
         `« ${e.label} »${e.nature ? ` (${e.nature})` : ''} ${e.dedans ? 'touche la parcelle' : `à ${e.distanceM.toLocaleString('fr-FR')} m du contour`}`,
     )
     .join(', ');
+  const precision =
+    a?.origine === 'defaut' ? ' (largeur par défaut, l’autorisation n’en fixant pas)' : a?.origine === 'conditions' ? ' (condition d’emploi de l’ANSES)' : '';
   return (
-    `ZNT aquatique de ${znt} m pour ${params.produit} : ${liste}, d’après ${proches[0]!.source}. ` +
+    `ZNT aquatique de ${znt} m${precision} pour ${params.produit} : ${liste}, d’après ${proches[0]!.source}. ` +
     'Si cet écoulement est un point d’eau au sens de l’arrêté préfectoral de votre département, la ZNT s’applique le long de lui. ' +
     'Parcelys ne sait pas lequel l’est : la cartographie départementale des points d’eau n’est pas fournie.'
   );
@@ -362,5 +474,40 @@ export function rappelsConditions(
 
   return [...parFamille].map(
     ([famille, label]) => `${INTITULE[famille]} — ${produit} : « ${label.trim()} »`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mentions de danger et distances de sécurité « riverains »
+// ---------------------------------------------------------------------------
+
+/**
+ * Mentions de danger cancérogènes, mutagènes ou toxiques pour la reproduction
+ * (avérées : H340, H350, H360… ; suspectées : H341, H351, H361…).
+ *
+ * Ce sont elles qui rendent incompressibles certaines distances de sécurité
+ * aux abords des habitations (arrêté du 4 mai 2017 modifié, articles 14-1 et
+ * suivants). La largeur exacte dépend du texte en vigueur, de l'autorisation
+ * du produit et, pour les CMR suspectés, d'une liste publiée au Bulletin
+ * officiel : aucune n'est importée, si bien que Parcelys **ne chiffre pas**
+ * la distance. Il dit au moment de pulvériser que le produit est concerné —
+ * et c'est l'information qui manquait.
+ */
+const MENTIONS_CMR = /^H3(40|41|50|51|60|61)/i;
+
+export function rappelDangersRiverains(params: {
+  produit: string;
+  dangers: Array<{ code: string; label: string | null }>;
+}): string | null {
+  const cmr = params.dangers.filter((d) => MENTIONS_CMR.test(d.code.trim()));
+  if (cmr.length === 0) return null;
+  const liste = cmr
+    .map((d) => `${d.code.trim()}${d.label ? ` (${d.label.replace(/\.$/, '')})` : ''}`)
+    .join(', ');
+  return (
+    `${params.produit} porte ${cmr.length > 1 ? 'les mentions de danger' : 'la mention de danger'} ${liste}. ` +
+    'Ces mentions imposent des distances de sécurité renforcées, non réductibles par la charte départementale, ' +
+    'aux abords des habitations et des lieux accueillant des personnes vulnérables (arrêté du 4 mai 2017 modifié). ' +
+    'Lisez la distance sur l’étiquette : Parcelys ne la calcule pas.'
   );
 }

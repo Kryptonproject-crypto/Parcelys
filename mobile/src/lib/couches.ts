@@ -1,6 +1,8 @@
 import {
+  ApiError,
   fetchCouchesCarte,
   fetchGeometriesCouche,
+  OfflineError,
   type CoucheCarte,
   type EntiteCarte,
 } from './api';
@@ -139,4 +141,29 @@ export function couchesAAfficher(couches: CoucheCarte[]): string[] {
   const choix = couchesChoisies();
   if (choix) return couches.filter((c) => choix.includes(c.code)).map((c) => c.code);
   return couches.filter((c) => NATURES_AFFICHEES_PAR_DEFAUT.includes(c.kind)).map((c) => c.code);
+}
+
+/**
+ * Pourquoi les couches n'ont pas pu être actualisées, dit à l'exploitant.
+ *
+ * Un échec muet laissait la carte sans cours d'eau sans que rien ne dise
+ * pourquoi — le cas le plus fréquent étant un serveur pas encore mis à jour.
+ */
+export function raisonDeLEchec(erreur: unknown): string {
+  if (erreur instanceof OfflineError) {
+    return erreur.motif === 'delai'
+      ? 'Le serveur n’a pas répondu à temps en préparant les couches. Réessayez dans une minute : une fois préparées, elles arrivent tout de suite.'
+      : 'Pas de réseau : les couches s’enregistreront sur l’appareil à la prochaine synchronisation.';
+  }
+  if (erreur instanceof ApiError) {
+    if (erreur.status === 404 && erreur.code !== 'NOT_FOUND') {
+      return 'Le serveur ne fournit pas encore les couches de la carte : mettez Parcelys à jour sur le Raspberry Pi (version 0.10.0 ou plus récente).';
+    }
+    if (erreur.status === 401) return 'Session expirée : reconnectez-vous pour charger les couches.';
+    if (erreur.status === 403 || erreur.status === 404) {
+      return 'Cette exploitation n’est pas accessible depuis ce compte.';
+    }
+    return `Le serveur a refusé de fournir les couches (${erreur.status}) : ${erreur.message}`;
+  }
+  return 'Les couches n’ont pas pu être chargées.';
 }

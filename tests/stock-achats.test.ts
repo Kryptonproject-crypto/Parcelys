@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createUserWithFarm, prisma, resetDatabase, testPolygon } from './helpers/db';
 import { startServer, stopServer, TestClient } from './helpers/server';
@@ -118,6 +119,39 @@ describe('Achats et stock phytosanitaire', () => {
       data: { itemId: r.body.itemId, lotId: r.body.lotId, kind: 'SORTIE', occurredOn: new Date(), quantity: -(20 - utilise), unit: 'l' },
     });
     expect((await client.get<{ produits: unknown[] }>('/api/stocks/phyto')).body.produits).toHaveLength(0);
+  });
+
+  it('accepte l’achat noté sur le téléphone, une seule fois même renvoyé', async () => {
+    const p = await produit('HERBICIDE DE TERRAIN', '9900005');
+    const operation = {
+      clientId: randomUUID(),
+      kind: 'stock.purchase',
+      farmId,
+      capturedAt: new Date().toISOString(),
+      payload: {
+        category: 'PHYTOSANITAIRE',
+        phytoProductId: p.id,
+        quantity: 15,
+        unit: 'L',
+        purchasedOn: '2026-10-14',
+        lotNumber: 'T-1',
+        supplier: null,
+        expiresOn: null,
+      },
+    };
+    const premier = await client.post<{ applied: number; results: Array<{ status: string }> }>('/api/sync', {
+      operations: [operation],
+    });
+    expect(premier.status).toBe(200);
+    expect(premier.body.results[0]?.status).toBe('applied');
+
+    // La réponse s'est perdue en route : le téléphone renvoie la même saisie.
+    const second = await client.post<{ results: Array<{ status: string }> }>('/api/sync', { operations: [operation] });
+    expect(second.body.results[0]?.status).toBe('replayed');
+    expect(await prisma.stockLot.count({ where: { lotNumber: 'T-1' } })).toBe(1);
+
+    const enStock = await client.get<{ produits: Array<{ produit: { amm: string }; reste: number }> }>('/api/stocks/phyto');
+    expect(enStock.body.produits.find((x) => x.produit.amm === '9900005')?.reste).toBe(15);
   });
 
   it('ne montre le stock que de son exploitation', async () => {

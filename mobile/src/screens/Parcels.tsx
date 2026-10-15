@@ -296,6 +296,11 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
               </Button>
             </div>
 
+            {/* Le stock : ce qui reste, et l'achat noté à l'arrivée des bidons. */}
+            <Button variant="secondary" full onClick={() => navigate({ name: 'stock' })}>
+              Stock phytosanitaire
+            </Button>
+
             {messageLocalisation ? (
               <Banner tone={localisation === 'erreur' ? 'warning' : 'info'}>
                 {messageLocalisation}

@@ -15,6 +15,7 @@ import { POST as createOperation } from '@/app/api/parcels/[id]/operations/route
 import { POST as createSoilCover } from '@/app/api/soil-covers/route';
 import { POST as createRecommendation } from '@/app/api/recommendations/route';
 import { POST as respondToRecommendation } from '@/app/api/recommendations/[id]/response/route';
+import { POST as recordPurchase } from '@/app/api/stocks/achats/route';
 
 /**
  * Synchronisation de l'application de terrain.
@@ -125,6 +126,14 @@ const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
     handler: respondToRecommendation as RouteHandler,
     target: 'recommendation',
     path: (op) => `/api/recommendations/${targetId(op)}/response`,
+  },
+  // Un achat noté au téléphone à l'arrivée des bidons. La route du site crée
+  // l'article, le lot et l'entrée en stock, et refuse ce qu'elle refuserait en
+  // ligne : produit hors catalogue, unité inconvertible, date à venir.
+  'stock.purchase': {
+    handler: recordPurchase as RouteHandler,
+    target: 'none',
+    path: (op) => `/api/stocks/achats${op.farmId ? `?farmId=${encodeURIComponent(op.farmId)}` : ''}`,
   },
 };
 

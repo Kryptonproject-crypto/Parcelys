@@ -25,8 +25,29 @@ import {
 } from '@/lib/pac/adapter';
 import type { Ring } from '@/lib/pac/shapefile';
 
-/** Ce qu'on propose de faire d'une entité importée. */
-export type MatchDecision = 'update' | 'create' | 'ignore';
+/**
+ * Ce qu'on propose de faire d'une entité importée.
+ *
+ *  · `keep` — la parcelle existe déjà : elle est **conservée telle quelle**
+ *    (nom, numéro, contour, commune). L'import la rattache à la campagne,
+ *    complète ce qui manquait — un numéro PAC ou une commune vides, la culture
+ *    déclarée si aucune n'est saisie pour l'année — et ne réécrit rien.
+ *    C'est le défaut : réimporter son dossier ne doit pas défaire ce que
+ *    l'exploitant a corrigé ou renommé.
+ *  · `update` — remplacer en plus le contour par celui du dossier. Choisi
+ *    explicitement, parcelle par parcelle, quand le contour a changé.
+ *  · `create` — parcelle nouvelle.
+ *  · `ignore` — ne rien importer de cette entité.
+ */
+export type MatchDecision = 'keep' | 'update' | 'create' | 'ignore';
+
+/**
+ * Au-delà de cette ressemblance (indice de Jaccard), deux contours sont tenus
+ * pour identiques : l'écart tient à la reprojection et aux arrondis, pas à un
+ * tracé différent. En dessous, l'aperçu signale le contour comme différent et
+ * laisse l'exploitant choisir de le remplacer.
+ */
+export const CONTOUR_IDENTIQUE = 0.999;
 
 export type AnalyzedFeature = {
   /** Position dans la couche, pour que l'utilisateur retrouve la ligne. */
@@ -64,6 +85,8 @@ export type AnalyzedFeature = {
     parcelAreaHa: number;
     /** Part commune aux deux géométries, de 0 à 1. */
     overlap: number;
+    /** Le contour du dossier est-il celui déjà enregistré ? */
+    contourIdentique: boolean;
     reason: string;
     decision: MatchDecision;
   } | null;
@@ -223,6 +246,31 @@ async function projectAndMeasure(wkts: Array<string | null>, srid: number): Prom
   }
 
   return resultats;
+}
+
+/**
+ * Ressemblance entre le contour du dossier et celui d'une parcelle déjà
+ * reconnue par son numéro — `null` si l'un des deux manque.
+ *
+ * Le rapprochement par identité ne mesure rien ; l'aperçu doit pourtant dire
+ * si le contour a changé dans TéléPAC, pour que l'exploitant décide de le
+ * reprendre ou non.
+ */
+async function ressemblance(parcelId: string, geojson: unknown | null): Promise<number | null> {
+  if (!geojson) return null;
+  const texte = JSON.stringify(geojson);
+  const [ligne] = await prisma.$queryRaw<Array<{ overlap: number | null }>>`
+    WITH candidate AS (
+      SELECT ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(${texte}), 4326)) AS g
+    )
+    SELECT ST_Area(ST_Intersection(pg.geom, c.g)::geography)
+             / NULLIF(ST_Area(ST_Union(pg.geom, c.g)::geography), 0) AS overlap
+    FROM parcel_geometries pg
+    CROSS JOIN candidate c
+    WHERE pg.parcel_id = ${parcelId} AND pg.is_current = true
+    LIMIT 1
+  `;
+  return ligne?.overlap === null || ligne?.overlap === undefined ? null : Number(ligne.overlap);
 }
 
 /** Cherche, pour chaque géométrie importée, la parcelle existante qui lui ressemble. */
@@ -452,19 +500,28 @@ export async function analyzeDossier(params: {
     // mettraient toutes deux à jour, et la géométrie retenue dépendrait de
     // l'ordre de lecture.
     const revendiquees = new Set<string>();
-    const correspondances = layer.features.map((_, index) => {
+    const correspondances: Array<
+      | { parcelId: string; parcelName: string; parcelAreaHa: number; overlap: number; identite: boolean }
+      | null
+    > = [];
+    for (const [index] of layer.features.entries()) {
       const exact = parIdentite[index];
       if (exact && !revendiquees.has(exact.parcelId)) {
         revendiquees.add(exact.parcelId);
-        return { ...exact, overlap: 1, identite: true };
+        // Reconnue par son numéro : on mesure tout de même la ressemblance,
+        // pour dire si le contour a changé dans TéléPAC.
+        const mesure = await ressemblance(exact.parcelId, projetees[index]?.geojson ?? null);
+        correspondances.push({ ...exact, overlap: mesure ?? 1, identite: true });
+        continue;
       }
       const approche = parGeometrie[index];
       if (approche && !revendiquees.has(approche.parcelId)) {
         revendiquees.add(approche.parcelId);
-        return { ...approche, identite: false };
+        correspondances.push({ ...approche, identite: false });
+        continue;
       }
-      return null;
-    });
+      correspondances.push(null);
+    }
 
     layer.features.forEach((f, index) => {
       const projete = projetees[index];
@@ -504,18 +561,29 @@ export async function analyzeDossier(params: {
         error: projete?.error ?? null,
         warnings: avertissements,
         match: match
-          ? {
-              ...match,
+          ? (() => {
+              const contourIdentique = match.overlap >= CONTOUR_IDENTIQUE;
               // Dire **sur quoi** repose le rapprochement : l'exploitant qui
               // relit l'aperçu ne juge pas de la même façon un numéro
               // identique et un recouvrement de 42 %.
-              reason: match.identite
+              const base = match.identite
                 ? 'Déjà importée sous ce numéro d’îlot et de parcelle.'
                 : match.overlap > 0.9
                   ? 'Même emprise que cette parcelle.'
-                  : `Recouvre ${Math.round(match.overlap * 100)} % de cette parcelle.`,
-              decision: 'update',
-            }
+                  : `Recouvre ${Math.round(match.overlap * 100)} % de cette parcelle.`;
+              const contour = contourIdentique
+                ? ''
+                : ` Contour différent dans le dossier : ${match.parcelAreaHa.toFixed(2)} ha enregistrés, ` +
+                  `${(projete?.areaHa ?? 0).toFixed(2)} ha dans le dossier.`;
+              return {
+                ...match,
+                contourIdentique,
+                reason: base + contour,
+                // Conservée telle quelle : un réimport ne réécrit pas une
+                // parcelle existante sans qu'on le lui demande.
+                decision: 'keep' as const,
+              };
+            })()
           : null,
       });
     });

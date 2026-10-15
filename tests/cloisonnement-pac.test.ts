@@ -316,9 +316,11 @@ describe('Cloisonnement du domaine PAC', () => {
       expect(premier.created).toBe(2);
 
       const second = await importer(a.farmId, a.id, 2026, PARCELLES_A);
-      expect({ created: second.created, updated: second.updated }).toEqual({
+      // Reconnues, et conservées telles quelles : rien de créé, rien de réécrit.
+      expect({ created: second.created, kept: second.kept, updated: second.updated }).toEqual({
         created: 0,
-        updated: 2,
+        kept: 2,
+        updated: 0,
       });
 
       expect(
@@ -353,19 +355,16 @@ describe('Cloisonnement du domaine PAC', () => {
       const rapproche = analyse.features.filter((f) => f.match !== null);
       expect(rapproche).toHaveLength(2);
       for (const feature of rapproche) {
-        expect({
-          numero: feature.numero,
-          motif: feature.match?.reason ?? '',
-        }).toEqual({
-          numero: feature.numero,
-          motif: 'Déjà importée sous ce numéro d’îlot et de parcelle.',
-        });
+        expect(feature.match?.reason ?? '').toMatch(/^Déjà importée sous ce numéro d’îlot et de parcelle\./);
+        // Le contour a bougé : l'aperçu le dit, pour qu'on choisisse de le reprendre.
+        expect(feature.match?.contourIdentique).toBe(false);
       }
 
       const resultat = await importer(a.farmId, a.id, 2026, deplacees);
-      expect({ created: resultat.created, updated: resultat.updated }).toEqual({
+      expect({ created: resultat.created, kept: resultat.kept, updated: resultat.updated }).toEqual({
         created: 0,
-        updated: 2,
+        kept: 2,
+        updated: 0,
       });
       expect(
         await prisma.parcel.count({ where: { farmId: a.farmId, deletedAt: null } }),

@@ -5,6 +5,8 @@ import { drainedSoilSeverity } from '@/lib/ephy/conditions';
 import {
   rappelZnt,
   rappelZntEcoulements,
+  zntAquatiqueApplicable,
+  rappelDangersRiverains,
   rappelsConditions,
   verifierDelaiAvantRecolte,
   verifierIntervalle,
@@ -90,6 +92,9 @@ export async function buildPhytoWarnings(
         // n'étaient jamais remontés à la saisie : la requête les écartait dès
         // la base. Ils pèsent pourtant au moment d'appliquer.
         conditions: true,
+        // Les mentions de danger : celles qui rendent les distances aux
+        // habitations incompressibles.
+        dangers: true,
       },
     }),
     prisma.parcel.findUnique({
@@ -161,6 +166,14 @@ export async function buildPhytoWarnings(
       exclure: input.applicationId ?? null,
     });
 
+    // La ZNT aquatique de l'usage — ou celle que les conditions d'emploi,
+    // à défaut l'arrêté du 4 mai 2017, imposent quand la colonne est vide.
+    const aquatique = zntAquatiqueApplicable({
+      zntAquaticM: usage.zntAquaticM,
+      conditions: product.conditions,
+      culturesDuProduit: product.usages.map((u) => u.cropLabel),
+    });
+
     const limites = [
       verifierNombreApplications({
         produit: product.name,
@@ -185,11 +198,13 @@ export async function buildPhytoWarnings(
         zntAquaticM: usage.zntAquaticM,
         zntArthropodM: usage.zntArthropodM,
         zntPlantM: usage.zntPlantM,
+        aquatique,
       }),
       rappelZntEcoulements({
         produit: product.name,
         zntAquaticM: usage.zntAquaticM,
         ecoulements: await ecoulementsProches(input.parcelId),
+        aquatique,
       }),
     ];
 
@@ -219,6 +234,8 @@ export async function buildPhytoWarnings(
   for (const rappel of rappelsConditions(product.conditions, product.name)) {
     warnings.push(rappel);
   }
+  const riverains = rappelDangersRiverains({ produit: product.name, dangers: product.dangers });
+  if (riverains) warnings.push(riverains);
 
   return warnings;
 }

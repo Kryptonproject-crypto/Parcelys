@@ -118,6 +118,7 @@ async function readFromZip(zipPath: string): Promise<ImportSource> {
     allUsages: await read(chosen.allUsages),
     substances: await read(chosen.substances),
     conditions: await read(chosen.conditions),
+    dangers: await read(chosen.dangers),
   };
 }
 
@@ -135,6 +136,7 @@ function chooseFiles(names: string[]): {
   allUsages: string | null;
   substances: string | null;
   conditions: string | null;
+  dangers: string | null;
 } {
   const products = resolveDataFile(names, 'products');
   if (!products) {
@@ -152,6 +154,7 @@ function chooseFiles(names: string[]): {
   const allUsages = candidatComplet && candidatComplet !== usages ? candidatComplet : null;
   const substances = resolveDataFile(names, 'substances');
   const conditions = resolveDataFile(names, 'conditions');
+  const dangers = resolveDataFile(names, 'dangers');
 
   console.info(`  → produits   : ${products}`);
   console.info(`  → usages     : ${usages ?? '(absent — doses, ZNT et DAR non importés)'}`);
@@ -163,7 +166,11 @@ function chooseFiles(names: string[]): {
     `  → conditions : ${conditions ?? '(absent — restrictions sol drainé non importées)'}`,
   );
 
-  return { products, usages, allUsages, substances, conditions };
+  console.info(
+    `  → mentions de danger : ${dangers ?? '(absent — distances riverains non rapprochables)'}`,
+  );
+
+  return { products, usages, allUsages, substances, conditions, dangers };
 }
 
 /** Lit les CSV d'un dossier déjà décompressé. */
@@ -187,6 +194,7 @@ async function readFromDir(dir: string): Promise<ImportSource> {
     conditions: chosen.conditions
       ? await readFile(path.join(dir, chosen.conditions))
       : undefined,
+    dangers: chosen.dangers ? await readFile(path.join(dir, chosen.dangers)) : undefined,
   };
 }
 

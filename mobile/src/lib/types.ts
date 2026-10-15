@@ -227,7 +227,8 @@ export type OperationKind =
   | 'operation.create'
   | 'recommendation.create'
   | 'recommendation.respond'
-  | 'soilCover.create';
+  | 'soilCover.create'
+  | 'stock.purchase';
 
 export const OPERATION_LABELS: Record<OperationKind, string> = {
   'parcel.create': 'Nouvelle parcelle',
@@ -238,6 +239,7 @@ export const OPERATION_LABELS: Record<OperationKind, string> = {
   'soilCover.create': 'Couvert d’interculture',
   'recommendation.create': 'Préconisation',
   'recommendation.respond': 'Réponse à une préconisation',
+  'stock.purchase': 'Achat',
 };
 
 export type QueuedOperation = {

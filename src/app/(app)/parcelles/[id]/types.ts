@@ -19,6 +19,12 @@ export type ParcelSummary = {
   /** Sol artificiellement drainé. `null` = non renseigné, pas « non drainé ». */
   drainedSoil: boolean | null;
   createdAt: string;
+  /**
+   * Numéros sous lesquels la parcelle a été déclarée à TéléPAC, campagne par
+   * campagne — tels que lus dans les dossiers importés. Ils vivent à part du
+   * nom et du numéro interne : renommer la parcelle n'y touche pas.
+   */
+  declarationsPac: Array<{ campagne: number; ilot: string | null; numero: string | null; culture: string | null }>;
 };
 
 export type CropYearRow = {

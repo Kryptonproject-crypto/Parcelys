@@ -209,6 +209,18 @@ export function ParcelTabs(props: ParcelTabsProps) {
               ['Lieu-dit', parcel.lieuDit ?? '—'],
               ['Référence cadastrale', parcel.cadastralRef ?? '—'],
               ['Identifiant PAC / RPG', parcel.pacId ?? '—'],
+              [
+                'Déclaration TéléPAC',
+                parcel.declarationsPac.length === 0
+                  ? '—'
+                  : parcel.declarationsPac
+                      .map(
+                        (d) =>
+                          `${d.campagne} : îlot ${d.ilot ?? '?'}, parcelle ${d.numero ?? '?'}` +
+                          (d.culture ? ` (${d.culture})` : ''),
+                      )
+                      .join(' · '),
+              ],
               ['Type de parcelle', parcel.parcelType ?? '—'],
               [
                 'Sol drainé',

@@ -6,6 +6,67 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.10.1 — Réimport PAC qui ne réécrit rien, ZNT par défaut, stock au champ
+
+### Réimporter son dossier PAC ne modifie plus les parcelles existantes
+
+Une parcelle déjà connue — par son numéro d'îlot et de parcelle, ou par son
+contour — est désormais **conservée telle quelle** : nom donné, numéro
+interne, contour, commune. L'import n'y complète que ce qui était vide (numéro
+PAC, commune) et la culture déclarée de la campagne si aucune n'est saisie ;
+il ajoute les parcelles nouvelles. Auparavant, chaque parcelle reconnue
+recevait le contour du dossier — une nouvelle version à chaque import, même
+identique.
+
+Quand le contour a changé dans TéléPAC, l'aperçu le signale (« contour
+différent : 12,40 → 12,85 ha ») avec une case pour le reprendre ; rien n'est
+remplacé sans elle. La fiche de la parcelle affiche ses numéros TéléPAC
+campagne par campagne : un renommage n'y touche pas.
+
+### ZNT aquatique : la largeur par défaut de l'arrêté
+
+Un usage sans ZNT aquatique dans le catalogue n'était suivi d'aucun rappel.
+L'arrêté du 4 mai 2017 (art. 12-III) fixe pourtant une zone non traitée d'au
+moins **5 m** quand l'autorisation et l'étiquette n'en prévoient pas.
+Parcelys l'applique désormais — sauf quand une condition d'emploi de l'ANSES
+fixe la ZNT dans son texte (1 120 produits le font), qui est alors citée mot
+pour mot, et sauf pour les produits autorisés sur plantes aquatiques ou en
+rizière (art. 13-II). Les écoulements de la BD TOPAGE à moins de cette
+largeur sont cités, comme pour les ZNT du catalogue.
+
+### Mentions de danger et riverains
+
+Les mentions de danger des produits (fichier E-Phy
+`produits_phrases_de_risque`) sont importées. Un produit cancérogène,
+mutagène ou reprotoxique (H340/H341, H350/H351, H360/H361 — 761 produits) le
+signale à la saisie : les distances de sécurité aux abords des habitations le
+concernant ne sont pas réductibles par la charte. La distance elle-même n'est
+pas chiffrée — voir « Ce qui manque ».
+
+### L'application de terrain
+
+- **Stock** : ce qui reste, lot par lot, et **Enregistrer un achat** depuis le
+  téléphone, hors réseau compris — rejoué par la synchronisation sur la route
+  du site, une seule fois même si l'envoi est répété.
+- **Carte** : les couches ne restent plus muettes en cas d'échec. Serveur pas
+  encore mis à jour, pas de réseau, premier calcul trop long : l'écran dit
+  lequel. Le délai accordé au premier calcul passe à deux minutes.
+
+### Ce qui manque, et que Parcelys n'invente pas
+
+- **Points d'eau de l'Allier** : la ZNT s'applique le long des points d'eau
+  désignés par arrêté préfectoral. La BD TOPAGE situe les écoulements, pas
+  leur désignation : l'arrêté et sa cartographie (DDT de l'Allier) ne sont pas
+  importés.
+- **Distances riverains** : texte consolidé de l'arrêté du 4 mai 2017
+  (articles 14-1 et suivants, modifiés en 2022 et 2023), liste des produits de
+  l'annexe 5 (Bulletin officiel), charte départementale de l'Allier, position
+  des habitations.
+- **Distances d'épandage aux cours d'eau** : elles relèvent du programme
+  d'actions national (arrêté du 19 décembre 2011 modifié), non fourni.
+
+---
+
 ## 0.10.0 — Le stock à la pulvérisation, une application rapide sur un Pi
 
 ### Enregistrer un achat, traiter depuis son stock

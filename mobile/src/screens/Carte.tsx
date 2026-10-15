@@ -20,6 +20,7 @@ import {
   actualiserCouches,
   couchesAAfficher,
   lireCouches,
+  raisonDeLEchec,
   retenirCouchesChoisies,
   type CouchesEnregistrees,
 } from '../lib/couches';
@@ -81,6 +82,14 @@ export function CarteScreen({ context }: { context: AppContext }) {
   const [actives, setActives] = useState<string[] | null>(null);
   const [chargement, setChargement] = useState<string | null>(null);
   const [erreurCouche, setErreurCouche] = useState<string | null>(null);
+  /**
+   * Où en est l'actualisation des couches. Toujours affiché : une carte sans
+   * cours d'eau doit dire pourquoi — serveur pas encore à jour, pas de réseau,
+   * premier calcul en cours —, jamais rester muette.
+   */
+  const [actualisation, setActualisation] = useState<
+    { etat: 'attente' } | { etat: 'faite' } | { etat: 'echec'; raison: string }
+  >({ etat: 'attente' });
 
   // Le clic sur une parcelle est posé une fois pour toutes sur la couche
   // Leaflet ; il doit pourtant appeler la navigation la plus récente. Sans
@@ -256,14 +265,24 @@ export function CarteScreen({ context }: { context: AppContext }) {
         setEnregistrees(locales);
         setActives((a) => a ?? couchesAAfficher(locales.couches));
       }
-      if (!online) return;
+      if (!online) {
+        setActualisation(
+          locales
+            ? { etat: 'faite' }
+            : { etat: 'echec', raison: raisonDeLEchec(new OfflineError()) },
+        );
+        return;
+      }
+      setActualisation({ etat: 'attente' });
       try {
         const fraiches = await actualiserCouches(session, farmId, couchesAAfficher);
         if (abandonne) return;
         setEnregistrees(fraiches);
         setActives((a) => a ?? couchesAAfficher(fraiches.couches));
-      } catch {
-        // Hors réseau ou serveur indisponible : ce qui est enregistré reste.
+        setActualisation({ etat: 'faite' });
+      } catch (erreur) {
+        // Ce qui est enregistré reste affiché ; la raison de l'échec est dite.
+        if (!abandonne) setActualisation({ etat: 'echec', raison: raisonDeLEchec(erreur) });
       }
     })();
     return () => {
@@ -288,9 +307,9 @@ export function CarteScreen({ context }: { context: AppContext }) {
       setActives(actuelles);
       retenirCouchesChoisies(actuelles);
       setErreurCouche(
-        erreur instanceof OfflineError
+        erreur instanceof OfflineError && erreur.motif === 'reseau'
           ? 'Cette couche n’est pas encore enregistrée sur l’appareil : elle se chargera avec du réseau.'
-          : 'Cette couche n’a pas pu être chargée.',
+          : raisonDeLEchec(erreur),
       );
     } finally {
       setChargement(null);
@@ -640,11 +659,31 @@ export function CarteScreen({ context }: { context: AppContext }) {
           </>
         )}
 
+        {avecContour.length > 0 && !(enregistrees && enregistrees.couches.length > 0) ? (
+          <Card>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-ink-3">
+              Couches réglementaires
+            </h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3" role="status">
+              {actualisation.etat === 'attente'
+                ? 'Chargement des cours d’eau et des zonages… La première fois après une mise à jour, le serveur peut mettre jusqu’à une minute à les préparer.'
+                : actualisation.etat === 'echec'
+                  ? actualisation.raison
+                  : 'Aucune couche réglementaire n’est importée sur le serveur (Administration → Référentiels).'}
+            </p>
+          </Card>
+        ) : null}
+
         {avecContour.length > 0 && enregistrees && enregistrees.couches.length > 0 ? (
           <Card>
             <h2 className="text-[13px] font-semibold uppercase tracking-wide text-ink-3">
               Couches réglementaires
             </h2>
+            {actualisation.etat === 'echec' ? (
+              <p className="mt-1.5 text-[12.5px] leading-snug text-ink-3" role="status">
+                Couches enregistrées le {formatDateFr(enregistrees.recuesLe)}, non actualisées : {actualisation.raison}
+              </p>
+            ) : null}
             {erreurCouche ? (
               <p className="mt-1.5 text-[12.5px] leading-snug text-ble-600 dark:text-ble-400">{erreurCouche}</p>
             ) : null}

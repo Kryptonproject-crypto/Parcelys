@@ -115,15 +115,23 @@ export function ParcelsMap({
     void fetch(`/api/regulatory/map-layers?farmId=${encodeURIComponent(regulatoryLayersFarmId)}`, {
       credentials: 'same-origin',
     })
-      .then((r) => (r.ok ? (r.json() as Promise<{ couches: MapRegulatoryLayer[] }>) : null))
-      .then((corps) => {
-        if (!annule && corps) {
-          setCouchesChargees(corps.couches.map((c) => ({ ...c, features: [] })));
-        }
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json() as Promise<{ couches: MapRegulatoryLayer[] }>;
       })
-      .catch(() => {
-        // Sans couches, la carte des parcelles reste entière : rien à signaler
-        // de plus que l'absence de la légende.
+      .then((corps) => {
+        if (!annule) setCouchesChargees(corps.couches.map((c) => ({ ...c, features: [] })));
+      })
+      .catch((erreur: unknown) => {
+        // La carte des parcelles reste entière, mais l'absence des couches se
+        // dit : sans cela, on croit qu'il n'y a pas de cours d'eau.
+        if (!annule) {
+          setErreurCouche(
+            `Les couches réglementaires n’ont pas pu être chargées${
+              erreur instanceof Error && /^\d+$/.test(erreur.message) ? ` (erreur ${erreur.message})` : ''
+            }. Rechargez la page pour réessayer.`,
+          );
+        }
       });
     return () => {
       annule = true;
@@ -358,6 +366,11 @@ export function ParcelsMap({
         Sous la carte et non par-dessus : sur un téléphone, un panneau flottant
         recouvrirait justement les parcelles qu'on veut situer.
       */}
+      {regulatoryLayers.length === 0 && erreurCouche ? (
+        <p className="mt-2 text-[12.5px] text-red-700 dark:text-red-400" role="status">
+          {erreurCouche}
+        </p>
+      ) : null}
       {regulatoryLayers.length > 0 ? (
         <div className="mt-2 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
           <p className="text-[12.5px] font-medium text-ink-2">Couches réglementaires</p>

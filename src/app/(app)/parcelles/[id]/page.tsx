@@ -110,6 +110,7 @@ export default async function ParcelPage({
     fertilizers,
     organicInputs,
     ephySource,
+    declarationsPac,
   ] = await Promise.all([
     prisma.parcel.findUnique({
       where: { id },
@@ -157,6 +158,18 @@ export default async function ParcelPage({
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     }),
     getEphySourceInfo(),
+    // Numéros TéléPAC, campagne par campagne : distincts du nom, qu'un
+    // renommage ne modifie pas.
+    prisma.pacFeature.findMany({
+      where: { parcelId: id, kind: 'PARCELLE' },
+      select: {
+        numero: true,
+        cropCode: true,
+        ilot: { select: { numero: true } },
+        campaign: { select: { year: true } },
+      },
+      orderBy: { campaign: { year: 'desc' } },
+    }),
   ]);
 
   if (!parcel) notFound();
@@ -296,6 +309,12 @@ export default async function ParcelPage({
           centroidLng: parcel.centroidLng,
           drainedSoil: parcel.drainedSoil,
           createdAt: parcel.createdAt.toISOString(),
+          declarationsPac: declarationsPac.map((d) => ({
+            campagne: d.campaign.year,
+            ilot: d.ilot?.numero ?? null,
+            numero: d.numero,
+            culture: d.cropCode,
+          })),
         }}
         regulatoryContext={contexteReglementaire}
         campaignYear={year}

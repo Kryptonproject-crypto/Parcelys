@@ -20,6 +20,7 @@ l'administration restent sur l'application web, où ils se font au bureau.
 | **Carte** | La même carte que sur le site : Leaflet, fonds **Satellite** (imagerie Esri) et **Plan**, mêmes couleurs de parcelles. Position de l'appareil et précision annoncée. Toucher une parcelle ouvre sa fiche. Les contours viennent du cache : ils s'affichent avec ou sans réseau, seul le fond de plan demande une connexion. **Couches réglementaires** sous les parcelles : cours d'eau, plans d'eau et surfaces en eau affichés d'office, zones vulnérables, zones d'actions renforcées, aires de captage et points de prélèvement à allumer — enregistrés sur l'appareil, donc visibles hors réseau. |
 | **Relever une parcelle** | Contour au GPS, en **marchant la limite** (un point tous les 10 m) ou en **posant un sommet** à chaque angle. Surface et périmètre calculés en direct. |
 | **Fiche parcelle** | Quatre saisies : traitement phytosanitaire, apport de fertilisant, travail réalisé (irrigation comprise), couvert d'interculture. Et le renommage : c'est devant la parcelle qu'on sait comment elle s'appelle. |
+| **Stock** | Ce qui reste de chaque produit phytosanitaire, lot par lot, à la dernière synchronisation. **Enregistrer un achat** à l'arrivée des bidons — produit du catalogue E-Phy, quantité, lot, fournisseur, date limite —, hors réseau compris : l'achat part par la file d'attente et le serveur crée l'article, le lot et l'entrée en stock. |
 | **Synchronisation** | File d'attente visible, envoi automatique dès qu'il y a du réseau et quelque chose en attente, envoi manuel toujours possible, motif de refus affiché pour chaque saisie rejetée. |
 
 ### Ce qu'elle ne fait pas, volontairement
@@ -51,7 +52,10 @@ l'administration restent sur l'application web, où ils se font au bureau.
   contours des parcelles, référentiels importés) : une synchronisation
   ordinaire n'en transfère rien. Autour de l'exploitation, chaque couche garde
   les éléments **les plus proches des parcelles** (1 000 pour l'eau, 400 pour
-  le reste) ; la légende dit combien sont affichés sur combien.
+  le reste) ; la légende dit combien sont affichés sur combien. Quand les
+  couches ne peuvent pas être chargées, l'écran dit pourquoi — serveur pas
+  encore mis à jour, pas de réseau, premier calcul trop long — au lieu de
+  rester muet.
 - **Aucune période réglementaire n'est affichée pour les couverts.** Les dates
   de couverture obligatoire relèvent du programme d'actions régional ; les
   inventer ici donnerait une échéance fausse à un exploitant qui n'a pas de

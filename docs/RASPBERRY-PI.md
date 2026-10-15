@@ -1322,6 +1322,21 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.10.1
+
+La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`),
+puis **relancez la compilation de l'APK** sur GitHub (Actions → « APK
+Android » → *Run workflow*) et réinstallez-la : l'écran Stock et les messages
+de la carte sont dans l'application.
+
+Pour charger les mentions de danger des produits, relancez l'import du
+catalogue E-Phy — elles viennent d'un fichier de la même archive, que les
+versions précédentes ne lisaient pas :
+
+```bash
+cd /opt/parcelys && sudo -u parcelys npm run referentiels:aura -- --seulement ephy
+```
+
 ### Passer en 0.10.0
 
 **Une mise à jour plus longue que d'habitude, une seule fois.** La version

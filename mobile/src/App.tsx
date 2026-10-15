@@ -19,6 +19,8 @@ import type { CachedParcel, Session, Snapshot } from './lib/types';
 import { LoginScreen } from './screens/Login';
 import { ParcelsScreen } from './screens/Parcels';
 import { CarteScreen } from './screens/Carte';
+import { StockScreen } from './screens/Stock';
+import { NewPurchaseScreen } from './screens/NewPurchase';
 import { NewParcelScreen } from './screens/NewParcel';
 import { ParcelScreen } from './screens/Parcel';
 import { EntryScreen, type EntryKind } from './screens/Entry';
@@ -53,6 +55,8 @@ export type Screen =
   | { name: 'recommendations' }
   | { name: 'recommendation'; recommendationId: string }
   | { name: 'new-recommendation'; parcelId?: string }
+  | { name: 'stock' }
+  | { name: 'new-purchase' }
   | { name: 'queue' }
   | { name: 'settings' }
   | { name: 'security' };
@@ -450,6 +454,12 @@ export function App() {
 
     case 'carte':
       return <CarteScreen context={context} />;
+
+    case 'stock':
+      return <StockScreen context={context} />;
+
+    case 'new-purchase':
+      return <NewPurchaseScreen context={context} />;
 
     case 'new-parcel':
       return <NewParcelScreen context={context} />;

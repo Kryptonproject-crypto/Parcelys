@@ -16,7 +16,7 @@ dose en litres.
 ## 1. L'archive
 
 L'export est un ZIP d'une dizaine de CSV (séparateur `;`, encodage UTF-8 dans
-les fichiers `*_utf8.csv`). Parcelys en lit quatre :
+les fichiers `*_utf8.csv`). Parcelys en lit cinq :
 
 | Rôle | Fichier | Lignes (éd. 2026-09) |
 |---|---|---|
@@ -24,10 +24,17 @@ les fichiers `*_utf8.csv`). Parcelys en lit quatre :
 | Usages | `usages_des_produits_autorises_utf8.csv` | 19 608 |
 | Substances | `substance_active_utf8.csv` | 1 337 |
 | Conditions d'emploi | `produits_condition_emploi_utf8.csv` | 29 486 |
+| Mentions de danger | `produits_phrases_de_risque_utf8.csv` | 9 452 |
 
-Les autres (`mfsc_et_mixte_*`, `permis_de_commerce_parallele`,
-`produits_classe_et_mention_danger`, `produits_phrases_de_risque`) ne sont pas
-importés.
+Les mentions de danger (« H351 », « EUH401 »…) sont celles qui commandent les
+distances de sécurité aux abords des habitations : un produit portant une
+mention cancérogène, mutagène ou reprotoxique (H340/H341, H350/H351,
+H360/H361) le fait savoir à la saisie du traitement. La distance elle-même
+n'est pas chiffrée : elle dépend du texte en vigueur, de l'autorisation et
+d'une liste publiée au Bulletin officiel, qui ne sont pas importés.
+
+Les autres fichiers (`mfsc_et_mixte_*`, `permis_de_commerce_parallele`,
+`produits_classe_et_mention_danger`) ne sont pas importés.
 
 Le choix du fichier est fait par `resolveDataFile()` (`src/lib/ephy/schema.ts`),
 qui **refuse de choisir** plutôt que de deviner quand plusieurs noms

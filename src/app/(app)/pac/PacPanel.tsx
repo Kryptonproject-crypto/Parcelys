@@ -50,7 +50,13 @@ type Analysis = {
     declaredAreaHa: number | null;
     error: string | null;
     warnings: string[];
-    match: { parcelName: string; parcelAreaHa: number; overlap: number; reason: string } | null;
+    match: {
+      parcelName: string;
+      parcelAreaHa: number;
+      overlap: number;
+      contourIdentique: boolean;
+      reason: string;
+    } | null;
   }>;
   ignoredFiles: string[];
   problems: string[];
@@ -132,12 +138,33 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
   const [control, setControl] = useState<ControlReport | null>(null);
   const champFichiers = useRef<HTMLInputElement>(null);
 
-  const corpsFormulaire = useCallback(() => {
-    const form = new FormData();
-    form.set('year', String(year));
-    for (const file of files) form.append('files', file);
-    return form;
-  }, [files, year]);
+  /**
+   * Parcelles déjà présentes dont l'exploitant choisit de reprendre le contour
+   * du dossier. Par défaut aucune : un réimport conserve les parcelles telles
+   * qu'elles sont, et n'ajoute que les nouvelles.
+   */
+  const [contoursRepris, setContoursRepris] = useState<Set<string>>(new Set());
+
+  const corpsFormulaire = useCallback(
+    (avecDecisions = false) => {
+      const form = new FormData();
+      form.set('year', String(year));
+      for (const file of files) form.append('files', file);
+      if (avecDecisions) {
+        form.set(
+          'decisions',
+          JSON.stringify(
+            [...contoursRepris].map((cle) => {
+              const [layer, index] = [cle.slice(0, cle.lastIndexOf('#')), cle.slice(cle.lastIndexOf('#') + 1)];
+              return { layer, index: Number(index), decision: 'update' };
+            }),
+          ),
+        );
+      }
+      return form;
+    },
+    [files, year, contoursRepris],
+  );
 
   async function analyser() {
     if (files.length === 0) {
@@ -147,6 +174,7 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
     setBusy('analyse');
     setError(null);
     setAnalysis(null);
+    setContoursRepris(new Set());
     try {
       const reponse = await fetch('/api/pac/import', { method: 'POST', body: corpsFormulaire() });
       const corps = await reponse.json();
@@ -161,11 +189,14 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
 
   function demanderImport() {
     if (!analysis) return;
+    const nouvelles = analysis.totals.valid - analysis.totals.matched;
+    const repris = contoursRepris.size;
     confirm.ask({
-      title: `Importer ${analysis.totals.valid} parcelle(s) ?`,
+      title: `Importer le dossier ${year} ?`,
       message:
-        `${analysis.totals.matched} seront mises à jour, ` +
-        `${analysis.totals.valid - analysis.totals.matched} créées.`,
+        `${nouvelles} nouvelle(s) parcelle(s) ajoutée(s) ; ` +
+        `${analysis.totals.matched} déjà présente(s) conservée(s) telles quelles — nom, numéro, contour` +
+        (repris > 0 ? `, sauf ${repris} contour(s) que vous avez choisi de reprendre.` : '.'),
       detail:
         "Une sauvegarde du parcellaire est prise avant l'import : vous pourrez revenir " +
         'en arrière si ce n’est pas le bon dossier.',
@@ -173,7 +204,7 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
       onConfirm: async () => {
         setBusy('import');
         try {
-          const reponse = await fetch('/api/pac/import', { method: 'PUT', body: corpsFormulaire() });
+          const reponse = await fetch('/api/pac/import', { method: 'PUT', body: corpsFormulaire(true) });
           const corps = await reponse.json();
           if (!reponse.ok) throw new Error(corps?.error?.message ?? "L'import a échoué.");
           toast.success((corps.data ?? corps).message);
@@ -430,7 +461,7 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
           <div className="mt-4 flex flex-wrap gap-2">
             <Badge tone="green">{analysis.totals.valid} parcelle(s) valide(s)</Badge>
             {analysis.totals.matched > 0 ? (
-              <Badge tone="amber">{analysis.totals.matched} déjà présente(s)</Badge>
+              <Badge tone="neutral">{analysis.totals.matched} déjà présente(s), conservée(s)</Badge>
             ) : null}
             {analysis.totals.invalid > 0 ? (
               <Badge tone="red">{analysis.totals.invalid} géométrie(s) invalide(s)</Badge>
@@ -463,9 +494,32 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
                 {f.error ? (
                   <Badge tone="red">{f.error}</Badge>
                 ) : f.match ? (
-                  <Badge tone="amber">
-                    ↔ {f.match.parcelName} ({Math.round(f.match.overlap * 100)} %)
-                  </Badge>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Badge tone="neutral">
+                      conservée : {f.match.parcelName}
+                    </Badge>
+                    {f.match.contourIdentique ? null : (
+                      // Le contour a changé dans TéléPAC : à l'exploitant de
+                      // dire s'il le reprend. Rien n'est remplacé sans lui.
+                      <label className="flex items-center gap-1.5 text-[12.5px] text-amber-700 dark:text-amber-500">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-champ-600"
+                          checked={contoursRepris.has(`${f.layer}#${f.index}`)}
+                          onChange={(e) => {
+                            const cle = `${f.layer}#${f.index}`;
+                            setContoursRepris((avant) => {
+                              const apres = new Set(avant);
+                              if (e.target.checked) apres.add(cle);
+                              else apres.delete(cle);
+                              return apres;
+                            });
+                          }}
+                        />
+                        contour différent ({f.match.parcelAreaHa.toFixed(2)} → {f.areaHa?.toFixed(2) ?? '?'} ha) : le reprendre
+                      </label>
+                    )}
+                  </span>
                 ) : (
                   <Badge tone="green">nouvelle</Badge>
                 )}
@@ -508,7 +562,7 @@ export function PacPanel({ dashboard }: { dashboard: PacDashboard }) {
                 tone={control.level === 'ok' ? 'green' : control.level === 'warning' ? 'amber' : 'red'}
               >
                 {control.level === 'ok'
-                  ? 'Conforme'
+                  ? 'Aucune anomalie détectée'
                   : control.level === 'warning'
                     ? 'Avertissements'
                     : 'Erreurs bloquantes'}

@@ -40,9 +40,13 @@ export class ApiError extends Error {
 
 /** Panne réseau, serveur injoignable : la saisie part en file d'attente. */
 export class OfflineError extends Error {
-  constructor() {
-    super('Serveur injoignable.');
+  /** `delai` : le serveur a été joint mais n'a pas répondu à temps. */
+  readonly motif: 'reseau' | 'delai';
+
+  constructor(cause: 'reseau' | 'delai' = 'reseau') {
+    super(cause === 'delai' ? 'Le serveur n’a pas répondu à temps.' : 'Serveur injoignable.');
     this.name = 'OfflineError';
+    this.motif = cause;
   }
 }
 
@@ -57,6 +61,8 @@ async function request<T>(
     body?: unknown;
     token?: string;
     idempotencyKey?: string;
+    /** Délai propre à une requête longue, au-delà des 15 s ordinaires. */
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -69,11 +75,13 @@ async function request<T>(
       method: options.method ?? 'GET',
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
     });
-  } catch {
+  } catch (erreur) {
     // Aucune réponse : coupure réseau, DNS, serveur éteint, délai dépassé.
-    throw new OfflineError();
+    throw new OfflineError(
+      erreur instanceof DOMException && erreur.name === 'TimeoutError' ? 'delai' : 'reseau',
+    );
   }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
@@ -178,8 +186,14 @@ export async function fetchCouchesCarte(
 ): Promise<{ empreinte: string; couches: CoucheCarte[] }> {
   return request(session.serverUrl, `/api/regulatory/map-layers?farmId=${encodeURIComponent(farmId)}`, {
     token: session.token,
+    // La première fois après une mise à jour, un Raspberry Pi met plusieurs
+    // dizaines de secondes à préparer les couches ; ensuite, elles sont
+    // gardées et la réponse est immédiate.
+    timeoutMs: DELAI_COUCHES_MS,
   });
 }
+
+const DELAI_COUCHES_MS = 120_000;
 
 /** Les géométries d'une couche. */
 export async function fetchGeometriesCouche(
@@ -190,7 +204,7 @@ export async function fetchGeometriesCouche(
   return request(
     session.serverUrl,
     `/api/regulatory/map-layers?farmId=${encodeURIComponent(farmId)}&couche=${encodeURIComponent(code)}`,
-    { token: session.token },
+    { token: session.token, timeoutMs: DELAI_COUCHES_MS },
   );
 }
 
