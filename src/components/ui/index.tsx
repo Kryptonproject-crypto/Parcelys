@@ -6,6 +6,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { cloneElement, isValidElement, useId, type ReactElement } from 'react';
 import Link from 'next/link';
 import { IconChevronDown, IconSpinner, type LucideIcon } from '@/components/ui/icons';
 import { FUSEAU_EXPLOITATION } from '@/lib/shared/campagne';
@@ -384,15 +385,26 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  // Un libellé qui ne désigne pas son champ n'est ni cliquable ni lu par un
+  // lecteur d'écran avec le champ. Sans `htmlFor` explicite, et quand l'enfant
+  // est un champ unique sans identifiant, on en génère un et on relie les deux.
+  const genere = useId();
+  let champ = children;
+  let cible = htmlFor;
+  if (!cible && label && isValidElement(children) && estUnChamp(children)) {
+    const props = children.props as { id?: string };
+    cible = props.id ?? genere;
+    if (!props.id) champ = cloneElement(children as ReactElement<{ id?: string }>, { id: genere });
+  }
   return (
     <div className={cn('space-y-1.5', className)}>
       {label ? (
-        <label htmlFor={htmlFor} className="block text-[13px] font-medium text-ink-2">
+        <label htmlFor={cible} className="block text-[13px] font-medium text-ink-2">
           {label}
           {required ? <span className="ml-0.5 text-brique-500">*</span> : null}
         </label>
       ) : null}
-      {children}
+      {champ}
       {error ? (
         <p className="text-xs font-medium text-brique-500">{error}</p>
       ) : hint ? (
@@ -400,6 +412,13 @@ export function Field({
       ) : null}
     </div>
   );
+}
+
+/** L'élément est-il un champ de saisie (natif, ou `Input` / `Select` / `Textarea` d'ici) ? */
+function estUnChamp(element: ReactElement): boolean {
+  const type = element.type;
+  if (typeof type === 'string') return type === 'input' || type === 'select' || type === 'textarea';
+  return type === Input || type === Select || type === Textarea;
 }
 
 export function Input({

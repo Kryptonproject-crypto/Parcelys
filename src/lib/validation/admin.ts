@@ -27,6 +27,12 @@ export const invitationCreateSchema = z
      */
     role: z.enum(['OWNER', 'ADMIN', 'EMPLOYEE', 'VIEWER']).default('OWNER'),
     grantsPlatformAdmin: z.boolean().optional().default(false),
+    /**
+     * Portefeuille de gestion où arrivera l'exploitation créée ou le
+     * technicien inscrit. Pour un administrateur secondaire, il doit être l'un
+     * des siens — c'est vérifié côté serveur, pas ici.
+     */
+    portfolioId: z.string().trim().max(40).optional().or(z.literal('')),
     note: z.string().trim().max(200).optional().or(z.literal('')),
     validityDays: z.coerce
       .number()
@@ -92,6 +98,7 @@ export const adminUserQuerySchema = z.object({
   statut: z
     .enum(['tous', 'actifs', 'suspendus', 'non-verifies', 'experts', 'admins'])
     .default('tous'),
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
 });
 
 /**
@@ -116,3 +123,94 @@ export const advisoryRevokeSchema = z.object({
 export type InvitationCreateInput = z.infer<typeof invitationCreateSchema>;
 export type UserActionInput = z.infer<typeof userActionSchema>;
 export type AdvisoryGrantInput = z.infer<typeof advisoryGrantSchema>;
+
+// ---------------------------------------------------------------------------
+// Administration multi-niveaux
+// ---------------------------------------------------------------------------
+
+const identifiant = z.string().trim().min(1).max(40);
+
+export const portfolioCreateSchema = z.object({
+  name: z.string().trim().min(2, 'Deux caractères au moins').max(80),
+  description: z.string().trim().max(300).optional().or(z.literal('')),
+});
+
+export const portfolioUpdateSchema = z.object({
+  name: z.string().trim().min(2, 'Deux caractères au moins').max(80).optional(),
+  description: z.string().trim().max(300).optional().or(z.literal('')),
+});
+
+/** Attribuer ou transférer des clients ; `portfolioId: null` les retire de tout portefeuille. */
+export const assignmentSchema = z.object({
+  kind: z.enum(['farm', 'technician']),
+  ids: z.array(identifiant).min(1, 'Sélectionnez au moins un client').max(200),
+  portfolioId: identifiant.nullable(),
+});
+
+/**
+ * Inviter un administrateur secondaire. Son portefeuille est soit un
+ * portefeuille existant, soit créé à cette occasion — jamais aucun : un
+ * administrateur secondaire sans périmètre ne verrait rien et ne servirait
+ * à rien.
+ */
+export const secondaryInviteSchema = z
+  .object({
+    email: emailSchema.optional().or(z.literal('')),
+    portfolioId: identifiant.optional().or(z.literal('')),
+    newPortfolioName: z.string().trim().max(80).optional().or(z.literal('')),
+    note: z.string().trim().max(200).optional().or(z.literal('')),
+    validityDays: z.coerce
+      .number()
+      .int()
+      .min(1, 'Au moins un jour')
+      .max(MAX_VALIDITY_DAYS, `${MAX_VALIDITY_DAYS} jours au maximum`)
+      .default(DEFAULT_VALIDITY_DAYS),
+  })
+  .refine((d) => Boolean(d.portfolioId) !== Boolean(d.newPortfolioName && d.newPortfolioName.length >= 2), {
+    message: 'Choisissez un portefeuille existant, ou nommez-en un nouveau (l’un ou l’autre)',
+    path: ['portfolioId'],
+  });
+
+export const secondaryActionSchema = z.discriminatedUnion('action', [
+  /** Faire d'un compte d'administration existant un administrateur secondaire. */
+  z.object({ action: z.literal('promote'), portfolioId: identifiant }),
+  z.object({ action: z.literal('add-portfolio'), portfolioId: identifiant }),
+  z.object({ action: z.literal('remove-portfolio'), portfolioId: identifiant }),
+  z.object({
+    action: z.literal('deactivate'),
+    reason: z.string().trim().max(200).optional().or(z.literal('')),
+  }),
+  z.object({ action: z.literal('reactivate') }),
+  /** Retire le rôle et tous les portefeuilles ; le compte subsiste, sans droits. */
+  z.object({ action: z.literal('revoke') }),
+]);
+
+// ---------------------------------------------------------------------------
+// Centre d'aide
+// ---------------------------------------------------------------------------
+
+export const faqCategorySchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(300).optional().or(z.literal('')),
+  slug: z
+    .string()
+    .trim()
+    .min(2)
+    .max(60)
+    .regex(/^[a-z0-9-]+$/, 'Minuscules, chiffres et tirets seulement'),
+  position: z.coerce.number().int().min(0).max(100_000).default(0),
+});
+
+export const faqCategoryUpdateSchema = faqCategorySchema.partial().omit({ slug: true });
+
+export const faqEntrySchema = z.object({
+  categoryId: z.string().trim().min(1).max(40),
+  question: z.string().trim().min(5).max(300),
+  answer: z.string().trim().min(5).max(8000),
+  keywords: z.string().trim().max(300).optional().or(z.literal('')),
+  position: z.coerce.number().int().min(0).max(100_000).default(0),
+  published: z.boolean().default(true),
+  needsReview: z.boolean().default(false),
+});
+
+export const faqEntryUpdateSchema = faqEntrySchema.partial();

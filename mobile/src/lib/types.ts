@@ -194,12 +194,16 @@ export type Snapshot = {
   farm: {
     id: string;
     name: string;
+    /** `EXP-…` — absent d'un instantané antérieur à la 0.11.0, ou d'un domaine suivi en conseil. */
+    customerNumber?: string | null;
     city: string | null;
     department: string | null;
     latitude: number | null;
     longitude: number | null;
   };
   accountType: AccountType;
+  /** `TEC-…` pour un compte expert ; absent d'un instantané antérieur à la 0.11.0. */
+  technicianNumber?: string | null;
   farms: PortfolioFarm[];
   role: string;
   /** `true` quand l'exploitation affichée est suivie, non détenue. */

@@ -1,10 +1,11 @@
-import { requirePageAdmin } from '@/lib/auth/page-guards';
+import { requirePageAdminScope } from '@/lib/auth/page-guards';
 import { countUnread } from '@/lib/notifications';
 import { AppShell } from '@/components/layout/AppShell';
 import { AdminTabs } from '@/app/(admin)/administration/AdminTabs';
+import { AdminScopeBar } from '@/app/(admin)/administration/AdminScopeBar';
 
 /**
- * Section d'administration de l'instance.
+ * Section d'administration de l'instance — deux niveaux.
  *
  * Groupe de routes distinct de `(app)` — et non une sous-section — pour une
  * raison précise : `(app)` possède un `loading.tsx`, donc une frontière
@@ -14,16 +15,18 @@ import { AdminTabs } from '@/app/(admin)/administration/AdminTabs';
  * le contrôle a lieu : un compte non administrateur reçoit une vraie
  * redirection HTTP.
  *
- * Le contrôle est fait ici pour toute la section, ET dans chaque route
- * `/api/admin/*` : masquer l'onglet ne protège rien, seule la vérification
- * serveur compte.
+ * Le layout admet l'administrateur général **et** le secondaire. Chaque page
+ * vérifie ensuite sa propre permission (`requirePageAdminScope`) — une page
+ * qui l'oublierait appellerait `requirePageAdmin`, réservé au général : le
+ * défaut est le plus sûr. Et chaque route `/api/admin/*` revérifie : masquer
+ * un onglet ne protège rien.
  */
 export default async function AdminAreaLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const auth = await requirePageAdmin();
+  const auth = await requirePageAdminScope('dashboard:read');
   const unreadCount = await countUnread(auth.user.id);
 
   return (
@@ -33,6 +36,7 @@ export default async function AdminAreaLayout({
         lastName: auth.user.lastName,
         email: auth.user.email,
         isPlatformAdmin: auth.user.isPlatformAdmin,
+        adminRole: auth.scope.role,
         accountType: auth.user.accountType,
       }}
       farms={auth.memberships}
@@ -40,7 +44,12 @@ export default async function AdminAreaLayout({
       unreadCount={unreadCount}
     >
       <div className="mx-auto max-w-6xl">
-        <AdminTabs />
+        <AdminScopeBar
+          role={auth.scope.role}
+          email={auth.user.email}
+          portfolios={auth.scope.portfolios.map((p) => p.name)}
+        />
+        <AdminTabs role={auth.scope.role} sidebarHasSections={auth.user.accountType !== 'FARMER'} />
         {children}
       </div>
     </AppShell>

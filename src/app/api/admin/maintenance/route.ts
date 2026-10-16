@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
+import { requireAdmin } from '@/lib/admin/scope';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { maintenanceSchema } from '@/lib/validation/admin';
 import { getMaintenanceMode, setMaintenanceMode } from '@/lib/admin/settings';
@@ -7,7 +7,7 @@ import { logAudit } from '@/lib/audit';
 
 /** GET /api/admin/maintenance — état courant du mode maintenance. */
 export const GET = route(async () => {
-  await requirePlatformAdmin();
+  await requireAdmin('maintenance:manage');
   const mode = await getMaintenanceMode();
   return ok({
     enabled: mode.enabled,
@@ -22,7 +22,7 @@ export const GET = route(async () => {
  * intervenir ni ressortir de ce mode.
  */
 export const POST = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('maintenance:manage');
   const input = await parseBody(request, maintenanceSchema);
 
   const mode = await setMaintenanceMode(

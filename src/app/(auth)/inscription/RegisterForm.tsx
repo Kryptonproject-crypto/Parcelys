@@ -34,6 +34,7 @@ type InvitationScope = {
   roleLabel: string;
   email: string | null;
   grantsPlatformAdmin: boolean;
+  grantsSecondaryAdmin?: boolean;
   expiresAt: string;
 };
 
@@ -198,6 +199,12 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
                     Les exploitations que vous suivez vous remettront ensuite
                     leur propre code d&apos;accès.
                   </>
+                ) : invitation.scope === 'ADMIN_ACCOUNT' && invitation.grantsSecondaryAdmin ? (
+                  <>
+                    Vous créerez un compte d&apos;<strong>administrateur secondaire</strong>.
+                    Il gère les exploitations et les techniciens du portefeuille
+                    qui vous est confié, et rien au-delà.
+                  </>
                 ) : invitation.scope === 'ADMIN_ACCOUNT' ? (
                   <>
                     Vous créerez un compte d&apos;<strong>administration</strong>.
@@ -216,7 +223,11 @@ export function RegisterForm({ bootstrap }: { bootstrap: boolean }) {
                   </>
                 )}
               </p>
-              {invitation.grantsPlatformAdmin ? (
+              {invitation.grantsSecondaryAdmin ? (
+                <Badge tone="blue" icon={IconSecurity} className="mt-2">
+                  Administrateur secondaire
+                </Badge>
+              ) : invitation.grantsPlatformAdmin ? (
                 <Badge tone="blue" icon={IconSecurity} className="mt-2">
                   Administrateur
                 </Badge>

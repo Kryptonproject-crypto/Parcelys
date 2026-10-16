@@ -1322,6 +1322,38 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.11.0
+
+Version à migration : elle **ajoute** des tables et des colonnes, et numérote
+les exploitations et techniciens existants. Rien n'est supprimé.
+
+1. La mise à jour habituelle — elle sauvegarde la base **avant** d'appliquer
+   la migration :
+
+   ```bash
+   cd /opt/parcelys && sudo bash scripts/update-pi.sh
+   ```
+
+2. Contrôlez les numéros (lecture seule) :
+
+   ```bash
+   cd /opt/parcelys && sudo -u parcelys npm run numeros -- --verifier
+   ```
+
+   « Rien à reprendre » : c'est fait. Sinon, `cd /opt/parcelys && sudo -u parcelys npm run numeros`
+   termine la numérotation sans rien réécrire (voir
+   `docs/administration.md`, « Reprise »).
+
+3. Vous êtes administrateur **général** : rien ne change pour vous. Pour
+   déléguer, **Administration → Portefeuilles** (créer un portefeuille, y
+   attribuer des clients), puis **Administrateurs** (inviter un
+   administrateur secondaire).
+4. **Relancez la compilation de l’APK** (Actions → « APK Android » → *Run
+   workflow*) et réinstallez-la : numéro client, aide hors ligne, contact et
+   « Mes demandes » sont dans l’application.
+
+Retour arrière : `docs/administration.md`, section « Retour arrière ».
+
 ### Passer en 0.10.4
 
 La mise à jour habituelle (`cd /opt/parcelys && sudo bash scripts/update-pi.sh`),

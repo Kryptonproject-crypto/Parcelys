@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiDelete, apiPost, ApiRequestError } from '@/lib/client/api';
-import type { AdminExpertRow, AdminFarmOption } from '@/lib/admin/shared';
+import type { AdminExpertRow, AdminFarmOption, AdminPortfolioOption } from '@/lib/admin/shared';
 import { ConfirmDialog, useConfirm } from '@/components/forms/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -37,9 +38,16 @@ import { IconCheck, IconDelete, IconPlus, IconUsers } from '@/components/ui/icon
 export function ExpertsPanel({
   experts,
   farms,
+  portfolios,
+  general,
 }: {
   experts: AdminExpertRow[];
+  /** Exploitations du périmètre de l'administrateur connecté. */
   farms: AdminFarmOption[];
+  /** Portefeuilles où peut arriver un technicien invité. */
+  portfolios: AdminPortfolioOption[];
+  /** Administrateur général : il voit tout et peut laisser un technicien sans portefeuille. */
+  general: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -51,6 +59,9 @@ export function ExpertsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [invitePortfolio, setInvitePortfolio] = useState(
+    portfolios.length === 1 && !general ? (portfolios[0]?.id ?? '') : '',
+  );
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteNote, setInviteNote] = useState('');
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -145,6 +156,7 @@ export function ExpertsPanel({
           accountType: 'AGRONOMIST',
           email: inviteEmail,
           note: inviteNote,
+          portfolioId: invitePortfolio,
           validityDays: 14,
         },
       );
@@ -196,7 +208,28 @@ export function ExpertsPanel({
           description="Délivre un code d’inscription. Le compte créé n’aura aucune exploitation : c’est vous qui les lui confierez."
         />
         <form onSubmit={inviterExpert} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Portefeuille"
+              htmlFor="invite-portfolio"
+              required={!general}
+              hint={general ? 'Facultatif : sans portefeuille, il relève de vous seul.' : 'Le technicien arrivera dans ce portefeuille.'}
+            >
+              <Select
+                id="invite-portfolio"
+                value={invitePortfolio}
+                onChange={(event) => setInvitePortfolio(event.target.value)}
+              >
+                {general || portfolios.length !== 1 ? (
+                  <option value="">{general ? 'Aucun portefeuille' : 'Choisir…'}</option>
+                ) : null}
+                {portfolios.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
             <Field
               label="Adresse e-mail"
               htmlFor="invite-email"
@@ -287,7 +320,12 @@ export function ExpertsPanel({
                             )
                           }
                         />
-                        <span>{farm.name}</span>
+                        <span>
+                          {farm.name}
+                          {farm.customerNumber ? (
+                            <span className="ml-1.5 font-mono text-[12px] text-ink-3">{farm.customerNumber}</span>
+                          ) : null}
+                        </span>
                       </label>
                     </li>
                   ))}
@@ -327,7 +365,7 @@ export function ExpertsPanel({
         <CardHeader
           icon={IconUsers}
           title="Experts agronomiques"
-          description={`${experts.length} compte(s) expert.`}
+          description={`${experts.length} compte(s) affiché(s).`}
         />
 
         {experts.length === 0 ? (
@@ -347,8 +385,18 @@ export function ExpertsPanel({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
+                      <Link
+                        href={`/administration/experts/${expert.id}`}
+                        className="block truncate font-medium hover:underline"
+                      >
                         {expert.firstName} {expert.lastName}
+                      </Link>
+                      <p className="font-mono text-[12px] text-ink-2">
+                        {expert.technicianNumber ?? '—'}
+                        <span className="font-sans text-ink-3">
+                          {' · '}
+                          {expert.portfolioName ?? 'sans portefeuille'}
+                        </span>
                       </p>
                       <p className="truncate text-sm text-slate-500 dark:text-slate-400">
                         {expert.email}

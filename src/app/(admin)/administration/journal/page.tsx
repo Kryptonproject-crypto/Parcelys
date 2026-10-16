@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requirePageAdmin } from '@/lib/auth/page-guards';
+import { requirePageAdminScope } from '@/lib/auth/page-guards';
 import {
   Alert,
   Badge,
@@ -50,7 +50,7 @@ export default async function AdminAuditPage({
 }: {
   searchParams: Promise<{ categorie?: string; page?: string }>;
 }) {
-  await requirePageAdmin();
+  await requirePageAdminScope('audit:read');
   const params = await searchParams;
 
   const category =

@@ -1,80 +1,74 @@
 import type { Metadata } from 'next';
-import { prisma } from '@/lib/prisma';
-import { requirePageAdmin } from '@/lib/auth/page-guards';
-import type { AdminExpertRow, AdminFarmOption } from '@/lib/admin/shared';
+import { requirePageAdminScope } from '@/lib/auth/page-guards';
+import {
+  listAdminTechnicians,
+  listFarmOptions,
+  listPortfolioOptions,
+} from '@/lib/admin/overview';
 import { ExpertsPanel } from '@/app/(admin)/administration/experts/ExpertsPanel';
-import { PageHeader } from '@/components/ui';
-import { IconUsers } from '@/components/ui/icons';
+import { ListFilters } from '@/app/(admin)/administration/ListFilters';
+import { AdminPagination } from '@/app/(admin)/administration/Pagination';
+import { LinkButton, PageHeader } from '@/components/ui';
+import { IconAdvisor, IconExport } from '@/components/ui/icons';
 
-export const metadata: Metadata = { title: 'Experts — Administration' };
+export const metadata: Metadata = { title: 'Techniciens — Administration' };
 export const dynamic = 'force-dynamic';
 
-export default async function AdminExpertsPage() {
-  await requirePageAdmin();
+export default async function AdminExpertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string; statut?: string }>;
+}) {
+  const { scope } = await requirePageAdminScope('technicians:read');
+  const params = await searchParams;
+  const search = params.q?.trim().slice(0, 120) ?? '';
+  const sansPortefeuille = scope.all && params.statut === 'sans-portefeuille';
 
-  const [experts, farms] = await Promise.all([
-    prisma.user.findMany({
-      where: { accountType: 'AGRONOMIST', deletedAt: null },
-      orderBy: [{ lastName: 'asc' }, { email: 'asc' }],
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        organization: true,
-        advisorCertificate: true,
-        suspendedAt: true,
-        emailVerifiedAt: true,
-        createdAt: true,
-        engagements: {
-          orderBy: { startedAt: 'desc' },
-          select: {
-            id: true,
-            status: true,
-            startedAt: true,
-            endedAt: true,
-            farm: { select: { id: true, name: true } },
-          },
-        },
-      },
-    }),
-    prisma.farm.findMany({
-      where: { deletedAt: null },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
-    }),
+  const [result, farms, portfolios] = await Promise.all([
+    listAdminTechnicians({ scope, search, sansPortefeuille, page: Number(params.page) || 1 }),
+    listFarmOptions(scope),
+    listPortfolioOptions(scope),
   ]);
-
-  const rows: AdminExpertRow[] = experts.map((expert) => ({
-    id: expert.id,
-    email: expert.email,
-    firstName: expert.firstName,
-    lastName: expert.lastName,
-    organization: expert.organization,
-    advisorCertificate: expert.advisorCertificate,
-    suspended: expert.suspendedAt !== null,
-    emailVerified: expert.emailVerifiedAt !== null,
-    createdAt: expert.createdAt.toISOString(),
-    engagements: expert.engagements.map((engagement) => ({
-      id: engagement.id,
-      farmId: engagement.farm.id,
-      farmName: engagement.farm.name,
-      status: engagement.status,
-      startedAt: engagement.startedAt.toISOString(),
-      endedAt: engagement.endedAt?.toISOString() ?? null,
-    })),
-  }));
-
-  const farmOptions: AdminFarmOption[] = farms;
 
   return (
     <>
       <PageHeader
-        icon={IconUsers}
-        title="Experts agronomiques"
-        description="Qui suit quelle exploitation, et comment ouvrir ou retirer un accès."
+        icon={IconAdvisor}
+        title="Experts et techniciens"
+        description={`${result.total} technicien(s)${scope.all ? '' : ' dans vos portefeuilles'} — qui suit quelle exploitation, et comment ouvrir ou retirer un accès.`}
+        actions={
+          <LinkButton href="/api/admin/exports?type=techniciens" icon={IconExport} variant="outline" prefetch={false}>
+            CSV
+          </LinkButton>
+        }
       />
-      <ExpertsPanel experts={rows} farms={farmOptions} />
+      <ListFilters
+        basePath="/administration/experts"
+        filters={
+          scope.all
+            ? [
+                { value: 'tous', label: 'Tous' },
+                { value: 'sans-portefeuille', label: 'Sans portefeuille' },
+              ]
+            : undefined
+        }
+        current={sansPortefeuille ? 'sans-portefeuille' : 'tous'}
+        search={search}
+        placeholder="Nom, structure, TEC-…"
+      />
+      <ExpertsPanel
+        experts={result.rows}
+        farms={farms}
+        portfolios={portfolios}
+        general={scope.all}
+      />
+      <AdminPagination
+        basePath="/administration/experts"
+        params={{ q: search || undefined, statut: sansPortefeuille ? 'sans-portefeuille' : undefined }}
+        page={result.page}
+        pageSize={result.pageSize}
+        total={result.total}
+      />
     </>
   );
 }

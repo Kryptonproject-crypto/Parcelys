@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
+import { invitationScope, requireAdmin } from '@/lib/admin/scope';
 import { clientIp, ok, route } from '@/lib/api/handler';
 import { invitationStatus } from '@/lib/auth/invitations.shared';
 import { logAudit } from '@/lib/audit';
@@ -15,11 +15,14 @@ type Ctx = { params: Promise<Record<string, string>> };
  * fait partie du journal.
  */
 export const DELETE = route(async (request: NextRequest, context: Ctx) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('invitations:revoke');
   const { id } = await context.params;
   if (!id) throw notFound('Invitation introuvable');
 
-  const invitation = await prisma.invitationCode.findUnique({ where: { id } });
+  // Hors périmètre : introuvable.
+  const invitation = await prisma.invitationCode.findFirst({
+    where: { id, ...invitationScope(auth.scope) },
+  });
   if (!invitation) throw notFound('Invitation introuvable');
 
   const status = invitationStatus(invitation);

@@ -1,22 +1,33 @@
 import type { NextRequest } from 'next/server';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
 import { ok, parseQuery, route } from '@/lib/api/handler';
 import { adminUserQuerySchema } from '@/lib/validation/admin';
 import { listAdminUsers } from '@/lib/admin/overview';
+import { requireAdmin } from '@/lib/admin/scope';
 
 /**
- * GET /api/admin/users — comptes de l'instance.
- * Filtres : `statut` (tous, actifs, suspendus, non-verifies, admins) et `q`
- * (nom ou adresse).
+ * GET /api/admin/users — comptes visibles par l'administrateur connecté.
+ *
+ * Bornés au périmètre : l'administrateur secondaire ne reçoit que les membres
+ * des exploitations de ses portefeuilles et les techniciens qui y sont
+ * rattachés. Filtres : `statut`, `q` (nom, adresse, ou numéro `EXP-…` /
+ * `TEC-…`), `page`.
  */
 export const GET = route(async (request: NextRequest) => {
-  await requirePlatformAdmin();
+  const { scope } = await requireAdmin('users:read');
   const query = parseQuery(request, adminUserQuerySchema);
 
-  const users = await listAdminUsers({
+  const page = await listAdminUsers({
+    scope,
     filter: query.statut,
     search: query.q ?? '',
+    page: query.page,
   });
 
-  return ok({ users, count: users.length });
+  return ok({
+    users: page.rows,
+    count: page.rows.length,
+    total: page.total,
+    page: page.page,
+    pageSize: page.pageSize,
+  });
 });

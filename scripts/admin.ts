@@ -77,9 +77,16 @@ async function promote(email: string, value: boolean): Promise<void> {
     }
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { isPlatformAdmin: value, suspendedAt: value ? null : undefined },
+  // Nommé général, le compte cesse d'être secondaire : la base refuse les
+  // deux niveaux à la fois, et ses portefeuilles n'ont plus d'objet.
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: value
+        ? { isPlatformAdmin: true, isSecondaryAdmin: false, suspendedAt: null }
+        : { isPlatformAdmin: false },
+    });
+    if (value) await tx.portfolioManager.deleteMany({ where: { userId: user.id } });
   });
 
   console.info(

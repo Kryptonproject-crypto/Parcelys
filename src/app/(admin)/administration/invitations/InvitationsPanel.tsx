@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiDelete, apiPost, ApiRequestError } from '@/lib/client/api';
-import type { AdminFarmOption, AdminInvitationRow } from '@/lib/admin/shared';
+import type { AdminFarmOption, AdminInvitationRow, AdminPortfolioOption } from '@/lib/admin/shared';
 import {
   DEFAULT_VALIDITY_DAYS,
   INVITATION_STATUS_LABELS,
@@ -62,9 +62,22 @@ const STATUS_TONES: Record<InvitationStatus, 'green' | 'neutral' | 'red' | 'ambe
 export function InvitationsPanel({
   invitations,
   farms,
+  portfolios,
+  general,
+  initialFarmId = '',
 }: {
   invitations: AdminInvitationRow[];
+  /** Exploitations du périmètre. */
   farms: AdminFarmOption[];
+  /** Portefeuilles où peut arriver une nouvelle exploitation. */
+  portfolios: AdminPortfolioOption[];
+  /**
+   * Administrateur général : il peut délivrer un code d'administration et
+   * laisser une exploitation sans portefeuille. Le secondaire, non — le
+   * serveur le refuserait de toute façon.
+   */
+  general: boolean;
+  initialFarmId?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -74,7 +87,10 @@ export function InvitationsPanel({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [issued, setIssued] = useState<{ code: string; summary: string } | null>(null);
-  const [farmId, setFarmId] = useState('');
+  const [farmId, setFarmId] = useState(initialFarmId);
+  const [portfolioId, setPortfolioId] = useState(
+    !general && portfolios.length === 1 ? (portfolios[0]?.id ?? '') : '',
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -94,7 +110,8 @@ export function InvitationsPanel({
           email: String(data.get('email') ?? ''),
           farmId: selectedFarm,
           role,
-          grantsPlatformAdmin: data.get('grantsPlatformAdmin') === 'on',
+          grantsPlatformAdmin: general && data.get('grantsPlatformAdmin') === 'on',
+          portfolioId: selectedFarm ? '' : portfolioId,
           note: String(data.get('note') ?? ''),
           validityDays: Number(data.get('validityDays') ?? DEFAULT_VALIDITY_DAYS),
         },
@@ -109,6 +126,7 @@ export function InvitationsPanel({
       });
       form.reset();
       setFarmId('');
+      if (general) setPortfolioId('');
       router.refresh();
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -204,10 +222,40 @@ export function InvitationsPanel({
                 {farms.map((farm) => (
                   <option key={farm.id} value={farm.id}>
                     {farm.name}
+                    {farm.customerNumber ? ` (${farm.customerNumber})` : ''}
                   </option>
                 ))}
               </Select>
             </Field>
+
+            {farmId === '' ? (
+              <Field
+                label="Portefeuille de la nouvelle exploitation"
+                htmlFor="portfolioId"
+                required={!general}
+                error={fieldErrors.portfolioId}
+                hint={
+                  general
+                    ? 'Facultatif : sans portefeuille, elle ne relève que de vous.'
+                    : 'Elle arrivera dans ce portefeuille, donc dans votre périmètre.'
+                }
+              >
+                <Select
+                  id="portfolioId"
+                  value={portfolioId}
+                  onChange={(event) => setPortfolioId(event.target.value)}
+                >
+                  {general || portfolios.length !== 1 ? (
+                    <option value="">{general ? 'Aucun portefeuille' : 'Choisir…'}</option>
+                  ) : null}
+                  {portfolios.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
 
             <Field
               label="Rôle accordé"
@@ -273,6 +321,7 @@ export function InvitationsPanel({
             <Input id="note" name="note" placeholder="Nouveau salarié — atelier céréales" />
           </Field>
 
+          {general ? (
           <label className="flex items-start gap-2.5 rounded-lg bg-surface-2 p-3 text-sm text-ink-2">
             <Checkbox name="grantsPlatformAdmin" className="mt-0.5" />
             <span>
@@ -280,11 +329,13 @@ export function InvitationsPanel({
                 Faire de cette personne un administrateur
               </span>
               <span className="mt-0.5 block text-[12.5px] text-ink-3">
-                Elle pourra gérer les comptes, délivrer des invitations et activer la
-                maintenance. À réserver aux personnes de confiance.
+                Administrateur <strong>général</strong> : il voit tout Parcelys et
+                peut activer la maintenance. À réserver aux personnes de confiance. Pour un
+                administrateur limité à un portefeuille, passez par « Administrateurs ».
               </span>
             </span>
           </label>
+          ) : null}
 
           <div className="flex justify-end">
             <Button type="submit" icon={IconInvitation} loading={submitting}>
@@ -329,8 +380,19 @@ export function InvitationsPanel({
 
                 <Td>
                   <span className="block text-ink">
-                    {invitation.farmName ?? 'Nouvelle exploitation'}
+                    {invitation.grantsSecondaryAdmin
+                      ? 'Administrateur secondaire'
+                      : invitation.accountType === 'AGRONOMIST'
+                        ? 'Technicien'
+                        : invitation.accountType === 'ADMIN'
+                          ? 'Compte d’administration'
+                          : (invitation.farmName ?? 'Nouvelle exploitation')}
                   </span>
+                  {invitation.portfolioName ? (
+                    <span className="block text-[12.5px] text-ink-3">
+                      Portefeuille {invitation.portfolioName}
+                    </span>
+                  ) : null}
                   <span className="block text-[12.5px] text-ink-3">
                     {ROLE_LABELS[invitation.role] ?? invitation.role}
                     {invitation.email ? ` · ${invitation.email}` : ''}

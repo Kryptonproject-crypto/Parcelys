@@ -18,10 +18,16 @@ export function PublicShell({
   title,
   description,
   children,
+  espace,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
+  /**
+   * Lien d'en-tête pour un visiteur déjà connecté (« Mon espace ») ; à défaut,
+   * « Se connecter ». Les pages Aide et Contact servent aux deux publics.
+   */
+  espace?: { href: string; label: string } | null;
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
@@ -41,8 +47,8 @@ export function PublicShell({
             />
             {PARCELYS.nom}
           </Link>
-          <LinkButton href="/connexion" variant="ghost" size="sm">
-            Se connecter
+          <LinkButton href={espace?.href ?? '/connexion'} variant="ghost" size="sm">
+            {espace?.label ?? 'Se connecter'}
           </LinkButton>
         </div>
       </header>
@@ -71,6 +77,9 @@ export function PublicFooter() {
           {PARCELYS.nom} — édité par {PARCELYS.editeur.nom}, {PARCELYS.editeur.qualite}.
         </p>
         <nav className="flex flex-wrap gap-5">
+          <Link href="/aide" className="transition-colors hover:text-ink">
+            Aide
+          </Link>
           <Link href="/contact" className="transition-colors hover:text-ink">
             Contact
           </Link>

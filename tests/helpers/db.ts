@@ -40,6 +40,16 @@ export function migrateTestDatabase(): void {
  * racines.
  */
 const TABLES_IN_DELETION_ORDER = [
+  // Les compteurs de numéros (`customer_number_counters`) ne figurent pas ici,
+  // et c'est voulu : la base refuse de les vider ou de les faire redescendre.
+  // Les tests comparent donc des numéros entre eux, jamais à « 000001 ».
+  'support_attachments',
+  'support_messages',
+  'support_ticket_events',
+  'support_tickets',
+  'faq_entries',
+  'faq_categories',
+  'portfolio_managers',
   'compliance_findings',
   'nitrogen_plan_deviations',
   'nitrogen_plan_entries',
@@ -81,6 +91,7 @@ const TABLES_IN_DELETION_ORDER = [
   'farm_members',
   'farms',
   'users',
+  'management_portfolios',
   'rate_limit_counters',
 ] as const;
 
@@ -226,4 +237,40 @@ export function testPolygon(
       ],
     ],
   };
+}
+
+/** Crée un portefeuille de gestion. */
+export async function createPortfolio(name: string): Promise<string> {
+  const portfolio = await prisma.managementPortfolio.create({ data: { name } });
+  return portfolio.id;
+}
+
+/**
+ * Crée un administrateur secondaire (compte d'administration) gérant les
+ * portefeuilles donnés.
+ */
+export async function createSecondaryAdmin(params: {
+  email: string;
+  portfolioIds: string[];
+  password?: string;
+}): Promise<{ id: string; email: string; password: string }> {
+  const password = params.password ?? 'MotDePasse1';
+  const user = await prisma.user.create({
+    data: {
+      email: params.email,
+      emailNormalized: params.email.toLowerCase(),
+      passwordHash: await bcrypt.hash(password, 4),
+      firstName: 'Admin',
+      lastName: 'Secondaire',
+      emailVerifiedAt: new Date(),
+      acceptedTermsAt: new Date(),
+      acceptedPrivacyAt: new Date(),
+      accountType: 'ADMIN',
+      isSecondaryAdmin: true,
+      managedPortfolios: {
+        create: params.portfolioIds.map((portfolioId) => ({ portfolioId })),
+      },
+    },
+  });
+  return { id: user.id, email: user.email, password };
 }

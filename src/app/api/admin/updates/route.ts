@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
+import { requireAdmin } from '@/lib/admin/scope';
 import { clientIp, enforceRateLimit, ok, route } from '@/lib/api/handler';
 import { getUpdateStatus } from '@/lib/updates/releases';
 import { logAudit } from '@/lib/audit';
@@ -12,13 +12,13 @@ import { logAudit } from '@/lib/audit';
  * une heure côté serveur ; `POST` la force.
  */
 export const GET = route(async () => {
-  await requirePlatformAdmin();
+  await requireAdmin('maintenance:manage');
   return ok(await getUpdateStatus());
 });
 
 /** POST /api/admin/updates — force une vérification immédiate. */
 export const POST = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('maintenance:manage');
 
   // L'appel sort de l'instance : on borne la cadence même pour un administrateur.
   await enforceRateLimit(`updates:${auth.user.id}`, {

@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
+import { farmScope, loadTechnicianInScope, requireAdmin } from '@/lib/admin/scope';
+import { listAdminTechnicians, listFarmOptions } from '@/lib/admin/overview';
 import { advisoryGrantSchema, advisoryRevokeSchema } from '@/lib/validation/admin';
 import { logAudit } from '@/lib/audit';
 import { createNotification } from '@/lib/notifications';
@@ -18,86 +19,40 @@ import { conflict, notFound } from '@/lib/api/errors';
  * inscrite au journal d'audit, et l'exploitation reçoit une notification.
  */
 
-/** GET /api/admin/experts — comptes experts et exploitations suivies. */
-export const GET = route(async () => {
-  await requirePlatformAdmin();
+/**
+ * GET /api/admin/experts — techniciens (comptes experts) et exploitations
+ * proposables, bornés au périmètre. `q` accepte un nom, une adresse, une
+ * structure ou un numéro `TEC-…`.
+ */
+export const GET = route(async (request: NextRequest) => {
+  const { scope } = await requireAdmin('technicians:read');
+  const q = new URL(request.url).searchParams.get('q')?.slice(0, 120) ?? '';
+  const pageParam = Number(new URL(request.url).searchParams.get('page') ?? '1');
 
-  const [experts, farms] = await Promise.all([
-    prisma.user.findMany({
-      where: { accountType: 'AGRONOMIST', deletedAt: null },
-      orderBy: [{ lastName: 'asc' }, { email: 'asc' }],
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        organization: true,
-        advisorCertificate: true,
-        suspendedAt: true,
-        emailVerifiedAt: true,
-        createdAt: true,
-        engagements: {
-          orderBy: { startedAt: 'desc' },
-          select: {
-            id: true,
-            status: true,
-            startedAt: true,
-            endedAt: true,
-            farm: { select: { id: true, name: true } },
-          },
-        },
-      },
-    }),
-    prisma.farm.findMany({
-      where: { deletedAt: null },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
-    }),
+  const [page, farms] = await Promise.all([
+    listAdminTechnicians({ scope, search: q, page: pageParam }),
+    listFarmOptions(scope),
   ]);
 
-  return ok({
-    experts: experts.map((expert) => ({
-      id: expert.id,
-      email: expert.email,
-      firstName: expert.firstName,
-      lastName: expert.lastName,
-      organization: expert.organization,
-      advisorCertificate: expert.advisorCertificate,
-      suspended: expert.suspendedAt !== null,
-      emailVerified: expert.emailVerifiedAt !== null,
-      createdAt: expert.createdAt.toISOString(),
-      engagements: expert.engagements.map((engagement) => ({
-        id: engagement.id,
-        farmId: engagement.farm.id,
-        farmName: engagement.farm.name,
-        status: engagement.status,
-        startedAt: engagement.startedAt.toISOString(),
-        endedAt: engagement.endedAt?.toISOString() ?? null,
-      })),
-    })),
-    farms,
-  });
+  return ok({ experts: page.rows, total: page.total, page: page.page, farms });
 });
 
 /** POST /api/admin/experts — ouvre à un expert l'accès à une exploitation. */
 export const POST = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('technicians:missions');
   const input = await parseBody(request, advisoryGrantSchema);
 
   // On vérifie que la cible est bien un compte expert : ouvrir une « mission de
   // conseil » à un compte exploitant lui donnerait un accès qui ne correspond à
-  // aucun rôle prévu.
-  const expert = await prisma.user.findFirst({
-    where: { id: input.expertId, accountType: 'AGRONOMIST', deletedAt: null },
-    select: { id: true, email: true, firstName: true, lastName: true, suspendedAt: true },
-  });
-  if (!expert) throw notFound('Expert introuvable');
+  // aucun rôle prévu. Et, pour un administrateur secondaire, que le technicien
+  // comme l'exploitation sont dans ses portefeuilles — sinon : introuvables.
+  const expert = await loadTechnicianInScope(auth.scope, input.expertId);
   if (expert.suspendedAt) {
     throw conflict("Ce compte expert est suspendu : levez la suspension avant de lui confier une exploitation.");
   }
 
   const farm = await prisma.farm.findFirst({
-    where: { id: input.farmId, deletedAt: null },
+    where: { id: input.farmId, deletedAt: null, ...farmScope(auth.scope) },
     select: {
       id: true,
       name: true,
@@ -178,11 +133,13 @@ export const POST = route(async (request: NextRequest) => {
 
 /** DELETE /api/admin/experts — met fin à une mission de conseil. */
 export const DELETE = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('technicians:missions');
   const input = await parseBody(request, advisoryRevokeSchema);
 
-  const engagement = await prisma.advisoryEngagement.findUnique({
-    where: { id: input.engagementId },
+  // Clore une mission est un geste sur l'accès aux données de l'exploitation :
+  // il suffit que l'exploitation soit dans le périmètre.
+  const engagement = await prisma.advisoryEngagement.findFirst({
+    where: { id: input.engagementId, farm: farmScope(auth.scope) },
     include: {
       expert: { select: { email: true } },
       farm: { select: { id: true, name: true } },

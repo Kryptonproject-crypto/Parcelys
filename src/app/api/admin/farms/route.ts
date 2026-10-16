@@ -1,8 +1,9 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
-import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
+import { clientIp, ok, parseBody, parseQuery, route } from '@/lib/api/handler';
+import { requireAdmin } from '@/lib/admin/scope';
+import { listAdminFarms } from '@/lib/admin/overview';
 import { badRequest, conflict, notFound } from '@/lib/api/errors';
 import { logAudit } from '@/lib/audit';
 import { deleteFarmStorage } from '@/lib/storage/documents';
@@ -49,66 +50,59 @@ const farmActionSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-/** GET — exploitations de l'instance, supprimées comprises. */
-export const GET = route(async () => {
-  await requirePlatformAdmin();
+const farmQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  statut: z.enum(['toutes', 'actives', 'supprimees', 'sans-portefeuille']).default('toutes'),
+  portefeuille: z.string().trim().max(40).optional(),
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+});
 
-  const farms = await prisma.farm.findMany({
-    orderBy: [{ deletedAt: 'asc' }, { name: 'asc' }],
-    select: {
-      id: true,
-      name: true,
-      siret: true,
-      isDemo: true,
-      deletedAt: true,
-      createdAt: true,
-      _count: { select: { members: true, parcels: true } },
-      members: {
-        where: { role: 'OWNER' },
-        select: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
-      },
-    },
+/**
+ * GET — exploitations visibles par l'administrateur connecté.
+ *
+ * Le général les voit toutes, supprimées comprises ; le secondaire, celles de
+ * ses portefeuilles seulement. `q` accepte un nom, une commune, l'adresse du
+ * propriétaire ou un numéro `EXP-…`.
+ */
+export const GET = route(async (request: NextRequest) => {
+  const { scope } = await requireAdmin('farms:read');
+  const query = parseQuery(request, farmQuerySchema);
+
+  const page = await listAdminFarms({
+    scope,
+    filter: query.statut,
+    search: query.q ?? '',
+    portfolioId: query.portefeuille || null,
+    page: query.page,
   });
 
-  // Le décompte des enregistrements réglementaires : c'est lui qui dit ce
-  // qu'une suppression rendrait inaccessible.
-  const registres = await prisma.$queryRaw<Array<{ farm_id: string; n: bigint }>>`
-    SELECT p.farm_id, count(*)::bigint AS n
-    FROM phytosanitary_applications a
-    JOIN parcels p ON p.id = a.parcel_id
-    GROUP BY p.farm_id
-  `;
-  const parFerme = new Map(registres.map((r) => [r.farm_id, Number(r.n)]));
-
   return ok({
-    farms: farms.map((farm) => ({
-      id: farm.id,
-      name: farm.name,
-      siret: farm.siret,
-      isDemo: farm.isDemo,
-      deleted: farm.deletedAt !== null,
-      deletedAt: farm.deletedAt?.toISOString() ?? null,
-      createdAt: farm.createdAt.toISOString(),
-      memberCount: farm._count.members,
-      parcelCount: farm._count.parcels,
-      phytoRecordCount: parFerme.get(farm.id) ?? 0,
-      owners: farm.members.map((m) => ({
-        id: m.user.id,
-        email: m.user.email,
-        name: `${m.user.firstName} ${m.user.lastName}`,
-      })),
+    // Les champs historiques de cette route (`memberCount`, `parcelCount`,
+    // `phytoRecordCount`, `owners` détaillés) sont conservés à côté des
+    // nouveaux : un client écrit pour la 0.10 continue de fonctionner.
+    farms: page.rows.map((farm) => ({
+      ...farm,
+      memberCount: farm.members,
+      parcelCount: farm.parcels,
+      phytoRecordCount: farm.phytoRecords,
+      owners: farm.ownerAccounts,
     })),
+    total: page.total,
+    page: page.page,
+    pageSize: page.pageSize,
   });
 });
 
 /** POST — supprime ou rétablit une exploitation. */
 export const POST = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  // Supprimer, rétablir, purger : l'administrateur général seul. Une
+  // exploitation porte des registres réglementaires.
+  const auth = await requireAdmin('farms:delete');
   const input = await parseBody(request, farmActionSchema);
 
   const farm = await prisma.farm.findUnique({
     where: { id: input.farmId },
-    select: { id: true, name: true, deletedAt: true },
+    select: { id: true, name: true, deletedAt: true, customerNumber: true },
   });
   if (!farm) throw notFound('Exploitation introuvable');
 
@@ -124,7 +118,7 @@ export const POST = route(async (request: NextRequest) => {
       entity: 'Farm',
       entityId: farm.id,
       ipAddress: clientIp(request),
-      metadata: { farmName: farm.name },
+      metadata: { farmName: farm.name, customerNumber: farm.customerNumber },
     });
     return ok({ message: `« ${farm.name} » a été rétablie.`, id: farm.id });
   }
@@ -156,7 +150,7 @@ export const POST = route(async (request: NextRequest) => {
     entity: 'Farm',
     entityId: farm.id,
     ipAddress: clientIp(request),
-    metadata: { farmName: farm.name },
+    metadata: { farmName: farm.name, customerNumber: farm.customerNumber },
   });
 
   return ok({
@@ -190,7 +184,7 @@ export const POST = route(async (request: NextRequest) => {
 async function purger(
   request: NextRequest,
   adminId: string,
-  farm: { id: string; name: string; deletedAt: Date | null },
+  farm: { id: string; name: string; deletedAt: Date | null; customerNumber: string | null },
   confirmation: string,
 ): Promise<NextResponse> {
   if (farm.deletedAt === null) {
@@ -236,7 +230,9 @@ async function purger(
     entity: 'Farm',
     entityId: farm.id,
     ipAddress: clientIp(request),
-    metadata: { farmName: farm.name, ...detruit },
+    // Le numéro client survit ici à l'exploitation : il n'est jamais
+    // réattribué, et c'est sous ce numéro qu'on la retrouvera si l'on en parle.
+    metadata: { farmName: farm.name, customerNumber: farm.customerNumber, ...detruit },
   });
 
   // La base ensuite : c'est elle qui fait foi. Si l'effacement des fichiers

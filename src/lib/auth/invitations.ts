@@ -66,6 +66,10 @@ export type CreateInvitationInput = {
   farmId?: string | null;
   role: FarmRole;
   grantsPlatformAdmin?: boolean;
+  /** Le titulaire devient administrateur secondaire de `portfolioId`. */
+  grantsSecondaryAdmin?: boolean;
+  /** Portefeuille où arrive le nouveau client, ou que gérera l'administrateur. */
+  portfolioId?: string | null;
   note?: string | null;
   validityDays?: number;
 };
@@ -93,6 +97,8 @@ export async function createInvitation(
       farmId: input.farmId ?? null,
       role: input.role,
       grantsPlatformAdmin: input.grantsPlatformAdmin ?? false,
+      grantsSecondaryAdmin: input.grantsSecondaryAdmin ?? false,
+      portfolioId: input.portfolioId ?? null,
       note: input.note?.trim() || null,
       expiresAt: new Date(Date.now() + days * 24 * 3600 * 1000),
       createdById: input.createdById,

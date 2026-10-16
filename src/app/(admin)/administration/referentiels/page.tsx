@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requirePageAdmin } from '@/lib/auth/page-guards';
+import { requirePageAdminScope } from '@/lib/auth/page-guards';
 import { getReferentialStates, type VersionReferentiel } from '@/lib/regulatory/referentials';
 import { prisma } from '@/lib/prisma';
 import { Badge, Card, PageHeader, TableWrapper, Td, Th } from '@/components/ui';
@@ -58,7 +58,7 @@ function Integration({ v }: { v: VersionReferentiel }) {
 }
 
 export default async function ReferentialsPage() {
-  await requirePageAdmin();
+  await requirePageAdminScope('referentials:manage');
 
   const [etats, journal] = await Promise.all([
     getReferentialStates(),

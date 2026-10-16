@@ -63,13 +63,14 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
   const year = currentCampaignYear();
   const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000);
 
-  const [farm, geojson, crops, fertilizers, organicInputs, recentPhyto] =
+  const [farm, geojson, crops, fertilizers, organicInputs, recentPhyto, compte] =
     await Promise.all([
       prisma.farm.findUniqueOrThrow({
         where: { id: ctx.farmId },
         select: {
           id: true,
           name: true,
+          customerNumber: true,
           city: true,
           department: true,
           latitude: true,
@@ -106,6 +107,10 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         },
         orderBy: { appliedOn: 'desc' },
         take: 200,
+      }),
+      prisma.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { technicianNumber: true },
       }),
     ]);
 
@@ -232,6 +237,12 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
     farm: {
       id: farm.id,
       name: farm.name,
+      /**
+       * Numéro client de l'exploitation (`EXP-…`), pour s'en servir au
+       * contact. Pas pour un expert qui la suit en conseil : ce n'est pas son
+       * numéro, c'est celui de son client.
+       */
+      customerNumber: ctx.accessKind === 'advisory' ? null : farm.customerNumber,
       city: farm.city,
       department: farm.department,
       latitude: farm.latitude,
@@ -239,6 +250,8 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
     },
     /** Exploitant ou expert : décide de ce que l'application propose. */
     accountType: ctx.user.accountType,
+    /** Numéro du technicien (`TEC-…`), pour un compte expert. */
+    technicianNumber: compte.technicianNumber,
     /** Portefeuille : plusieurs exploitations pour un expert, une pour l'exploitant. */
     farms: ctx.memberships.map((membership) => ({
       id: membership.farmId,

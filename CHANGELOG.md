@@ -6,6 +6,74 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.11.0 — Administration à deux niveaux, numéros clients, support et centre d'aide
+
+### Administration générale et administrateurs secondaires
+
+- **Deux niveaux.** Les administrateurs existants deviennent, sans rien
+  changer à leur compte, administrateurs **généraux** : toute l'instance, et
+  eux seuls touchent à la maintenance, à l'état du serveur, aux référentiels,
+  au journal, aux administrateurs, aux portefeuilles et au centre d'aide. Les
+  **administrateurs secondaires** ne voient que les clients — exploitations et
+  techniciens — des **portefeuilles** qui leur sont confiés.
+- **Portefeuilles.** Un administrateur peut en gérer plusieurs, un
+  portefeuille peut avoir plusieurs administrateurs. Attribution et transfert
+  de clients, un par un ou en groupe ; les demandes de support suivent le
+  client ; chaque geste est journalisé.
+- **Cloisonnement côté serveur.** Chaque lecture passe par le périmètre de la
+  session, dans la requête SQL elle-même : listes, fiches, compteurs du
+  tableau de bord, recherche, exports CSV et pièces jointes. Hors périmètre,
+  une ressource est introuvable (404), comme si elle n'existait pas ; une
+  fonction réservée répond 403 et la tentative est inscrite au journal.
+- **Interface.** Bandeau du rôle et du périmètre, recherche par numéro,
+  sections groupées (Pilotage, Clients, Organisation, Système), fiches
+  détaillées d'une exploitation et d'un technicien, filtres, pagination,
+  exports. Nouvelle page « État du serveur » (lecture seule, aucune commande
+  système exposée).
+
+### Numéros clients
+
+`EXP-000001` pour chaque exploitation, `TEC-000001` pour chaque technicien,
+`DEM-000001` pour chaque demande de support. Attribués **par la base**
+(déclencheur et compteur transactionnel : aucun doublon, même sous des
+créations simultanées), définitifs (la base refuse de les modifier, et un
+compteur ne redescend jamais). Les exploitations et techniciens existants
+sont numérotés à la migration, dans l'ordre de leur création. Le numéro
+s'affiche dans le profil, l'application mobile, l'administration et le
+formulaire de contact. Il ne sert ni de clé, ni d'autorisation.
+
+### Contact et support
+
+La page Contact devient un formulaire : sujet, rubrique, description, pièce
+jointe contrôlée (PDF, image ou texte, 5 Mo, signature binaire vérifiée).
+Connecté, le nom, l'adresse et le numéro sont repris de la session ; la
+demande arrive à l'administrateur responsable du client. Statuts (nouvelle,
+en cours, en attente du client, résolue, fermée), historique, notes internes
+jamais montrées au demandeur, notifications limitées aux personnes
+autorisées. Sans compte, la demande reste possible : l'identité est marquée
+« non vérifiée » et un lien de suivi personnel part à l'adresse saisie.
+« Mes demandes » pour suivre et répondre, sur le site comme dans
+l'application.
+
+### Centre d'aide
+
+`/aide` : dix rubriques (compte, exploitations, cartographie, fertilisation,
+registre phytosanitaire, référentiels, exports, numéro client, problèmes
+techniques, contact), recherche sans accents, renvoi vers Contact quand rien
+ne correspond. Les réponses décrivent le fonctionnement réel ; celles qui
+restent à confirmer portent « À vérifier ». Contenu modifiable par
+l'administrateur général sans toucher au code ; l'application mobile en
+garde une copie pour le hors-ligne.
+
+### Divers
+
+- Les notifications (`/notifications`) sont accessibles à tout compte
+  connecté, administrateurs et techniciens compris.
+- Un libellé de formulaire désigne désormais toujours son champ, même quand
+  la page oublie de les relier.
+
+---
+
 ## 0.10.4 — Les produits retirés encore utilisables
 
 Un produit retiré du marché n'est pas forcément interdit : l'ANSES publie,

@@ -14,8 +14,14 @@ export type SessionUser = {
   locale: string;
   unitSystem: string;
   isDemo: boolean;
-  /** Administrateur de l'instance — voir `src/lib/auth/invitations.ts`. */
+  /**
+   * Administrateur **général** de l'instance — voir `src/lib/admin/roles.ts`.
+   * Nom historique conservé : toutes les vérifications existantes continuent
+   * de désigner le niveau général, le plus élevé.
+   */
   isPlatformAdmin: boolean;
+  /** Administrateur secondaire : borné aux portefeuilles qu'il gère. */
+  isSecondaryAdmin: boolean;
   /** Exploitant ou expert agronomique : décide de l'espace de travail. */
   accountType: AccountType;
   organization: string | null;
@@ -222,6 +228,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
       unitSystem: session.user.unitSystem,
       isDemo: session.user.isDemo,
       isPlatformAdmin: session.user.isPlatformAdmin,
+      isSecondaryAdmin: session.user.isSecondaryAdmin,
       accountType: session.user.accountType,
       organization: session.user.organization,
     },

@@ -3,6 +3,7 @@ import { getAuthContext } from '@/lib/auth/session';
 import { getMaintenanceMode } from '@/lib/admin/settings';
 import { countUnread } from '@/lib/notifications';
 import { AppShell } from '@/components/layout/AppShell';
+import { adminRoleOf } from '@/lib/admin/roles';
 import { hasFarmSpace, homePathFor } from '@/lib/auth/accounts';
 
 /**
@@ -46,6 +47,7 @@ export default async function AppLayout({
         lastName: auth.user.lastName,
         email: auth.user.email,
         isPlatformAdmin: auth.user.isPlatformAdmin,
+        adminRole: adminRoleOf(auth.user),
         accountType: auth.user.accountType,
       }}
       farms={auth.memberships}

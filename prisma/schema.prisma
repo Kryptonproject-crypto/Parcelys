@@ -95,6 +95,21 @@ model User {
   /// maintenance). Distinct de FarmRole.ADMIN, qui ne porte que sur une
   /// exploitation.
   isPlatformAdmin    Boolean     @default(false) @map("is_platform_admin")
+  /// Administrateur secondaire : gère les clients de ses portefeuilles
+  /// (`portfolio_managers`), jamais l'instance. Exclusif de
+  /// `isPlatformAdmin` (contrainte `users_un_seul_niveau_admin`) : un compte
+  /// est administrateur général, secondaire, ou ni l'un ni l'autre.
+  isSecondaryAdmin   Boolean     @default(false) @map("is_secondary_admin")
+  /// Numéro client d'un technicien (`TEC-000001`).
+  ///
+  /// Attribué par la base (déclencheur `parcelys_numero_technicien`) dès que
+  /// le compte est un expert agronomique, jamais fourni par le navigateur, et
+  /// définitif : la base refuse de le modifier. Ce n'est ni une clé ni une
+  /// autorisation — un repère pour se parler.
+  technicianNumber   String?     @unique @map("technician_number")
+  /// Portefeuille de gestion du technicien : désigne l'administrateur
+  /// responsable. `null` : relève de l'administrateur général.
+  portfolioId        String?     @map("portfolio_id")
   /// Compte suspendu par un administrateur : connexion refusée, sessions
   /// existantes invalidées, données conservées.
   suspendedAt        DateTime?   @map("suspended_at")
@@ -129,9 +144,22 @@ model User {
   deviationsAuthored    NitrogenPlanDeviation[]    @relation("DeviationAuthor")
   soilAnalysesAuthored  SoilAnalysis[]             @relation("SoilAnalysisAuthor")
 
+  portfolio           ManagementPortfolio?  @relation("PortfolioTechnicians", fields: [portfolioId], references: [id], onDelete: SetNull)
+  managedPortfolios   PortfolioManager[]    @relation("PortfolioManagerUser")
+  portfolioGrants     PortfolioManager[]    @relation("PortfolioManagerGrantor")
+  portfoliosCreated   ManagementPortfolio[] @relation("PortfolioCreator")
+  supportRequests     SupportTicket[]       @relation("SupportRequester")
+  supportAsTechnician SupportTicket[]       @relation("SupportTechnician")
+  supportAssigned     SupportTicket[]       @relation("SupportAssignee")
+  supportMessages     SupportMessage[]      @relation("SupportMessageAuthor")
+  supportEvents       SupportTicketEvent[]  @relation("SupportEventActor")
+  supportAttachments  SupportAttachment[]   @relation("SupportAttachmentUploader")
+  faqEdits            FaqEntry[]            @relation("FaqEditor")
+
   @@index([emailNormalized])
   @@index([isPlatformAdmin])
   @@index([accountType])
+  @@index([portfolioId])
   @@map("users")
 }
 
@@ -290,13 +318,18 @@ model InvitationCode {
 
   /// Restriction facultative à une adresse : le code ne fonctionne alors que
   /// pour cette personne.
-  email               String?  @map("email_normalized")
+  email                String?  @map("email_normalized")
   /// Exploitation rejointe par le titulaire. `null` = il crée la sienne et en
   /// devient propriétaire. Toujours renseignée pour un accès conseil.
-  farmId              String?  @map("farm_id")
-  role                FarmRole @default(OWNER)
+  farmId               String?  @map("farm_id")
+  role                 FarmRole @default(OWNER)
   /// Le titulaire devient administrateur de l'instance.
-  grantsPlatformAdmin Boolean  @default(false) @map("grants_platform_admin")
+  grantsPlatformAdmin  Boolean  @default(false) @map("grants_platform_admin")
+  /// Le titulaire devient administrateur secondaire, gérant `portfolioId`.
+  grantsSecondaryAdmin Boolean  @default(false) @map("grants_secondary_admin")
+  /// Portefeuille de gestion : celui où arrive l'exploitation créée ou le
+  /// technicien inscrit, ou celui que gérera l'administrateur secondaire.
+  portfolioId          String?  @map("portfolio_id")
 
   note      String?
   expiresAt DateTime  @map("expires_at")
@@ -313,14 +346,16 @@ model InvitationCode {
   revokedById String?  @map("revoked_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  farm      Farm? @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  createdBy User  @relation("InvitationIssuer", fields: [createdById], references: [id], onDelete: Cascade)
-  revokedBy User? @relation("InvitationRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
-  usedBy    User? @relation("InvitationRecipient", fields: [usedById], references: [id], onDelete: SetNull)
+  farm      Farm?                @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  createdBy User                 @relation("InvitationIssuer", fields: [createdById], references: [id], onDelete: Cascade)
+  revokedBy User?                @relation("InvitationRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  usedBy    User?                @relation("InvitationRecipient", fields: [usedById], references: [id], onDelete: SetNull)
+  portfolio ManagementPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
 
   @@index([createdById, createdAt])
   @@index([expiresAt])
   @@index([usedById])
+  @@index([portfolioId])
   @@map("invitation_codes")
 }
 
@@ -362,6 +397,17 @@ model AppSetting {
 model Farm {
   id              String  @id @default(cuid())
   name            String
+  /// Numéro client public (`EXP-000001`).
+  ///
+  /// Attribué par la base à l'insertion (déclencheur
+  /// `parcelys_numero_exploitation`), quel que soit le chemin de création, et
+  /// définitif : la base refuse de le modifier, et le compteur ne redescend
+  /// jamais — même une exploitation purgée ne rend pas son numéro. Ni clé
+  /// primaire, ni autorisation : l'accès se décide toujours par la session.
+  customerNumber  String? @unique @map("customer_number")
+  /// Portefeuille de gestion : désigne l'administrateur responsable.
+  /// `null` : relève de l'administrateur général.
+  portfolioId     String? @map("portfolio_id")
   siret           String?
   addressLine     String? @map("address_line")
   postalCode      String? @map("postal_code")
@@ -408,8 +454,12 @@ model Farm {
   findings          ComplianceFinding[]
   stockItems        StockItem[]
   campaignDocuments CampaignDocument[]
+  supportTickets    SupportTicket[]
+
+  portfolio ManagementPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
 
   @@index([isDemo])
+  @@index([portfolioId])
   @@map("farms")
 }
 
@@ -2214,4 +2264,254 @@ model CampaignDocument {
   @@unique([farmId, campaignYear, kind, version])
   @@index([farmId, campaignYear])
   @@map("campaign_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Administration multi-niveaux : portefeuilles de gestion
+//
+// L'administrateur général voit toute l'instance. Un administrateur secondaire
+// ne voit que les clients — exploitations et techniciens — des portefeuilles
+// qu'il gère. Le portefeuille est une entité à part entière, et non une
+// colonne « administrateur » sur le client : un administrateur peut en gérer
+// plusieurs, plusieurs peuvent en gérer un, et le portefeuille survit au
+// départ de son administrateur — ses clients restent groupés, il suffit de
+// le confier à quelqu'un d'autre.
+// ---------------------------------------------------------------------------
+
+model ManagementPortfolio {
+  id          String   @id @default(cuid())
+  /// Unique : deux portefeuilles homonymes rendraient toute attribution
+  /// ambiguë à l'écran.
+  name        String   @unique
+  description String?
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy   User?              @relation("PortfolioCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  managers    PortfolioManager[]
+  farms       Farm[]
+  technicians User[]             @relation("PortfolioTechnicians")
+  tickets     SupportTicket[]
+  invitations InvitationCode[]
+
+  @@map("management_portfolios")
+}
+
+/// Qui gère quel portefeuille. Une ligne par couple : c'est le périmètre d'un
+/// administrateur secondaire, et rien d'autre ne l'élargit.
+model PortfolioManager {
+  id          String   @id @default(cuid())
+  portfolioId String   @map("portfolio_id")
+  userId      String   @map("user_id")
+  grantedById String?  @map("granted_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  portfolio ManagementPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  user      User                @relation("PortfolioManagerUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?               @relation("PortfolioManagerGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([portfolioId, userId])
+  @@index([userId])
+  @@map("portfolio_managers")
+}
+
+// ---------------------------------------------------------------------------
+// Support : demandes de contact tracées
+// ---------------------------------------------------------------------------
+
+enum SupportTicketStatus {
+  NEW
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+/// Ce que l'on sait de l'identité du demandeur.
+enum SupportIdentity {
+  /// Demande faite depuis une session : l'identité est celle du compte.
+  ACCOUNT
+  /// Visiteur anonyme qui a ouvert le lien envoyé à l'adresse saisie : il
+  /// détient cette boîte, rien de plus.
+  EMAIL_CONFIRMED
+  /// Visiteur anonyme, rien de vérifié : aucune donnée à lui communiquer.
+  UNVERIFIED
+}
+
+enum SupportAuthorKind {
+  REQUESTER
+  STAFF
+}
+
+model SupportTicket {
+  id          String              @id @default(cuid())
+  /// `DEM-000001`, attribué par la base (déclencheur), définitif.
+  number      String?             @unique
+  subject     String
+  /// Le premier message ; les échanges suivants sont dans `support_messages`.
+  description String
+  /// Page ou fonctionnalité concernée, telle que choisie par le demandeur.
+  area        String?
+  status      SupportTicketStatus @default(NEW)
+
+  requesterId    String?         @map("requester_id")
+  requesterName  String          @map("requester_name")
+  requesterEmail String          @map("requester_email")
+  identity       SupportIdentity @default(UNVERIFIED)
+
+  /// Numéro client tel qu'il a été saisi ou prérempli — une déclaration.
+  declaredNumber String? @map("declared_number")
+  /// Client concerné. Vérifié quand `identity = ACCOUNT` (résolu depuis la
+  /// session) ; simplement **déclaré** sinon — l'interface le dit.
+  farmId         String? @map("farm_id")
+  technicianId   String? @map("technician_id")
+  /// Portefeuille et administrateur responsables : décident qui voit la
+  /// demande. Résolus côté serveur, jamais reçus du navigateur.
+  portfolioId    String? @map("portfolio_id")
+  assigneeId     String? @map("assignee_id")
+
+  /// Lien de suivi d'un demandeur anonyme : seule l'empreinte est gardée, le
+  /// lien en clair ne part que par e-mail, à l'adresse saisie.
+  accessTokenHash      String?   @unique @map("access_token_hash")
+  accessTokenExpiresAt DateTime? @map("access_token_expires_at")
+
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at")
+  resolvedAt     DateTime? @map("resolved_at")
+  closedAt       DateTime? @map("closed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  requester  User?                @relation("SupportRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  farm       Farm?                @relation(fields: [farmId], references: [id], onDelete: SetNull)
+  technician User?                @relation("SupportTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  portfolio  ManagementPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: SetNull)
+  assignee   User?                @relation("SupportAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  messages    SupportMessage[]
+  events      SupportTicketEvent[]
+  attachments SupportAttachment[]
+
+  @@index([portfolioId, status])
+  @@index([assigneeId, status])
+  @@index([requesterId, createdAt])
+  @@index([status, lastActivityAt])
+  @@index([farmId])
+  @@index([technicianId])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id         String            @id @default(cuid())
+  ticketId   String            @map("ticket_id")
+  authorId   String?           @map("author_id")
+  authorKind SupportAuthorKind @map("author_kind")
+  body       String
+  /// Note interne entre administrateurs : jamais montrée au demandeur.
+  internal   Boolean           @default(false)
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  ticket      SupportTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User?               @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  attachments SupportAttachment[]
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+
+/// Historique d'une demande : création, statuts, attributions, transferts.
+model SupportTicketEvent {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  actorId   String?  @map("actor_id")
+  /// CREATED, STATUS_CHANGED, ASSIGNED, PORTFOLIO_CHANGED, IDENTITY_CONFIRMED,
+  /// REPLIED.
+  kind      String
+  fromValue String?  @map("from_value")
+  toValue   String?  @map("to_value")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor  User?         @relation("SupportEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_events")
+}
+
+model SupportAttachment {
+  id           String   @id @default(cuid())
+  ticketId     String   @map("ticket_id")
+  messageId    String?  @map("message_id")
+  fileName     String   @map("file_name")
+  storageKey   String   @unique @map("storage_key")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  checksum     String
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ticket     SupportTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message    SupportMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  uploadedBy User?           @relation("SupportAttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@map("support_attachments")
+}
+
+// ---------------------------------------------------------------------------
+// Centre d'aide
+// ---------------------------------------------------------------------------
+
+model FaqCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  entries FaqEntry[]
+
+  @@map("faq_categories")
+}
+
+model FaqEntry {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  /// Identifiant stable du contenu initial ; `null` pour une entrée ajoutée.
+  slug        String?  @unique
+  question    String
+  /// Texte simple : paragraphes séparés par une ligne vide, puces « - ».
+  answer      String
+  /// Mots que l'on tape sans qu'ils figurent dans la question.
+  keywords    String?
+  position    Int      @default(0)
+  published   Boolean  @default(true)
+  /// Réponse à confirmer : affichée avec la mention « À vérifier ».
+  needsReview Boolean  @default(false) @map("needs_review")
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category  FaqCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  updatedBy User?       @relation("FaqEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([categoryId, position])
+  @@map("faq_entries")
+}
+
+/// Compteurs des numéros publics : `EXP` (exploitations), `TEC`
+/// (techniciens), `DEM` (demandes de support).
+///
+/// Incrémentés par la base seule, dans la transaction qui insère (fonction
+/// `parcelys_numero_suivant`, verrou de ligne) : deux créations simultanées
+/// ne peuvent pas recevoir le même numéro. Un déclencheur refuse toute baisse,
+/// toute suppression et tout `TRUNCATE` — un compteur ne se réinitialise pas.
+model CustomerNumberCounter {
+  prefix    String   @id
+  lastValue BigInt   @default(0) @map("last_value")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("customer_number_counters")
 }

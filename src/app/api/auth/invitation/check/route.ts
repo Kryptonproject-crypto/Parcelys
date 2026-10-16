@@ -75,6 +75,7 @@ export const POST = route(async (request: NextRequest) => {
     roleLabel: ROLE_LABELS[invitation.role],
     email: invitation.email,
     grantsPlatformAdmin: invitation.grantsPlatformAdmin,
+    grantsSecondaryAdmin: invitation.grantsSecondaryAdmin,
     expiresAt: invitation.expiresAt.toISOString(),
   });
 });

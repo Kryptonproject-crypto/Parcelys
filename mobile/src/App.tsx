@@ -31,6 +31,9 @@ import { PortfolioScreen } from './screens/Portfolio';
 import { RecommendationsScreen } from './screens/Recommendations';
 import { RecommendationScreen } from './screens/Recommendation';
 import { NewRecommendationScreen } from './screens/NewRecommendation';
+import { AideScreen } from './screens/Aide';
+import { ContactScreen } from './screens/Contact';
+import { DemandeScreen, DemandesScreen } from './screens/Demandes';
 
 /**
  * Coque de l'application.
@@ -59,7 +62,11 @@ export type Screen =
   | { name: 'new-purchase' }
   | { name: 'queue' }
   | { name: 'settings' }
-  | { name: 'security' };
+  | { name: 'security' }
+  | { name: 'aide' }
+  | { name: 'contact'; sujet?: string }
+  | { name: 'demandes' }
+  | { name: 'demande'; ticketId: string };
 
 // `SyncStatus` vient du terrain commun : le voyant et son calcul vont ensemble.
 export type { SyncStatus };
@@ -514,6 +521,18 @@ export function App() {
 
     case 'security':
       return <SecurityScreen context={context} />;
+
+    case 'aide':
+      return <AideScreen context={context} />;
+
+    case 'contact':
+      return <ContactScreen context={context} sujet={current.sujet ?? ''} />;
+
+    case 'demandes':
+      return <DemandesScreen context={context} />;
+
+    case 'demande':
+      return <DemandeScreen context={context} ticketId={current.ticketId} />;
 
     default:
       return <ParcelsScreen context={context} />;

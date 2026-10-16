@@ -187,8 +187,45 @@ export class TestClient {
     return this.request<T>('DELETE', path, body);
   }
 
+  /**
+   * Envoie un formulaire `multipart/form-data` (pièce jointe). L'en-tête
+   * `Content-Type` et sa frontière sont posés par `fetch` lui-même.
+   */
+  async postForm<T = unknown>(path: string, form: FormData): Promise<ApiResponse<T>> {
+    const response = await fetch(`${this.base}${path}`, {
+      method: 'POST',
+      headers: {
+        Origin: this.base,
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
+      },
+      body: form,
+      redirect: 'manual',
+    });
+    this.captureCookie(response);
+    const contentType = response.headers.get('content-type') ?? '';
+    const parsed = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
+    return { status: response.status, body: parsed as T, headers: response.headers };
+  }
+
+  /** Récupère une page HTML avec la session courante, sans suivre les redirections. */
+  async page(path: string): Promise<{ status: number; html: string; location: string | null }> {
+    const response = await fetch(`${this.base}${path}`, {
+      headers: this.cookie ? { Cookie: this.cookie } : {},
+      redirect: 'manual',
+    });
+    return {
+      status: response.status,
+      html: await response.text(),
+      location: response.headers.get('location'),
+    };
+  }
+
   /** Télécharge une réponse binaire (PDF, XLSX) avec la session courante. */
-  async download(path: string): Promise<{ status: number; contentType: string; bytes: Buffer }> {
+  async download(
+    path: string,
+  ): Promise<{ status: number; contentType: string; bytes: Buffer; headers: Headers }> {
     const response = await fetch(`${this.base}${path}`, {
       headers: this.cookie ? { Cookie: this.cookie } : {},
     });
@@ -196,6 +233,7 @@ export class TestClient {
       status: response.status,
       contentType: response.headers.get('content-type') ?? '',
       bytes: Buffer.from(await response.arrayBuffer()),
+      headers: response.headers,
     };
   }
 

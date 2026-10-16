@@ -11,6 +11,8 @@ import {
   type Permission,
 } from '@/lib/auth/rbac';
 import type { AuthContext } from '@/lib/auth/session';
+import { requireAdmin, type AdminContext } from '@/lib/admin/scope';
+import type { AdminPermission } from '@/lib/admin/roles';
 
 /**
  * Variantes des contrôles d'accès destinées aux pages.
@@ -79,6 +81,31 @@ export async function requirePageAdmin(): Promise<AuthContext> {
   } catch (error) {
     if (error instanceof ApiError && error.code === 'FORBIDDEN') {
       redirect('/dashboard');
+    }
+    handleAuthFailure(error);
+  }
+}
+
+/**
+ * Section d'administration, pour une page ouverte aux deux niveaux
+ * (général et secondaire), bornée au périmètre du rôle.
+ *
+ * Un compte non administrateur repart vers son tableau de bord, comme
+ * `requirePageAdmin`. Un administrateur secondaire qui tape l'adresse d'une
+ * page réservée au niveau général revient à son propre tableau de bord
+ * d'administration : la section existe, elle n'est pas la sienne. Et une
+ * fiche hors de son périmètre est une page introuvable — la même que pour un
+ * identifiant qui n'existe pas.
+ */
+export async function requirePageAdminScope(
+  permission: AdminPermission,
+): Promise<AdminContext> {
+  try {
+    return await requireAdmin(permission);
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'FORBIDDEN') redirect('/dashboard');
+    if (error instanceof ApiError && error.code === 'ADMIN_GENERAL_ONLY') {
+      redirect('/administration');
     }
     handleAuthFailure(error);
   }

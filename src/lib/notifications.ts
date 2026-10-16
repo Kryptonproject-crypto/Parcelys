@@ -10,7 +10,8 @@ export type NotificationType =
   | 'EPHY_SYNC'
   | 'EXPIRATION'
   | 'ACCOUNT_SECURITY'
-  | 'RECOMMENDATION';
+  | 'RECOMMENDATION'
+  | 'SUPPORT';
 
 export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   WEATHER: 'Météo',
@@ -20,6 +21,7 @@ export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   EXPIRATION: 'Expiration',
   ACCOUNT_SECURITY: 'Sécurité du compte',
   RECOMMENDATION: 'Préconisation',
+  SUPPORT: 'Support',
 };
 
 export async function createNotification(params: {

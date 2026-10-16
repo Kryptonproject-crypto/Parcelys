@@ -4,6 +4,7 @@ import { getMaintenanceMode } from '@/lib/admin/settings';
 import { countUnread } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { AppShell } from '@/components/layout/AppShell';
+import { adminRoleOf } from '@/lib/admin/roles';
 import { ExpertShell } from '@/components/layout/ExpertShell';
 
 /**
@@ -69,6 +70,7 @@ export default async function AccountLayout({
         lastName: auth.user.lastName,
         email: auth.user.email,
         isPlatformAdmin: auth.user.isPlatformAdmin,
+        adminRole: adminRoleOf(auth.user),
         accountType: auth.user.accountType,
       }}
       farms={auth.memberships}

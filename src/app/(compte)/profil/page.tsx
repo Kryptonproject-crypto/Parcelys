@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ROLE_LABELS } from '@/lib/auth/rbac';
 import { requirePageAuth } from '@/lib/auth/page-guards';
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage() {
   const auth = await requirePageAuth();
 
-  const [user, sessions] = await Promise.all([
+  const [user, sessions, numeros] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: auth.user.id },
       select: {
@@ -24,6 +25,8 @@ export default async function ProfilePage() {
         weatherProvider: true,
         notifyByEmail: true,
         emailVerifiedAt: true,
+        technicianNumber: true,
+        accountType: true,
       },
     }),
     prisma.session.findMany({
@@ -37,7 +40,16 @@ export default async function ProfilePage() {
         lastUsedAt: true,
       },
     }),
+    // Le numéro client de chaque exploitation dont le compte est membre — pas
+    // de celles qu'il suit en conseil, qui ne sont pas les siennes.
+    prisma.farm.findMany({
+      where: {
+        id: { in: auth.memberships.filter((m) => m.kind === 'member').map((m) => m.farmId) },
+      },
+      select: { id: true, customerNumber: true },
+    }),
   ]);
+  const numeroDe = new Map(numeros.map((f) => [f.id, f.customerNumber]));
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -45,6 +57,35 @@ export default async function ProfilePage() {
         title="Mon profil"
         description="Identité, préférences, sécurité et données personnelles."
       />
+
+      <Card className="mb-5">
+        <CardHeader
+          title="Numéro client et assistance"
+          description="Donnez votre numéro quand vous contactez le support : il permet de retrouver votre dossier."
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-ink-2">
+            {user.accountType === 'AGRONOMIST' ? (
+              <>
+                Numéro technicien :{' '}
+                <strong className="font-mono text-ink">{user.technicianNumber ?? '—'}</strong>
+              </>
+            ) : numeros.length > 0 ? (
+              <>Le numéro de chaque exploitation figure ci-dessous (EXP-…).</>
+            ) : (
+              <>Ce compte n&apos;a pas de numéro client.</>
+            )}
+          </p>
+          <span className="flex gap-2">
+            <Link href="/mes-demandes" className="text-sm font-medium text-champ-700 underline dark:text-champ-400">
+              Mes demandes
+            </Link>
+            <Link href="/aide" className="text-sm font-medium text-champ-700 underline dark:text-champ-400">
+              Aide
+            </Link>
+          </span>
+        </div>
+      </Card>
 
       <Card className="mb-5">
         <CardHeader
@@ -65,6 +106,11 @@ export default async function ProfilePage() {
             >
               <span className="min-w-0 break-words font-medium text-ink">
                 {membership.farmName}
+                {numeroDe.get(membership.farmId) ? (
+                  <span className="ml-2 font-mono text-[12.5px] font-normal text-ink-3">
+                    {numeroDe.get(membership.farmId)}
+                  </span>
+                ) : null}
               </span>
               <div className="flex shrink-0 items-center gap-2">
                 {membership.farmId === auth.activeFarmId ? (

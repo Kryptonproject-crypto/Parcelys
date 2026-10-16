@@ -93,6 +93,19 @@ export {
   // Conseil agronomique
   Lightbulb as IconAdvisor,
   Handshake as IconEngagement,
+
+  // Administration multi-niveaux, support et aide
+  LifeBuoy as IconSupport,
+  CircleHelp as IconHelp,
+  BriefcaseBusiness as IconPortfolio,
+  UserCog as IconAdmins,
+  Hash as IconNumber,
+  MessagesSquare as IconMessages,
+  Send as IconSend,
+  ArrowRightLeft as IconTransfer,
+  StickyNote as IconNote,
+  Inbox as IconInbox,
+  Activity as IconActivity,
 } from 'lucide-react';
 
 export type { LucideIcon } from 'lucide-react';

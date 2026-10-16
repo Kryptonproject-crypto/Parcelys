@@ -63,9 +63,14 @@ async function request<T>(
     idempotencyKey?: string;
     /** Délai propre à une requête longue, au-delà des 15 s ordinaires. */
     timeoutMs?: number;
+    /**
+     * Formulaire `multipart/form-data` (pièce jointe). Le navigateur pose
+     * lui-même l'en-tête et sa frontière : on ne doit surtout pas l'écrire.
+     */
+    formData?: FormData;
   } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = options.formData ? {} : { 'Content-Type': 'application/json' };
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
 
@@ -74,7 +79,7 @@ async function request<T>(
     response = await fetch(`${serverUrl}${path}`, {
       method: options.method ?? 'GET',
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.formData ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
       signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
     });
   } catch (erreur) {
@@ -514,5 +519,93 @@ export async function changePassword(
     method: 'PUT',
     token: session.token,
     body: { currentPassword, newPassword, newPasswordConfirmation: newPassword },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Centre d'aide et support
+// ---------------------------------------------------------------------------
+
+export type { FaqCategorieVue } from '@commun/faq';
+
+/** Le centre d'aide publié par le serveur (public : pas besoin de session). */
+export async function fetchFaq(serverUrl: string): Promise<import('@commun/faq').FaqCategorieVue[]> {
+  const r = await request<{ categories: import('@commun/faq').FaqCategorieVue[] }>(serverUrl, '/api/aide/faq');
+  return r.categories;
+}
+
+export type SupportContext = {
+  name: string;
+  email: string;
+  accountType: AccountType;
+  technicianNumber: string | null;
+  activeFarmId: string | null;
+  farms: Array<{ id: string; name: string; customerNumber: string | null }>;
+};
+
+/** Nom, adresse et numéros clients du compte, pour préremplir le formulaire. */
+export async function fetchSupportContext(session: Session): Promise<SupportContext> {
+  return request<SupportContext>(session.serverUrl, '/api/support/contexte', { token: session.token });
+}
+
+/** Dépose une demande. Le serveur reprend nom, adresse et numéro de la session. */
+export async function createSupportTicket(
+  session: Session,
+  form: FormData,
+): Promise<{ message: string; number: string | null; id: string | null }> {
+  return request(session.serverUrl, '/api/support/tickets', {
+    method: 'POST',
+    token: session.token,
+    formData: form,
+    timeoutMs: 60_000,
+  });
+}
+
+export type SupportTicketSummary = {
+  id: string;
+  number: string;
+  subject: string;
+  status: import('@commun/support').StatutDemande;
+  declaredNumber: string | null;
+  createdAt: string;
+  lastActivityAt: string;
+};
+
+export async function fetchMyTickets(session: Session): Promise<SupportTicketSummary[]> {
+  const r = await request<{ tickets: SupportTicketSummary[] }>(session.serverUrl, '/api/support/tickets', {
+    token: session.token,
+  });
+  return r.tickets;
+}
+
+export type SupportTicketDetail = SupportTicketSummary & {
+  description: string;
+  area: string | null;
+  initialAttachments: Array<{ id: string; fileName: string; sizeBytes: number }>;
+  messages: Array<{
+    id: string;
+    authorKind: 'REQUESTER' | 'STAFF';
+    authorName: string;
+    body: string;
+    createdAt: string;
+    attachments: Array<{ id: string; fileName: string; sizeBytes: number }>;
+  }>;
+};
+
+export async function fetchMyTicket(session: Session, id: string): Promise<SupportTicketDetail> {
+  const r = await request<{ ticket: SupportTicketDetail }>(
+    session.serverUrl,
+    `/api/support/tickets/${encodeURIComponent(id)}`,
+    { token: session.token },
+  );
+  return r.ticket;
+}
+
+export async function replyToTicket(session: Session, id: string, form: FormData): Promise<void> {
+  await request(session.serverUrl, `/api/support/tickets/${encodeURIComponent(id)}/messages`, {
+    method: 'POST',
+    token: session.token,
+    formData: form,
+    timeoutMs: 60_000,
   });
 }

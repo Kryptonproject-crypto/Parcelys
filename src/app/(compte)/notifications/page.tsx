@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { requirePageAuth } from '@/lib/auth/page-guards';
 import { listNotifications, NOTIFICATION_LABELS, type NotificationType } from '@/lib/notifications';
-import { MarkAllRead } from '@/app/(app)/notifications/MarkAllRead';
+import { MarkAllRead } from '@/app/(compte)/notifications/MarkAllRead';
 import { Badge, Card, EmptyState, PageHeader, formatDateFr } from '@/components/ui';
 import { IconNotification } from '@/components/ui/icons';
 

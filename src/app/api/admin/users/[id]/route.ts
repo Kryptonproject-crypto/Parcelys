@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
+import { loadManageableUser, requireAdmin } from '@/lib/admin/scope';
 import { userActionSchema } from '@/lib/validation/admin';
 import {
   assertNotLastAdmin,
@@ -22,22 +22,37 @@ type Ctx = { params: Promise<Record<string, string>> };
  * Chaque action est nommée explicitement plutôt qu'exposée sous forme de champs
  * modifiables : l'API ne permet pas de toucher au mot de passe, à l'adresse ni
  * aux données agronomiques d'un tiers.
+ *
+ * Deux niveaux de droits :
+ *   · suspendre, réactiver, déverrouiller, valider l'adresse, fermer les
+ *     sessions — l'administrateur secondaire le peut, sur un compte **entièrement**
+ *     dans son périmètre (`loadManageableUser`) ; jamais sur un administrateur ;
+ *   · nommer ou retirer un administrateur général — le général seul.
  */
 export const PATCH = route(async (request: NextRequest, context: Ctx) => {
-  const auth = await requirePlatformAdmin();
   const { id } = await context.params;
   if (!id) throw notFound('Compte introuvable');
 
+  // D'abord être administrateur, ensuite lire le corps : un visiteur sans
+  // droits n'apprend rien de la validation. C'est ensuite l'action demandée
+  // qui décide de la permission fine — aucune écriture n'a lieu avant.
+  let auth = await requireAdmin('users:manage');
+  const input = await parseBody(request, userActionSchema);
+  if (input.action === 'set-platform-admin') auth = await requireAdmin('admins:manage');
+
+  // Hors périmètre : introuvable, comme un identifiant inexistant.
+  await loadManageableUser(auth.scope, id);
   const target = await loadManagedUser(id);
   if (target.deletedAt) throw notFound('Compte introuvable');
-
-  const input = await parseBody(request, userActionSchema);
   const ip = clientIp(request);
   const userAgent = request.headers.get('user-agent');
 
   let message: string;
   let action: AuditAction;
-  const metadata: Record<string, unknown> = { targetEmail: target.email };
+  const metadata: Record<string, unknown> = {
+    targetEmail: target.email,
+    actorRole: auth.scope.role,
+  };
 
   switch (input.action) {
     case 'suspend': {
@@ -125,9 +140,17 @@ export const PATCH = route(async (request: NextRequest, context: Ctx) => {
           "Impossible de retirer le dernier administrateur de l'instance.",
         );
       }
-      await prisma.user.update({
-        where: { id: target.id },
-        data: { isPlatformAdmin: input.value },
+      // Un compte est administrateur général **ou** secondaire (contrainte de
+      // la base) : nommé général, il quitte ses portefeuilles de gestion,
+      // devenus sans objet puisqu'il voit désormais tout.
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: target.id },
+          data: input.value
+            ? { isPlatformAdmin: true, isSecondaryAdmin: false }
+            : { isPlatformAdmin: false },
+        });
+        if (input.value) await tx.portfolioManager.deleteMany({ where: { userId: target.id } });
       });
       action = 'admin.platform_role_changed';
       metadata.isPlatformAdmin = input.value;
@@ -160,7 +183,7 @@ export const PATCH = route(async (request: NextRequest, context: Ctx) => {
  * des données personnelles reste à la main de l'intéressé, depuis son profil.
  */
 export const DELETE = route(async (request: NextRequest, context: Ctx) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('users:delete');
   const { id } = await context.params;
   if (!id) throw notFound('Compte introuvable');
 
@@ -231,6 +254,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
         suspendedAt: now,
         suspendedReason: 'Compte supprimé par un administrateur',
         isPlatformAdmin: false,
+        isSecondaryAdmin: false,
         // L'adresse est rendue : la ligne survit pour la traçabilité des
         // registres, mais rien ne doit empêcher de recréer un compte avec la
         // même adresse. L'originale reste au journal d'audit, ci-dessous.
@@ -244,6 +268,8 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
       where: { userId: target.id, revokedAt: null },
       data: { revokedAt: now },
     });
+    // Un administrateur secondaire supprimé ne gère plus rien.
+    await tx.portfolioManager.deleteMany({ where: { userId: target.id } });
 
     // Les codes d'invitation encore ouverts sur cette adresse n'ont plus
     // d'objet : recréer le compte passe par un nouveau code.

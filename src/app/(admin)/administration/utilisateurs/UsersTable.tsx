@@ -61,11 +61,17 @@ export function UsersTable({
   filter,
   search,
   currentUserId,
+  canDelete,
+  canManageAdmins,
 }: {
   users: AdminUserRow[];
   filter: AdminUserFilter;
   search: string;
   currentUserId: string;
+  /** Supprimer un compte : administrateur général seul. */
+  canDelete: boolean;
+  /** Nommer ou retirer un administrateur général : général seul. */
+  canManageAdmins: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -213,7 +219,7 @@ export function UsersTable({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Nom ou adresse e-mail"
+            placeholder="Nom, adresse, EXP-… ou TEC-…"
             aria-label="Rechercher un compte"
             className="sm:w-64"
           />
@@ -263,6 +269,14 @@ export function UsersTable({
                       Inscrit le {formatDateFr(user.createdAt)}
                       {user.organization ? ` · ${user.organization}` : ''}
                     </span>
+                    {user.technicianNumber ? (
+                      <span className="mt-0.5 block font-mono text-[12px] text-ink-2">
+                        {user.technicianNumber}
+                        {user.portfolioName ? (
+                          <span className="font-sans text-ink-3"> · {user.portfolioName}</span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </Td>
 
                   {/* Un expert n'est membre d'aucune exploitation : sans cette
@@ -279,6 +293,9 @@ export function UsersTable({
                           {user.advisedFarms.map((farm) => (
                             <li key={farm.farmId} className="text-[12.5px]">
                               <span className="text-ink">{farm.farmName}</span>{' '}
+                              {farm.customerNumber ? (
+                                <span className="font-mono text-[12px] text-ink-3">{farm.customerNumber}</span>
+                              ) : null}{' '}
                               <span className="text-ink-3">· conseil</span>
                             </li>
                           ))}
@@ -291,6 +308,9 @@ export function UsersTable({
                         {user.memberships.map((m) => (
                           <li key={m.farmId} className="text-[12.5px]">
                             <span className="text-ink">{m.farmName}</span>{' '}
+                            {m.customerNumber ? (
+                              <span className="font-mono text-[12px] text-ink-3">{m.customerNumber}</span>
+                            ) : null}{' '}
                             <span className="text-ink-3">
                               · {ROLE_LABELS[m.role] ?? m.role}
                             </span>
@@ -302,9 +322,13 @@ export function UsersTable({
 
                   <Td>
                     <div className="flex flex-wrap gap-1">
-                      {user.isPlatformAdmin ? (
+                      {user.adminRole === 'GENERAL' ? (
                         <Badge tone="blue" icon={IconAdmin}>
-                          Administrateur
+                          Administrateur général
+                        </Badge>
+                      ) : user.adminRole === 'SECONDARY' ? (
+                        <Badge tone="amber" icon={IconAdmin}>
+                          Administrateur secondaire
                         </Badge>
                       ) : null}
                       {user.accountType === 'AGRONOMIST' ? (
@@ -344,6 +368,14 @@ export function UsersTable({
                   </Td>
 
                   <Td align="right">
+                    {!user.manageable ? (
+                      <span
+                        className="text-[12.5px] text-ink-3"
+                        title="Compte rattaché aussi hors de votre périmètre, ou compte administrateur"
+                      >
+                        Réservé à l&apos;administrateur général
+                      </span>
+                    ) : (
                     <div className="flex flex-wrap justify-end gap-1">
                       {user.suspendedAt ? (
                         <Button
@@ -406,6 +438,7 @@ export function UsersTable({
                         </Button>
                       ) : null}
 
+                      {canManageAdmins && user.adminRole !== 'SECONDARY' ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -425,7 +458,9 @@ export function UsersTable({
                       >
                         {user.isPlatformAdmin ? 'Retirer admin' : 'Nommer admin'}
                       </Button>
+                      ) : null}
 
+                      {canDelete ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -436,7 +471,9 @@ export function UsersTable({
                       >
                         Supprimer
                       </Button>
+                      ) : null}
                     </div>
+                    )}
                   </Td>
                 </Tr>
               );

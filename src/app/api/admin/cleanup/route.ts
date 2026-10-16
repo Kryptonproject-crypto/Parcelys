@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requirePlatformAdmin } from '@/lib/auth/rbac';
+import { requireAdmin } from '@/lib/admin/scope';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { cleanupSchema } from '@/lib/validation/admin';
 import { purgeExpiredSessions } from '@/lib/auth/session';
@@ -16,7 +16,7 @@ import { logAudit } from '@/lib/audit';
  * et le journal d'audit au-delà de sa durée de conservation.
  */
 export const POST = route(async (request: NextRequest) => {
-  const auth = await requirePlatformAdmin();
+  const auth = await requireAdmin('maintenance:manage');
   const input = await parseBody(request, cleanupSchema);
   const results: Record<string, number> = {};
 

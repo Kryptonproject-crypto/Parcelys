@@ -60,9 +60,10 @@ vérification s'applique de nouveau — y compris depuis ces origines.
 | 400 | `BAD_REQUEST`, `VALIDATION_ERROR` | Entrée invalide |
 | 401 | `UNAUTHENTICATED` | Session absente, expirée ou révoquée |
 | 403 | `FORBIDDEN`, `EMAIL_NOT_VERIFIED`, `CSRF_BLOCKED`, `ACCOUNT_SUSPENDED` | Droits insuffisants |
+| 403 | `ADMIN_GENERAL_ONLY` | Fonction réservée à l'administrateur général (journalisée en `access.denied`) |
 | 403 | `INVITATION_REQUIRED`, `INVITATION_INVALID`, `INVITATION_EMAIL_MISMATCH` | Inscription fermée ou code inutilisable |
 | 404 | `NOT_FOUND` | Ressource inexistante **ou** hors de vos exploitations |
-| 409 | `CONFLICT`, `INVITATION_ALREADY_USED`, `SELF_ACTION_FORBIDDEN`, `LAST_ADMIN` | Conflit d'état |
+| 409 | `CONFLICT`, `INVITATION_ALREADY_USED`, `SELF_ACTION_FORBIDDEN`, `LAST_ADMIN`, `TARGET_IS_GENERAL_ADMIN`, `NOT_ADMIN_ACCOUNT` | Conflit d'état |
 | 423 | `ACCOUNT_LOCKED` | Compte temporairement verrouillé |
 | 429 | `RATE_LIMITED` | Trop de requêtes (en-tête `Retry-After`) |
 | 502 | `WEATHER_UNAVAILABLE`, `GEOCODER_UNAVAILABLE` | Service tiers injoignable |
@@ -880,9 +881,39 @@ sans retélécharger l'instantané complet.
 
 ## Administration de l'instance
 
-Toutes ces routes exigent un compte **administrateur d'instance**
-(`User.isPlatformAdmin`). Pour tout autre compte elles répondent `403 FORBIDDEN`,
-et `401` sans session.
+Deux niveaux depuis la 0.11.0 (voir `docs/administration.md`) :
+
+- **administrateur général** (`User.isPlatformAdmin`, sens historique conservé) :
+  toutes les routes, sans filtre ;
+- **administrateur secondaire** (`User.isSecondaryAdmin`) : les routes marquées
+  « 2 niveaux » ci-dessous, **bornées à ses portefeuilles**. Une ressource hors
+  périmètre répond `404` (comme une ressource inexistante) ; une fonction
+  réservée au général répond `403 ADMIN_GENERAL_ONLY`.
+
+Pour tout autre compte, ces routes répondent `403 FORBIDDEN`, et `401` sans
+session.
+
+| Route | Niveaux |
+| --- | --- |
+| `GET /api/admin/users`, `PATCH /api/admin/users/:id` (sauf `set-platform-admin`) | 2 niveaux |
+| `DELETE /api/admin/users/:id`, `set-platform-admin` | général |
+| `GET /api/admin/farms` | 2 niveaux |
+| `POST /api/admin/farms` (supprimer, rétablir, purger) | général |
+| `GET` · `POST` · `DELETE /api/admin/experts` | 2 niveaux |
+| `GET` · `POST /api/admin/invitations`, `DELETE /api/admin/invitations/:id` | 2 niveaux (le secondaire : exploitants et techniciens de ses portefeuilles) |
+| `GET /api/admin/support`, `GET` · `PATCH /api/admin/support/:id`, `POST …/messages`, `GET …/pieces/:pieceId` | 2 niveaux (transfert : général) |
+| `GET /api/admin/recherche?q=EXP-…` | 2 niveaux |
+| `GET /api/admin/exports?type=exploitations\|techniciens\|comptes\|demandes` | 2 niveaux (CSV borné au périmètre) |
+| `/api/admin/administrateurs`, `/api/admin/portefeuilles`, `/api/admin/portefeuilles/affectations` | général |
+| `/api/admin/faq`, `/api/admin/faq/categories`, `/api/admin/faq/entrees` | général |
+| `/api/admin/maintenance`, `/api/admin/cleanup`, `/api/admin/updates`, `/api/regulatory/referentials` | général |
+
+### Numéros clients
+
+Les objets exposés portent leur numéro public : `customerNumber` (`EXP-000001`)
+pour une exploitation, `technicianNumber` (`TEC-000001`) pour un technicien,
+`number` (`DEM-000001`) pour une demande de support. Attribués par la base,
+définitifs, ils ne servent ni d'identifiant de route ni d'autorisation.
 
 ### `GET /api/admin/users`
 
@@ -959,6 +990,71 @@ Mode maintenance : les pages redirigent vers `/maintenance` et les routes
 métier répondent `503 MAINTENANCE`. Les administrateurs d'instance conservent
 l'accès complet — sans quoi personne ne pourrait lever le mode.
 
+### `GET` · `POST /api/admin/administrateurs` · `PATCH /api/admin/administrateurs/:id`
+
+`GET` → généraux, secondaires (avec leurs portefeuilles), comptes
+d'administration sans rôle, invitations de secondaire en attente.
+
+`POST` délivre un code d'administrateur secondaire (jamais général) :
+
+```json
+{ "email": "camille@exemple.fr", "newPortfolioName": "Bocage" }
+```
+
+(ou `"portfolioId": "…"` pour un portefeuille existant). `201` → `{ "code", … }`,
+seule réponse contenant le code en clair.
+
+`PATCH` — une action nommée : `promote` (`portfolioId`), `add-portfolio`,
+`remove-portfolio`, `deactivate` (`reason`), `reactivate`, `revoke`. Chacune est
+journalisée (`admin.secondary_*`).
+
+### `/api/admin/portefeuilles`
+
+`GET` liste, `POST { name, description }` crée, `PATCH /:id` renomme, `DELETE
+/:id` supprime un portefeuille **vide** (`409` sinon).
+
+`POST /api/admin/portefeuilles/affectations` attribue ou transfère :
+
+```json
+{ "kind": "farm", "ids": ["clx…"], "portfolioId": "clx…" }
+```
+
+`portfolioId: null` retire de tout portefeuille. Les demandes de support du
+client le suivent ; chaque client déplacé est journalisé
+(`portfolio.client_assigned`). `200` → `{ "moved", "unchanged", "ticketsMoved" }`.
+
+### `GET /api/admin/support` · `/api/admin/support/:id`
+
+Liste : `statut` (`ouvertes` par défaut, `toutes`, ou un statut), `q` (sujet,
+nom, adresse, `DEM-…` ou numéro client), `moi=1`, `page`.
+
+`PATCH /:id` : `{ "action": "status", "status": "RESOLVED" }`,
+`{ "action": "assign", "assigneeId": "…" | null }` (un gestionnaire du
+portefeuille seulement), `{ "action": "transfer", "portfolioId": … }` (général).
+
+`POST /:id/messages` : `{ "body": "…", "internal": false }` — `internal: true`
+pour une note que le demandeur ne verra jamais.
+
+`GET /:id/pieces/:pieceId` : la pièce jointe, toujours en téléchargement
+(`Content-Disposition: attachment`, `nosniff`), journalisée.
+
+### `GET /api/admin/recherche?q=`
+
+`200` → `{ "kind", "id", "label", "url" }` pour un numéro du périmètre ; `404`
+pour un numéro inconnu **ou** hors périmètre (réponse identique).
+
+### `GET /api/admin/exports?type=`
+
+CSV (`;`, UTF-8 avec BOM, formules neutralisées) de la même lecture bornée que
+l'écran correspondant. Journalisé (`admin.export_generated`).
+
+### Centre d'aide — `/api/admin/faq`
+
+`GET /api/admin/faq` (tout, non publiées comprises), `POST
+/api/admin/faq/categories`, `PATCH` · `DELETE /api/admin/faq/categories/:id`
+(vide seulement), `POST /api/admin/faq/entrees`, `PATCH` · `DELETE
+/api/admin/faq/entrees/:id`. Journalisé (`faq.updated`).
+
 ### `POST /api/admin/cleanup`
 
 ```json
@@ -968,6 +1064,48 @@ l'accès complet — sans quoi personne ne pourrait lever le mode.
 Purges rejouables : sessions expirées ou révoquées, compteurs de limitation,
 codes caducs jamais utilisés, journal d'audit au-delà de sa durée de
 conservation. `200` → `{ "message": "...", "results": { … } }`.
+
+---
+
+## Support et aide (public)
+
+### `POST /api/support/tickets`
+
+Dépose une demande. `multipart/form-data` (pièce jointe facultative, champ
+`piece` : PDF, PNG, JPEG, WebP ou texte, 5 Mo, signature binaire vérifiée) ou
+JSON : `subject`, `description`, `area`, et selon le cas :
+
+- **connecté** : `farmId` (l'une de **ses** exploitations ; sinon l'active).
+  Nom, adresse et numéro client sont repris de la session ; ce que le corps
+  envoie à leur place est ignoré ;
+- **non connecté** : `name`, `email` (obligatoires), `customerNumber`
+  (facultatif, simple déclaration : il achemine la demande, il ne prouve rien).
+
+`201` → `{ "number": "DEM-000012", "id": … }` (`id` rendu au seul compte
+connecté). La demande est attribuée côté serveur au portefeuille du client et
+à son administrateur responsable. Limitation : 5 par heure par adresse IP sans
+compte, 20 avec.
+
+### `GET /api/support/tickets` · `GET /api/support/tickets/:id`
+
+Les demandes du compte connecté, et elles seules (`404` pour celle d'un autre).
+Les notes internes n'y figurent jamais. `POST /:id/messages` pour répondre,
+`GET /:id/pieces/:pieceId` pour une pièce jointe.
+
+### `GET /api/support/contexte`
+
+Nom, adresse et numéros clients du compte connecté (préremplissage).
+
+### `POST /api/support/suivi`
+
+Suivi d'une demande anonyme par le jeton du lien reçu par e-mail :
+`{ "token", "action": "confirmer" }` ou `{ "token", "action": "repondre",
+"body" }`. `404` pour un jeton inconnu, expiré ou remplacé (sans distinction).
+
+### `GET /api/aide/faq?q=`
+
+Le centre d'aide publié. Avec `q`, `results` contient les entrées
+correspondantes ; vide, la réponse donne `contactUrl: "/contact"`.
 
 ---
 

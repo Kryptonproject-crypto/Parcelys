@@ -6,16 +6,18 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { AccountType, FarmRole } from '@prisma/client';
 import {
-  ADMIN_MOBILE_NAV,
   ADMIN_NAV,
-  ADMIN_SECTIONS,
+  ADMIN_NAV_GROUPS,
   FOOTER_NAV,
+  adminMobileNavFor,
+  adminSectionsFor,
   MAIN_NAV,
   NAV_GROUPS,
   isNavActive,
 } from '@/components/layout/navigation';
 import { apiPost } from '@/lib/client/api';
 import { hasFarmSpace } from '@/lib/auth/accounts';
+import { ADMIN_ROLE_LABELS, type AdminRole } from '@/lib/admin/roles';
 import { useTheme } from '@/components/ui/Toast';
 import { cn } from '@/components/ui';
 import {
@@ -35,6 +37,11 @@ export type ShellUser = {
   email: string;
   /** Affiche l'entrée « Administration » — l'accès reste vérifié côté serveur. */
   isPlatformAdmin: boolean;
+  /**
+   * Niveau d'administration (général ou secondaire) : décide des sections
+   * proposées. Un confort d'affichage — chaque page revérifie.
+   */
+  adminRole?: AdminRole | null;
   /**
    * Décide si la navigation d'exploitation a lieu d'être. Un compte
    * d'administration n'a ni parcelles ni registres : lui présenter « Parcelles »
@@ -144,8 +151,12 @@ export function AppShell({
         label: group.label,
         items: MAIN_NAV.filter((item) => item.group === group.key),
       }))
-    : user.isPlatformAdmin
-      ? [{ key: 'administration', label: 'Administration', items: ADMIN_SECTIONS }]
+    : user.adminRole
+      ? ADMIN_NAV_GROUPS.map((group) => ({
+          key: group.key,
+          label: group.label,
+          items: adminSectionsFor(user.adminRole).filter((s) => s.adminGroup === group.key),
+        }))
       : [];
 
   /**
@@ -161,8 +172,8 @@ export function AppShell({
    */
   const mobileNav = hasFarmSpace(user.accountType)
     ? MAIN_NAV.filter((item) => item.mobile)
-    : user.isPlatformAdmin
-      ? ADMIN_MOBILE_NAV
+    : user.adminRole
+      ? adminMobileNavFor(user.adminRole)
       : [];
 
   const sidebar = (
@@ -370,7 +381,8 @@ export function AppShell({
         */}
         <ul className="mb-2 space-y-0.5">
           {FOOTER_NAV.filter(
-            (item) => item.href === '/profil' || hasFarmSpace(user.accountType),
+            (item) =>
+              item.href === '/profil' || item.href === '/aide' || hasFarmSpace(user.accountType),
           ).map((item) => {
             const active = isNavActive(pathname, item.href);
             const Icon = item.icon;
@@ -401,7 +413,9 @@ export function AppShell({
             <span className="block truncate text-[13px] font-medium text-white">
               {user.firstName} {user.lastName}
             </span>
-            <span className="block truncate text-[12.5px] sm:text-[11px] text-champ-300">{user.email}</span>
+            <span className="block truncate text-[12.5px] sm:text-[11px] text-champ-300">
+              {user.adminRole ? ADMIN_ROLE_LABELS[user.adminRole] : user.email}
+            </span>
           </span>
           <button
             type="button"

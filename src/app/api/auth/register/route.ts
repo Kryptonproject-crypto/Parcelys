@@ -110,6 +110,7 @@ export const POST = route(async (request: NextRequest) => {
   const passwordHash = await hashPassword(input.password);
   const now = new Date();
   const role: FarmRole = invitation?.role ?? 'OWNER';
+  const secondaire = invitation?.grantsSecondaryAdmin === true && accountType === 'ADMIN';
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
@@ -127,12 +128,32 @@ export const POST = route(async (request: NextRequest) => {
         // le prévoyant explicitement confère ce pouvoir. Un compte
         // d'administration l'obtient de son type : sans ce droit il n'aurait
         // ni exploitation, ni portefeuille, ni écran de gestion — rien.
-        isPlatformAdmin:
-          bootstrap ||
-          (invitation?.grantsPlatformAdmin ?? false) ||
-          impliesPlatformAdmin(accountType),
+        //
+        // Un code d'administrateur **secondaire** fait exception : le compte
+        // est de type administration, mais borné à un portefeuille — jamais
+        // général (la base refuse d'ailleurs les deux à la fois).
+        isPlatformAdmin: secondaire
+          ? false
+          : bootstrap ||
+            (invitation?.grantsPlatformAdmin ?? false) ||
+            impliesPlatformAdmin(accountType),
+        isSecondaryAdmin: secondaire,
+        // Un technicien arrive dans le portefeuille prévu par son code.
+        portfolioId: accountType === 'AGRONOMIST' ? (invitation?.portfolioId ?? null) : null,
       },
     });
+
+    // L'administrateur secondaire reçoit son périmètre dans la même
+    // transaction : jamais un instant administrateur sans portefeuille connu.
+    if (secondaire && invitation?.portfolioId) {
+      await tx.portfolioManager.create({
+        data: {
+          portfolioId: invitation.portfolioId,
+          userId: created.id,
+          grantedById: invitation.createdById,
+        },
+      });
+    }
 
     if (invitation) {
       // Consommation dans la même transaction : deux inscriptions simultanées
@@ -152,10 +173,13 @@ export const POST = route(async (request: NextRequest) => {
       return created;
     }
 
+    // Le numéro client (`EXP-…`) est attribué par la base à l'insertion ; le
+    // portefeuille, s'il y en a un, est celui du code d'invitation.
     const farm = await tx.farm.create({
       data: {
         name: farmName,
         siret: input.siret && input.siret.length > 0 ? input.siret : null,
+        portfolioId: invitation?.portfolioId ?? null,
       },
     });
 
@@ -195,6 +219,8 @@ export const POST = route(async (request: NextRequest) => {
       invitationId: invitation?.id ?? null,
       farmName: !creeUneExploitation ? null : joinsExistingFarm ? invitation?.farm?.name : farmName,
       role: creeUneExploitation ? role : null,
+      portfolioId: invitation?.portfolioId ?? null,
+      secondaryAdmin: secondaire,
     },
   });
 

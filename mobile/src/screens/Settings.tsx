@@ -98,6 +98,12 @@ export function SettingsScreen({ context }: { context: AppContext }) {
               </div>
             ) : null}
             <div className="flex justify-between gap-3">
+              <dt className="text-ink-3">Numéro client</dt>
+              <dd className="text-right font-mono text-ink">
+                {(isExpert ? snapshot?.technicianNumber : snapshot?.farm.customerNumber) ?? '—'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
               <dt className="text-ink-3">Réseau</dt>
               <dd className="text-right text-ink">
                 {online ? 'connecté' : 'hors ligne'}
@@ -131,6 +137,14 @@ export function SettingsScreen({ context }: { context: AppContext }) {
           onClick={() => navigate({ name: 'security' })}
         >
           Compte et sécurité
+        </Button>
+
+        <Button variant="secondary" full onClick={() => navigate({ name: 'aide' })}>
+          Aide et contact
+        </Button>
+
+        <Button variant="secondary" full onClick={() => navigate({ name: 'demandes' })}>
+          Mes demandes
         </Button>
 
         <Button

@@ -16,6 +16,7 @@ import {
   IconMoon,
   IconNotification,
   IconProfile,
+  IconHelp,
   IconRegistry,
   IconSun,
 } from '@/components/ui/icons';
@@ -46,6 +47,7 @@ const NAV = [
     exact: false,
   },
   { href: '/profil', label: 'Profil', icon: IconProfile, exact: false },
+  { href: '/aide', label: 'Aide et contact', icon: IconHelp, exact: false },
 ];
 
 export function ExpertShell({

@@ -92,6 +92,32 @@ export type AuditAction =
   | 'admin.maintenance_changed'
   | 'admin.cleanup_run'
   | 'admin.updates_checked'
+  // Administration multi-niveaux. Chaque geste qui change **qui voit quoi**
+  // laisse une trace : création, élargissement ou réduction d'un périmètre,
+  // désactivation, révocation, et chaque attribution ou transfert de client.
+  | 'admin.secondary_invited'
+  | 'admin.secondary_promoted'
+  | 'admin.secondary_scope_added'
+  | 'admin.secondary_scope_removed'
+  | 'admin.secondary_deactivated'
+  | 'admin.secondary_reactivated'
+  | 'admin.secondary_revoked'
+  | 'admin.export_generated'
+  | 'portfolio.created'
+  | 'portfolio.updated'
+  | 'portfolio.deleted'
+  /** Attribution ou transfert d'une exploitation ou d'un technicien. */
+  | 'portfolio.client_assigned'
+  // Support. Les pièces jointes téléchargées sont journalisées : ce sont des
+  // fichiers venus de l'extérieur, et parfois des données personnelles.
+  | 'support.ticket_created'
+  | 'support.ticket_replied'
+  | 'support.ticket_status_changed'
+  | 'support.ticket_assigned'
+  | 'support.ticket_transferred'
+  | 'support.identity_confirmed'
+  | 'support.attachment_downloaded'
+  | 'faq.updated'
   | 'advisor.access_granted'
   | 'advisor.access_revoked'
   | 'advisor.access_redeemed'
