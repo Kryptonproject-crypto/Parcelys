@@ -637,6 +637,39 @@ Types : `LABOUR`, `DECHAUMAGE`, `SEMIS`, `ROULAGE`, `HERSAGE`, `BROYAGE`,
 
 ---
 
+
+### Corriger un enregistrement (0.11.2)
+
+| Route | Corps |
+|---|---|
+| `PUT /api/fertilization/:id` | celui de `POST /api/parcels/:id/fertilization` |
+| `PUT /api/phytosanitary/applications/:id` | celui de `POST /api/parcels/:id/phytosanitary` |
+| `PUT /api/operations/:id` | celui de `POST /api/parcels/:id/operations` |
+| `PUT /api/soil-covers/:id` | celui de `POST /api/soil-covers`, sans `parcelId` |
+| `PUT /api/crop-years/:id` | celui de `POST /api/parcels/:id/crops` ; 409 si la parcelle porte déjà cette culture sur cette campagne |
+
+L'enregistrement est **remplacé** par ce qui est envoyé, avec les mêmes calculs
+et contrôles qu'à la création (quantité totale, éléments fertilisants, surface,
+programme d'actions, dose et conditions d'emploi). Trois exceptions, pour qu'une
+correction n'efface pas ce que le formulaire ne montre pas :
+
+- **météo** : une correction qui n'en porte aucune garde celle enregistrée ;
+- **`nSupplied`, `pSupplied`, `kSupplied`** (apport) : un nombre est une valeur
+  saisie, `null` demande le recalcul, l'absence conserve une valeur saisie
+  (d'après une analyse) et recalcule une valeur calculée ; changer de produit
+  fait toujours recalculer ;
+- **`stockLotId`** (traitement) : absent, la sortie de stock rattachée est
+  ajustée à la nouvelle quantité et à la nouvelle date ; `null`, elle est
+  annulée ; un autre lot, elle y est reportée.
+
+Droits : `record:write`. Un enregistrement d'une autre exploitation répond
+404. Chaque correction est journalisée (`*.updated`) avec, pour chaque champ
+modifié, l'ancienne et la nouvelle valeur.
+
+Un traitement dont seule l'AMM est donnée (cas de l'application) est rattaché
+au produit du catalogue qui porte cette AMM, s'il y en a un : nom et
+substances sont alors ceux du catalogue, et les contrôles s'appliquent.
+
 ## Historique
 
 ### `GET /api/parcels/:id/history`
@@ -884,9 +917,16 @@ Rejoue un lot de saisies faites hors réseau (50 au maximum).
 }
 ```
 
-`kind` est limité à `parcel.create`, `fertilization.create`, `phyto.create` et
-`operation.create` — une liste fermée : la synchronisation n'est pas un tunnel
-vers le reste de l'API.
+`kind` appartient à une liste fermée (`src/lib/validation/sync.ts`) : la
+synchronisation n'est pas un tunnel vers le reste de l'API. Créations :
+`parcel.create`, `parcel.rename`, `fertilization.create`, `phyto.create`,
+`operation.create`, `soilCover.create`, `cropYear.create`, `stock.purchase`,
+`recommendation.create`, `recommendation.respond`. Depuis la 0.11.2,
+corrections et suppressions : `fertilization.update|delete`,
+`phyto.update|delete`, `operation.update|delete`, `soilCover.update|delete`,
+`cropYear.update|delete` — l'enregistrement visé est désigné par `targetId`
+(manquant : refus « Enregistrement non précisé »). Supprimer ce qui n'existe
+plus est compté comme fait (`applied`, message « Déjà supprimé. »).
 
 Chaque opération est passée à la **route correspondante** de l'API. Les règles
 métier — superficie calculée par PostGIS, bilan NPK, contrôle de la surface

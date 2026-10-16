@@ -211,6 +211,13 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
         motsCles: 'traitement saisir produit amm registre',
       },
       {
+        slug: 'phyto-corriger',
+        question: 'Corriger ou supprimer un traitement, un apport, un travail',
+        reponse:
+          "Sur le site, fiche de la parcelle : « Modifier » ou « Supprimer » sur la ligne (aussi depuis les registres Apports et Phytosanitaire). Dans l'application, ouvrez la parcelle puis la rubrique : chaque enregistrement porte les mêmes boutons, réseau ou pas — la correction part à la synchronisation. Les quantités et les éléments fertilisants sont recalculés, la sortie de stock d'un traitement suit la nouvelle dose, la météo du jour de l'intervention est conservée, et chaque correction est inscrite au journal avec l'ancienne et la nouvelle valeur.",
+        motsCles: 'corriger modifier supprimer erreur dose traitement apport travail couvert culture',
+      },
+      {
         slug: 'phyto-retire',
         question: 'Mon produit est retiré du marché : puis-je encore l’utiliser ?',
         reponse:

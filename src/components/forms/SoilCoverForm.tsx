@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ApiRequestError, apiPost } from '@/lib/client/api';
+import { ApiRequestError, apiPost, apiPut } from '@/lib/client/api';
+import type { SoilCoverRow } from '@/app/(app)/parcelles/[id]/types';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 
 /**
@@ -54,17 +55,21 @@ const DESTRUCTIONS: Array<{ value: string; label: string }> = [
 export function SoilCoverForm({
   parcelId,
   cropYears,
+  existing = null,
   onDone,
 }: {
   parcelId: string;
   cropYears: Array<{ id: string; label: string }>;
+  /** Le couvert à corriger ; absent pour une nouvelle saisie. */
+  existing?: SoilCoverRow | null;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [nature, setNature] = useState('CIPAN');
+  const [nature, setNature] = useState(existing?.kind ?? 'CIPAN');
+  const jour = (v: string | null | undefined) => (v ? v.slice(0, 10) : '');
 
   const aide = NATURES.find((n) => n.value === nature)?.aide ?? '';
 
@@ -79,8 +84,7 @@ export function SoilCoverForm({
       String(form.get(cle) ?? '').trim() || undefined;
 
     try {
-      await apiPost('/api/soil-covers', {
-        parcelId,
+      const corps = {
         cropYearId: texte('cropYearId') ?? null,
         kind: nature,
         species: texte('species') ?? null,
@@ -90,7 +94,9 @@ export function SoilCoverForm({
         destructionMethod: texte('destructionMethod') ?? null,
         areaHa: texte('areaHa') ? Number(texte('areaHa')) : null,
         notes: texte('notes') ?? null,
-      });
+      };
+      if (existing) await apiPut(`/api/soil-covers/${existing.id}`, corps);
+      else await apiPost('/api/soil-covers', { parcelId, ...corps });
       router.refresh();
       onDone();
     } catch (err) {
@@ -130,23 +136,23 @@ export function SoilCoverForm({
           htmlFor="species"
           hint="Le mélange compte : certains programmes régionaux encadrent la part de légumineuses."
         >
-          <Input id="species" name="species" placeholder="Moutarde blanche, phacélie" />
+          <Input id="species" name="species" placeholder="Moutarde blanche, phacélie" defaultValue={existing?.species ?? ''} />
         </Field>
 
         <Field label="Semis" htmlFor="sownOn" error={fieldErrors.sownOn}>
-          <Input id="sownOn" name="sownOn" type="date" />
+          <Input id="sownOn" name="sownOn" type="date" defaultValue={jour(existing?.sownOn)} />
         </Field>
 
         <Field label="Levée" htmlFor="emergedOn" error={fieldErrors.emergedOn}>
-          <Input id="emergedOn" name="emergedOn" type="date" />
+          <Input id="emergedOn" name="emergedOn" type="date" defaultValue={jour(existing?.emergedOn)} />
         </Field>
 
         <Field label="Destruction" htmlFor="destroyedOn" error={fieldErrors.destroyedOn}>
-          <Input id="destroyedOn" name="destroyedOn" type="date" />
+          <Input id="destroyedOn" name="destroyedOn" type="date" defaultValue={jour(existing?.destroyedOn)} />
         </Field>
 
         <Field label="Mode de destruction" htmlFor="destructionMethod">
-          <Select id="destructionMethod" name="destructionMethod" defaultValue="">
+          <Select id="destructionMethod" name="destructionMethod" defaultValue={existing?.destructionMethod ?? ''}>
             {DESTRUCTIONS.map((d) => (
               <option key={d.value} value={d.value}>
                 {d.label}
@@ -160,12 +166,12 @@ export function SoilCoverForm({
           htmlFor="areaHa"
           hint="Seulement si elle diffère de la parcelle entière."
         >
-          <Input id="areaHa" name="areaHa" type="number" step="0.0001" min="0" />
+          <Input id="areaHa" name="areaHa" type="number" step="0.0001" min="0" defaultValue={existing?.areaHa ? String(Number(existing.areaHa)) : ''} />
         </Field>
 
         {cropYears.length > 0 ? (
           <Field label="Campagne concernée" htmlFor="cropYearId">
-            <Select id="cropYearId" name="cropYearId" defaultValue="">
+            <Select id="cropYearId" name="cropYearId" defaultValue={existing?.cropYearId ?? ''}>
               <option value="">Non rattaché</option>
               {cropYears.map((cy) => (
                 <option key={cy.id} value={cy.id}>
@@ -178,7 +184,7 @@ export function SoilCoverForm({
       </div>
 
       <Field label="Observations" htmlFor="notes">
-        <Textarea id="notes" name="notes" rows={2} />
+        <Textarea id="notes" name="notes" rows={2} defaultValue={existing?.notes ?? ''} />
       </Field>
 
       <p className="text-[12.5px] leading-relaxed text-ink-3">
@@ -189,7 +195,7 @@ export function SoilCoverForm({
       <div className="flex justify-end pt-1">
         <Button type="submit" disabled={submitting}>
           {submitting ? <Spinner /> : null}
-          {submitting ? 'Enregistrement…' : 'Enregistrer le couvert'}
+          {submitting ? 'Enregistrement…' : existing ? 'Enregistrer les corrections' : 'Enregistrer le couvert'}
         </Button>
       </div>
     </form>

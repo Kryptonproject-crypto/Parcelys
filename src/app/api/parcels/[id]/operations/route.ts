@@ -1,11 +1,10 @@
 import type { NextRequest } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
 import { operationSchema } from '@/lib/validation/farming';
 import { logAudit } from '@/lib/audit';
-import { decimalWeather, resolveInterventionWeather } from '@/lib/weather';
+import { preparerTravail } from '@/lib/services/saisies';
 import { notFound } from '@/lib/api/errors';
 
 type Ctx = { params: Promise<Record<string, string>> };
@@ -35,45 +34,11 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
   const { ctx } = await requireParcelAccess(id, 'record:write');
   const input = await parseBody(request, operationSchema);
 
-  // Conditions au moment de l'intervention : celles relevées au champ priment,
-  // sinon relevé ici si la parcelle est localisée.
-  const location = await prisma.parcel.findUnique({
-    where: { id },
-    select: { centroidLat: true, centroidLng: true },
-  });
-  const weather = await resolveInterventionWeather(
-    input,
-    location ? { latitude: location.centroidLat, longitude: location.centroidLng } : null,
-  );
-
+  // Mêmes champs, même météo qu'à la modification (`src/lib/services/saisies.ts`).
   const created = await prisma.agriculturalOperation.create({
     data: {
-      ...decimalWeather(weather),
+      ...(await preparerTravail({ parcel: { id }, input, modification: false })),
       parcelId: id,
-      performedOn: input.performedOn,
-      type: input.type,
-      equipment: input.equipment ?? null,
-      operator: input.operator ?? null,
-      durationHours:
-        input.durationHours !== undefined ? new Prisma.Decimal(input.durationHours) : null,
-
-      // L'irrigation est un travail sur la parcelle, pas un objet à part : elle
-      // s'enregistre ici, avec la même date, le même opérateur et la même
-      // météo. Un second modèle en parallèle aurait fatalement divergé.
-      irrigationVolumeM3Ha:
-        input.irrigationVolumeM3Ha !== undefined
-          ? new Prisma.Decimal(input.irrigationVolumeM3Ha)
-          : null,
-      irrigationMm:
-        input.irrigationMm !== undefined ? new Prisma.Decimal(input.irrigationMm) : null,
-      waterSource: input.waterSource ?? null,
-      waterNitrateMgL:
-        input.waterNitrateMgL !== undefined
-          ? new Prisma.Decimal(input.waterNitrateMgL)
-          : null,
-      waterAnalysisOn: input.waterAnalysisOn ?? null,
-
-      notes: input.notes ?? null,
       createdById: ctx.user.id,
     },
   });

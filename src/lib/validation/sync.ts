@@ -5,7 +5,13 @@ import { z } from 'zod';
  *
  * La liste est fermée, et c'est délibéré : `/api/sync` rejoue de vraies routes
  * de l'API, et une liste ouverte en ferait un tunnel vers n'importe quel point
- * d'entrée. Seules les saisies du terrain y figurent — créer, jamais supprimer.
+ * d'entrée. Seules les saisies du terrain y figurent.
+ *
+ * Depuis la 0.11.2, elles se **corrigent et se suppriment** aussi depuis
+ * l'application, comme sur le site : une erreur de dose vue au bord du champ
+ * se corrige là, pas le soir. Chaque correction et chaque suppression passe
+ * par la route du site, avec ses contrôles et sa permission (`record:write`,
+ * `record:delete`) : la file n'ouvre aucun droit que le site n'ouvre pas.
  */
 export const SYNC_OPERATION_KINDS = [
   'parcel.create',
@@ -41,6 +47,19 @@ export const SYNC_OPERATION_KINDS = [
    * l'entrée en stock — et refuse ce qu'elle refuserait en ligne.
    */
   'stock.purchase',
+  /** Culture d'une campagne : renseignée ou corrigée au champ. */
+  'cropYear.create',
+  'cropYear.update',
+  'cropYear.delete',
+  /** Corrections et suppressions d'enregistrements : voir l'en-tête. */
+  'fertilization.update',
+  'fertilization.delete',
+  'phyto.update',
+  'phyto.delete',
+  'operation.update',
+  'operation.delete',
+  'soilCover.update',
+  'soilCover.delete',
 ] as const;
 
 export type SyncOperationKind = (typeof SYNC_OPERATION_KINDS)[number];

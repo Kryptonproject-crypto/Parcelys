@@ -25,6 +25,7 @@ import { NewPurchaseScreen } from './screens/NewPurchase';
 import { NewParcelScreen } from './screens/NewParcel';
 import { ParcelScreen } from './screens/Parcel';
 import { EntryScreen, type EntryKind } from './screens/Entry';
+import type { Correction } from './lib/corrections';
 import { QueueScreen } from './screens/Queue';
 import { SettingsScreen } from './screens/Settings';
 import { SecurityScreen } from './screens/Security';
@@ -55,7 +56,13 @@ export type Screen =
   | { name: 'carte' }
   | { name: 'new-parcel' }
   | { name: 'parcel'; parcelId: string }
-  | { name: 'entry'; kind: EntryKind; parcelId: string }
+  | {
+      name: 'entry';
+      kind: EntryKind;
+      parcelId: string;
+      /** Enregistrement ou saisie en file à corriger ; absent pour une nouvelle saisie. */
+      correction?: Correction;
+    }
   | { name: 'recommendations' }
   | { name: 'recommendation'; recommendationId: string }
   | { name: 'new-recommendation'; parcelId?: string }
@@ -543,7 +550,14 @@ export function App() {
         back();
         return null;
       }
-      return <EntryScreen context={context} parcel={parcel} kind={current.kind} />;
+      return (
+        <EntryScreen
+          context={context}
+          parcel={parcel}
+          kind={current.kind}
+          {...(current.correction ? { correction: current.correction } : {})}
+        />
+      );
     }
 
     case 'recommendations':

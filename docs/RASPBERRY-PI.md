@@ -1322,6 +1322,14 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.11.2
+
+Aucune migration : `cd /opt/parcelys && sudo bash scripts/update-pi.sh`, puis
+**relancez la compilation de l’APK** et réinstallez-la (corrections et
+suppressions depuis l’application). Le format des registres envoyés à
+l’application change : à la première synchronisation, le téléphone les
+retélécharge entièrement.
+
 ### Passer en 0.11.1
 
 Aucune migration. La mise à jour habituelle :

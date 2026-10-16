@@ -162,8 +162,7 @@ export const weatherFields = {
   weatherSource: optionalText(60),
 } as const;
 
-export const fertilizationSchema = z
-  .object({
+const fertilizationFields = z.object({
     ...weatherFields,
     appliedOn: dateSchema,
     inputType: z.enum(['ORGANIC', 'MINERAL']),
@@ -183,15 +182,49 @@ export const fertilizationSchema = z
     operator: optionalText(120),
     notes: optionalText(2000),
     cropYearId: z.string().optional(),
+  });
+
+/** Un apport minéral ne cite pas de produit organique, et inversement. */
+function produitCoherent(
+  d: { inputType: 'MINERAL' | 'ORGANIC'; organicInputId?: string; fertilizerId?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.inputType === 'MINERAL' && d.organicInputId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Un apport minéral ne peut pas référencer un produit organique',
+      path: ['organicInputId'],
+    });
+  }
+  if (d.inputType === 'ORGANIC' && d.fertilizerId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Un apport organique ne peut pas référencer un engrais minéral',
+      path: ['fertilizerId'],
+    });
+  }
+}
+
+export const fertilizationSchema = fertilizationFields.superRefine(produitCoherent);
+
+/**
+ * Élément fertilisant à la modification : un nombre est une valeur saisie
+ * (analyse du produit), `null` demande le recalcul depuis le référentiel, et
+ * l'absence conserve ce qui était enregistré s'il s'agissait d'une saisie.
+ *
+ * La distinction compte parce que l'application ne montre pas ces champs : une
+ * modification faite au téléphone ne doit pas effacer une teneur relevée sur
+ * une analyse et saisie au bureau.
+ */
+const elementModifiable = z.union([z.null(), optionalDecimal(100_000)]);
+
+export const fertilizationUpdateSchema = fertilizationFields
+  .extend({
+    nSupplied: elementModifiable,
+    pSupplied: elementModifiable,
+    kSupplied: elementModifiable,
   })
-  .refine(
-    (d) => d.inputType !== 'MINERAL' || !d.organicInputId,
-    { message: 'Un apport minéral ne peut pas référencer un produit organique', path: ['organicInputId'] },
-  )
-  .refine(
-    (d) => d.inputType !== 'ORGANIC' || !d.fertilizerId,
-    { message: 'Un apport organique ne peut pas référencer un engrais minéral', path: ['fertilizerId'] },
-  );
+  .superRefine(produitCoherent);
 
 // ---------------------------------------------------------------------------
 // Phytosanitaire
@@ -223,6 +256,19 @@ export const phytoApplicationSchema = z.object({
    */
   stockLotId: z.string().optional(),
   ...weatherFields,
+});
+
+/**
+ * Modification d'un traitement. Le lot de stock suit trois cas : absent, la
+ * sortie de stock déjà rattachée est gardée (et ajustée à la nouvelle
+ * quantité) ; vide ou `null`, elle est annulée ; un autre lot, elle passe sur
+ * celui-ci.
+ */
+export const phytoApplicationUpdateSchema = phytoApplicationSchema.extend({
+  stockLotId: z
+    .string()
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v ? v : null)),
 });
 
 // ---------------------------------------------------------------------------

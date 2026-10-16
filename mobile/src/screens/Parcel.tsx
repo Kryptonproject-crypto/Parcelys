@@ -2,7 +2,19 @@ import { useEffect, useState } from 'react';
 import type { AppContext } from '../App';
 import type { CachedParcel, QueuedOperation } from '../lib/types';
 import { formatAreaHa } from '../lib/geo';
-import { enqueue, readOutbox } from '../lib/db';
+import { dequeue, enqueue, readOutbox } from '../lib/db';
+import type { ApportFiche, CouvertFiche, CultureFiche, TraitementFiche, TravailFiche } from '@commun/registres';
+import {
+  KINDS_SUPPRESSION,
+  correctionApport,
+  correctionCouvert,
+  correctionCulture,
+  correctionDeLaFile,
+  correctionTraitement,
+  correctionTravail,
+  type Correction,
+  type EntryKind,
+} from '../lib/corrections';
 import { Banner, Button, Card, Field, Header, Input, Spinner, cn } from '../components/ui';
 import { PointCulture } from '../components/culture';
 import {
@@ -14,6 +26,7 @@ import {
   PanneauHistorique,
   PanneauPhyto,
   PanneauTravaux,
+  type FabriqueActions,
   type Onglet,
 } from '../components/registres';
 import { nomDitLeNumero } from '@commun/cultures';
@@ -53,7 +66,39 @@ const SAISIES_DE_REGISTRE: ReadonlySet<QueuedOperation['kind']> = new Set([
   'fertilization.create',
   'operation.create',
   'soilCover.create',
+  'cropYear.create',
 ]);
+
+/** Ce qui se corrige, et sous quel nom on le désigne dans la file. */
+function correctionPour(nature: EntryKind, record: { id: string }): Correction {
+  switch (nature) {
+    case 'apport':
+      return correctionApport(record as ApportFiche);
+    case 'phyto':
+      return correctionTraitement(record as TraitementFiche);
+    case 'travaux':
+      return correctionTravail(record as TravailFiche);
+    case 'couvert':
+      return correctionCouvert(record as CouvertFiche);
+    case 'culture':
+      return correctionCulture(record as CultureFiche);
+  }
+}
+
+function libelleDe(nature: EntryKind, record: { id: string }): string {
+  switch (nature) {
+    case 'apport':
+      return `Apport « ${(record as ApportFiche).productLabel} »`;
+    case 'phyto':
+      return `Traitement « ${(record as TraitementFiche).productName} »`;
+    case 'travaux':
+      return `Travail « ${(record as TravailFiche).typeLabel} »`;
+    case 'couvert':
+      return `Couvert « ${(record as CouvertFiche).kindLabel} »`;
+    case 'culture':
+      return `Culture « ${(record as CultureFiche).cropName} »`;
+  }
+}
 export function ParcelScreen({
   context,
   parcel,
@@ -89,7 +134,7 @@ export function ParcelScreen({
     let actif = true;
     void readOutbox().then((file) => {
       if (actif) {
-        setEnFile(file.filter((o) => o.parcelId === parcel.id && SAISIES_DE_REGISTRE.has(o.kind)));
+        setEnFile(file.filter((o) => o.parcelId === parcel.id));
       }
     });
     return () => {
@@ -101,8 +146,65 @@ export function ParcelScreen({
     snapshot?.referential.operationTypes.find((t) => t.value === code)?.label ?? code;
   const libelleCouvert = (code: string): string =>
     snapshot?.referential.soilCoverKinds?.find((t) => t.value === code)?.label ?? code;
-  const saisir = (kind: 'phyto' | 'apport' | 'travaux' | 'couvert') =>
+  const saisir = (kind: EntryKind) =>
     readOnly ? undefined : () => navigate({ name: 'entry', kind, parcelId: parcel.id });
+
+  /** Saisies nouvelles de cette parcelle encore sur le téléphone. */
+  const creations = enFile.filter((o) => SAISIES_DE_REGISTRE.has(o.kind));
+  const libelleCulture = (id: string): string =>
+    snapshot?.referential.crops.find((c) => c.id === id)?.name ?? 'Culture';
+
+  /** La dernière correction ou suppression en attente d'un enregistrement. */
+  const enAttentePour = (id: string): QueuedOperation | null =>
+    [...enFile]
+      .reverse()
+      .find((o) => o.targetId === id && (o.kind.endsWith('.update') || o.kind.endsWith('.delete'))) ?? null;
+
+  async function retirerDeLaFile(operation: QueuedOperation): Promise<void> {
+    await dequeue(operation.clientId);
+    await refreshPending();
+  }
+
+  /**
+   * Supprimer, comme sur le site : par la file d'attente, réseau ou pas. La
+   * carte reste affichée, barrée, jusqu'à l'envoi — et la suppression peut
+   * être annulée tant qu'elle n'est pas partie.
+   */
+  async function supprimer(nature: EntryKind, record: { id: string }): Promise<void> {
+    await enqueue({
+      clientId: crypto.randomUUID(),
+      kind: KINDS_SUPPRESSION[nature],
+      parcelId: parcel.id,
+      targetId: record.id,
+      label: `Suppression — ${libelleDe(nature, record)} — ${parcel.name}`,
+      capturedAt: new Date().toISOString(),
+      attempts: 0,
+      payload: {},
+    });
+    await refreshPending();
+  }
+
+  const actionsRegistre: FabriqueActions | undefined = readOnly
+    ? undefined
+    : (nature, record) => ({
+        modifier: () =>
+          navigate({ name: 'entry', kind: nature, parcelId: parcel.id, correction: correctionPour(nature, record) }),
+        supprimer: () => void supprimer(nature, record),
+        enAttente: enAttentePour(record.id),
+        annuler: (operation) => void retirerDeLaFile(operation),
+      });
+
+  const modifierEnFile = readOnly
+    ? undefined
+    : (operation: QueuedOperation) => {
+        const r = correctionDeLaFile(operation);
+        if (r) navigate({ name: 'entry', kind: r.nature, parcelId: parcel.id, correction: r.correction });
+      };
+  const annulerEnFile = readOnly ? undefined : (operation: QueuedOperation) => void retirerDeLaFile(operation);
+  const enFileProps = {
+    ...(modifierEnFile ? { modifier: modifierEnFile } : {}),
+    ...(annulerEnFile ? { annuler: annulerEnFile } : {}),
+  };
 
   /**
    * Renommer la parcelle, depuis le champ.
@@ -444,26 +546,38 @@ export function ParcelScreen({
             <PanneauCultures
               fiche={fiche}
               campagne={registres?.campaignYear ?? snapshot?.campaignYear ?? new Date().getFullYear()}
-              enAttente={<EnAttente operations={enFile} kind="soilCover.create" libelleCouvert={libelleCouvert} />}
+              enAttente={
+                <EnAttente operations={creations} kind="soilCover.create" libelleCouvert={libelleCouvert} {...enFileProps} />
+              }
+              culturesEnAttente={
+                <EnAttente operations={creations} kind="cropYear.create" libelleCulture={libelleCulture} {...enFileProps} />
+              }
               ajouterCouvert={saisir('couvert')}
+              ajouterCulture={saisir('culture')}
+              {...(actionsRegistre ? { actions: actionsRegistre } : {})}
             />
           ) : onglet === 'apports' ? (
             <PanneauApports
               fiche={fiche}
-              enAttente={<EnAttente operations={enFile} kind="fertilization.create" />}
+              enAttente={<EnAttente operations={creations} kind="fertilization.create" {...enFileProps} />}
               ajouter={saisir('apport')}
+              {...(actionsRegistre ? { actions: actionsRegistre } : {})}
             />
           ) : onglet === 'phyto' ? (
             <PanneauPhyto
               fiche={fiche}
-              enAttente={<EnAttente operations={enFile} kind="phyto.create" />}
+              enAttente={<EnAttente operations={creations} kind="phyto.create" {...enFileProps} />}
               ajouter={saisir('phyto')}
+              {...(actionsRegistre ? { actions: actionsRegistre } : {})}
             />
           ) : onglet === 'travaux' ? (
             <PanneauTravaux
               fiche={fiche}
-              enAttente={<EnAttente operations={enFile} kind="operation.create" libelleTravail={libelleTravail} />}
+              enAttente={
+                <EnAttente operations={creations} kind="operation.create" libelleTravail={libelleTravail} {...enFileProps} />
+              }
               ajouter={saisir('travaux')}
+              {...(actionsRegistre ? { actions: actionsRegistre } : {})}
             />
           ) : (
             <PanneauHistorique fiche={fiche} />

@@ -6,6 +6,52 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.11.2 — Tout se corrige, sur le site comme dans l'application
+
+### Corriger un enregistrement
+
+Un apport, un traitement, un travail, un couvert ou une culture ne se
+corrigeaient pas : on supprimait la ligne et on la refaisait. Chacun porte
+désormais **« Modifier »**, sur le site (fiche parcelle ; registres Apports et
+Phytosanitaire, qui ouvrent la fiche sur le formulaire pré-rempli) comme dans
+l'application.
+
+- **Mêmes calculs, mêmes contrôles qu'à la création**, par le même code
+  (`src/lib/services/saisies.ts`) : quantité totale, éléments fertilisants,
+  surface traitée, programme d'actions nitrates, dose et conditions d'emploi.
+- **Rien d'effacé de ce que le formulaire ne montre pas** : la météo du jour de
+  l'intervention est gardée ; une teneur N/P/K saisie d'après une analyse est
+  gardée (et recalculée si l'on change de produit) ; l'application renvoie tel
+  quel ce qu'elle n'affiche pas (opérateur, fournisseur, surface partielle…).
+- **Le stock suit** : corriger la dose d'un traitement ajuste sa sortie de
+  stock ; retirer le lot l'annule ; en choisir un autre l'y reporte.
+- **Journalisé** : chaque correction inscrit, champ par champ, l'ancienne et la
+  nouvelle valeur.
+
+### Dans l'application
+
+- **Modifier** et **Supprimer** sur chaque enregistrement de la fiche parcelle
+  (avec confirmation), y compris **sans réseau** : la correction part par la
+  file d'attente, la carte l'annonce (« correction en attente d'envoi », avec
+  la nouvelle valeur ; « suppression en attente », barrée) et peut être annulée
+  tant qu'elle n'est pas partie.
+- Une saisie **pas encore envoyée** se corrige ou s'abandonne directement.
+- **Cultures** : la culture d'une campagne se renseigne et se corrige aussi
+  depuis l'application (variété, semis, récoltes, rendement).
+- L'expert en mission garde une lecture seule.
+
+### Défaut corrigé
+
+**Les traitements saisis dans l'application échappaient aux contrôles du
+serveur.** L'application n'envoyait que le nom et le numéro d'AMM du produit,
+jamais son identifiant : le traitement restait une « saisie libre », et ni la
+dose retenue, ni le retrait du produit, ni le sol drainé n'étaient vérifiés à
+la synchronisation — alors qu'un commentaire du code affirmait le contraire.
+Un traitement désigné par une AMM que porte un produit du catalogue y est
+désormais rattaché, et contrôlé.
+
+---
+
 ## 0.11.1 — Les registres dans l'application, un GPS qui suit, un dialogue au premier plan
 
 ### Application : la fiche parcelle comme sur le site

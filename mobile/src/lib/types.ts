@@ -232,7 +232,18 @@ export type OperationKind =
   | 'recommendation.create'
   | 'recommendation.respond'
   | 'soilCover.create'
-  | 'stock.purchase';
+  | 'stock.purchase'
+  | 'cropYear.create'
+  | 'cropYear.update'
+  | 'cropYear.delete'
+  | 'fertilization.update'
+  | 'fertilization.delete'
+  | 'phyto.update'
+  | 'phyto.delete'
+  | 'operation.update'
+  | 'operation.delete'
+  | 'soilCover.update'
+  | 'soilCover.delete';
 
 export const OPERATION_LABELS: Record<OperationKind, string> = {
   'parcel.create': 'Nouvelle parcelle',
@@ -244,6 +255,17 @@ export const OPERATION_LABELS: Record<OperationKind, string> = {
   'recommendation.create': 'Préconisation',
   'recommendation.respond': 'Réponse à une préconisation',
   'stock.purchase': 'Achat',
+  'cropYear.create': 'Culture',
+  'cropYear.update': 'Culture corrigée',
+  'cropYear.delete': 'Culture retirée',
+  'fertilization.update': 'Apport corrigé',
+  'fertilization.delete': 'Apport supprimé',
+  'phyto.update': 'Traitement corrigé',
+  'phyto.delete': 'Traitement supprimé',
+  'operation.update': 'Travail corrigé',
+  'operation.delete': 'Travail supprimé',
+  'soilCover.update': 'Couvert corrigé',
+  'soilCover.delete': 'Couvert supprimé',
 };
 
 export type QueuedOperation = {

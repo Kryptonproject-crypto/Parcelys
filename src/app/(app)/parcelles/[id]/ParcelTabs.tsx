@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ApiRequestError, apiDelete } from '@/lib/client/api';
@@ -31,7 +31,21 @@ import {
   formatDateFr,
   formatNumberFr,
 } from '@/components/ui';
-import type { ParcelTabsProps } from '@/app/(app)/parcelles/[id]/types';
+import type {
+  CropYearRow,
+  FertilizationRow,
+  OperationRow,
+  ParcelTabsProps,
+  PhytoRow,
+  SoilCoverRow,
+} from '@/app/(app)/parcelles/[id]/types';
+
+type Correction =
+  | { kind: 'crop'; row: CropYearRow }
+  | { kind: 'fertilization'; row: FertilizationRow }
+  | { kind: 'phyto'; row: PhytoRow }
+  | { kind: 'operation'; row: OperationRow }
+  | { kind: 'soilCover'; row: SoilCoverRow };
 import { ParcelContextCard } from '@/components/regulatory/ParcelContextCard';
 import { IconAttachment, IconCrops, IconDocuments, IconFile, IconHistory, IconImage, IconInputs, IconOperation, IconPhyto } from '@/components/ui/icons';
 import { nomCourtDeCulture } from '@/lib/shared/cultures';
@@ -113,6 +127,42 @@ export function ParcelTabs(props: ParcelTabsProps) {
   const toast = useToast();
   const confirmation = useConfirm();
   const [modal, setModal] = useState<ModalKind>(null);
+
+  /**
+   * L'enregistrement en cours de correction. Ouvert par « Modifier », ou par
+   * l'adresse (`?modifier=<id>`) quand on arrive d'un registre de
+   * l'exploitation : la ligne se corrige là où elle se lit.
+   */
+  const [correction, setCorrection] = useState<Correction | null>(null);
+  useEffect(() => {
+    const id = searchParams.get('modifier');
+    if (!id || !canWrite) return;
+    const trouvee: Correction | null = (() => {
+      const f = fertilizations.find((r) => r.id === id);
+      if (f) return { kind: 'fertilization', row: f };
+      const p = phytoTreatments.find((r) => r.id === id);
+      if (p) return { kind: 'phyto', row: p };
+      const o = operations.find((r) => r.id === id);
+      if (o) return { kind: 'operation', row: o };
+      const c = soilCovers.find((r) => r.id === id);
+      if (c) return { kind: 'soilCover', row: c };
+      const cy = cropYears.find((r) => r.id === id);
+      if (cy) return { kind: 'crop', row: cy };
+      return null;
+    })();
+    if (trouvee) setCorrection(trouvee);
+    // À l'arrivée seulement : refermer la correction ne doit pas la rouvrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function fermerCorrection(): void {
+    setCorrection(null);
+    if (searchParams.get('modifier')) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('modifier');
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }
 
   function selectTab(key: string): void {
     const params = new URLSearchParams(searchParams.toString());
@@ -329,7 +379,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                         : '—'}
                     </Td>
                     {canWrite ? (
-                      <Td align="right">
+                      <Td align="right" className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setCorrection({ kind: 'crop', row: cy })}
+                          className="mr-3 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                        >
+                          Modifier
+                        </button>
                         <button
                           type="button"
                           onClick={() =>
@@ -409,6 +466,15 @@ export function ParcelTabs(props: ParcelTabsProps) {
                       <p className="mt-1 text-[12.5px] text-brique-500">
                         {couvert.incoherences.join(' ')}
                       </p>
+                    ) : null}
+                    {canWrite ? (
+                      <button
+                        type="button"
+                        onClick={() => setCorrection({ kind: 'soilCover', row: couvert })}
+                        className="mr-3 mt-1.5 text-[12.5px] font-medium text-champ-700 hover:underline dark:text-champ-400"
+                      >
+                        Modifier
+                      </button>
                     ) : null}
                     {canWrite ? (
                       <button
@@ -582,7 +648,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                       {row.kSupplied ? formatNumberFr(row.kSupplied, 1) : '—'}
                     </Td>
                     {canWrite ? (
-                      <Td align="right">
+                      <Td align="right" className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setCorrection({ kind: 'fertilization', row: row })}
+                          className="mr-3 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                        >
+                          Modifier
+                        </button>
                         <button
                           type="button"
                           onClick={() =>
@@ -689,7 +762,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                       )}
                     </Td>
                     {canWrite ? (
-                      <Td align="right">
+                      <Td align="right" className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setCorrection({ kind: 'phyto', row: row })}
+                          className="mr-3 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                        >
+                          Modifier
+                        </button>
                         <button
                           type="button"
                           onClick={() =>
@@ -778,7 +858,14 @@ export function ParcelTabs(props: ParcelTabsProps) {
                       )}
                     </Td>
                     {canWrite ? (
-                      <Td align="right">
+                      <Td align="right" className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setCorrection({ kind: 'operation', row: row })}
+                          className="mr-3 text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                        >
+                          Modifier
+                        </button>
                         <button
                           type="button"
                           onClick={() =>
@@ -1020,6 +1107,104 @@ export function ParcelTabs(props: ParcelTabsProps) {
         description={`Parcelle « ${parcel.name} »`}
       >
         <DocumentUpload parcelId={parcel.id} onDone={() => setModal(null)} />
+      </Modal>
+
+      {/* ------------------------- Corrections ------------------------- */}
+      <Modal
+        open={correction?.kind === 'crop'}
+        onClose={fermerCorrection}
+        title="Corriger la culture"
+        description={`Parcelle « ${parcel.name} »`}
+        wide
+      >
+        {correction?.kind === 'crop' ? (
+          <CropYearForm
+            key={correction.row.id}
+            parcelId={parcel.id}
+            crops={referentials.crops}
+            campaignYear={campaignYear}
+            existing={correction.row}
+            onDone={fermerCorrection}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={correction?.kind === 'fertilization'}
+        onClose={fermerCorrection}
+        title="Corriger l’apport"
+        description={`Parcelle « ${parcel.name} » — ${formatNumberFr(parcel.areaHa, 4)} ha`}
+        wide
+      >
+        {correction?.kind === 'fertilization' ? (
+          <FertilizationForm
+            key={correction.row.id}
+            parcelId={parcel.id}
+            parcelAreaHa={parcel.areaHa}
+            fertilizers={referentials.fertilizers}
+            organicInputs={referentials.organicInputs}
+            cropYears={cropYears}
+            existing={correction.row}
+            onDone={fermerCorrection}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={correction?.kind === 'phyto'}
+        onClose={fermerCorrection}
+        title="Corriger le traitement"
+        description={`Parcelle « ${parcel.name} » — ${formatNumberFr(parcel.areaHa, 4)} ha`}
+        wide
+      >
+        {correction?.kind === 'phyto' ? (
+          <PhytoForm
+            key={correction.row.id}
+            parcelId={parcel.id}
+            parcelAreaHa={parcel.areaHa}
+            cropYears={cropYears}
+            hasLocation={parcel.centroidLat !== null && parcel.centroidLng !== null}
+            parcelDrained={parcel.drainedSoil}
+            existing={correction.row}
+            onDone={fermerCorrection}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={correction?.kind === 'operation'}
+        onClose={fermerCorrection}
+        title="Corriger le travail"
+        description={`Parcelle « ${parcel.name} »`}
+        wide
+      >
+        {correction?.kind === 'operation' ? (
+          <OperationForm
+            key={correction.row.id}
+            parcelId={parcel.id}
+            existing={correction.row}
+            onDone={fermerCorrection}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={correction?.kind === 'soilCover'}
+        onClose={fermerCorrection}
+        title="Corriger le couvert d’interculture"
+      >
+        {correction?.kind === 'soilCover' ? (
+          <SoilCoverForm
+            key={correction.row.id}
+            parcelId={parcel.id}
+            cropYears={cropYears.map((cy) => ({
+              id: cy.id,
+              label: `${cy.campaignYear} — ${nomCourtDeCulture(cy.cropName)}`,
+            }))}
+            existing={correction.row}
+            onDone={fermerCorrection}
+          />
+        ) : null}
       </Modal>
     </div>
   );

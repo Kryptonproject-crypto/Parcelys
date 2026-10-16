@@ -238,6 +238,96 @@ export async function enregistrerMouvement(
   return { ok: true, id: mouvement.id, quantiteSignee: signee };
 }
 
+/**
+ * La sortie de stock d'un traitement **corrigé**.
+ *
+ * Un traitement saisi avec un lot a sa sortie de stock. Le corriger sans la
+ * suivre laisserait un solde faux : 20 L sortis pour un traitement ramené à
+ * 12 L. Trois cas, selon `lotDemande` :
+ *
+ *   · `undefined` — le lot n'est pas en cause : la sortie existante est
+ *     ajustée à la nouvelle quantité et à la nouvelle date ;
+ *   · `null` — « aucun lot » : la sortie est annulée, le stock revient ;
+ *   · un identifiant — la sortie passe sur ce lot. La nouvelle est écrite
+ *     **avant** que l'ancienne ne soit retirée : si elle est refusée, rien
+ *     n'est perdu.
+ *
+ * Comme à la création, un refus du stock n'empêche pas la correction du
+ * registre : il revient en avertissement.
+ */
+export async function ajusterSortieTraitement(
+  farmId: string,
+  params: {
+    applicationId: string;
+    lotDemande: string | null | undefined;
+    quantite: number;
+    unite: string;
+    date: Date;
+    userId: string;
+  },
+): Promise<string | null> {
+  const sorties = await prisma.stockMovement.findMany({
+    where: { phytoApplicationId: params.applicationId, kind: 'SORTIE', item: { farmId } },
+    select: { id: true, lotId: true, item: { select: { unit: true } } },
+  });
+
+  const ajuster = async (sortie: (typeof sorties)[number]): Promise<string | null> => {
+    if (convertirQuantite(1, params.unite, sortie.item.unit) === null) {
+      return `Stock non ajusté : ${expliquerConversion(params.unite, sortie.item.unit)}`;
+    }
+    await prisma.stockMovement.update({
+      where: { id: sortie.id },
+      data: {
+        quantity: new Prisma.Decimal(quantiteSignee('SORTIE', params.quantite).toFixed(3)),
+        unit: params.unite,
+        occurredOn: params.date,
+      },
+    });
+    return null;
+  };
+
+  if (params.lotDemande === undefined) {
+    if (sorties.length === 0) return null;
+    if (sorties.length > 1) {
+      return 'Plusieurs sorties de stock sont rattachées à ce traitement : ajustez-les depuis « Stocks ».';
+    }
+    return ajuster(sorties[0]!);
+  }
+
+  if (params.lotDemande === null) {
+    if (sorties.length === 0) return null;
+    await prisma.stockMovement.deleteMany({ where: { id: { in: sorties.map((s) => s.id) } } });
+    return 'La sortie de stock de ce traitement est annulée : la quantité revient au stock.';
+  }
+
+  if (sorties.length === 1 && sorties[0]!.lotId === params.lotDemande) {
+    return ajuster(sorties[0]!);
+  }
+
+  const lot = await prisma.stockLot.findFirst({
+    where: { id: params.lotDemande, item: { farmId } },
+    select: { id: true, itemId: true },
+  });
+  if (!lot) return 'Le lot indiqué est introuvable : le stock n’a pas été mouvementé.';
+
+  const nouvelle = await enregistrerMouvement(farmId, {
+    itemId: lot.itemId,
+    lotId: lot.id,
+    kind: 'SORTIE',
+    occurredOn: params.date,
+    quantity: params.quantite,
+    unit: params.unite,
+    phytoApplicationId: params.applicationId,
+    reason: 'Traitement corrigé',
+    createdById: params.userId,
+  });
+  if (!nouvelle.ok) return `Stock non mouvementé : ${nouvelle.raison}`;
+  if (sorties.length > 0) {
+    await prisma.stockMovement.deleteMany({ where: { id: { in: sorties.map((s) => s.id) } } });
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Ce que le stock ne voit pas
 // ---------------------------------------------------------------------------

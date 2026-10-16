@@ -64,6 +64,7 @@ export type AuditAction =
   | 'operation.updated'
   | 'operation.deleted'
   | 'soilCover.created'
+  | 'soilCover.updated'
   | 'soilCover.deleted'
   // Suivi de stock. La création d'un article et le rattachement d'un article
   // existant au référentiel sont deux gestes distincts : le second modifie ce

@@ -23,8 +23,14 @@
  * le compilateur vérifie des deux côtés.
  */
 
-/** Change quand le format change : l'application jette alors son cache. */
-export const FORMAT_REGISTRES = 1;
+/**
+ * Change quand le format change : l'application jette alors son cache.
+ *
+ * 2 (0.11.2) : chaque enregistrement porte aussi ses valeurs brutes (codes,
+ * identifiants, champs que la fiche n'affiche pas), pour être **corrigé**
+ * depuis le téléphone sans rien perdre de ce que le formulaire ne montre pas.
+ */
+export const FORMAT_REGISTRES = 2;
 
 export type TypeEvenement = 'CROP' | 'HARVEST' | 'FERTILIZATION' | 'PHYTO' | 'OPERATION' | 'DOCUMENT';
 
@@ -47,7 +53,9 @@ export type EvenementFiche = {
 
 export type CultureFiche = {
   id: string;
+  cropId: string;
   campaignYear: number;
+  notes: string | null;
   cropName: string;
   variety: string | null;
   sowingDate: string | null;
@@ -61,7 +69,13 @@ export type CultureFiche = {
 
 export type CouvertFiche = {
   id: string;
+  /** Code (`CIPAN`…), pour la correction. */
+  kind: string;
   kindLabel: string;
+  destructionMethod: string | null;
+  cropYearId: string | null;
+  areaHa: number | null;
+  notes: string | null;
   species: string | null;
   sownOn: string | null;
   emergedOn: string | null;
@@ -75,6 +89,13 @@ export type ApportFiche = {
   id: string;
   appliedOn: string;
   organique: boolean;
+  inputType: 'MINERAL' | 'ORGANIC';
+  fertilizerId: string | null;
+  organicInputId: string | null;
+  cropYearId: string | null;
+  supplier: string | null;
+  batchNumber: string | null;
+  operator: string | null;
   productLabel: string;
   dose: number;
   doseUnit: string;
@@ -103,6 +124,13 @@ export type BilanFiche = {
 export type TraitementFiche = {
   id: string;
   appliedOn: string;
+  /** Produit du catalogue E-Phy ; `null` en saisie libre. */
+  productId: string | null;
+  cropYearId: string | null;
+  cropLabel: string | null;
+  sprayVolumeLHa: number | null;
+  /** Lot de stock de la sortie rattachée, s'il n'y en a qu'une. */
+  stockLotId: string | null;
   productName: string;
   amm: string | null;
   activeSubstances: string | null;
@@ -121,7 +149,15 @@ export type TraitementFiche = {
 export type TravailFiche = {
   id: string;
   performedOn: string;
+  /** Code (`LABOUR`…), pour la correction. */
+  type: string;
   typeLabel: string;
+  notes: string | null;
+  irrigationMm: number | null;
+  irrigationVolumeM3Ha: number | null;
+  waterSource: string | null;
+  waterNitrateMgL: number | null;
+  waterAnalysisOn: string | null;
   equipment: string | null;
   operator: string | null;
   durationHours: number | null;

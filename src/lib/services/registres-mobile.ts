@@ -156,7 +156,7 @@ export async function registresMobile(
   }
 
   const surParcelle = { parcel: { farmId, deletedAt: null } };
-  const [parcelles, cultures, apports, traitements, travaux, couverts, documents, declarations] =
+  const [parcelles, cultures, apports, traitements, travaux, couverts, documents, declarations, sorties] =
     await Promise.all([
       prisma.parcel.findMany({
         where: { farmId, deletedAt: null },
@@ -223,7 +223,32 @@ export async function registresMobile(
         },
         orderBy: { campaign: { year: 'desc' } },
       }),
+      // Le lot de stock de chaque traitement, pour le reproposer à la
+      // correction.
+      prisma.stockMovement.findMany({
+        where: {
+          kind: 'SORTIE',
+          phytoApplicationId: { not: null },
+          phytoApplication: { parcel: { farmId, deletedAt: null } },
+        },
+        select: { phytoApplicationId: true, lotId: true },
+      }),
     ]);
+
+  // Un seul lot rattaché : c'est lui. Plusieurs : aucun à reproposer, la
+  // correction ne touchera pas au stock (voir `ajusterSortieTraitement`).
+  const lotsParTraitement = new Map<string, Set<string | null>>();
+  for (const s of sorties) {
+    if (!s.phytoApplicationId) continue;
+    const lots = lotsParTraitement.get(s.phytoApplicationId) ?? new Set();
+    lots.add(s.lotId);
+    lotsParTraitement.set(s.phytoApplicationId, lots);
+  }
+  const lotDuTraitement = new Map<string, string>();
+  for (const [id, lots] of lotsParTraitement) {
+    const [seul] = [...lots];
+    if (lots.size === 1 && seul) lotDuTraitement.set(id, seul);
+  }
 
   const fiches: Record<string, FicheParcelle> = {};
   const historiques = new Map<string, HistoryEvent[]>();
@@ -279,7 +304,9 @@ export async function registresMobile(
     const plan = calculEnregistre(cy.nitrogenPlan?.computation ?? null);
     fiche.cultures.push({
       id: cy.id,
+      cropId: cy.cropId,
       campaignYear: cy.campaignYear,
+      notes: cy.notes,
       cropName: cy.crop.name,
       variety: cy.variety,
       sowingDate: iso(cy.sowingDate),
@@ -301,7 +328,12 @@ export async function registresMobile(
     if (!fiche) continue;
     fiche.couverts.push({
       id: c.id,
+      kind: c.kind,
       kindLabel: LIBELLE_COUVERT.get(c.kind) ?? c.kind,
+      destructionMethod: c.destructionMethod,
+      cropYearId: c.cropYearId,
+      areaHa: nombre(c.areaHa),
+      notes: c.notes,
       species: c.species,
       sownOn: iso(c.sownOn),
       emergedOn: iso(c.emergedOn),
@@ -320,6 +352,13 @@ export async function registresMobile(
       id: a.id,
       appliedOn: a.appliedOn.toISOString(),
       organique: a.inputType === 'ORGANIC',
+      inputType: a.inputType,
+      fertilizerId: a.fertilizerId,
+      organicInputId: a.organicInputId,
+      cropYearId: a.cropYearId,
+      supplier: a.supplier,
+      batchNumber: a.batchNumber,
+      operator: a.operator,
       productLabel: a.productLabel,
       dose: nombreOuZero(a.dose),
       doseUnit: a.doseUnit,
@@ -347,6 +386,11 @@ export async function registresMobile(
     fiche.traitements.push({
       id: t.id,
       appliedOn: t.appliedOn.toISOString(),
+      productId: t.productId,
+      cropYearId: t.cropYearId,
+      cropLabel: t.cropLabel,
+      sprayVolumeLHa: nombre(t.sprayVolumeLHa),
+      stockLotId: lotDuTraitement.get(t.id) ?? null,
       productName: t.productName,
       amm: t.amm,
       activeSubstances: t.activeSubstances,
@@ -381,7 +425,14 @@ export async function registresMobile(
     fiche.travaux.push({
       id: o.id,
       performedOn: o.performedOn.toISOString(),
+      type: o.type,
       typeLabel: OPERATION_LABELS[o.type] ?? o.type,
+      notes: o.notes,
+      irrigationMm: nombre(o.irrigationMm),
+      irrigationVolumeM3Ha: nombre(o.irrigationVolumeM3Ha),
+      waterSource: o.waterSource,
+      waterNitrateMgL: nombre(o.waterNitrateMgL),
+      waterAnalysisOn: iso(o.waterAnalysisOn),
       equipment: o.equipment,
       operator: o.operator,
       durationHours: nombre(o.durationHours),

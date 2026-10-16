@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   LIBELLES_EVENEMENT,
   type ApportFiche,
@@ -8,6 +8,7 @@ import {
   type TypeEvenement,
 } from '@commun/registres';
 import type { CachedParcel, QueuedOperation } from '../lib/types';
+import type { EntryKind } from '../lib/corrections';
 import { Badge, Card, EmptyState, cn, formatDateFr } from './ui';
 import { nomCourtDeCulture } from '@commun/cultures';
 
@@ -79,8 +80,141 @@ export function BoutonAjouter({ onClick, children }: { onClick: () => void; chil
   );
 }
 
+/**
+ * Ce qu'on peut faire d'un enregistrement depuis la fiche : le corriger, le
+ * supprimer — comme sur le site —, et voir ce qui en attend l'envoi.
+ *
+ * Absent pour l'expert en mission : il lit, il ne modifie pas les registres
+ * de l'exploitation.
+ */
+export type ActionsEnregistrement = {
+  modifier: () => void;
+  supprimer: () => void;
+  /** Correction ou suppression de cet enregistrement encore dans la file. */
+  enAttente: QueuedOperation | null;
+  /** Retire de la file une correction ou une suppression pas encore partie. */
+  annuler: (operation: QueuedOperation) => void;
+};
+
+export type FabriqueActions = (nature: EntryKind, record: { id: string }) => ActionsEnregistrement;
+
+function texteDe(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v : typeof v === 'number' ? String(v) : null;
+}
+
+/** Ce qu'une correction en file va écrire, en une ligne. */
+export function resumeCorrection(operation: QueuedOperation): string {
+  const p = operation.payload;
+  const date = texteDe(p.appliedOn) ?? texteDe(p.performedOn) ?? texteDe(p.sownOn) ?? texteDe(p.sowingDate);
+  const dose = texteDe(p.dose);
+  return [
+    date ? formatDateFr(date) : null,
+    texteDe(p.productName) ?? texteDe(p.productLabel) ?? texteDe(p.species) ?? texteDe(p.equipment) ?? texteDe(p.variety),
+    dose ? `${nombreFr(Number(dose), 3)} ${texteDe(p.doseUnit) ?? ''}`.trim() : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+const BOUTON_LIEN = 'rounded-lg px-2.5 py-1.5 text-[13px] font-semibold active:bg-surface-2';
+
+/** Pied de carte : corriger, supprimer, et l'état de ce qui attend l'envoi. */
+function ActionsCarte({ actions }: { actions: ActionsEnregistrement | undefined }) {
+  const [confirmer, setConfirmer] = useState(false);
+  if (!actions) return null;
+  const { enAttente } = actions;
+  const suppressionEnAttente = enAttente?.kind.endsWith('.delete') ?? false;
+
+  return (
+    <div className="mt-2.5 border-t border-line pt-2">
+      {enAttente ? (
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <Badge tone={enAttente.lastError ? 'red' : 'blue'}>
+            {enAttente.lastError
+              ? 'Refusée par le serveur'
+              : suppressionEnAttente
+                ? 'Suppression en attente d’envoi'
+                : 'Correction en attente d’envoi'}
+          </Badge>
+          {!suppressionEnAttente ? (
+            <span className="text-[12.5px] text-ink-2">{resumeCorrection(enAttente)}</span>
+          ) : null}
+          {enAttente.lastError ? (
+            <span className="block w-full text-[12.5px] text-brique-600 dark:text-brique-500">{enAttente.lastError}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {confirmer ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[13px] text-ink-2">Supprimer cet enregistrement du registre ?</span>
+          <button type="button" className={cn(BOUTON_LIEN, 'text-ink-2')} onClick={() => setConfirmer(false)}>
+            Annuler
+          </button>
+          <button
+            type="button"
+            className={cn(BOUTON_LIEN, 'text-brique-600 dark:text-brique-500')}
+            onClick={() => {
+              setConfirmer(false);
+              actions.supprimer();
+            }}
+          >
+            Supprimer
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1">
+          {enAttente ? (
+            <button type="button" className={cn(BOUTON_LIEN, 'text-ink-2')} onClick={() => actions.annuler(enAttente)}>
+              {suppressionEnAttente ? 'Annuler la suppression' : 'Annuler la correction'}
+            </button>
+          ) : null}
+          {!suppressionEnAttente ? (
+            <>
+              <button type="button" className={cn(BOUTON_LIEN, 'text-accent-ink')} onClick={actions.modifier}>
+                Modifier
+              </button>
+              <button
+                type="button"
+                className={cn(BOUTON_LIEN, 'text-brique-600 dark:text-brique-500')}
+                onClick={() => setConfirmer(true)}
+              >
+                Supprimer
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Une carte d'enregistrement, estompée quand sa suppression attend l'envoi. */
+function CarteEnregistrement({ actions, children }: { actions: ActionsEnregistrement | undefined; children: ReactNode }) {
+  const supprime = actions?.enAttente?.kind.endsWith('.delete') ?? false;
+  return (
+    <Card className={supprime ? 'opacity-60' : undefined}>
+      <div className={supprime ? 'line-through decoration-ink-3/60' : undefined}>{children}</div>
+      <ActionsCarte actions={actions} />
+    </Card>
+  );
+}
+
 /** Une saisie de la file d'attente, en tête de sa rubrique. */
-function CarteEnAttente({ titre, detail, operation }: { titre: string; detail: string; operation: QueuedOperation }) {
+function CarteEnAttente({
+  titre,
+  detail,
+  operation,
+  modifier,
+  annuler,
+}: {
+  titre: string;
+  detail: string;
+  operation: QueuedOperation;
+  modifier?: (operation: QueuedOperation) => void;
+  annuler?: (operation: QueuedOperation) => void;
+}) {
+  const [confirmer, setConfirmer] = useState(false);
   return (
     <li>
       <div className="rounded-2xl border border-dashed border-ciel-500/50 bg-ciel-500/5 p-3.5">
@@ -93,6 +227,42 @@ function CarteEnAttente({ titre, detail, operation }: { titre: string; detail: s
         <p className="mt-1 text-[13px] text-ink-3">{detail}</p>
         {operation.lastError ? (
           <p className="mt-1 text-[13px] text-brique-600 dark:text-brique-500">{operation.lastError}</p>
+        ) : null}
+        {modifier || annuler ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-ciel-500/20 pt-2">
+            {confirmer ? (
+              <>
+                <span className="text-[13px] text-ink-2">Abandonner cette saisie ?</span>
+                <button type="button" className={cn(BOUTON_LIEN, 'text-ink-2')} onClick={() => setConfirmer(false)}>
+                  Non
+                </button>
+                <button
+                  type="button"
+                  className={cn(BOUTON_LIEN, 'text-brique-600 dark:text-brique-500')}
+                  onClick={() => annuler?.(operation)}
+                >
+                  Abandonner
+                </button>
+              </>
+            ) : (
+              <>
+                {modifier ? (
+                  <button type="button" className={cn(BOUTON_LIEN, 'text-accent-ink')} onClick={() => modifier(operation)}>
+                    Modifier
+                  </button>
+                ) : null}
+                {annuler ? (
+                  <button
+                    type="button"
+                    className={cn(BOUTON_LIEN, 'text-brique-600 dark:text-brique-500')}
+                    onClick={() => setConfirmer(true)}
+                  >
+                    Abandonner
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
         ) : null}
       </div>
     </li>
@@ -113,11 +283,19 @@ export function EnAttente({
   kind,
   libelleTravail,
   libelleCouvert,
+  libelleCulture,
+  modifier,
+  annuler,
 }: {
   operations: QueuedOperation[];
   kind: QueuedOperation['kind'];
   libelleTravail?: (code: string) => string;
   libelleCouvert?: (code: string) => string;
+  libelleCulture?: (id: string) => string;
+  /** Rouvre la saisie pour la corriger avant son départ. */
+  modifier?: (operation: QueuedOperation) => void;
+  /** Retire la saisie de la file. */
+  annuler?: (operation: QueuedOperation) => void;
 }) {
   const liste = operations.filter((o) => o.kind === kind);
   if (liste.length === 0) return null;
@@ -125,7 +303,7 @@ export function EnAttente({
     <ul className="mb-2.5 space-y-2.5">
       {liste.map((o) => {
         const p = o.payload;
-        const date = texte(p.appliedOn) ?? texte(p.performedOn) ?? texte(p.sownOn) ?? o.capturedAt;
+        const date = texte(p.appliedOn) ?? texte(p.performedOn) ?? texte(p.sownOn) ?? texte(p.sowingDate) ?? o.capturedAt;
         let titre = o.label;
         let detail = `Saisi le ${formatDateFr(o.capturedAt)}`;
         if (kind === 'phyto.create') {
@@ -142,8 +320,21 @@ export function EnAttente({
           const k = texte(p.kind);
           titre = k ? (libelleCouvert?.(k) ?? k) : titre;
           detail = [`Semis ${formatDateFr(date)}`, texte(p.species)].filter(Boolean).join(' · ');
+        } else if (kind === 'cropYear.create') {
+          const c = texte(p.cropId);
+          titre = c ? (libelleCulture?.(c) ?? titre) : titre;
+          detail = [`Campagne ${String(p.campaignYear ?? '')}`, texte(p.variety)].filter(Boolean).join(' · ');
         }
-        return <CarteEnAttente key={o.clientId} titre={titre} detail={detail.trim()} operation={o} />;
+        return (
+          <CarteEnAttente
+            key={o.clientId}
+            titre={titre}
+            detail={detail.trim()}
+            operation={o}
+            {...(modifier ? { modifier } : {})}
+            {...(annuler ? { annuler } : {})}
+          />
+        );
       })}
     </ul>
   );
@@ -261,27 +452,40 @@ export function PanneauCultures({
   fiche,
   campagne,
   enAttente,
+  culturesEnAttente,
   ajouterCouvert,
+  ajouterCulture,
+  actions,
 }: {
   fiche: FicheParcelle;
   campagne: number;
   enAttente: ReactNode;
+  culturesEnAttente?: ReactNode;
   ajouterCouvert?: () => void;
+  ajouterCulture?: () => void;
+  actions?: FabriqueActions;
 }) {
   return (
     <div className="space-y-5">
       <div>
-        <Titre>Assolement</Titre>
+        <Titre action={ajouterCulture ? <BoutonAjouter onClick={ajouterCulture}>Culture</BoutonAjouter> : undefined}>
+          Assolement
+        </Titre>
+        {culturesEnAttente}
         {fiche.cultures.length === 0 ? (
           <EmptyState
             title="Aucune culture renseignée"
-            description="La culture se renseigne depuis le site, onglet Culture de la fiche parcelle."
+            description={
+              ajouterCulture
+                ? 'Renseignez la culture de la campagne : elle rattache les traitements à leur usage autorisé.'
+                : 'Aucune culture n’est renseignée pour cette parcelle.'
+            }
           />
         ) : (
           <ul className="space-y-2.5">
             {fiche.cultures.map((c) => (
               <li key={c.id}>
-                <Card>
+                <CarteEnregistrement actions={actions?.('culture', c)}>
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]" title={c.cropName}>
                       {nomCourtDeCulture(c.cropName)}
@@ -303,7 +507,7 @@ export function PanneauCultures({
                       {c.yieldValue !== null ? `${nombreFr(c.yieldValue, 2)} ${c.yieldUnit ?? ''}` : '—'}
                     </Ligne>
                   </dl>
-                </Card>
+                </CarteEnregistrement>
               </li>
             ))}
           </ul>
@@ -321,7 +525,7 @@ export function PanneauCultures({
           <ul className="space-y-2.5">
             {fiche.couverts.map((c) => (
               <li key={c.id}>
-                <Card>
+                <CarteEnregistrement actions={actions?.('couvert', c)}>
                   <p className="font-semibold text-ink">
                     {c.kindLabel}
                     {c.species ? <span className="font-normal text-ink-2"> — {c.species}</span> : null}
@@ -336,7 +540,7 @@ export function PanneauCultures({
                       {c.incoherences.join(' ')}
                     </p>
                   ) : null}
-                </Card>
+                </CarteEnregistrement>
               </li>
             ))}
           </ul>
@@ -350,14 +554,14 @@ export function PanneauCultures({
 // Apports
 // ---------------------------------------------------------------------------
 
-function CarteApport({ a }: { a: ApportFiche }) {
+function CarteApport({ a, actions }: { a: ApportFiche; actions: ActionsEnregistrement | undefined }) {
   const elements = [
     a.n !== null ? `N ${nombreFr(a.n, 1)}` : null,
     a.p !== null ? `P₂O₅ ${nombreFr(a.p, 1)}` : null,
     a.k !== null ? `K₂O ${nombreFr(a.k, 1)}` : null,
   ].filter(Boolean);
   return (
-    <Card>
+    <CarteEnregistrement actions={actions}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[13px] font-medium tabular-nums text-ink-3">{formatDateFr(a.appliedOn)}</p>
@@ -379,7 +583,7 @@ function CarteApport({ a }: { a: ApportFiche }) {
         <Ligne libelle="Éléments (kg/ha)">{elements.length ? elements.join(' · ') : '—'}</Ligne>
       </dl>
       {a.notes ? <p className="mt-2 text-[13px] text-ink-2">{a.notes}</p> : null}
-    </Card>
+    </CarteEnregistrement>
   );
 }
 
@@ -387,10 +591,12 @@ export function PanneauApports({
   fiche,
   enAttente,
   ajouter,
+  actions,
 }: {
   fiche: FicheParcelle;
   enAttente: ReactNode;
   ajouter?: () => void;
+  actions?: FabriqueActions;
 }) {
   const b = fiche.bilan;
   return (
@@ -464,7 +670,7 @@ export function PanneauApports({
           <ul className="space-y-2.5">
             {fiche.apports.map((a) => (
               <li key={a.id}>
-                <CarteApport a={a} />
+                <CarteApport a={a} actions={actions?.('apport', a)} />
               </li>
             ))}
           </ul>
@@ -478,9 +684,9 @@ export function PanneauApports({
 // Phytosanitaire
 // ---------------------------------------------------------------------------
 
-function CarteTraitement({ t }: { t: TraitementFiche }) {
+function CarteTraitement({ t, actions }: { t: TraitementFiche; actions: ActionsEnregistrement | undefined }) {
   return (
-    <Card>
+    <CarteEnregistrement actions={actions}>
       <p className="text-[13px] font-medium tabular-nums text-ink-3">{formatDateFr(t.appliedOn)}</p>
       <p className="font-semibold text-ink [overflow-wrap:anywhere]">{t.productName}</p>
       <dl className="mt-2 divide-y divide-line">
@@ -500,7 +706,7 @@ function CarteTraitement({ t }: { t: TraitementFiche }) {
         {t.operator ? <Ligne libelle="Opérateur">{t.operator}</Ligne> : null}
       </dl>
       {t.notes ? <p className="mt-2 text-[13px] text-ink-2">{t.notes}</p> : null}
-    </Card>
+    </CarteEnregistrement>
   );
 }
 
@@ -508,10 +714,12 @@ export function PanneauPhyto({
   fiche,
   enAttente,
   ajouter,
+  actions,
 }: {
   fiche: FicheParcelle;
   enAttente: ReactNode;
   ajouter?: () => void;
+  actions?: FabriqueActions;
 }) {
   return (
     <div>
@@ -525,7 +733,7 @@ export function PanneauPhyto({
         <ul className="space-y-2.5">
           {fiche.traitements.map((t) => (
             <li key={t.id}>
-              <CarteTraitement t={t} />
+              <CarteTraitement t={t} actions={actions?.('phyto', t)} />
             </li>
           ))}
         </ul>
@@ -538,9 +746,9 @@ export function PanneauPhyto({
 // Travaux
 // ---------------------------------------------------------------------------
 
-function CarteTravail({ o }: { o: TravailFiche }) {
+function CarteTravail({ o, actions }: { o: TravailFiche; actions: ActionsEnregistrement | undefined }) {
   return (
-    <Card>
+    <CarteEnregistrement actions={actions}>
       <p className="text-[13px] font-medium tabular-nums text-ink-3">{formatDateFr(o.performedOn)}</p>
       <p className="font-semibold text-ink">{o.typeLabel}</p>
       <dl className="mt-2 divide-y divide-line">
@@ -549,7 +757,7 @@ function CarteTravail({ o }: { o: TravailFiche }) {
         <Ligne libelle="Durée">{o.durationHours !== null ? `${nombreFr(o.durationHours, 1)} h` : '—'}</Ligne>
       </dl>
       {o.observations ? <p className="mt-2 text-[13px] text-ink-2">{o.observations}</p> : null}
-    </Card>
+    </CarteEnregistrement>
   );
 }
 
@@ -557,10 +765,12 @@ export function PanneauTravaux({
   fiche,
   enAttente,
   ajouter,
+  actions,
 }: {
   fiche: FicheParcelle;
   enAttente: ReactNode;
   ajouter?: () => void;
+  actions?: FabriqueActions;
 }) {
   return (
     <div>
@@ -574,7 +784,7 @@ export function PanneauTravaux({
         <ul className="space-y-2.5">
           {fiche.travaux.map((o) => (
             <li key={o.id}>
-              <CarteTravail o={o} />
+              <CarteTravail o={o} actions={actions?.('travaux', o)} />
             </li>
           ))}
         </ul>

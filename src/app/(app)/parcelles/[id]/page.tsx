@@ -11,7 +11,7 @@ import { buildHistory } from '@/lib/services/history';
 import { computeNutrientBalance } from '@/lib/services/fertilization';
 import { currentCampaignYear, PARCEL_STATUS_LABELS } from '@/lib/constants/agronomy';
 import { incoherencesDates } from '@/lib/regulatory/soil-cover';
-import { getEphySourceInfo } from '@/lib/ephy/search';
+import { getEphySourceInfo, isAuthorizedStatus } from '@/lib/ephy/search';
 import { ParcelsMapLoader } from '@/components/map/ParcelsMapLoader';
 import { getOrComputeParcelContext } from '@/lib/regulatory/geography';
 import { ParcelTabs } from '@/app/(app)/parcelles/[id]/ParcelTabs';
@@ -131,7 +131,22 @@ export default async function ParcelPage({
     }),
     prisma.phytosanitaryApplication.findMany({
       where: { parcelId: id },
-      include: { product: { select: { status: true } } },
+      include: {
+        product: {
+          select: {
+            id: true,
+            amm: true,
+            name: true,
+            holder: true,
+            status: true,
+            withdrawnAt: true,
+            formulation: true,
+            productType: true,
+          },
+        },
+        // Le lot de la sortie de stock, pour le reproposer à la correction.
+        stockMovements: { where: { kind: 'SORTIE' }, select: { lotId: true } },
+      },
       orderBy: { appliedOn: 'desc' },
     }),
     prisma.agriculturalOperation.findMany({
@@ -347,6 +362,10 @@ export default async function ParcelPage({
           id: f.id,
           appliedOn: f.appliedOn.toISOString(),
           inputType: f.inputType,
+          fertilizerId: f.fertilizerId,
+          organicInputId: f.organicInputId,
+          cropYearId: f.cropYearId,
+          operator: f.operator,
           productLabel: f.productLabel,
           dose: f.dose.toString(),
           doseUnit: f.doseUnit,
@@ -365,6 +384,26 @@ export default async function ParcelPage({
         phytoTreatments={phytoTreatments.map((p) => ({
           id: p.id,
           appliedOn: p.appliedOn.toISOString(),
+          produit: p.product
+            ? {
+                id: p.product.id,
+                amm: p.product.amm,
+                name: p.product.name,
+                holder: p.product.holder,
+                status: p.product.status,
+                authorized: isAuthorizedStatus(p.product.status),
+                withdrawnAt: p.product.withdrawnAt?.toISOString() ?? null,
+                formulation: p.product.formulation,
+                productType: p.product.productType,
+                substances: p.activeSubstances ? p.activeSubstances.split(', ') : [],
+              }
+            : null,
+          cropYearId: p.cropYearId,
+          cropLabel: p.cropLabel,
+          stockLotId:
+            new Set(p.stockMovements.map((m) => m.lotId)).size === 1
+              ? (p.stockMovements[0]?.lotId ?? null)
+              : null,
           productName: p.productName,
           amm: p.amm,
           activeSubstances: p.activeSubstances,
@@ -395,6 +434,7 @@ export default async function ParcelPage({
           irrigationVolumeM3Ha: o.irrigationVolumeM3Ha?.toString() ?? null,
           waterSource: o.waterSource,
           waterNitrateMgL: o.waterNitrateMgL?.toString() ?? null,
+          waterAnalysisOn: o.waterAnalysisOn?.toISOString() ?? null,
         }))}
         soilCovers={soilCovers.map((c) => ({
           id: c.id,
@@ -405,6 +445,8 @@ export default async function ParcelPage({
           destroyedOn: c.destroyedOn?.toISOString() ?? null,
           destructionMethod: c.destructionMethod,
           areaHa: c.areaHa?.toString() ?? null,
+          cropYearId: c.cropYearId,
+          notes: c.notes,
           incoherences: incoherencesDates(c),
         }))}
         documents={documents.map((d) => ({

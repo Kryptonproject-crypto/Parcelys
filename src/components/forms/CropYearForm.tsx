@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ApiRequestError, apiPost } from '@/lib/client/api';
+import { ApiRequestError, apiPost, apiPut } from '@/lib/client/api';
 import { YIELD_UNITS, currentCampaignYear } from '@/lib/constants/agronomy';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
 import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
@@ -59,7 +59,11 @@ export function CropYearForm({
     };
 
     try {
-      await apiPost(`/api/parcels/${parcelId}/crops`, payload);
+      // Correction : par l'identifiant, pour pouvoir changer la culture ou la
+      // campagne elles-mêmes. Création : la route met à jour la même culture
+      // de la même campagne si elle existe déjà.
+      if (existing) await apiPut(`/api/crop-years/${existing.id}`, payload);
+      else await apiPost(`/api/parcels/${parcelId}/crops`, payload);
       router.refresh();
       onDone();
     } catch (err) {
@@ -209,7 +213,7 @@ export function CropYearForm({
 
         <Button type="submit" disabled={submitting}>
           {submitting ? <Spinner /> : null}
-          {submitting ? 'Enregistrement…' : 'Enregistrer la culture'}
+          {submitting ? 'Enregistrement…' : existing ? 'Enregistrer les corrections' : 'Enregistrer la culture'}
         </Button>
       </div>
     </form>

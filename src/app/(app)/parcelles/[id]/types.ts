@@ -1,4 +1,5 @@
 import type { HistoryEvent } from '@/lib/services/history';
+import type { EphyProduct } from '@/components/forms/EphyProductSearch';
 import type { NutrientBalance } from '@/lib/services/fertilization';
 
 export type ParcelSummary = {
@@ -47,6 +48,11 @@ export type FertilizationRow = {
   id: string;
   appliedOn: string;
   inputType: 'ORGANIC' | 'MINERAL';
+  /** Produit du référentiel, pour la correction ; `null` en saisie libre. */
+  fertilizerId: string | null;
+  organicInputId: string | null;
+  cropYearId: string | null;
+  operator: string | null;
   productLabel: string;
   dose: string;
   doseUnit: string;
@@ -65,6 +71,12 @@ export type FertilizationRow = {
 export type PhytoRow = {
   id: string;
   appliedOn: string;
+  /** Produit du catalogue E-Phy, tel que le formulaire le présente ; `null` en saisie libre. */
+  produit: EphyProduct | null;
+  cropYearId: string | null;
+  cropLabel: string | null;
+  /** Lot de la sortie de stock rattachée, s'il n'y en a qu'une. */
+  stockLotId: string | null;
   productName: string;
   amm: string | null;
   activeSubstances: string | null;
@@ -97,6 +109,7 @@ export type OperationRow = {
   irrigationVolumeM3Ha: string | null;
   waterSource: string | null;
   waterNitrateMgL: string | null;
+  waterAnalysisOn: string | null;
 };
 
 /**
@@ -115,6 +128,8 @@ export type SoilCoverRow = {
   destroyedOn: string | null;
   destructionMethod: string | null;
   areaHa: string | null;
+  cropYearId: string | null;
+  notes: string | null;
   incoherences: string[];
 };
 

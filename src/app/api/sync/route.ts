@@ -16,6 +16,15 @@ import { POST as createSoilCover } from '@/app/api/soil-covers/route';
 import { POST as createRecommendation } from '@/app/api/recommendations/route';
 import { POST as respondToRecommendation } from '@/app/api/recommendations/[id]/response/route';
 import { POST as recordPurchase } from '@/app/api/stocks/achats/route';
+import { POST as createCropYear } from '@/app/api/parcels/[id]/crops/route';
+import { PUT as updateCropYear, DELETE as deleteCropYear } from '@/app/api/crop-years/[id]/route';
+import { PUT as updateFertilization, DELETE as deleteFertilization } from '@/app/api/fertilization/[id]/route';
+import {
+  PUT as updatePhyto,
+  DELETE as deletePhyto,
+} from '@/app/api/phytosanitary/applications/[id]/route';
+import { PUT as updateOperation, DELETE as deleteOperation } from '@/app/api/operations/[id]/route';
+import { PUT as updateSoilCover, DELETE as deleteSoilCover } from '@/app/api/soil-covers/[id]/route';
 
 /**
  * Synchronisation de l'application de terrain.
@@ -50,18 +59,33 @@ type OperationSpec = {
    * dire — les routes ne s'en servent pas pour s'aiguiller, mais une requête
    * qui annonce POST là où elle met à jour égare quiconque lit le journal.
    */
-  method?: 'POST' | 'PUT';
+  method?: 'POST' | 'PUT' | 'DELETE';
   /**
    * Ressource que l'opération vise, et dont l'identifiant doit accompagner la
    * saisie : la parcelle où l'on est intervenu, la préconisation à laquelle on
    * répond. `none` pour une création qui ne dépend de rien d'existant.
    */
-  target: 'parcel' | 'recommendation' | 'none';
+  target: 'parcel' | 'recommendation' | 'record' | 'none';
   path: (operation: SyncOperationInput) => string;
 };
 
 const targetId = (operation: SyncOperationInput): string =>
   operation.targetId ?? operation.parcelId ?? '';
+
+/**
+ * Corriger ou supprimer un enregistrement : la route du site, désignée par
+ * l'identifiant de l'enregistrement (`targetId`).
+ */
+const surEnregistrement = (
+  handler: unknown,
+  method: 'PUT' | 'DELETE',
+  chemin: (id: string) => string,
+): OperationSpec => ({
+  handler: handler as RouteHandler,
+  method,
+  target: 'record',
+  path: (op) => chemin(encodeURIComponent(targetId(op))),
+});
 
 /** Liste fermée : la synchronisation ne donne accès à rien d'autre. */
 const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
@@ -135,13 +159,32 @@ const OPERATIONS: Record<SyncOperationInput['kind'], OperationSpec> = {
     target: 'none',
     path: (op) => `/api/stocks/achats${op.farmId ? `?farmId=${encodeURIComponent(op.farmId)}` : ''}`,
   },
+  // La route du site enregistre la culture d'une campagne, ou met à jour la
+  // même culture si elle y est déjà.
+  'cropYear.create': {
+    handler: createCropYear as RouteHandler,
+    target: 'parcel',
+    path: (op) => `/api/parcels/${op.parcelId}/crops`,
+  },
+  'cropYear.update': surEnregistrement(updateCropYear, 'PUT', (id) => `/api/crop-years/${id}`),
+  'cropYear.delete': surEnregistrement(deleteCropYear, 'DELETE', (id) => `/api/crop-years/${id}`),
+  'fertilization.update': surEnregistrement(updateFertilization, 'PUT', (id) => `/api/fertilization/${id}`),
+  'fertilization.delete': surEnregistrement(deleteFertilization, 'DELETE', (id) => `/api/fertilization/${id}`),
+  'phyto.update': surEnregistrement(updatePhyto, 'PUT', (id) => `/api/phytosanitary/applications/${id}`),
+  'phyto.delete': surEnregistrement(deletePhyto, 'DELETE', (id) => `/api/phytosanitary/applications/${id}`),
+  'operation.update': surEnregistrement(updateOperation, 'PUT', (id) => `/api/operations/${id}`),
+  'operation.delete': surEnregistrement(deleteOperation, 'DELETE', (id) => `/api/operations/${id}`),
+  'soilCover.update': surEnregistrement(updateSoilCover, 'PUT', (id) => `/api/soil-covers/${id}`),
+  'soilCover.delete': surEnregistrement(deleteSoilCover, 'DELETE', (id) => `/api/soil-covers/${id}`),
 };
 
 const MISSING_TARGET: Record<OperationSpec['target'], string> = {
   parcel: 'Parcelle non précisée pour cette opération.',
   recommendation: 'Préconisation non précisée pour cette opération.',
+  record: 'Enregistrement non précisé pour cette opération.',
   none: '',
 };
+
 
 /**
  * En-têtes recopiés vers la sous-requête.
@@ -164,7 +207,7 @@ function subRequest(
   path: string,
   body: unknown,
   idempotencyKey: string,
-  method: 'POST' | 'PUT' = 'POST',
+  method: 'POST' | 'PUT' | 'DELETE' = 'POST',
 ): NextRequest {
   const headers = new Headers({ 'content-type': 'application/json' });
   for (const name of FORWARDED_HEADERS) {
@@ -176,7 +219,7 @@ function subRequest(
   return new NextRequest(new URL(path, original.nextUrl.origin), {
     method,
     headers,
-    body: JSON.stringify(body ?? {}),
+    ...(method === 'DELETE' ? {} : { body: JSON.stringify(body ?? {}) }),
   });
 }
 
@@ -263,6 +306,20 @@ export const POST = route(async (request: NextRequest) => {
         ...(body?.id ? { entityId: body.id } : {}),
         httpStatus: response.status,
         ...(warnings.length ? { warnings } : {}),
+      });
+      continue;
+    }
+
+    // Supprimer ce qui n'existe plus — déjà supprimé depuis le site, ou par
+    // une première tentative dont la réponse s'est perdue — atteint le but
+    // recherché : ce n'est pas une erreur à corriger sur le téléphone.
+    if (response.status === 404 && operation.kind.endsWith('.delete')) {
+      results.push({
+        clientId: operation.clientId,
+        kind: operation.kind,
+        status: 'applied',
+        httpStatus: 404,
+        message: 'Déjà supprimé.',
       });
       continue;
     }

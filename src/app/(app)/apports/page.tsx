@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
+import { roleHasPermission } from '@/lib/auth/rbac';
 import { computeNutrientBalance } from '@/lib/services/fertilization';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
 import { CampagneChamp } from '@/components/campagne/CampagneChamp';
@@ -34,6 +35,7 @@ export default async function FertilizationPage({
 }) {
   const params = await searchParams;
   const ctx = await requirePageFarmAccess('record:read');
+  const peutCorriger = roleHasPermission(ctx.role, 'record:write');
   const year = Number(params.annee) || currentCampaignYear();
   const campagnes = await resumeCampagnes(ctx.farmId);
 
@@ -225,6 +227,7 @@ export default async function FertilizationPage({
               <Th align="right">N</Th>
               <Th align="right">P₂O₅</Th>
               <Th align="right">K₂O</Th>
+              {peutCorriger ? <Th /> : null}
             </tr>
           </thead>
           <tbody>
@@ -258,6 +261,18 @@ export default async function FertilizationPage({
                 <Td align="right">{row.nSupplied ? formatNumberFr(row.nSupplied, 1) : '—'}</Td>
                 <Td align="right">{row.pSupplied ? formatNumberFr(row.pSupplied, 1) : '—'}</Td>
                 <Td align="right">{row.kSupplied ? formatNumberFr(row.kSupplied, 1) : '—'}</Td>
+                {peutCorriger ? (
+                  <Td align="right">
+                    {/* La correction se fait sur la fiche de la parcelle, qui
+                        s'ouvre directement sur le formulaire pré-rempli. */}
+                    <Link
+                      href={`/parcelles/${row.parcel.id}?onglet=apports&modifier=${row.id}`}
+                      className="text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                    >
+                      Modifier
+                    </Link>
+                  </Td>
+                ) : null}
               </tr>
             ))}
           </tbody>

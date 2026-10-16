@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requirePageFarmAccess } from '@/lib/auth/page-guards';
+import { roleHasPermission } from '@/lib/auth/rbac';
 import { getEphySourceInfo } from '@/lib/ephy/search';
 import { currentCampaignYear } from '@/lib/constants/agronomy';
 import { CampagneChamp } from '@/components/campagne/CampagneChamp';
@@ -42,6 +43,7 @@ export default async function PhytosanitaryPage({
 }) {
   const params = await searchParams;
   const ctx = await requirePageFarmAccess('record:read');
+  const peutCorriger = roleHasPermission(ctx.role, 'record:write');
   const year = Number(params.annee) || currentCampaignYear();
   const campagnes = await resumeCampagnes(ctx.farmId);
 
@@ -241,6 +243,7 @@ export default async function PhytosanitaryPage({
               <Th align="right">Surface</Th>
               <Th>Conditions</Th>
               <Th>Opérateur</Th>
+              {peutCorriger ? <Th /> : null}
             </tr>
           </thead>
           <tbody>
@@ -289,6 +292,18 @@ export default async function PhytosanitaryPage({
                   )}
                 </Td>
                 <Td>{row.operator ?? <Badge tone="amber">Manquant</Badge>}</Td>
+                {peutCorriger ? (
+                  <Td align="right">
+                    {/* La correction se fait sur la fiche de la parcelle, qui
+                        s'ouvre directement sur le formulaire pré-rempli. */}
+                    <Link
+                      href={`/parcelles/${row.parcel.id}?onglet=phytosanitaire&modifier=${row.id}`}
+                      className="text-sm font-medium text-champ-700 hover:underline dark:text-champ-400"
+                    >
+                      Modifier
+                    </Link>
+                  </Td>
+                ) : null}
               </tr>
             ))}
           </tbody>

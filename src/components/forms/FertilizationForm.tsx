@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ApiRequestError, apiPost } from '@/lib/client/api';
+import { ApiRequestError, apiPost, apiPut } from '@/lib/client/api';
 import { DOSE_UNITS } from '@/lib/constants/agronomy';
 import {
   computeNutrients,
@@ -10,17 +10,21 @@ import {
 } from '@/lib/services/fertilization';
 import { Alert, Button, Field, Input, Select, Textarea } from '@/components/ui';
 import { FlaskConical as IconFlask, Wheat as IconHarvest } from 'lucide-react';
-import type { CropYearRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
+import type { CropYearRow, FertilizationRow, Referentials } from '@/app/(app)/parcelles/[id]/types';
 import type { ControleRegle } from '@/lib/regulatory/programme-actions';
 import { RegleTrace } from '@/components/regulatory/RegleTrace';
 import { nomCourtDeCulture } from '@/lib/shared/cultures';
 
 /**
- * Saisie d'un apport.
+ * Saisie d'un apport — ou sa correction, quand `existing` est donné.
  *
  * Les valeurs calculées (quantité totale, N/P/K) sont affichées en direct pour
  * contrôle, mais c'est le serveur qui recalcule et enregistre : le client ne
  * peut pas imposer un bilan incohérent.
+ *
+ * En correction, les teneurs N/P/K ne sont pré-remplies que si elles avaient
+ * été **saisies** (d'après une analyse) : une teneur calculée depuis le
+ * référentiel doit suivre la nouvelle dose, pas rester figée.
  */
 export function FertilizationForm({
   parcelId,
@@ -28,6 +32,7 @@ export function FertilizationForm({
   fertilizers,
   organicInputs,
   cropYears,
+  existing = null,
   onDone,
 }: {
   parcelId: string;
@@ -35,15 +40,21 @@ export function FertilizationForm({
   fertilizers: Referentials['fertilizers'];
   organicInputs: Referentials['organicInputs'];
   cropYears: CropYearRow[];
+  /** L'apport à corriger ; absent pour une nouvelle saisie. */
+  existing?: FertilizationRow | null;
   onDone: () => void;
 }) {
   const router = useRouter();
-  const [inputType, setInputType] = useState<'MINERAL' | 'ORGANIC'>('MINERAL');
-  const [productId, setProductId] = useState('');
-  const [customLabel, setCustomLabel] = useState('');
-  const [dose, setDose] = useState('');
-  const [doseUnit, setDoseUnit] = useState('kg/ha');
-  const [treatedArea, setTreatedArea] = useState(parcelAreaHa.toFixed(4));
+  const [inputType, setInputType] = useState<'MINERAL' | 'ORGANIC'>(existing?.inputType ?? 'MINERAL');
+  const [productId, setProductId] = useState(existing?.fertilizerId ?? existing?.organicInputId ?? '');
+  const [customLabel, setCustomLabel] = useState(
+    existing && !existing.fertilizerId && !existing.organicInputId ? existing.productLabel : '',
+  );
+  const [dose, setDose] = useState(existing ? String(Number(existing.dose)) : '');
+  const [doseUnit, setDoseUnit] = useState(existing?.doseUnit ?? 'kg/ha');
+  const [treatedArea, setTreatedArea] = useState(
+    existing ? Number(existing.treatedAreaHa).toFixed(4) : parcelAreaHa.toFixed(4),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -86,6 +97,47 @@ export function FertilizationForm({
     return { totalQuantity, totalUnit, ...nutrients };
   }, [dose, doseUnit, treatedArea, inputType, selectedMineral, selectedOrganic]);
 
+  /**
+   * Teneurs saisies de l'apport corrigé : celles qui diffèrent de ce que le
+   * référentiel donne pour la dose enregistrée. Calculé une fois, à
+   * l'ouverture.
+   */
+  const [saisies] = useState(() => {
+    if (!existing) return { n: '', p: '', k: '' };
+    const doseInitiale = Number(existing.dose);
+    const mineral = fertilizers.find((f) => f.id === existing.fertilizerId);
+    const organic = organicInputs.find((o) => o.id === existing.organicInputId);
+    const calcul = computeNutrients({
+      dose: doseInitiale,
+      doseUnit: existing.doseUnit,
+      mineral: mineral
+        ? {
+            nPercent: mineral.nPercent ? Number(mineral.nPercent) : null,
+            pPercent: mineral.pPercent ? Number(mineral.pPercent) : null,
+            kPercent: mineral.kPercent ? Number(mineral.kPercent) : null,
+          }
+        : null,
+      organic: organic
+        ? {
+            nContent: organic.nContent ? Number(organic.nContent) : null,
+            pContent: organic.pContent ? Number(organic.pContent) : null,
+            kContent: organic.kContent ? Number(organic.kContent) : null,
+            unit: organic.defaultUnit ?? null,
+          }
+        : null,
+    });
+    const saisie = (enregistre: string | null, calcule: number | null) =>
+      enregistre !== null && (calcule === null || Math.abs(Number(enregistre) - calcule) > 0.005)
+        ? String(Number(enregistre))
+        : '';
+    return {
+      n: saisie(existing.nSupplied, calcul.nSupplied),
+      p: saisie(existing.pSupplied, calcul.pSupplied),
+      k: saisie(existing.kSupplied, calcul.kSupplied),
+    };
+  });
+  const aDesSaisies = Boolean(saisies.n || saisies.p || saisies.k || existing?.supplier || existing?.batchNumber || existing?.operator);
+
   function handleProductChange(value: string): void {
     setProductId(value);
     const mineral = fertilizers.find((f) => f.id === value);
@@ -117,17 +169,17 @@ export function FertilizationForm({
       operator: String(form.get('operator') ?? ''),
       notes: String(form.get('notes') ?? ''),
       cropYearId: String(form.get('cropYearId') ?? '') || undefined,
-      // Saisie manuelle possible lorsque la teneur du produit est inconnue.
-      nSupplied: String(form.get('nSupplied') ?? '') || undefined,
-      pSupplied: String(form.get('pSupplied') ?? '') || undefined,
-      kSupplied: String(form.get('kSupplied') ?? '') || undefined,
+      // Saisie manuelle possible lorsque la teneur du produit est inconnue. En
+      // correction, un champ vidé demande le recalcul (`null`).
+      nSupplied: String(form.get('nSupplied') ?? '') || (existing ? null : undefined),
+      pSupplied: String(form.get('pSupplied') ?? '') || (existing ? null : undefined),
+      kSupplied: String(form.get('kSupplied') ?? '') || (existing ? null : undefined),
     };
 
     try {
-      const resultat = await apiPost<{ controles?: ControleRegle[] }>(
-        `/api/parcels/${parcelId}/fertilization`,
-        payload,
-      );
+      const resultat = existing
+        ? await apiPut<{ controles?: ControleRegle[] }>(`/api/fertilization/${existing.id}`, payload)
+        : await apiPost<{ controles?: ControleRegle[] }>(`/api/parcels/${parcelId}/fertilization`, payload);
       router.refresh();
       // Ce que le programme d'actions dit de cet apport : on le montre avant
       // de fermer, avec la règle — un constat qui s'efface tout seul n'est
@@ -158,7 +210,7 @@ export function FertilizationForm({
     const TITRES = { alerte: 'Règle non respectée', verification: 'À vérifier', indetermine: 'Non vérifiable' } as const;
     return (
       <div className="space-y-3">
-        <Alert tone="success">Apport enregistré.</Alert>
+        <Alert tone="success">{existing ? 'Apport corrigé.' : 'Apport enregistré.'}</Alert>
         <p className="text-[13.5px] text-ink-2">Ce que le programme d’actions nitrates en dit :</p>
         {controles.map((c, i) => (
           <Alert
@@ -217,13 +269,13 @@ export function FertilizationForm({
             id="appliedOn"
             name="appliedOn"
             type="date"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={(existing?.appliedOn ?? new Date().toISOString()).slice(0, 10)}
             required
           />
         </Field>
 
         <Field label="Culture concernée" htmlFor="cropYearId">
-          <Select id="cropYearId" name="cropYearId" defaultValue="">
+          <Select id="cropYearId" name="cropYearId" defaultValue={existing?.cropYearId ?? ''}>
             <option value="">— Non rattaché —</option>
             {cropYears.map((cy) => (
               <option key={cy.id} value={cy.id}>
@@ -355,41 +407,41 @@ export function FertilizationForm({
       ) : null}
 
       {/* Saisie manuelle des éléments */}
-      <details className="rounded-lg border border-line p-3">
+      <details className="rounded-lg border border-line p-3" open={aDesSaisies}>
         <summary className="cursor-pointer text-sm font-medium text-ink-2">
           Éléments fertilisants et traçabilité (facultatif)
         </summary>
 
         <div className="mt-3 grid gap-4 sm:grid-cols-3">
           <Field label="N apporté (kg/ha)" htmlFor="nSupplied">
-            <Input id="nSupplied" name="nSupplied" type="number" step="0.01" min="0" />
+            <Input id="nSupplied" name="nSupplied" type="number" step="0.01" min="0" defaultValue={saisies.n} />
           </Field>
           <Field label="P₂O₅ apporté (kg/ha)" htmlFor="pSupplied">
-            <Input id="pSupplied" name="pSupplied" type="number" step="0.01" min="0" />
+            <Input id="pSupplied" name="pSupplied" type="number" step="0.01" min="0" defaultValue={saisies.p} />
           </Field>
           <Field label="K₂O apporté (kg/ha)" htmlFor="kSupplied">
-            <Input id="kSupplied" name="kSupplied" type="number" step="0.01" min="0" />
+            <Input id="kSupplied" name="kSupplied" type="number" step="0.01" min="0" defaultValue={saisies.k} />
           </Field>
 
           <Field label="Fournisseur" htmlFor="supplier">
-            <Input id="supplier" name="supplier" />
+            <Input id="supplier" name="supplier" defaultValue={existing?.supplier ?? ''} />
           </Field>
           <Field label="Numéro de lot" htmlFor="batchNumber">
-            <Input id="batchNumber" name="batchNumber" />
+            <Input id="batchNumber" name="batchNumber" defaultValue={existing?.batchNumber ?? ''} />
           </Field>
           <Field label="Opérateur" htmlFor="operator">
-            <Input id="operator" name="operator" />
+            <Input id="operator" name="operator" defaultValue={existing?.operator ?? ''} />
           </Field>
         </div>
       </details>
 
       <Field label="Observations" htmlFor="notes">
-        <Textarea id="notes" name="notes" rows={2} />
+        <Textarea id="notes" name="notes" rows={2} defaultValue={existing?.notes ?? ''} />
       </Field>
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="submit" loading={submitting}>
-          {submitting ? 'Enregistrement…' : "Enregistrer l'apport"}
+          {submitting ? 'Enregistrement…' : existing ? 'Enregistrer les corrections' : "Enregistrer l'apport"}
         </Button>
       </div>
     </form>

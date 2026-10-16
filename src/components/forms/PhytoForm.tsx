@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ApiRequestError, apiFetch, apiPost } from '@/lib/client/api';
+import { ApiRequestError, apiFetch, apiPost, apiPut } from '@/lib/client/api';
 import { DOSE_UNITS } from '@/lib/constants/agronomy';
 import { computeTotalQuantity } from '@/lib/services/fertilization';
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/components/forms/EphyProductSearch';
 import { PhytoUsagePanel } from '@/components/forms/PhytoUsagePanel';
 import { Alert, Button, Field, Input, Select, Spinner, Textarea } from '@/components/ui';
-import type { CropYearRow } from '@/app/(app)/parcelles/[id]/types';
+import type { CropYearRow, PhytoRow } from '@/app/(app)/parcelles/[id]/types';
 import { nomCourtDeCulture } from '@/lib/shared/cultures';
 import { uniteAffichee } from '@/lib/shared/unites';
 import { etatDuProduit } from '@/lib/shared/produits';
@@ -32,6 +32,7 @@ export function PhytoForm({
   cropYears,
   hasLocation,
   parcelDrained,
+  existing = null,
   onDone,
 }: {
   parcelId: string;
@@ -41,26 +42,37 @@ export function PhytoForm({
   hasLocation: boolean;
   /** Sol drainé de la parcelle. `null` = non renseigné, et non « non drainé ». */
   parcelDrained: boolean | null;
+  /**
+   * Le traitement à corriger ; absent pour une nouvelle saisie. En correction,
+   * la météo n'est pas relevée à nouveau : c'est celle du jour du traitement
+   * qui compte, et elle est reprise telle qu'enregistrée.
+   */
+  existing?: PhytoRow | null;
   onDone: () => void;
 }) {
   const router = useRouter();
-  const [product, setProduct] = useState<EphyProduct | null>(null);
-  const [manualName, setManualName] = useState('');
-  const [dose, setDose] = useState('');
-  const [doseUnit, setDoseUnit] = useState('L/ha');
-  const [treatedArea, setTreatedArea] = useState(parcelAreaHa.toFixed(4));
-  const [cropYearId, setCropYearId] = useState('');
-  const [cropLabel, setCropLabel] = useState('');
+  const [product, setProduct] = useState<EphyProduct | null>(existing?.produit ?? null);
+  const [manualName, setManualName] = useState(existing && !existing.produit ? existing.productName : '');
+  const [dose, setDose] = useState(existing ? String(Number(existing.dose)) : '');
+  const [doseUnit, setDoseUnit] = useState(existing?.doseUnit ?? 'L/ha');
+  const [treatedArea, setTreatedArea] = useState(
+    existing ? Number(existing.treatedAreaHa).toFixed(4) : parcelAreaHa.toFixed(4),
+  );
+  const [cropYearId, setCropYearId] = useState(existing?.cropYearId ?? '');
+  const [cropLabel, setCropLabel] = useState(existing?.cropLabel ?? '');
   // La date décide quels usages valent : un produit retiré s'emploie jusqu'à
   // sa fin d'utilisation, pas au-delà.
-  const [appliedOn, setAppliedOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [captureWeather, setCaptureWeather] = useState(hasLocation);
+  const [appliedOn, setAppliedOn] = useState(() =>
+    (existing?.appliedOn ?? new Date().toISOString()).slice(0, 10),
+  );
+  const [captureWeather, setCaptureWeather] = useState(existing ? false : hasLocation);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [enStock, setEnStock] = useState<ProduitEnStock[]>([]);
-  const [stockLotId, setStockLotId] = useState('');
+  const lotInitial = existing?.stockLotId ?? '';
+  const [stockLotId, setStockLotId] = useState(lotInitial);
   const [catalogue, setCatalogue] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
 
@@ -77,6 +89,24 @@ export function PhytoForm({
   }, [parcelId]);
 
   const stockDuProduit = product ? enStock.find((s) => s.produit.id === product.id) ?? null : null;
+
+  /**
+   * Lots proposés. En correction, le lot déjà rattaché reste proposé même
+   * épuisé ou d'un produit qui n'est plus en stock : sinon la liste afficherait
+   * « aucun lot » pour un traitement qui en a un.
+   */
+  const lotsProposes = [
+    ...(lotInitial && !(stockDuProduit?.lots ?? []).some((l) => l.id === lotInitial)
+      ? [{ id: lotInitial, libelle: 'Lot actuellement rattaché' }]
+      : []),
+    ...(stockDuProduit?.lots ?? []).map((l) => ({
+      id: l.id,
+      libelle:
+        `${l.lotNumber ? `Lot ${l.lotNumber}` : 'Lot sans numéro'} · reste ${quantite(l.reste)} ${uniteAffichee(l.unit)}` +
+        (l.purchasedOn ? ` · acheté le ${new Date(l.purchasedOn).toLocaleDateString('fr-FR')}` : '') +
+        (l.expiresOn ? ` · DLU ${new Date(l.expiresOn).toLocaleDateString('fr-FR')}` : ''),
+    })),
+  ];
 
   function choisirEnStock(s: ProduitEnStock) {
     setProduct(s.produit);
@@ -143,15 +173,22 @@ export function PhytoForm({
       weatherWindKmh: String(form.get('weatherWindKmh') ?? '') || undefined,
       weatherHumidity: String(form.get('weatherHumidity') ?? '') || undefined,
       weatherSummary: String(form.get('weatherSummary') ?? '') || undefined,
-      // Le lot employé : le serveur en sort la quantité utilisée.
-      ...(stockLotId && stockDuProduit ? { stockLotId } : {}),
+      // Le lot employé : le serveur en sort la quantité utilisée. En
+      // correction, il n'est envoyé que s'il change — sans quoi le serveur
+      // ajuste la sortie existante à la nouvelle quantité.
+      ...(existing
+        ? stockLotId !== lotInitial
+          ? { stockLotId: stockLotId || null }
+          : {}
+        : stockLotId && stockDuProduit
+          ? { stockLotId }
+          : {}),
     };
 
     try {
-      const result = await apiPost<{ warnings?: string[] }>(
-        `/api/parcels/${parcelId}/phytosanitary`,
-        payload,
-      );
+      const result = existing
+        ? await apiPut<{ warnings?: string[] }>(`/api/phytosanitary/applications/${existing.id}`, payload)
+        : await apiPost<{ warnings?: string[] }>(`/api/parcels/${parcelId}/phytosanitary`, payload);
       router.refresh();
       if (result.warnings?.length) {
         // Les avertissements restent à l'écran jusqu'à ce qu'on les ferme :
@@ -176,7 +213,7 @@ export function PhytoForm({
   if (enregistre) {
     return (
       <div className="space-y-3">
-        <Alert tone="success">Traitement enregistré.</Alert>
+        <Alert tone="success">{existing ? 'Traitement corrigé.' : 'Traitement enregistré.'}</Alert>
         {warnings.map((warning) => (
           <Alert key={warning} tone="warning">
             {warning}
@@ -245,19 +282,21 @@ export function PhytoForm({
         </Field>
       )}
 
-      {stockDuProduit ? (
+      {lotsProposes.length > 0 ? (
         <Field
           label="Lot employé"
           htmlFor="stockLotId"
-          hint="La quantité utilisée sera sortie de ce lot. Sans lot, le traitement est enregistré mais le stock ne bouge pas."
+          hint={
+            existing
+              ? 'La sortie de stock suit la correction. « Aucun lot » l’annule : la quantité revient au stock.'
+              : 'La quantité utilisée sera sortie de ce lot. Sans lot, le traitement est enregistré mais le stock ne bouge pas.'
+          }
         >
           <Select id="stockLotId" value={stockLotId} onChange={(e) => setStockLotId(e.target.value)}>
             <option value="">— Aucun lot (stock non mouvementé) —</option>
-            {stockDuProduit.lots.map((l) => (
+            {lotsProposes.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.lotNumber ? `Lot ${l.lotNumber}` : 'Lot sans numéro'} · reste {quantite(l.reste)} {uniteAffichee(l.unit)}
-                {l.purchasedOn ? ` · acheté le ${new Date(l.purchasedOn).toLocaleDateString('fr-FR')}` : ''}
-                {l.expiresOn ? ` · DLU ${new Date(l.expiresOn).toLocaleDateString('fr-FR')}` : ''}
+                {l.libelle}
               </option>
             ))}
           </Select>
@@ -284,7 +323,7 @@ export function PhytoForm({
             htmlFor="amm"
             hint="Reportez-le depuis l'étiquette du produit."
           >
-            <Input id="amm" name="amm" inputMode="numeric" />
+            <Input id="amm" name="amm" inputMode="numeric" defaultValue={existing && !existing.produit ? (existing.amm ?? '') : ''} />
           </Field>
         </div>
       ) : null}
@@ -322,7 +361,7 @@ export function PhytoForm({
           className="sm:col-span-2"
           hint="Ex. adventices, septoriose, pucerons."
         >
-          <Input id="targetLabel" name="targetLabel" />
+          <Input id="targetLabel" name="targetLabel" defaultValue={existing?.targetLabel ?? ''} />
         </Field>
 
         <div className="grid grid-cols-2 gap-2">
@@ -370,11 +409,18 @@ export function PhytoForm({
         </Field>
 
         <Field label="Volume de bouillie (L/ha)" htmlFor="sprayVolumeLHa">
-          <Input id="sprayVolumeLHa" name="sprayVolumeLHa" type="number" step="1" min="0" />
+          <Input
+            id="sprayVolumeLHa"
+            name="sprayVolumeLHa"
+            type="number"
+            step="1"
+            min="0"
+            defaultValue={existing?.sprayVolumeLHa ? String(Number(existing.sprayVolumeLHa)) : ''}
+          />
         </Field>
 
         <Field label="Opérateur" htmlFor="operator">
-          <Input id="operator" name="operator" placeholder="Nom de l'applicateur" />
+          <Input id="operator" name="operator" placeholder="Nom de l'applicateur" defaultValue={existing?.operator ?? ''} />
         </Field>
       </div>
 
@@ -407,6 +453,15 @@ export function PhytoForm({
 
       {/* Conditions météo */}
       <div className="rounded-lg border border-line p-3">
+        {existing ? (
+          <p className="text-sm">
+            <span className="font-medium text-ink">Conditions météo du jour du traitement</span>
+            <span className="block text-xs text-ink-3">
+              Reprises telles qu’enregistrées. Corrigez-les si elles étaient fausses ; les laisser
+              vides garde celles du registre.
+            </span>
+          </p>
+        ) : (
         <label className="flex items-start gap-2.5 text-sm">
           <input
             type="checkbox"
@@ -426,14 +481,15 @@ export function PhytoForm({
             </span>
           </span>
         </label>
+        )}
 
         {!captureWeather ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-4">
             <Field label="Température (°C)" htmlFor="weatherTempC">
-              <Input id="weatherTempC" name="weatherTempC" type="number" step="0.1" />
+              <Input id="weatherTempC" name="weatherTempC" type="number" step="0.1" defaultValue={existing?.weatherTempC ? String(Number(existing.weatherTempC)) : ''} />
             </Field>
             <Field label="Vent (km/h)" htmlFor="weatherWindKmh">
-              <Input id="weatherWindKmh" name="weatherWindKmh" type="number" step="0.1" min="0" />
+              <Input id="weatherWindKmh" name="weatherWindKmh" type="number" step="0.1" min="0" defaultValue={existing?.weatherWindKmh ? String(Number(existing.weatherWindKmh)) : ''} />
             </Field>
             <Field label="Humidité (%)" htmlFor="weatherHumidity">
               <Input
@@ -443,23 +499,24 @@ export function PhytoForm({
                 step="1"
                 min="0"
                 max="100"
+                defaultValue={existing?.weatherHumidity ? String(Number(existing.weatherHumidity)) : ''}
               />
             </Field>
             <Field label="Conditions" htmlFor="weatherSummary">
-              <Input id="weatherSummary" name="weatherSummary" placeholder="Ciel dégagé" />
+              <Input id="weatherSummary" name="weatherSummary" placeholder="Ciel dégagé" defaultValue={existing?.weatherSummary ?? ''} />
             </Field>
           </div>
         ) : null}
       </div>
 
       <Field label="Observations" htmlFor="notes">
-        <Textarea id="notes" name="notes" rows={2} />
+        <Textarea id="notes" name="notes" rows={2} defaultValue={existing?.notes ?? ''} />
       </Field>
 
       <div className="flex justify-end pt-1">
         <Button type="submit" disabled={submitting || (!product && !manualName)}>
           {submitting ? <Spinner /> : null}
-          {submitting ? 'Enregistrement…' : 'Enregistrer le traitement'}
+          {submitting ? 'Enregistrement…' : existing ? 'Enregistrer les corrections' : 'Enregistrer le traitement'}
         </Button>
       </div>
     </form>

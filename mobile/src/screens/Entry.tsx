@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { AppContext } from '../App';
-import type { CachedParcel, OperationKind } from '../lib/types';
-import { enqueue } from '../lib/db';
+import type { CachedParcel } from '../lib/types';
+import { enqueue, updateQueued } from '../lib/db';
+import {
+  KINDS_CORRECTION,
+  KINDS_CREATION,
+  type Correction,
+  type EntryKind,
+} from '../lib/corrections';
 import {
   captureWeather,
   fetchProductUsages,
@@ -36,21 +42,18 @@ import {
 import { uniteAffichee } from '@commun/unites';
 import { etatDuProduit } from '@commun/produits';
 
-export type EntryKind = 'phyto' | 'apport' | 'travaux' | 'couvert';
+export type { EntryKind } from '../lib/corrections';
 
 const TITLES: Record<EntryKind, string> = {
   phyto: 'Traitement phytosanitaire',
   apport: 'Apport de fertilisant',
   travaux: 'Travail réalisé',
   couvert: 'Couvert d’interculture',
+  culture: 'Culture de la campagne',
 };
 
-const KINDS: Record<EntryKind, OperationKind> = {
-  phyto: 'phyto.create',
-  apport: 'fertilization.create',
-  travaux: 'operation.create',
-  couvert: 'soilCover.create',
-};
+/** Unités de rendement : les mêmes que le site (`YIELD_UNITS`), que le serveur revérifie. */
+const UNITES_RENDEMENT = ['q/ha', 't/ha', 'kg/ha', 'hL/ha', 'bottes/ha'];
 
 /**
  * Natures de couvert.
@@ -95,23 +98,30 @@ export function EntryScreen({
   context,
   parcel,
   kind,
+  correction,
 }: {
   context: AppContext;
   parcel: CachedParcel;
   kind: EntryKind;
+  /**
+   * Enregistrement à corriger (voir `lib/corrections.ts`) ; absent pour une
+   * nouvelle saisie.
+   */
+  correction?: Correction;
 }) {
   const { back, snapshot, refreshPending, online } = context;
   const referential = snapshot?.referential;
+  const ini = correction?.initial;
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [date, setDate] = useState(today());
-  const [notes, setNotes] = useState('');
+  const [date, setDate] = useState(ini ? ini.date : today());
+  const [notes, setNotes] = useState(ini?.notes ?? '');
 
   // Phytosanitaire
-  const [productName, setProductName] = useState('');
-  const [amm, setAmm] = useState('');
-  const [substances, setSubstances] = useState('');
+  const [productName, setProductName] = useState(ini?.productName ?? '');
+  const [amm, setAmm] = useState(ini?.amm ?? '');
+  const [substances, setSubstances] = useState(ini?.substances ?? '');
 
   // Recherche dans le catalogue officiel (en ligne uniquement).
   const [catalogQuery, setCatalogQuery] = useState('');
@@ -136,36 +146,47 @@ export function EntryScreen({
 
   /** Usages autorisés du produit choisi : doses, ZNT, conditions de drainage. */
   const [usages, setUsages] = useState<CatalogProductUsages | null>(null);
-  const [cropLabel, setCropLabel] = useState('');
+  const [cropLabel, setCropLabel] = useState(ini?.cropLabel ?? '');
 
   // Conditions relevées à la saisie, jamais à la synchronisation.
   const [weather, setWeather] = useState<InterventionWeather | null>(null);
   const [weatherState, setWeatherState] = useState<'idle' | 'loading' | 'none'>('idle');
-  const [phytoDose, setPhytoDose] = useState('');
-  const [phytoUnit, setPhytoUnit] = useState('L/ha');
+  const [phytoDose, setPhytoDose] = useState(ini?.phytoDose ?? '');
+  const [phytoUnit, setPhytoUnit] = useState(ini?.phytoUnit || 'L/ha');
 
   // Apport
-  const [inputType, setInputType] = useState<'MINERAL' | 'ORGANIC'>('MINERAL');
-  const [productId, setProductId] = useState('');
-  const [productLabel, setProductLabel] = useState('');
-  const [dose, setDose] = useState('');
-  const [doseUnit, setDoseUnit] = useState('kg/ha');
+  const [inputType, setInputType] = useState<'MINERAL' | 'ORGANIC'>(ini?.inputType ?? 'MINERAL');
+  const [productId, setProductId] = useState(ini?.productId ?? '');
+  const [productLabel, setProductLabel] = useState(ini?.productLabel ?? '');
+  const [dose, setDose] = useState(ini?.dose ?? '');
+  const [doseUnit, setDoseUnit] = useState(ini?.doseUnit || 'kg/ha');
 
   // Travaux
-  const [operationType, setOperationType] = useState('LABOUR');
+  const [operationType, setOperationType] = useState(ini?.operationType || 'LABOUR');
   // Irrigation. Les champs n'apparaissent que pour ce type de travail : au
   // champ, chaque champ inutile est un champ que l'on renonce à remplir.
-  const [irrigationMm, setIrrigationMm] = useState('');
+  const [irrigationMm, setIrrigationMm] = useState(ini?.irrigationMm ?? '');
   // Couvert d'interculture.
-  const [coverKind, setCoverKind] = useState('CIPAN');
-  const [species, setSpecies] = useState('');
-  const [emergedOn, setEmergedOn] = useState('');
-  const [destroyedOn, setDestroyedOn] = useState('');
-  const [destruction, setDestruction] = useState('');
-  const [stockLotId, setStockLotId] = useState('');
-  const [waterSource, setWaterSource] = useState('');
-  const [waterNitrate, setWaterNitrate] = useState('');
-  const [equipment, setEquipment] = useState('');
+  const [coverKind, setCoverKind] = useState(ini?.coverKind || 'CIPAN');
+  const [species, setSpecies] = useState(ini?.species ?? '');
+  const [emergedOn, setEmergedOn] = useState(ini?.emergedOn ?? '');
+  const [destroyedOn, setDestroyedOn] = useState(ini?.destroyedOn ?? '');
+  const [destruction, setDestruction] = useState(ini?.destruction ?? '');
+  const [stockLotId, setStockLotId] = useState(ini?.stockLotId ?? '');
+  const [waterSource, setWaterSource] = useState(ini?.waterSource ?? '');
+  const [waterNitrate, setWaterNitrate] = useState(ini?.waterNitrate ?? '');
+  const [equipment, setEquipment] = useState(ini?.equipment ?? '');
+
+  // Culture de la campagne
+  const [cropId, setCropId] = useState(ini?.cropId ?? '');
+  const [campaignYear, setCampaignYear] = useState(
+    ini?.campaignYear || String(snapshot?.campaignYear ?? new Date().getFullYear()),
+  );
+  const [variety, setVariety] = useState(ini?.variety ?? '');
+  const [expectedHarvestDate, setExpectedHarvestDate] = useState(ini?.expectedHarvestDate ?? '');
+  const [actualHarvestDate, setActualHarvestDate] = useState(ini?.actualHarvestDate ?? '');
+  const [yieldValue, setYieldValue] = useState(ini?.yieldValue ?? '');
+  const [yieldUnit, setYieldUnit] = useState(ini?.yieldUnit || 'q/ha');
 
   const doseUnits = referential?.doseUnits ?? ['L/ha', 'kg/ha'];
 
@@ -177,6 +198,10 @@ export function EntryScreen({
    * l'intervention. Sans réseau on ne relève rien — et on ne déduit rien.
    */
   useEffect(() => {
+    // Une correction garde les conditions du jour de l'intervention, déjà
+    // enregistrées : relever celles d'aujourd'hui les remplacerait par une
+    // météo qui n'est pas la sienne. Une culture n'en a pas.
+    if (correction || kind === 'culture') return;
     if (!online) {
       setWeatherState('none');
       return;
@@ -191,7 +216,23 @@ export function EntryScreen({
     return () => {
       vivant = false;
     };
-  }, [online, context.session, parcel.id]);
+  }, [online, context.session, parcel.id, correction, kind]);
+
+  /**
+   * Correction d'un traitement : la fiche officielle embarquée du produit est
+   * reposée, pour que le contrôle de dose s'applique à la dose corrigée comme
+   * à une nouvelle saisie.
+   */
+  useEffect(() => {
+    if (!correction || kind !== 'phyto' || !ini?.amm) return;
+    const embarquee = ficheHorsLigne(referential, ini.amm);
+    if (!embarquee) return;
+    setUsages(embarquee);
+    setVerified(true);
+    setWithdrawn(!embarquee.product.authorized);
+    // À l'ouverture seulement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Recherche au catalogue, après une pause de frappe.
@@ -475,7 +516,15 @@ export function EntryScreen({
         // la sortie correspondante : au champ il n'y a qu'un geste, et une file
         // d'attente ne sait pas enchaîner deux opérations dont la seconde
         // dépend de l'identifiant produit par la première.
-        ...(stockLotId ? { stockLotId } : {}),
+        // En correction, le lot n'est envoyé que s'il change : sinon le serveur
+        // ajuste la sortie de stock existante à la nouvelle dose.
+        ...(correction
+          ? stockLotId !== (ini?.stockLotId ?? '')
+            ? { stockLotId: stockLotId || null }
+            : {}
+          : stockLotId
+            ? { stockLotId }
+            : {}),
         // Relevées à l'ouverture du formulaire, sur la parcelle : c'est la
         // météo de l'intervention, pas celle de la synchronisation.
         ...weatherPayload(),
@@ -506,6 +555,29 @@ export function EntryScreen({
         doseUnit,
         ...weatherPayload(),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
+      };
+    }
+
+    if (kind === 'culture') {
+      if (!cropId) {
+        setError('Choisissez la culture.');
+        return null;
+      }
+      const annee = Number(campaignYear);
+      if (!Number.isInteger(annee) || annee < 1900 || annee > 2200) {
+        setError('Indiquez la campagne (année de récolte).');
+        return null;
+      }
+      return {
+        cropId,
+        campaignYear: annee,
+        variety: variety.trim(),
+        sowingDate: date,
+        expectedHarvestDate,
+        actualHarvestDate,
+        yieldValue: yieldValue.trim(),
+        ...(yieldValue.trim() ? { yieldUnit } : {}),
+        notes: notes.trim(),
       };
     }
 
@@ -554,15 +626,36 @@ export function EntryScreen({
 
     setSaving(true);
     try {
-      await enqueue({
-        clientId: crypto.randomUUID(),
-        kind: KINDS[kind],
-        parcelId: parcel.id,
-        label: `${TITLES[kind]} — ${parcel.name}`,
-        capturedAt: new Date().toISOString(),
-        attempts: 0,
-        payload,
-      });
+      if (correction?.queuedClientId) {
+        // Saisie pas encore partie : on la réécrit, elle partira corrigée.
+        await updateQueued(correction.queuedClientId, {
+          payload: { ...correction.base, ...payload },
+          lastError: undefined,
+          attempts: 0,
+        });
+      } else if (correction?.recordId) {
+        await enqueue({
+          clientId: crypto.randomUUID(),
+          kind: KINDS_CORRECTION[kind],
+          parcelId: parcel.id,
+          targetId: correction.recordId,
+          label: `Correction — ${TITLES[kind]} — ${parcel.name}`,
+          capturedAt: new Date().toISOString(),
+          attempts: 0,
+          // Tout l'enregistrement repart : le serveur remplace ce qu'il reçoit.
+          payload: { ...correction.base, ...payload },
+        });
+      } else {
+        await enqueue({
+          clientId: crypto.randomUUID(),
+          kind: KINDS_CREATION[kind],
+          parcelId: parcel.id,
+          label: `${TITLES[kind]} — ${parcel.name}`,
+          capturedAt: new Date().toISOString(),
+          attempts: 0,
+          payload,
+        });
+      }
       await refreshPending();
       back();
     } finally {
@@ -572,7 +665,11 @@ export function EntryScreen({
 
   return (
     <form onSubmit={handleSubmit} className="flex min-h-full flex-col bg-canvas">
-      <Header title={TITLES[kind]} subtitle={parcel.name} onBack={back} />
+      <Header
+        title={correction ? `Corriger — ${TITLES[kind]}` : TITLES[kind]}
+        subtitle={parcel.name}
+        onBack={back}
+      />
 
       <div className="flex-1 space-y-4 px-4 py-4">
         {error ? <Banner tone="danger">{error}</Banner> : null}
@@ -584,12 +681,23 @@ export function EntryScreen({
           </Banner>
         ) : null}
 
-        <Field label="Date" required>
+        {correction ? (
+          <Banner tone="info">
+            Correction : elle part par la file d’attente comme toute saisie. Les
+            conditions météo, l’opérateur et ce que ce formulaire ne montre pas
+            restent ceux de l’enregistrement.
+          </Banner>
+        ) : null}
+
+        <Field
+          label={kind === 'culture' || kind === 'couvert' ? 'Semis' : 'Date'}
+          required={kind !== 'culture'}
+        >
           <Input
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            required
+            required={kind !== 'culture'}
           />
         </Field>
 
@@ -1122,6 +1230,72 @@ export function EntryScreen({
           </>
         ) : null}
 
+        {kind === 'culture' ? (
+          <>
+            <Field label="Culture" required>
+              <Select value={cropId} onChange={(event) => setCropId(event.target.value)}>
+                <option value="">— Choisir —</option>
+                {(referential?.crops ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Campagne (année de récolte)" required>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={campaignYear}
+                onChange={(event) => setCampaignYear(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Variété">
+              <Input value={variety} onChange={(event) => setVariety(event.target.value)} />
+            </Field>
+
+            <Field label="Récolte prévue">
+              <Input
+                type="date"
+                value={expectedHarvestDate}
+                onChange={(event) => setExpectedHarvestDate(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Récolte réelle">
+              <Input
+                type="date"
+                value={actualHarvestDate}
+                onChange={(event) => setActualHarvestDate(event.target.value)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-[1fr_auto] gap-3">
+              <Field label="Rendement">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={yieldValue}
+                  onChange={(event) => setYieldValue(event.target.value)}
+                />
+              </Field>
+              <Field label="Unité">
+                <Select value={yieldUnit} onChange={(event) => setYieldUnit(event.target.value)}>
+                  {UNITES_RENDEMENT.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          </>
+        ) : null}
+
         {kind === 'couvert' ? (
           <>
             <Field label="Nature du couvert" required>
@@ -1193,11 +1367,13 @@ export function EntryScreen({
           />
         </Field>
 
+        {kind === 'culture' || kind === 'couvert' ? null : (
         <p className="px-1 text-[13px] leading-relaxed text-ink-3">
-          La surface traitée retenue sera celle de la parcelle
-          {parcel.areaHa > 0 ? ` (${parcel.areaHa.toFixed(2)} ha)` : ''}, et les
+          {correction ? 'La surface traitée reste celle de l’enregistrement' : 'La surface traitée retenue sera celle de la parcelle'}
+          {!correction && parcel.areaHa > 0 ? ` (${parcel.areaHa.toFixed(2)} ha)` : ''}, et les
           quantités totales seront calculées par le serveur.
         </p>
+        )}
       </div>
 
       <ActionBar>
