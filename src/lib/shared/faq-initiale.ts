@@ -334,6 +334,20 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
         motsCles: 'hors ligne réseau synchronisation file attente mobile',
       },
       {
+        slug: 'technique-registres-appli',
+        question: 'Voir depuis l’application ce qui a déjà été fait sur une parcelle',
+        reponse:
+          "Ouvrez la parcelle : les rubriques Général, Cultures, Apports, Phyto, Travaux et Historique reprennent celles du site. Elles sont gardées dans le téléphone à chaque synchronisation et restent lisibles sans réseau ; la date de la dernière mise à jour est écrite en bas de la fiche. Une saisie pas encore envoyée apparaît dans sa rubrique, marquée « en attente d'envoi ».",
+        motsCles: 'registre historique traitements apports travaux consulter mobile fiche parcelle',
+      },
+      {
+        slug: 'technique-gps',
+        question: 'La position GPS est imprécise',
+        reponse:
+          "Vérifiez d'abord que Parcelys a la position exacte : Réglages du téléphone › Applications › Parcelys › Autorisations › Position › « Utiliser la position exacte » ; avec la seule position approximative, l'erreur peut atteindre plusieurs centaines de mètres. À découvert, laissez au GPS quelques secondes : « Où suis-je ? » et « Poser un sommet » écoutent plusieurs points et affichent la précision obtenue (±… m). Sous les arbres, près des bâtiments ou en cabine, la précision se dégrade.",
+        motsCles: 'gps position précision localisation où suis-je sommet contour imprécis',
+      },
+      {
         slug: 'technique-mise-a-jour-appli',
         question: 'Comment mettre à jour l’application mobile ?',
         reponse:

@@ -61,12 +61,18 @@ export default async function FertilizationPage({
   const applications = await prisma.fertilizerApplication.findMany({
     where,
     include: {
-      parcel: { select: { id: true, name: true, internalNumber: true } },
+      parcel: { select: { id: true, name: true, internalNumber: true, areaHa: true } },
       cropYear: { include: { crop: { select: { name: true } } } },
     },
     orderBy: { appliedOn: 'desc' },
     take: 1000,
   });
+
+  // Surface des parcelles concernées, chacune comptée une fois : c'est à elle
+  // que se rapportent les kg/ha, comme dans le bilan exporté en PDF.
+  const surfaceConcernee = [
+    ...new Map(applications.map((a) => [a.parcel.id, Number(a.parcel.areaHa)])).values(),
+  ].reduce((somme, surface) => somme + surface, 0);
 
   const balance = computeNutrientBalance(
     applications.map((a) => ({
@@ -75,6 +81,7 @@ export default async function FertilizationPage({
       pSupplied: a.pSupplied?.toString() ?? null,
       kSupplied: a.kSupplied?.toString() ?? null,
     })),
+    surfaceConcernee,
   );
 
 
@@ -171,10 +178,13 @@ export default async function FertilizationPage({
               </div>
             ))}
             <div className="rounded-lg bg-surface-2 p-3">
-              <p className="text-xs text-ink-3">Surface fertilisée cumulée</p>
+              <p className="text-xs text-ink-3">Surface concernée</p>
               <p className="mt-0.5 text-lg font-semibold tabular-nums text-ink">
-                {formatNumberFr(balance.areaHa, 2)}
+                {formatNumberFr(balance.referenceAreaHa, 2)}
                 <span className="ml-1 text-xs font-normal text-ink-3">ha</span>
+              </p>
+              <p className="text-xs tabular-nums text-ink-3">
+                {formatNumberFr(balance.areaHa, 2)} ha fertilisés en cumul des passages
               </p>
             </div>
           </div>

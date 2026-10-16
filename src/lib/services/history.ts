@@ -70,39 +70,10 @@ export async function buildHistory(params: {
     });
 
     for (const cy of cropYears) {
-      const implantation = cy.sowingDate ?? new Date(cy.campaignYear, 0, 1);
-      if (wants('CROP') && withinRange(implantation, params)) {
-        events.push({
-          id: `crop-${cy.id}`,
-          kind: 'CROP',
-          date: implantation.toISOString(),
-          parcelId: cy.parcel.id,
-          parcelName: cy.parcel.name,
-          title: `Culture : ${cy.crop.name}`,
-          details: [
-            cy.variety ? `Variété : ${cy.variety}` : null,
-            `Campagne ${cy.campaignYear}`,
-            cy.sowingDate ? `Semis le ${formatDate(cy.sowingDate)}` : 'Date de semis non renseignée',
-          ].filter((d): d is string => d !== null),
-          link: `/parcelles/${cy.parcel.id}?onglet=culture`,
-        });
-      }
-
-      if (wants('HARVEST') && cy.actualHarvestDate && withinRange(cy.actualHarvestDate, params)) {
-        events.push({
-          id: `harvest-${cy.id}`,
-          kind: 'HARVEST',
-          date: cy.actualHarvestDate.toISOString(),
-          parcelId: cy.parcel.id,
-          parcelName: cy.parcel.name,
-          title: `Récolte : ${cy.crop.name}`,
-          details: [
-            cy.yieldValue
-              ? `Rendement : ${fmtNumber(cy.yieldValue)} ${cy.yieldUnit ?? ''}`.trim()
-              : 'Rendement non renseigné',
-          ],
-          link: `/parcelles/${cy.parcel.id}?onglet=culture`,
-        });
+      const { culture, recolte } = evenementsCulture(cy, cy.parcel);
+      if (wants('CROP') && withinRange(new Date(culture.date), params)) events.push(culture);
+      if (wants('HARVEST') && recolte && withinRange(new Date(recolte.date), params)) {
+        events.push(recolte);
       }
     }
   }
@@ -115,28 +86,7 @@ export async function buildHistory(params: {
       take: limit,
     });
 
-    for (const row of rows) {
-      const nutrients = [
-        row.nSupplied ? `N ${fmtNumber(row.nSupplied)}` : null,
-        row.pSupplied ? `P ${fmtNumber(row.pSupplied)}` : null,
-        row.kSupplied ? `K ${fmtNumber(row.kSupplied)}` : null,
-      ].filter(Boolean);
-
-      events.push({
-        id: `fert-${row.id}`,
-        kind: 'FERTILIZATION',
-        date: row.appliedOn.toISOString(),
-        parcelId: row.parcel.id,
-        parcelName: row.parcel.name,
-        title: `Apport ${row.inputType === 'ORGANIC' ? 'organique' : 'minéral'} : ${row.productLabel}`,
-        details: [
-          `Dose : ${fmtNumber(row.dose, 3)} ${row.doseUnit}`,
-          `Quantité totale : ${fmtNumber(row.totalQuantity, 2)} ${row.totalUnit} sur ${fmtNumber(row.treatedAreaHa, 4)} ha`,
-          nutrients.length ? `Éléments apportés (kg/ha) : ${nutrients.join(' · ')}` : null,
-        ].filter((d): d is string => d !== null),
-        link: `/parcelles/${row.parcel.id}?onglet=apports`,
-      });
-    }
+    for (const row of rows) events.push(evenementApport(row, row.parcel));
   }
 
   if (wants('PHYTO')) {
@@ -147,27 +97,7 @@ export async function buildHistory(params: {
       take: limit,
     });
 
-    for (const row of rows) {
-      events.push({
-        id: `phyto-${row.id}`,
-        kind: 'PHYTO',
-        date: row.appliedOn.toISOString(),
-        parcelId: row.parcel.id,
-        parcelName: row.parcel.name,
-        title: `Traitement phytosanitaire : ${row.productName}`,
-        details: [
-          row.amm ? `AMM ${row.amm}` : null,
-          row.activeSubstances ? `Substances : ${row.activeSubstances}` : null,
-          row.targetLabel ? `Cible : ${row.targetLabel}` : null,
-          `Dose : ${fmtNumber(row.dose, 3)} ${row.doseUnit} — surface traitée ${fmtNumber(row.treatedAreaHa, 4)} ha`,
-          row.weatherSummary
-            ? `Conditions : ${row.weatherSummary}` +
-              (row.weatherWindKmh ? `, vent ${fmtNumber(row.weatherWindKmh, 1)} km/h` : '')
-            : null,
-        ].filter((d): d is string => d !== null),
-        link: `/parcelles/${row.parcel.id}?onglet=phytosanitaire`,
-      });
-    }
+    for (const row of rows) events.push(evenementPhyto(row, row.parcel));
   }
 
   if (wants('OPERATION')) {
@@ -178,22 +108,7 @@ export async function buildHistory(params: {
       take: limit,
     });
 
-    for (const row of rows) {
-      events.push({
-        id: `op-${row.id}`,
-        kind: 'OPERATION',
-        date: row.performedOn.toISOString(),
-        parcelId: row.parcel.id,
-        parcelName: row.parcel.name,
-        title: `Travail : ${OPERATION_LABELS[row.type] ?? row.type}`,
-        details: [
-          row.equipment ? `Matériel : ${row.equipment}` : null,
-          row.operator ? `Opérateur : ${row.operator}` : null,
-          row.durationHours ? `Durée : ${fmtNumber(row.durationHours, 1)} h` : null,
-        ].filter((d): d is string => d !== null),
-        link: `/parcelles/${row.parcel.id}?onglet=travaux`,
-      });
-    }
+    for (const row of rows) events.push(evenementTravail(row, row.parcel));
   }
 
   if (wants('DOCUMENT')) {
@@ -205,17 +120,7 @@ export async function buildHistory(params: {
     });
 
     for (const row of rows) {
-      if (!row.parcel) continue;
-      events.push({
-        id: `doc-${row.id}`,
-        kind: 'DOCUMENT',
-        date: row.createdAt.toISOString(),
-        parcelId: row.parcel.id,
-        parcelName: row.parcel.name,
-        title: `Document ajouté : ${row.fileName}`,
-        details: [row.description ?? `Catégorie : ${row.category}`],
-        link: `/parcelles/${row.parcel.id}?onglet=documents`,
-      });
+      if (row.parcel) events.push(evenementDocument(row, row.parcel));
     }
   }
 
@@ -235,4 +140,189 @@ function withinRange(
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString('fr-FR');
+}
+
+// ---------------------------------------------------------------------------
+// Un événement par enregistrement
+// ---------------------------------------------------------------------------
+//
+// Fonctions pures, partagées par l'historique du site (`buildHistory`) et par
+// les registres envoyés à l'application (`src/lib/services/registres-mobile.ts`) :
+// une intervention se raconte de la même façon sur l'écran du bureau et sur
+// le téléphone.
+
+type ParcelleRef = { id: string; name: string };
+type Nombre = { toString(): string } | number;
+
+export function evenementsCulture(
+  cy: {
+    id: string;
+    campaignYear: number;
+    variety: string | null;
+    sowingDate: Date | null;
+    actualHarvestDate: Date | null;
+    yieldValue: Nombre | null;
+    yieldUnit: string | null;
+    crop: { name: string };
+  },
+  parcel: ParcelleRef,
+): { culture: HistoryEvent; recolte: HistoryEvent | null } {
+  const implantation = cy.sowingDate ?? new Date(cy.campaignYear, 0, 1);
+  return {
+    culture: {
+      id: `crop-${cy.id}`,
+      kind: 'CROP',
+      date: implantation.toISOString(),
+      parcelId: parcel.id,
+      parcelName: parcel.name,
+      title: `Culture : ${cy.crop.name}`,
+      details: [
+        cy.variety ? `Variété : ${cy.variety}` : null,
+        `Campagne ${cy.campaignYear}`,
+        cy.sowingDate ? `Semis le ${formatDate(cy.sowingDate)}` : 'Date de semis non renseignée',
+      ].filter((d): d is string => d !== null),
+      link: `/parcelles/${parcel.id}?onglet=culture`,
+    },
+    recolte: cy.actualHarvestDate
+      ? {
+          id: `harvest-${cy.id}`,
+          kind: 'HARVEST',
+          date: cy.actualHarvestDate.toISOString(),
+          parcelId: parcel.id,
+          parcelName: parcel.name,
+          title: `Récolte : ${cy.crop.name}`,
+          details: [
+            cy.yieldValue
+              ? `Rendement : ${fmtNumber(cy.yieldValue)} ${cy.yieldUnit ?? ''}`.trim()
+              : 'Rendement non renseigné',
+          ],
+          link: `/parcelles/${parcel.id}?onglet=culture`,
+        }
+      : null,
+  };
+}
+
+export function evenementApport(
+  row: {
+    id: string;
+    appliedOn: Date;
+    inputType: string;
+    productLabel: string;
+    dose: Nombre;
+    doseUnit: string;
+    totalQuantity: Nombre;
+    totalUnit: string;
+    treatedAreaHa: Nombre;
+    nSupplied: Nombre | null;
+    pSupplied: Nombre | null;
+    kSupplied: Nombre | null;
+  },
+  parcel: ParcelleRef,
+): HistoryEvent {
+  const nutrients = [
+    row.nSupplied ? `N ${fmtNumber(row.nSupplied)}` : null,
+    row.pSupplied ? `P ${fmtNumber(row.pSupplied)}` : null,
+    row.kSupplied ? `K ${fmtNumber(row.kSupplied)}` : null,
+  ].filter(Boolean);
+
+  return {
+    id: `fert-${row.id}`,
+    kind: 'FERTILIZATION',
+    date: row.appliedOn.toISOString(),
+    parcelId: parcel.id,
+    parcelName: parcel.name,
+    title: `Apport ${row.inputType === 'ORGANIC' ? 'organique' : 'minéral'} : ${row.productLabel}`,
+    details: [
+      `Dose : ${fmtNumber(row.dose, 3)} ${row.doseUnit}`,
+      `Quantité totale : ${fmtNumber(row.totalQuantity, 2)} ${row.totalUnit} sur ${fmtNumber(row.treatedAreaHa, 4)} ha`,
+      nutrients.length ? `Éléments apportés (kg/ha) : ${nutrients.join(' · ')}` : null,
+    ].filter((d): d is string => d !== null),
+    link: `/parcelles/${parcel.id}?onglet=apports`,
+  };
+}
+
+export function evenementPhyto(
+  row: {
+    id: string;
+    appliedOn: Date;
+    productName: string;
+    amm: string | null;
+    activeSubstances: string | null;
+    targetLabel: string | null;
+    dose: Nombre;
+    doseUnit: string;
+    treatedAreaHa: Nombre;
+    weatherSummary: string | null;
+    weatherWindKmh: Nombre | null;
+  },
+  parcel: ParcelleRef,
+): HistoryEvent {
+  return {
+    id: `phyto-${row.id}`,
+    kind: 'PHYTO',
+    date: row.appliedOn.toISOString(),
+    parcelId: parcel.id,
+    parcelName: parcel.name,
+    title: `Traitement phytosanitaire : ${row.productName}`,
+    details: [
+      row.amm ? `AMM ${row.amm}` : null,
+      row.activeSubstances ? `Substances : ${row.activeSubstances}` : null,
+      row.targetLabel ? `Cible : ${row.targetLabel}` : null,
+      `Dose : ${fmtNumber(row.dose, 3)} ${row.doseUnit} — surface traitée ${fmtNumber(row.treatedAreaHa, 4)} ha`,
+      row.weatherSummary
+        ? `Conditions : ${row.weatherSummary}` +
+          (row.weatherWindKmh ? `, vent ${fmtNumber(row.weatherWindKmh, 1)} km/h` : '')
+        : null,
+    ].filter((d): d is string => d !== null),
+    link: `/parcelles/${parcel.id}?onglet=phytosanitaire`,
+  };
+}
+
+export function evenementTravail(
+  row: {
+    id: string;
+    performedOn: Date;
+    type: string;
+    equipment: string | null;
+    operator: string | null;
+    durationHours: Nombre | null;
+  },
+  parcel: ParcelleRef,
+): HistoryEvent {
+  return {
+    id: `op-${row.id}`,
+    kind: 'OPERATION',
+    date: row.performedOn.toISOString(),
+    parcelId: parcel.id,
+    parcelName: parcel.name,
+    title: `Travail : ${OPERATION_LABELS[row.type] ?? row.type}`,
+    details: [
+      row.equipment ? `Matériel : ${row.equipment}` : null,
+      row.operator ? `Opérateur : ${row.operator}` : null,
+      row.durationHours ? `Durée : ${fmtNumber(row.durationHours, 1)} h` : null,
+    ].filter((d): d is string => d !== null),
+    link: `/parcelles/${parcel.id}?onglet=travaux`,
+  };
+}
+
+export function evenementDocument(
+  row: {
+    id: string;
+    createdAt: Date;
+    fileName: string;
+    description: string | null;
+    category: string;
+  },
+  parcel: ParcelleRef,
+): HistoryEvent {
+  return {
+    id: `doc-${row.id}`,
+    kind: 'DOCUMENT',
+    date: row.createdAt.toISOString(),
+    parcelId: parcel.id,
+    parcelName: parcel.name,
+    title: `Document ajouté : ${row.fileName}`,
+    details: [row.description ?? `Catégorie : ${row.category}`],
+    link: `/parcelles/${parcel.id}?onglet=documents`,
+  };
 }

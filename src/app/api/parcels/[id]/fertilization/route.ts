@@ -26,7 +26,7 @@ const idOf = (params: Record<string, string>): string => {
 /** GET /api/parcels/:id/fertilization — apports + bilan NPK de la parcelle. */
 export const GET = route(async (_request: NextRequest, context: Ctx) => {
   const id = idOf(await context.params);
-  await requireParcelAccess(id, 'record:read');
+  const { parcel } = await requireParcelAccess(id, 'record:read');
 
   const items = await prisma.fertilizerApplication.findMany({
     where: { parcelId: id },
@@ -45,6 +45,7 @@ export const GET = route(async (_request: NextRequest, context: Ctx) => {
       pSupplied: i.pSupplied?.toString() ?? null,
       kSupplied: i.kSupplied?.toString() ?? null,
     })),
+    parcel.areaHa,
   );
 
   return ok({ items, balance });

@@ -6,6 +6,76 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.11.1 — Les registres dans l'application, un GPS qui suit, un dialogue au premier plan
+
+### Application : la fiche parcelle comme sur le site
+
+La fiche parcelle de l'application ne savait que **saisir**. Elle reprend
+désormais les rubriques du site — **Général, Cultures, Apports, Phyto,
+Travaux, Historique** —, en plus court : chaque ligne de tableau devient une
+carte, date et produit en tête.
+
+- **Général** : le dernier traitement, le dernier apport et le dernier travail
+  en haut, puis l'identité de la parcelle (numéro, commune, INSEE, cadastre,
+  PAC, déclarations TéléPAC, sol drainé, statut, coordonnées) et les
+  observations.
+- **Cultures** : la succession par campagne (variété, semis, récoltes,
+  rendement) et les couverts d'interculture, dates incohérentes signalées.
+- **Apports** : bilan N, P₂O₅, K₂O, plan prévisionnel de fumure par culture,
+  et chaque apport (dose, surface, quantité, éléments).
+- **Phyto** : produit, AMM (« Manquant » sinon), substances, cible, dose,
+  surface, quantité, conditions (« Non renseignées » sinon), opérateur.
+- **Travaux** : type, matériel, opérateur, durée, irrigation (volume, analyse
+  d'eau).
+- **Historique** : la frise du site, mêmes mots (même code côté serveur).
+
+Les registres arrivent à la synchronisation (`GET /api/mobile/registres`) et
+restent dans le téléphone : la fiche se lit **sans réseau**, et dit de quand
+date ce qu'elle montre. Une **empreinte** évite de tout renvoyer quand rien n'a
+changé. Une saisie faite au champ apparaît tout de suite dans sa rubrique,
+« en attente d'envoi », puis comme enregistrement du serveur une fois partie.
+L'expert en mission lit les mêmes rubriques, sans bouton de saisie.
+
+### Application : le GPS
+
+- **Le suivi ne se rafraîchissait que toutes les vingt secondes.** Sur
+  Android, le greffon Capacitor fait de l'option `timeout` l'**intervalle** du
+  suivi continu (vérifié dans le code compilé de sa bibliothèque native) ;
+  l'application passait 20 000 ms. Le point bleu de la carte et le tracé d'un
+  contour à pied reçoivent désormais une position par seconde.
+- **Le point bleu est lissé** (filtre de Kalman réduit à la position) : un
+  point imprécis pèse peu, un téléphone posé ne sautille plus, un vrai
+  déplacement est suivi.
+- **« Où suis-je ? » et « Poser un sommet » écoutent plusieurs points** au lieu
+  de prendre le premier — souvent celui du réseau, à trente mètres — et en
+  font la moyenne pondérée. La précision annoncée reste celle du récepteur,
+  jamais embellie ; elle s'affiche pendant le relevé.
+- **Position approximative** (Android 12 et suivants) : l'application la
+  prenait pour une autorisation suffisante et affichait des positions fausses
+  de plusieurs centaines de mètres. Elle explique maintenant comment activer
+  la position exacte.
+
+### Site
+
+- **Le dialogue « Renommer la parcelle » passait sous la carte** de la fiche
+  (et sous la barre du haut) : six de ses sept commandes étaient recouvertes.
+  L'en-tête de page, animé à l'entrée, restait un contexte d'empilement qui
+  enfermait le dialogue. Les dialogues sont désormais rendus au niveau de la
+  page, et les animations d'entrée ne laissent plus de contexte d'empilement
+  derrière elles.
+- **Enregistrer un couvert d'interculture depuis le site échouait (erreur
+  500).** La route lisait un paramètre de chemin qu'elle n'a pas quand on
+  l'appelle par son adresse ; seule la file de l'application passait.
+- **Le bilan des apports sous-estimait l'azote reçu.** Les kg/ha étaient le
+  total divisé par la somme des surfaces de chaque passage : deux apports de
+  50 kg N/ha s'affichaient « 50 kg/ha » sous le titre « cumul de tous les
+  apports », quand l'hectare en avait reçu 100 — et quand le bilan PDF de la
+  même parcelle disait bien 100. Le bilan de la fiche (site, application,
+  `GET /api/parcels/:id/fertilization`) est rapporté à la surface de la
+  parcelle ; celui de la page Apports, à la surface des parcelles concernées.
+
+---
+
 ## 0.11.0 — Administration à deux niveaux, numéros clients, support et centre d'aide
 
 ### Administration générale et administrateurs secondaires

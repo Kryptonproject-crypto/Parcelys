@@ -149,6 +149,35 @@ describe('Calculs de fertilisation', () => {
     expect(balance.perHectareN).toBe(30);
   });
 
+  it('rapporte le cumul à la surface de la parcelle quand elle est donnée', () => {
+    // Deux passages de 50 kg N/ha sur toute une parcelle de 10 ha : l'hectare
+    // a reçu 100 kg N, pas 50.
+    const balance = computeNutrientBalance(
+      [
+        { treatedAreaHa: 10, nSupplied: 50 },
+        { treatedAreaHa: 10, nSupplied: 50 },
+      ],
+      10,
+    );
+    expect(balance.totalN).toBe(1000);
+    expect(balance.perHectareN).toBe(100);
+    expect(balance.referenceAreaHa).toBe(10);
+    expect(balance.areaHa).toBe(20);
+  });
+
+  it('rapporte un apport partiel à toute la parcelle', () => {
+    // 60 kg N/ha sur la moitié d'une parcelle de 8 ha : 30 kg N/ha en moyenne
+    // sur la parcelle.
+    const balance = computeNutrientBalance([{ treatedAreaHa: 4, nSupplied: 60 }], '8.0000');
+    expect(balance.perHectareN).toBe(30);
+  });
+
+  it('retombe sur la surface cumulée si la surface de référence est absente ou nulle', () => {
+    const apports = [{ treatedAreaHa: 10, nSupplied: 60 }];
+    expect(computeNutrientBalance(apports, null).perHectareN).toBe(60);
+    expect(computeNutrientBalance(apports, 0).perHectareN).toBe(60);
+  });
+
   it('gère une liste vide sans division par zéro', () => {
     const balance = computeNutrientBalance([]);
     expect(balance).toMatchObject({ totalN: 0, perHectareN: 0, areaHa: 0 });

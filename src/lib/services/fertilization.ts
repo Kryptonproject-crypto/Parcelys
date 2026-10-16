@@ -134,11 +134,21 @@ export type NutrientBalance = {
   totalN: number;
   totalP: number;
   totalK: number;
-  /** Moyennes pondérées en kg/ha. */
+  /**
+   * kg/ha : le total rapporté à `referenceAreaHa`.
+   *
+   * Avec la surface de la parcelle (ou des parcelles concernées) pour
+   * référence, c'est **ce que l'hectare a reçu en cumul** — la grandeur que
+   * lit un exploitant sous « cumul de tous les apports », et celle du bilan de
+   * fertilisation exporté en PDF.
+   */
   perHectareN: number;
   perHectareP: number;
   perHectareK: number;
+  /** Surface traitée cumulée : chaque passage compte sa surface. */
   areaHa: number;
+  /** Surface à laquelle les kg/ha sont rapportés. */
+  referenceAreaHa: number;
   /** Nombre d'apports dont la teneur en azote n'est pas renseignée. */
   incompleteCount: number;
 };
@@ -147,6 +157,23 @@ export type NutrientBalance = {
  * Bilan des éléments fertilisants sur une liste d'apports.
  * Les apports sans teneur connue sont comptabilisés à part plutôt que
  * d'être estimés.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA SURFACE DE RÉFÉRENCE (0.11.1)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Les kg/ha étaient le total divisé par la **somme des surfaces de chaque
+ * passage** : la moyenne d'un passage, pas le cumul. Deux apports de 50 kg
+ * N/ha sur une parcelle s'affichaient « 50 kg/ha » sous le titre « cumul de
+ * tous les apports », quand l'hectare en avait reçu 100 — et quand le bilan
+ * PDF de la même parcelle, lui, disait bien 100. Sous-estimer l'azote reçu
+ * est le mauvais sens : c'est celui qui laisse dépasser un plafond sans le
+ * voir.
+ *
+ * `surfaceHa` donne la surface à laquelle rapporter le total : celle de la
+ * parcelle pour la fiche, celle des parcelles concernées pour l'exploitation.
+ * Sans elle, l'ancien calcul (moyenne par passage) reste celui de la
+ * fonction.
  */
 export function computeNutrientBalance(
   applications: Array<{
@@ -155,6 +182,7 @@ export function computeNutrientBalance(
     pSupplied?: number | string | null;
     kSupplied?: number | string | null;
   }>,
+  surfaceHa?: number | string | null,
 ): NutrientBalance {
   let totalN = 0;
   let totalP = 0;
@@ -176,14 +204,18 @@ export function computeNutrientBalance(
     totalK += (k ?? 0) * area;
   }
 
+  const surface = surfaceHa != null ? Number(surfaceHa) : NaN;
+  const reference = Number.isFinite(surface) && surface > 0 ? surface : areaHa;
+
   return {
     totalN: round(totalN, 1),
     totalP: round(totalP, 1),
     totalK: round(totalK, 1),
-    perHectareN: areaHa > 0 ? round(totalN / areaHa, 1) : 0,
-    perHectareP: areaHa > 0 ? round(totalP / areaHa, 1) : 0,
-    perHectareK: areaHa > 0 ? round(totalK / areaHa, 1) : 0,
+    perHectareN: reference > 0 ? round(totalN / reference, 1) : 0,
+    perHectareP: reference > 0 ? round(totalP / reference, 1) : 0,
+    perHectareK: reference > 0 ? round(totalK / reference, 1) : 0,
     areaHa: round(areaHa, 4),
+    referenceAreaHa: round(reference, 4),
     incompleteCount,
   };
 }

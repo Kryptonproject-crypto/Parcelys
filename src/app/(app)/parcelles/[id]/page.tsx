@@ -188,6 +188,8 @@ export default async function ParcelPage({
       pSupplied: f.pSupplied?.toString() ?? null,
       kSupplied: f.kSupplied?.toString() ?? null,
     })),
+    // Rapporté à la parcelle : ce que l'hectare a reçu, en cumul.
+    parcel.areaHa.toString(),
   );
 
   /**

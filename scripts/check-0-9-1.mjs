@@ -68,6 +68,23 @@ async function main() {
       await page.goto(fiche, { waitUntil: 'domcontentloaded' });
       await page.click('button:has-text("Renommer")');
       await page.waitForSelector('[role="dialog"]', { timeout: 10_000 });
+      // Le dialogue passait sous la carte de la fiche (0.11.1) : `fill` ne
+      // le voyait pas, il remplit un champ même recouvert. On regarde donc ce
+      // qui se trouve réellement au centre de chaque commande.
+      const recouverts = await page.evaluate(() =>
+        [...document.querySelectorAll('[role="dialog"] input, [role="dialog"] button')]
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            const dessus = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !(dessus && (dessus === el || el.contains(dessus)));
+          })
+          .map((el) => el.id || el.textContent.trim() || el.getAttribute('aria-label')),
+      );
+      attendu(
+        recouverts.length === 0,
+        'le dialogue « Renommer » est au premier plan, rien ne le recouvre',
+        recouverts.join(', '),
+      );
       await page.fill('#renommer-nom', nom);
       if (lieuDit !== undefined) await page.fill('#renommer-lieu', lieuDit);
       await page.click('[role="dialog"] button:has-text("Enregistrer")');
@@ -78,7 +95,7 @@ async function main() {
     const boutonRenommer = await page.$('button:has-text("Renommer")');
     attendu(boutonRenommer !== null, 'la fiche parcelle offre « Renommer »');
 
-    await renommer('La Côte du Chêne', 'Les Sauvattes');
+    await renommer('La Côte du Chêne', 'Les Vernes');
     attendu(
       (await page.textContent('h1')).includes('La Côte du Chêne'),
       'le nom donné est enregistré et affiché',
@@ -97,7 +114,7 @@ async function main() {
       'ni la casse ni l’accent ne font échouer la recherche',
     );
 
-    await page.goto(`${BASE}/parcelles?q=sauvattes`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/parcelles?q=vernes`, { waitUntil: 'domcontentloaded' });
     attendu(
       (await page.textContent('body')).includes('La Côte du Chêne'),
       'la recherche porte aussi sur le lieu-dit',

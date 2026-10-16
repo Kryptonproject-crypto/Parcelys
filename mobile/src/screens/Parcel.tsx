@@ -1,23 +1,59 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppContext } from '../App';
-import type { CachedParcel } from '../lib/types';
+import type { CachedParcel, QueuedOperation } from '../lib/types';
 import { formatAreaHa } from '../lib/geo';
-import { enqueue } from '../lib/db';
-import { Banner, Button, Card, Field, Header, Input } from '../components/ui';
+import { enqueue, readOutbox } from '../lib/db';
+import { Banner, Button, Card, Field, Header, Input, Spinner, cn } from '../components/ui';
 import { PointCulture } from '../components/culture';
+import {
+  EnAttente,
+  ONGLETS,
+  PanneauApports,
+  PanneauCultures,
+  PanneauGeneral,
+  PanneauHistorique,
+  PanneauPhyto,
+  PanneauTravaux,
+  type Onglet,
+} from '../components/registres';
 import { nomDitLeNumero } from '@commun/cultures';
 
 /**
- * Fiche d'une parcelle : ce qu'on en sait, et ce qu'on peut y saisir.
+ * Fiche d'une parcelle : ce qu'on en sait, ce qui y a été fait, et ce qu'on
+ * peut y saisir.
  *
- * Trois actions seulement, celles qui se font au champ. La consultation
- * détaillée des registres reste sur l'application web : la reproduire ici
- * alourdirait l'APK pour un usage qui se fait de toute façon au bureau.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LES REGISTRES, AUSSI SUR LE TÉLÉPHONE
+ * ─────────────────────────────────────────────────────────────────────────────
  *
- * L'expert agronomique voit la même fiche, mais une seule action : rédiger une
- * préconisation. Il ne remplit aucun registre de l'exploitation — la règle est
- * la même ici que dans le contrôle de permissions du serveur.
+ * Jusqu'à la 0.11.0, la fiche ne proposait que des saisies : pour savoir quel
+ * produit avait été passé, et quand, il fallait le site. Or c'est au bord du
+ * champ, le pulvérisateur attelé, que la question se pose. La fiche reprend
+ * donc les rubriques du site — Général, Cultures, Apports, Phyto, Travaux,
+ * Historique —, lues dans les registres gardés sur l'appareil
+ * (`lib/registres.ts`) : elles s'affichent sans réseau, telles qu'à la
+ * dernière synchronisation, et le disent.
+ *
+ * L'expert agronomique voit la même fiche, en lecture, et une seule action :
+ * rédiger une préconisation. Il ne remplit aucun registre de l'exploitation —
+ * la règle est la même ici que dans le contrôle de permissions du serveur.
  */
+
+/**
+ * Rubrique ouverte, parcelle par parcelle, pour la durée de la session.
+ *
+ * Saisir un apport fait quitter la fiche ; au retour, on veut retrouver la
+ * rubrique Apports — et l'apport qu'on vient de saisir, en attente d'envoi —,
+ * pas revenir à l'onglet Général.
+ */
+const ongletsOuverts = new Map<string, Onglet>();
+
+const SAISIES_DE_REGISTRE: ReadonlySet<QueuedOperation['kind']> = new Set([
+  'phyto.create',
+  'fertilization.create',
+  'operation.create',
+  'soilCover.create',
+]);
 export function ParcelScreen({
   context,
   parcel,
@@ -25,7 +61,48 @@ export function ParcelScreen({
   context: AppContext;
   parcel: CachedParcel;
 }) {
-  const { back, navigate, readOnly, refreshPending, renommerLocalement } = context;
+  const {
+    back,
+    navigate,
+    readOnly,
+    refreshPending,
+    renommerLocalement,
+    registres,
+    registresEtat,
+    actualiserRegistres,
+    online,
+    pending,
+    snapshot,
+  } = context;
+
+  const [onglet, setOnglet] = useState<Onglet>(ongletsOuverts.get(parcel.id) ?? 'general');
+  function ouvrir(cle: Onglet): void {
+    ongletsOuverts.set(parcel.id, cle);
+    setOnglet(cle);
+  }
+
+  const fiche = registres?.parcels[parcel.id] ?? null;
+
+  /** Saisies de cette parcelle encore sur le téléphone. Relu quand la file bouge. */
+  const [enFile, setEnFile] = useState<QueuedOperation[]>([]);
+  useEffect(() => {
+    let actif = true;
+    void readOutbox().then((file) => {
+      if (actif) {
+        setEnFile(file.filter((o) => o.parcelId === parcel.id && SAISIES_DE_REGISTRE.has(o.kind)));
+      }
+    });
+    return () => {
+      actif = false;
+    };
+  }, [parcel.id, pending]);
+
+  const libelleTravail = (code: string): string =>
+    snapshot?.referential.operationTypes.find((t) => t.value === code)?.label ?? code;
+  const libelleCouvert = (code: string): string =>
+    snapshot?.referential.soilCoverKinds?.find((t) => t.value === code)?.label ?? code;
+  const saisir = (kind: 'phyto' | 'apport' | 'travaux' | 'couvert') =>
+    readOnly ? undefined : () => navigate({ name: 'entry', kind, parcelId: parcel.id });
 
   /**
    * Renommer la parcelle, depuis le champ.
@@ -164,6 +241,62 @@ export function ParcelScreen({
     },
   ];
 
+  const interventions = (
+    <div>
+      <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-ink-3">
+        {readOnly ? 'Conseiller sur cette parcelle' : 'Enregistrer une intervention'}
+      </h2>
+      <ul className="space-y-2.5">
+        {(readOnly ? ADVISOR_ACTIONS : actions).map((action) => (
+          <li key={action.kind}>
+            <Card
+              onClick={() =>
+                action.kind === 'preconisation'
+                  ? navigate({ name: 'new-recommendation', parcelId: parcel.id })
+                  : navigate({ name: 'entry', kind: action.kind, parcelId: parcel.id })
+              }
+            >
+              <div className="flex items-center gap-3.5">
+                <span
+                  aria-hidden
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-ink"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    {action.icon}
+                  </svg>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-ink">
+                    {action.title}
+                  </span>
+                  <span className="block text-[13px] leading-snug text-ink-3">
+                    {action.description}
+                  </span>
+                </span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                  className="shrink-0 text-ink-3"
+                >
+                  <path
+                    d="M9 5l7 7-7 7"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </Card>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   return (
     <div className="flex min-h-full flex-col bg-canvas">
       <Header
@@ -222,7 +355,7 @@ export function ParcelScreen({
                 <Input
                   value={lieu}
                   onChange={(event) => setLieu(event.target.value)}
-                  placeholder="Les Sauvattes"
+                  placeholder="Les Vernes"
                 />
               </Field>
 
@@ -263,58 +396,109 @@ export function ParcelScreen({
           </div>
         </Card>
 
-        <div>
-          <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-ink-3">
-            {readOnly ? 'Conseiller sur cette parcelle' : 'Enregistrer une intervention'}
-          </h2>
-          <ul className="space-y-2.5">
-            {(readOnly ? ADVISOR_ACTIONS : actions).map((action) => (
-              <li key={action.kind}>
-                <Card
-                  onClick={() =>
-                    action.kind === 'preconisation'
-                      ? navigate({ name: 'new-recommendation', parcelId: parcel.id })
-                      : navigate({ name: 'entry', kind: action.kind, parcelId: parcel.id })
-                  }
-                >
-                  <div className="flex items-center gap-3.5">
-                    <span
-                      aria-hidden
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-ink"
-                    >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                        {action.icon}
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold text-ink">
-                        {action.title}
-                      </span>
-                      <span className="block text-[13px] leading-snug text-ink-3">
-                        {action.description}
-                      </span>
-                    </span>
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      aria-hidden
-                      className="shrink-0 text-ink-3"
-                    >
-                      <path
-                        d="M9 5l7 7-7 7"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
+        <nav
+          role="tablist"
+          aria-label="Rubriques de la parcelle"
+          className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]"
+        >
+          {ONGLETS.map((o) => (
+            <button
+              key={o.cle}
+              type="button"
+              role="tab"
+              aria-selected={onglet === o.cle}
+              onClick={() => ouvrir(o.cle)}
+              className={cn(
+                'shrink-0 rounded-full border px-3.5 py-2 text-[14px] font-medium',
+                onglet === o.cle
+                  ? 'border-accent bg-accent text-white'
+                  : 'border-line bg-surface text-ink-2 active:bg-surface-2',
+              )}
+            >
+              {o.libelle}
+            </button>
+          ))}
+        </nav>
+
+        <div role="tabpanel" aria-label={ONGLETS.find((o) => o.cle === onglet)?.libelle}>
+          {onglet === 'general' ? (
+            <div className="space-y-4">
+              {interventions}
+              <PanneauGeneral parcel={parcel} fiche={fiche} />
+            </div>
+          ) : !fiche ? (
+            registresEtat.enCours && !registres ? (
+              <Card>
+                <p className="flex items-center gap-2.5 text-[14px] text-ink-2">
+                  <Spinner /> Chargement des registres…
+                </p>
+              </Card>
+            ) : (
+              <Banner tone="info">
+                {registres
+                  ? 'Les registres de cette parcelle ne sont pas encore sur le téléphone : ils arriveront à la prochaine synchronisation.'
+                  : 'Les registres ne sont pas encore sur le téléphone. Ils arrivent à la première synchronisation avec du réseau.'}
+              </Banner>
+            )
+          ) : onglet === 'cultures' ? (
+            <PanneauCultures
+              fiche={fiche}
+              campagne={registres?.campaignYear ?? snapshot?.campaignYear ?? new Date().getFullYear()}
+              enAttente={<EnAttente operations={enFile} kind="soilCover.create" libelleCouvert={libelleCouvert} />}
+              ajouterCouvert={saisir('couvert')}
+            />
+          ) : onglet === 'apports' ? (
+            <PanneauApports
+              fiche={fiche}
+              enAttente={<EnAttente operations={enFile} kind="fertilization.create" />}
+              ajouter={saisir('apport')}
+            />
+          ) : onglet === 'phyto' ? (
+            <PanneauPhyto
+              fiche={fiche}
+              enAttente={<EnAttente operations={enFile} kind="phyto.create" />}
+              ajouter={saisir('phyto')}
+            />
+          ) : onglet === 'travaux' ? (
+            <PanneauTravaux
+              fiche={fiche}
+              enAttente={<EnAttente operations={enFile} kind="operation.create" libelleTravail={libelleTravail} />}
+              ajouter={saisir('travaux')}
+            />
+          ) : (
+            <PanneauHistorique fiche={fiche} />
+          )}
+        </div>
+
+        {/* D'où viennent ces registres, et de quand : hors réseau, on lit ce
+            qu'il y avait à la dernière synchronisation, et il faut le savoir. */}
+        <div className="px-1 text-[12.5px] leading-snug text-ink-3">
+          {registres ? (
+            <p>
+              Registres à jour au {new Date(registres.verifiedAt).toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              {enFile.length > 0
+                ? ` · ${enFile.length} saisie${enFile.length > 1 ? 's' : ''} en attente d’envoi`
+                : ''}
+              .
+            </p>
+          ) : null}
+          {registresEtat.erreur ? <p className="mt-0.5">{registresEtat.erreur}</p> : null}
+          {online ? (
+            <button
+              type="button"
+              onClick={() => void actualiserRegistres()}
+              disabled={registresEtat.enCours}
+              className="mt-1 font-semibold text-accent-ink disabled:opacity-60"
+            >
+              {registresEtat.enCours ? 'Actualisation…' : 'Actualiser'}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

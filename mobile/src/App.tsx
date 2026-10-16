@@ -10,7 +10,8 @@ import {
   saveSession,
 } from './lib/storage';
 import { SERVER_URL } from './lib/config';
-import { fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
+import { ApiError, fetchSnapshot, logout as apiLogout, OfflineError } from './lib/api';
+import { actualiserRegistres, lireRegistres, type RegistresLocaux } from './lib/registres';
 import { synchronize, type SyncReport } from './lib/sync';
 import { syncStatusFrom, type SyncStatus } from '@commun/sync-status';
 import { writeSnapshot } from './lib/db';
@@ -84,6 +85,15 @@ export type AppContext = {
   runSync: () => Promise<SyncReport | null>;
   /** Exploitation ouverte ; `null` tant que rien n'a été téléchargé. */
   activeFarmId: string | null;
+  /**
+   * Registres des parcelles (cultures, apports, traitements, travaux,
+   * historique) gardés sur l'appareil ; `null` tant qu'aucun n'a été reçu.
+   */
+  registres: RegistresLocaux | null;
+  /** État de la dernière demande de registres au serveur. */
+  registresEtat: { enCours: boolean; erreur: string | null };
+  /** Redemande les registres au serveur (rien ne transite s'ils sont à jour). */
+  actualiserRegistres: () => Promise<void>;
   /** `true` si le compte est un expert agronomique. */
   isExpert: boolean;
   /** `true` si l'exploitation ouverte est suivie et non détenue : lecture seule. */
@@ -122,6 +132,11 @@ export function App() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
+  const [registres, setRegistres] = useState<RegistresLocaux | null>(null);
+  const [registresEtat, setRegistresEtat] = useState<{ enCours: boolean; erreur: string | null }>({
+    enCours: false,
+    erreur: null,
+  });
 
   const isExpert = session?.accountType === 'AGRONOMIST';
   const homeScreen: Screen = isExpert ? { name: 'portfolio' } : { name: 'parcels' };
@@ -147,6 +162,8 @@ export function App() {
       setSnapshot(cached);
       setPending(count);
       setActiveFarmId(farmId ?? cached?.farm.id ?? null);
+      // Les registres déjà reçus s'affichent tout de suite, réseau ou pas.
+      setRegistres(await lireRegistres(cached?.farm.id));
       setStack([
         valide?.accountType === 'AGRONOMIST' ? { name: 'portfolio' } : { name: 'parcels' },
       ]);
@@ -174,6 +191,35 @@ export function App() {
     setPending(await outboxCount());
   }, []);
 
+  /**
+   * Redemande les registres de `farmId`. En arrière-plan : ni l'instantané ni
+   * la synchronisation ne l'attendent, et un échec laisse ceux d'avant — avec
+   * un message qui dit pourquoi ils n'ont pas été rafraîchis.
+   */
+  const majRegistres = useCallback(
+    async (farmId: string) => {
+      if (!session) return;
+      setRegistresEtat({ enCours: true, erreur: null });
+      try {
+        setRegistres(await actualiserRegistres(session, farmId));
+        setRegistresEtat({ enCours: false, erreur: null });
+      } catch (error) {
+        setRegistresEtat({
+          enCours: false,
+          erreur:
+            error instanceof OfflineError
+              ? 'Hors réseau : registres de la dernière synchronisation.'
+              : error instanceof ApiError && error.status === 404
+                ? 'Le serveur ne fournit pas encore les registres : il doit être mis à jour.'
+                : error instanceof Error
+                  ? error.message
+                  : 'Registres indisponibles.',
+        });
+      }
+    },
+    [session],
+  );
+
   const refreshSnapshot = useCallback(async () => {
     if (!session) return;
     try {
@@ -182,6 +228,9 @@ export function App() {
       setSnapshot(fresh);
       setActiveFarmId(fresh.farm.id);
       await saveActiveFarmId(fresh.farm.id);
+      // Ceux de l'exploitation qu'on vient d'ouvrir, puis leur mise à jour.
+      setRegistres(await lireRegistres(fresh.farm.id));
+      void majRegistres(fresh.farm.id);
       // Les couches de la carte (cours d'eau d'abord), enregistrées pour être
       // affichées au champ, sans réseau. En arrière-plan : la synchronisation
       // ne les attend pas, et un échec laisse simplement les précédentes.
@@ -190,7 +239,7 @@ export function App() {
       // Hors ligne : le cache précédent reste affiché, c'est tout l'intérêt.
       if (!(error instanceof OfflineError)) throw error;
     }
-  }, [session, activeFarmId]);
+  }, [session, activeFarmId, majRegistres]);
 
   // Instantané rafraîchi à la connexion, puis à chaque retour du réseau.
   useEffect(() => {
@@ -355,6 +404,8 @@ export function App() {
         const fresh = await fetchSnapshot(session, farmId);
         await writeSnapshot(fresh);
         setSnapshot(fresh);
+        setRegistres(await lireRegistres(fresh.farm.id));
+        void majRegistres(fresh.farm.id);
         setStack((current) => [...current, { name: 'parcels' }]);
       } catch (error) {
         if (!(error instanceof OfflineError)) throw error;
@@ -366,7 +417,7 @@ export function App() {
         }
       }
     },
-    [session, snapshot],
+    [session, snapshot, majRegistres],
   );
 
   const renommerLocalement = useCallback(
@@ -399,6 +450,7 @@ export function App() {
     ]);
     setSession(null);
     setSnapshot(null);
+    setRegistres(null);
     setActiveFarmId(null);
     setPending(0);
     setStack([{ name: 'parcels' }]);
@@ -440,6 +492,11 @@ export function App() {
     syncError,
     runSync,
     activeFarmId,
+    registres,
+    registresEtat,
+    actualiserRegistres: async () => {
+      if (snapshot) await majRegistres(snapshot.farm.id);
+    },
     isExpert,
     // La lecture seule vient du serveur, pas d'une déduction locale : c'est lui
     // qui sait si l'accès relève d'une mission de conseil.

@@ -137,7 +137,7 @@ export function RenameParcel({
               id="renommer-lieu"
               value={lieu}
               onChange={(e) => setLieu(e.target.value)}
-              placeholder="Les Sauvattes"
+              placeholder="Les Vernes"
             />
           </Field>
 

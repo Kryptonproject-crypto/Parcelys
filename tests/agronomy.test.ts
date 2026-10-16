@@ -280,10 +280,14 @@ describe('Suivi agronomique', () => {
         balance: { perHectareN: number; perHectareP: number; incompleteCount: number };
       }>(`/api/parcels/${parcelId}/fertilization`);
 
-      // 300 kg/ha × 15 % = 45 kg/ha, appliqués sur les deux surfaces cumulées :
-      // la moyenne pondérée est donc de 22,5 kg/ha.
-      expect(response.body.balance.perHectareN).toBeCloseTo(22.5, 1);
-      expect(response.body.balance.perHectareP).toBeCloseTo(22.5, 1);
+      // 300 kg/ha × 15 % = 45 kg N/ha reçus par la parcelle ; le fumier sans
+      // analyse n'y ajoute rien de connu, et il est signalé comme incomplet.
+      //
+      // Jusqu'à la 0.11.1, le bilan divisait le total par la somme des
+      // surfaces des deux passages et annonçait 22,5 kg/ha : la moitié de ce
+      // que l'hectare avait reçu, sous le titre « cumul de tous les apports ».
+      expect(response.body.balance.perHectareN).toBeCloseTo(45, 1);
+      expect(response.body.balance.perHectareP).toBeCloseTo(45, 1);
       expect(response.body.balance.incompleteCount).toBe(1);
     });
   });

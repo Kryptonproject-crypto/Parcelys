@@ -89,7 +89,7 @@ describe('Recherche de parcelles', () => {
       });
       await client.post('/api/parcels', {
         name: 'Le Chêne',
-        lieuDit: 'Les Sauvattes',
+        lieuDit: 'Les Vernes',
         geometry: testPolygon(1.9, 48.08, 0.01, 0.006),
       });
       await client.post('/api/parcels', {
@@ -120,7 +120,7 @@ describe('Recherche de parcelles', () => {
 
     it('cherche aussi le lieu-dit, le numéro interne et la commune', async () => {
       for (const [terme, attendu] of [
-        ['sauvattes', 'Le Chêne'],
+        ['vernes', 'Le Chêne'],
         ['39-3', 'La Côte'],
         ['sainte-test', 'Grande Pièce'],
       ] as Array<[string, string]>) {

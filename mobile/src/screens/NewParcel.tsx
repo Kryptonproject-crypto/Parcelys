@@ -10,9 +10,10 @@ import {
 } from '../lib/geo';
 import {
   accuracyLabel,
-  currentPosition,
   GeolocationDenied,
+  releverPosition,
   watchPosition,
+  type ProgresReleve,
 } from '../lib/geolocation';
 import { enqueue } from '../lib/db';
 import type { Position } from '../lib/types';
@@ -49,6 +50,12 @@ import { ContourPreview } from '../components/ContourPreview';
 const MIN_DISTANCE_M = 10;
 /** Au-delà de cette imprécision annoncée, le point est ignoré. */
 const MAX_ACCURACY_M = 25;
+/**
+ * Un sommet posé à l'arrêt : on vise ±5 m sur cinq points, en quinze secondes
+ * au plus. Debout à l'angle de la parcelle, on a le temps — et c'est
+ * précisément le point qui dessinera le coin.
+ */
+const SOMMET = { precisionVisee: 5, releves: 5, dureeMaxMs: 15_000 } as const;
 
 export function NewParcelScreen({ context }: { context: AppContext }) {
   const { back, refreshPending } = context;
@@ -56,6 +63,9 @@ export function NewParcelScreen({ context }: { context: AppContext }) {
   const [points, setPoints] = useState<Position[]>([]);
   const [walking, setWalking] = useState(false);
   const [live, setLive] = useState<Position | null>(null);
+  /** Relevé d'un sommet en cours, avec sa progression. */
+  const [releve, setReleve] = useState<ProgresReleve | null>(null);
+  const [dernierSommet, setDernierSommet] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [commune, setCommune] = useState('');
@@ -114,19 +124,34 @@ export function NewParcelScreen({ context }: { context: AppContext }) {
   }
 
   async function addVertex(): Promise<void> {
+    if (releve) return;
     setError(null);
+    setDernierSommet(null);
+    setReleve({ precision: null, points: 0 });
     try {
-      const position = await currentPosition();
-      setLive(position);
-      if (position.accuracy !== undefined && position.accuracy > MAX_ACCURACY_M) {
-        setError(
-          `Position trop imprécise (±${Math.round(position.accuracy)} m). Attendez que le GPS se stabilise.`,
-        );
-        return;
-      }
-      setPoints((current) => [...current, position]);
+      const position = await releverPosition({
+        ...SOMMET,
+        precisionMax: MAX_ACCURACY_M,
+        onProgres: setReleve,
+      });
+      const sommet: Position = {
+        lat: position.lat,
+        lng: position.lng,
+        ...(position.accuracy !== undefined ? { accuracy: position.accuracy } : {}),
+      };
+      setLive(sommet);
+      setPoints((current) => [...current, sommet]);
+      setDernierSommet(
+        `Sommet posé : moyenne de ${position.releve.retenus} point${position.releve.retenus > 1 ? 's' : ''}, ` +
+          `±${Math.round(position.releve.precision)} m` +
+          (position.releve.precision <= SOMMET.precisionVisee
+            ? '.'
+            : ' (le GPS n’a pas fait mieux en 15 s).'),
+      );
     } catch (caught) {
       handleError(caught);
+    } finally {
+      setReleve(null);
     }
   }
 
@@ -285,6 +310,8 @@ export function NewParcelScreen({ context }: { context: AppContext }) {
 
         <ContourPreview points={points} live={live} />
 
+        {dernierSommet ? <p className="px-1 text-[13px] text-ink-3">{dernierSommet}</p> : null}
+
         {points.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={points.length >= 3 ? 'green' : 'amber'}>
@@ -325,8 +352,12 @@ export function NewParcelScreen({ context }: { context: AppContext }) {
             >
               {walking ? 'Arrêter la marche' : 'Marcher le contour'}
             </Button>
-            <Button variant="secondary" onClick={() => void addVertex()}>
-              Poser un sommet
+            <Button variant="secondary" onClick={() => void addVertex()} disabled={releve !== null}>
+              {releve
+                ? releve.precision === null
+                  ? 'Relevé…'
+                  : `Relevé… ±${Math.round(releve.precision)} m`
+                : 'Poser un sommet'}
             </Button>
           </div>
           <Button

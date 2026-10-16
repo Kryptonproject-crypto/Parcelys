@@ -1,8 +1,26 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
-/** Boîte de dialogue modale : fermeture par Échap, par le fond ou par le bouton. */
+/**
+ * Boîte de dialogue modale : fermeture par Échap, par le fond ou par le bouton.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POURQUOI UN PORTAIL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Le dialogue était rendu là où son bouton se trouvait. Or un `z-index`, même
+ * de 1100, ne vaut qu'**à l'intérieur** du contexte d'empilement de ses
+ * ancêtres : l'en-tête de page anime son entrée par `transform`, ce qui fait
+ * de lui un contexte d'empilement — et le dialogue « Renommer la parcelle »,
+ * enfermé dedans, passait **sous** la carte de la fiche et sous la barre du
+ * haut. Mesuré au navigateur : six des sept commandes du dialogue recouvertes,
+ * le champ « Numéro interne » et le bouton « Enregistrer » sous la carte.
+ *
+ * Rendu dans `document.body`, le dialogue ne dépend plus de l'endroit d'où on
+ * l'ouvre : aucun ancêtre ne peut plus le faire passer en dessous.
+ */
 export function Modal({
   open,
   onClose,
@@ -18,6 +36,11 @@ export function Modal({
   children: ReactNode;
   wide?: boolean;
 }) {
+  // Le portail vise `document.body`, qui n'existe pas pendant le rendu
+  // serveur : on attend d'être monté côté navigateur.
+  const [monte, setMonte] = useState(false);
+  useEffect(() => setMonte(true), []);
+
   useEffect(() => {
     if (!open) return;
 
@@ -35,9 +58,9 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !monte) return null;
 
-  return (
+  return createPortal(
     // `items-start` et non `items-center`, y compris sur grand écran.
     //
     // Avec `items-center`, un dialogue plus haut que la fenêtre déborde des
@@ -105,6 +128,7 @@ export function Modal({
             rien — le dialogue déborderait à nouveau. */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

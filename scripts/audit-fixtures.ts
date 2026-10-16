@@ -119,7 +119,7 @@ async function main() {
           internalNumber: voulue.numero,
           commune: 'Sainte-Test',
           inseeCode: '28000',
-          lieuDit: 'Les Sauvattes',
+          lieuDit: 'Les Vernes',
           parcelType: 'Terre labourable',
           areaHa: 0,
         },

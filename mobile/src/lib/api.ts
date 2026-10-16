@@ -167,6 +167,28 @@ export async function fetchSnapshot(
   });
 }
 
+/**
+ * Registres de toutes les parcelles de l'exploitation : cultures, apports,
+ * traitements, travaux, historique.
+ *
+ * `version` est l'empreinte de ceux déjà enregistrés sur l'appareil : si rien
+ * n'a changé depuis, le serveur répond seulement `{ unchanged: true }`.
+ */
+export async function fetchRegistres(
+  session: Session,
+  farmId: string,
+  version?: string | null,
+): Promise<import('@commun/registres').RegistresMobile> {
+  const query = new URLSearchParams({ farmId });
+  if (version) query.set('version', version);
+  return request(session.serverUrl, `/api/mobile/registres?${query.toString()}`, {
+    token: session.token,
+    // Une première réception, sur une grosse exploitation et un Raspberry Pi,
+    // peut dépasser les 15 s ordinaires ; les suivantes tiennent en une ligne.
+    timeoutMs: 60_000,
+  });
+}
+
 /** Une couche réglementaire de la carte, sans ses géométries. */
 export type CoucheCarte = {
   code: string;

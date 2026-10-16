@@ -20,7 +20,7 @@ import {
   IconeStock,
   IconeSuite,
 } from '../components/icones';
-import { GeolocationDenied, currentPosition } from '../lib/geolocation';
+import { releverPosition } from '../lib/geolocation';
 import type { CachedParcel, Position } from '../lib/types';
 
 /**
@@ -85,15 +85,25 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
    */
   async function ouLeSuisJe(): Promise<void> {
     setLocalisation('recherche');
-    setMessageLocalisation(null);
+    setMessageLocalisation('Recherche de la position…');
     try {
-      const position = await currentPosition();
+      // Plusieurs points, pas le premier venu : le premier est souvent celui
+      // du réseau, à trente mètres, et suffit à ouvrir la parcelle voisine.
+      const position = await releverPosition({
+        onProgres: ({ precision, points }) =>
+          setMessageLocalisation(
+            precision === null
+              ? 'Recherche de la position…'
+              : `Recherche de la position… ±${Math.round(precision)} m (${points} point${points > 1 ? 's' : ''})`,
+          ),
+      });
       const trouvee = (snapshot?.parcels ?? []).find((parcel) =>
         dansLaParcelle(position, parcel.geometry),
       );
 
       if (trouvee) {
         setLocalisation('repos');
+        setMessageLocalisation(null);
         navigate({ name: 'parcel', parcelId: trouvee.id });
         return;
       }
@@ -111,16 +121,20 @@ export function ParcelsScreen({ context }: { context: AppContext }) {
         .sort((a, b) => a.distance - b.distance)[0];
 
       setLocalisation('erreur');
+      // La précision est dite : « aucune parcelle » à ±4 m et à ±40 m ne
+      // valent pas la même chose quand on est en bordure.
+      const precision =
+        position.accuracy !== undefined ? ` (position à ±${Math.round(position.accuracy)} m)` : '';
       setMessageLocalisation(
         proche
-          ? `Vous n’êtes dans aucune de vos parcelles. La plus proche est ` +
+          ? `Vous n’êtes dans aucune de vos parcelles${precision}. La plus proche est ` +
             `« ${proche.parcel.name} », à ${formatDistance(proche.distance)}.`
-          : 'Vous n’êtes dans aucune de vos parcelles.',
+          : `Vous n’êtes dans aucune de vos parcelles${precision}.`,
       );
     } catch (cause) {
       setLocalisation('erreur');
       setMessageLocalisation(
-        cause instanceof GeolocationDenied
+        cause instanceof Error
           ? cause.message
           : 'Position introuvable. Sous les arbres ou en bâtiment, le GPS met du temps.',
       );

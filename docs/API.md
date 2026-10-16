@@ -386,6 +386,7 @@ Retire une culture de l'assolement.
     "totalN": 837.5, "totalP": 0, "totalK": 0,
     "perHectareN": 67, "perHectareP": 0, "perHectareK": 0,
     "areaHa": 12.5,
+    "referenceAreaHa": 12.5,
     "incompleteCount": 1
   }
 }
@@ -393,6 +394,12 @@ Retire une culture de l'assolement.
 
 `incompleteCount` recense les apports sans teneur en azote connue : le bilan est
 alors sous-estimé, et l'interface le signale.
+
+`perHectare*` est le total rapporté à la **surface de la parcelle**
+(`referenceAreaHa`) : ce que l'hectare a reçu en cumul. `areaHa` est la surface
+traitée cumulée (chaque passage compte la sienne). Avant la 0.11.1, les kg/ha
+étaient rapportés à `areaHa` — la moyenne d'un passage, soit la moitié du
+cumul pour deux apports sur toute la parcelle.
 
 ### `POST /api/parcels/:id/fertilization`
 
@@ -817,6 +824,42 @@ derniers mois, avec leur AMM.
 
 Aucune donnée réglementaire n'est produite : la liste hors ligne provient de
 saisies passées, la recherche au catalogue officiel E-Phy reste en ligne.
+
+### `GET /api/mobile/registres`
+
+Registres de toutes les parcelles de l'exploitation, pour la fiche parcelle de
+l'application : ce que montre la fiche du site, en plus court. Format :
+`src/lib/shared/registres.ts`.
+
+| Paramètre | |
+|---|---|
+| `farmId` | Exploitation (facultatif pour l'exploitant ; l'expert désigne celle de sa mission). |
+| `version` | Empreinte des registres déjà sur l'appareil. |
+
+```json
+{
+  "format": 1, "version": "3f2a…", "unchanged": false,
+  "farmId": "…", "campaignYear": 2027, "generatedAt": "…",
+  "parcels": {
+    "<parcelId>": {
+      "general": { "statusLabel": "En production", "declarationsPac": [ … ], … },
+      "cultures": [ … ], "couverts": [ … ],
+      "apports": [ … ], "bilan": { "perHectareN": 100.3, … },
+      "traitements": [ … ], "travaux": [ … ],
+      "historique": [ { "kind": "PHYTO", "date": "…", "title": "…", "details": [ … ] } ],
+      "documents": 2
+    }
+  }
+}
+```
+
+Si `version` est déjà la bonne : `{ "format": 1, "version": "…", "unchanged": true }`.
+L'empreinte change à tout ajout, modification ou suppression d'une parcelle,
+culture, couvert, apport, traitement, travail, document ou déclaration PAC, au
+changement de campagne et au changement de format.
+
+Droits : `record:read` (membres de l'exploitation, expert en mission en
+lecture). Exploitation hors d'atteinte : 404.
 
 ### `POST /api/sync`
 

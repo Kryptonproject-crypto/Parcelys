@@ -1322,6 +1322,25 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.11.1
+
+Aucune migration. La mise à jour habituelle :
+
+```bash
+cd /opt/parcelys && sudo bash scripts/update-pi.sh
+```
+
+puis **relancez la compilation de l’APK** (Actions → « APK Android » → *Run
+workflow*) et réinstallez-la : la fiche parcelle avec ses registres et les
+réglages du GPS sont dans l’application. La première synchronisation après la
+mise à jour télécharge les registres de toutes les parcelles ; les suivantes ne
+transfèrent rien si rien n’a changé.
+
+Sur le téléphone, vérifiez que Parcelys a la **position exacte** (Réglages ›
+Applications › Parcelys › Autorisations › Position › « Utiliser la position
+exacte ») : avec la seule position approximative, l’application le dit
+désormais au lieu d’afficher une position fausse.
+
 ### Passer en 0.11.0
 
 Version à migration : elle **ajoute** des tables et des colonnes, et numérote

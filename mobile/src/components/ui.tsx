@@ -182,11 +182,12 @@ export function Badge({
   tone = 'neutral',
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'green' | 'amber' | 'red';
+  tone?: 'neutral' | 'green' | 'amber' | 'red' | 'blue';
 }) {
   const tones = {
     neutral: 'bg-surface-2 text-ink-2',
     green: 'bg-champ-500/15 text-champ-700 dark:text-champ-400',
+    blue: 'bg-ciel-500/15 text-ciel-600 dark:text-ciel-500',
     amber: 'bg-ble-500/20 text-ble-600 dark:text-ble-400',
     red: 'bg-brique-500/15 text-brique-600 dark:text-brique-500',
   } as const;

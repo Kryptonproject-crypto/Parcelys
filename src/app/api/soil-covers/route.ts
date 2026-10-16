@@ -64,7 +64,13 @@ export const POST = route(async (request: NextRequest, context: Ctx) => {
   // la parcelle, j'y note le couvert » — exactement ce que l'application
   // permet — échouerait au retour du réseau, avec « Parcelle introuvable »
   // alors que la parcelle vient d'être créée.
-  const params = await context.params;
+  //
+  // Appelée par son adresse (`/api/soil-covers`, le formulaire du site), la
+  // route n'a **aucun** paramètre de chemin : Next lui passe alors des
+  // paramètres indéfinis, et lire `params.id` levait une erreur 500 — le
+  // couvert ne s'enregistrait pas depuis le site (constaté en 0.11.1 ; seule la
+  // file de l'application, qui fournit `{ id }`, passait).
+  const params = (await context?.params) ?? {};
   const parcelId = params.id || body.parcelId;
 
   const { ctx } = await requireParcelAccess(parcelId, 'record:write');
