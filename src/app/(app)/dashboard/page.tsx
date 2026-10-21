@@ -3,11 +3,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/session';
 import { getDashboardData } from '@/lib/services/dashboard';
-import { Suspense } from 'react';
-import {
-  ComplianceCardDifferee,
-  ComplianceCardEnAttente,
-} from '@/components/regulatory/ComplianceCardDifferee';
 import { getMonthlyActivity } from '@/lib/services/activity';
 import { getFarmParcelsGeoJSON } from '@/lib/geo/repository';
 import { prisma } from '@/lib/prisma';
@@ -208,15 +203,9 @@ export default async function DashboardPage() {
             />
           </div>
 
-          {/* Conformité — ajoutée au tableau de bord existant plutôt que
-              reléguée dans un écran séparé : la conformité doit se voir dans le
-              travail quotidien, pas constituer un second travail. */}
-          <div className="mt-6">
-            {/* Calculée après le reste : le tableau de bord ne l'attend pas. */}
-            <Suspense fallback={<ComplianceCardEnAttente campaignYear={campaignYear} />}>
-              <ComplianceCardDifferee farmId={auth.activeFarmId} campaignYear={campaignYear} />
-            </Suspense>
-          </div>
+          {/* La conformité n'est plus résumée ici : elle a sa page, ouverte
+              depuis le menu. Le tableau de bord montre l'exploitation et ce
+              qui reste à saisir. */}
 
           {/* À faire */}
           {data.todo.length > 0 ? (

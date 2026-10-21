@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
-import { logAudit } from '@/lib/audit';
+import { copieDeRegistre, logAudit } from '@/lib/audit';
 import { notFound } from '@/lib/api/errors';
 import { operationSchema } from '@/lib/validation/farming';
 import { differences, preparerTravail } from '@/lib/services/saisies';
@@ -14,10 +14,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
   const id = (await context.params).id;
   if (!id) throw notFound('Travail introuvable');
 
-  const record = await prisma.agriculturalOperation.findUnique({
-    where: { id },
-    select: { id: true, parcelId: true, type: true },
-  });
+  const record = await prisma.agriculturalOperation.findUnique({ where: { id } });
   if (!record) throw notFound('Travail introuvable');
 
   const { ctx } = await requireParcelAccess(record.parcelId, 'record:delete');
@@ -30,7 +27,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
     entity: 'agriculturalOperation',
     entityId: id,
     ipAddress: clientIp(request),
-    metadata: { type: record.type },
+    metadata: { type: record.type, supprime: copieDeRegistre(record) },
   });
 
   return ok({ message: 'Travail supprimé' });

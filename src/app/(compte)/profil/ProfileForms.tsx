@@ -440,6 +440,17 @@ export function ProfileForms({
             Supprimer mon compte
           </Button>
         </div>
+        <p className="mt-4 text-[13px] text-ink-3">
+          Ce que Parcelys fait de vos données et combien de temps il les garde :{' '}
+          <a href="/confidentialite" className="font-medium text-champ-700 underline dark:text-champ-400">
+            Données personnelles
+          </a>{' '}
+          ·{' '}
+          <a href="/cookies" className="font-medium text-champ-700 underline dark:text-champ-400">
+            Cookies et traceurs
+          </a>
+          .
+        </p>
       </Card>
 
       <ConfirmDialog request={confirmation.request} onClose={confirmation.close} />
@@ -455,6 +466,17 @@ export function ProfileForms({
             leurs parcelles, interventions et documents. Les exploitations partagées avec
             d&apos;autres utilisateurs seront conservées : seule votre appartenance sera
             retirée. Exportez vos données avant de continuer.
+          </Alert>
+          <Alert tone="warning" title="Vos registres restent à conserver">
+            Le registre phytosanitaire et le cahier d&apos;enregistrement des apports
+            azotés doivent pouvoir être présentés pendant au moins cinq ans, que vous
+            utilisiez Parcelys ou non. Avant de supprimer votre compte, téléchargez-les
+            depuis{' '}
+            <a href="/exports?dataset=registre-phyto-numerique" className="font-medium underline">
+              Exports
+            </a>{' '}
+            (registre phytosanitaire numérique, registre des apports, cahier d&apos;épandage) et
+            gardez-les : une fois le compte supprimé, Parcelys ne peut plus les produire.
           </Alert>
 
           <Field label="Votre mot de passe" htmlFor="password" required>

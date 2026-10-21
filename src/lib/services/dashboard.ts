@@ -204,21 +204,56 @@ async function buildTodoList(params: {
   }
 
   if (params.parcelIds.length > 0) {
-    // Traitements dont la traçabilité réglementaire est incomplète.
-    const incompletePhyto = await prisma.phytosanitaryApplication.count({
-      where: {
-        parcelId: { in: params.parcelIds },
-        OR: [{ amm: null }, { targetLabel: null }, { operator: null }],
-      },
-    });
+    // Traitements dont la traçabilité réglementaire est incomplète. Le
+    // libellé dit **quelles** mentions manquent : « AMM, cible ou opérateur »
+    // laissait chercher, ligne par ligne, laquelle des trois.
+    const dansLesParcelles = { parcelId: { in: params.parcelIds } };
+    const [incompletePhyto, sansAmm, sansCible, sansOperateur, traitements] = await Promise.all([
+      prisma.phytosanitaryApplication.count({
+        where: { ...dansLesParcelles, OR: [{ amm: null }, { targetLabel: null }, { operator: null }] },
+      }),
+      prisma.phytosanitaryApplication.count({ where: { ...dansLesParcelles, amm: null } }),
+      prisma.phytosanitaryApplication.count({ where: { ...dansLesParcelles, targetLabel: null } }),
+      prisma.phytosanitaryApplication.count({ where: { ...dansLesParcelles, operator: null } }),
+      prisma.phytosanitaryApplication.count({ where: dansLesParcelles }),
+    ]);
     if (incompletePhyto > 0) {
+      const manques = [
+        sansAmm > 0 ? `AMM (${sansAmm})` : null,
+        sansCible > 0 ? `cible (${sansCible})` : null,
+        sansOperateur > 0 ? `opérateur (${sansOperateur})` : null,
+      ].filter(Boolean);
       todo.push({
         id: 'incomplete-phyto',
         kind: 'phyto',
-        label: `${incompletePhyto} traitement${incompletePhyto > 1 ? 's' : ''} à compléter (AMM, cible ou opérateur manquant)`,
+        label: `${incompletePhyto} traitement${incompletePhyto > 1 ? 's' : ''} à compléter — manque : ${manques.join(', ')}`,
         link: '/phytosanitaire?filtre=incomplet',
         severity: 'warning',
       });
+    }
+
+    // Le registre phytopharmaceutique porte, depuis le 1er janvier 2026, le
+    // SIRET de l'exploitation et sa conduite en agriculture biologique
+    // (arrêté du 24 décembre 2025). Ce sont des réglages de l'exploitation,
+    // à faire une fois — pas une ligne à reprendre à chaque traitement.
+    if (traitements > 0) {
+      const ferme = await prisma.farm.findUnique({
+        where: { id: params.farmId },
+        select: { siret: true, organicFarming: true },
+      });
+      const aRegler = [
+        ferme?.siret ? null : 'le SIRET',
+        ferme?.organicFarming ? null : 'la conduite en agriculture biologique',
+      ].filter(Boolean);
+      if (aRegler.length > 0) {
+        todo.push({
+          id: 'registry-farm',
+          kind: 'registry',
+          label: `Registre phytosanitaire : indiquez ${aRegler.join(' et ')} de l’exploitation`,
+          link: '/parametres',
+          severity: 'warning',
+        });
+      }
     }
 
     const missingWeather = await prisma.phytosanitaryApplication.count({

@@ -15,6 +15,7 @@ import type { CropYearRow, PhytoRow } from '@/app/(app)/parcelles/[id]/types';
 import { nomCourtDeCulture } from '@/lib/shared/cultures';
 import { uniteAffichee } from '@/lib/shared/unites';
 import { etatDuProduit } from '@/lib/shared/produits';
+import { dernierOperateur, retenirOperateur } from '@/lib/shared/operateur';
 
 /** Un produit en stock, avec ses lots et ce qu'il en reste. */
 type ProduitEnStock = {
@@ -32,6 +33,7 @@ export function PhytoForm({
   cropYears,
   hasLocation,
   parcelDrained,
+  conduiteBio = null,
   existing = null,
   onDone,
 }: {
@@ -42,6 +44,12 @@ export function PhytoForm({
   hasLocation: boolean;
   /** Sol drainé de la parcelle. `null` = non renseigné, et non « non drainé ». */
   parcelDrained: boolean | null;
+  /**
+   * Conduite bio de l'exploitation. Toute en bio ou aucune surface en bio : la
+   * mention se déduit du profil et n'est pas redemandée. En partie, ou non
+   * renseignée : elle se donne ici.
+   */
+  conduiteBio?: 'AUCUNE' | 'TOTALE' | 'PARTIELLE' | null;
   /**
    * Le traitement à corriger ; absent pour une nouvelle saisie. En correction,
    * la météo n'est pas relevée à nouveau : c'est celle du jour du traitement
@@ -75,6 +83,29 @@ export function PhytoForm({
   const [stockLotId, setStockLotId] = useState(lotInitial);
   const [catalogue, setCatalogue] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
+
+  // Cible et opérateur : les deux mentions que « À faire » réclame le plus
+  // souvent. La cible est proposée d'après les usages autorisés du produit,
+  // l'opérateur d'après la dernière saisie faite sur cet appareil.
+  const [cible, setCible] = useState(existing?.targetLabel ?? '');
+  const [cibles, setCibles] = useState<string[]>([]);
+  const [operateur, setOperateur] = useState(existing?.operator ?? '');
+  useEffect(() => {
+    if (!existing) setOperateur((actuel) => actuel || dernierOperateur());
+  }, [existing]);
+
+  // Mentions du registre en vigueur au 1er janvier 2026.
+  const [heureDebut, setHeureDebut] = useState(existing?.startTime ?? '');
+  const [heureFin, setHeureFin] = useState(existing?.endTime ?? '');
+  const [stade, setStade] = useState(existing?.bbchStage ?? '');
+  const [realisePar, setRealisePar] = useState<string>(existing?.appliedBy ?? '');
+  const [prestataire, setPrestataire] = useState(existing?.contractorName ?? '');
+  const [siretPrestataire, setSiretPrestataire] = useState(existing?.contractorSiret ?? '');
+  const demanderBio = conduiteBio === 'PARTIELLE' || conduiteBio === null;
+  const [bio, setBio] = useState(
+    existing?.organicProduction === true ? 'oui' : existing?.organicProduction === false ? 'non' : '',
+  );
+  const tiers = realisePar === 'PRESTATAIRE' || realisePar === 'ENTRAIDE';
 
   // Le stock d'abord : ce que l'on pulvérise est, le plus souvent, ce que
   // l'on a acheté. La recherche au catalogue reste à un clic.
@@ -160,12 +191,21 @@ export function PhytoForm({
       // culture ne se contrôle pas. Il était perdu jusqu'ici — le formulaire
       // lisait un champ qui n'existait pas.
       cropLabel: cropLabel || cropNameOf(cropYearId) || '',
-      targetLabel: String(form.get('targetLabel') ?? ''),
+      targetLabel: cible,
       dose: Number(dose),
       doseUnit,
       sprayVolumeLHa: String(form.get('sprayVolumeLHa') ?? '') || undefined,
       treatedAreaHa: Number(treatedArea),
-      operator: String(form.get('operator') ?? ''),
+      operator: operateur,
+      startTime: heureDebut,
+      endTime: heureFin,
+      bbchStage: stade,
+      appliedBy: realisePar || null,
+      contractorName: tiers ? prestataire : '',
+      contractorSiret: tiers ? siretPrestataire : '',
+      // Demandée seulement quand le profil ne la donne pas : sinon le serveur
+      // la déduit, et une correction garde celle de l'enregistrement.
+      ...(demanderBio ? { organicProduction: bio === '' ? null : bio === 'oui' } : {}),
       notes: String(form.get('notes') ?? ''),
       cropYearId: cropYearId || undefined,
       captureWeather,
@@ -189,6 +229,7 @@ export function PhytoForm({
       const result = existing
         ? await apiPut<{ warnings?: string[] }>(`/api/phytosanitary/applications/${existing.id}`, payload)
         : await apiPost<{ warnings?: string[] }>(`/api/parcels/${parcelId}/phytosanitary`, payload);
+      retenirOperateur(operateur);
       router.refresh();
       if (result.warnings?.length) {
         // Les avertissements restent à l'écran jusqu'à ce qu'on les ferme :
@@ -361,7 +402,25 @@ export function PhytoForm({
           className="sm:col-span-2"
           hint="Ex. adventices, septoriose, pucerons."
         >
-          <Input id="targetLabel" name="targetLabel" defaultValue={existing?.targetLabel ?? ''} />
+          <Input
+            id="targetLabel"
+            name="targetLabel"
+            value={cible}
+            onChange={(e) => setCible(e.target.value)}
+            list="cibles-catalogue"
+            autoComplete="off"
+          />
+          <datalist id="cibles-catalogue">
+            {cibles.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          {cibles.length > 0 ? (
+            <p className="mt-1 text-xs text-ink-3">
+              {cibles.length} cible{cibles.length > 1 ? 's' : ''} autorisée{cibles.length > 1 ? 's' : ''} au
+              catalogue pour ce produit — proposée{cibles.length > 1 ? 's' : ''} à la saisie.
+            </p>
+          ) : null}
         </Field>
 
         <div className="grid grid-cols-2 gap-2">
@@ -419,10 +478,92 @@ export function PhytoForm({
           />
         </Field>
 
-        <Field label="Opérateur" htmlFor="operator">
-          <Input id="operator" name="operator" placeholder="Nom de l'applicateur" defaultValue={existing?.operator ?? ''} />
+        <Field label="Opérateur" htmlFor="operator" hint="Retenu pour les prochains traitements saisis sur cet appareil.">
+          <Input
+            id="operator"
+            name="operator"
+            placeholder="Nom de l'applicateur"
+            value={operateur}
+            onChange={(e) => setOperateur(e.target.value)}
+          />
         </Field>
       </div>
+
+      {/* Mentions ajoutées au registre au 1er janvier 2026 (arrêté du
+          24 décembre 2025). Facultatives ici : heures et stade ne sont exigés
+          que lorsque l'autorisation du produit les encadre. */}
+      <fieldset className="space-y-4 rounded-lg border border-line p-3.5">
+        <legend className="px-1 text-sm font-medium text-ink">Mentions du registre</legend>
+        <p className="text-xs text-ink-3">
+          Heures et stade : à renseigner quand l’étiquette ou l’autorisation du produit les
+          encadre (traitement en floraison, stade limite…). Laissés vides, ils restent vides.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Heure de début" htmlFor="startTime" error={fieldErrors.startTime}>
+            <Input id="startTime" type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} />
+          </Field>
+          <Field label="Heure de fin" htmlFor="endTime" error={fieldErrors.endTime}>
+            <Input id="endTime" type="time" value={heureFin} onChange={(e) => setHeureFin(e.target.value)} />
+          </Field>
+          <Field label="Stade de la culture (BBCH)" htmlFor="bbchStage" error={fieldErrors.bbchStage}>
+            <Input
+              id="bbchStage"
+              value={stade}
+              onChange={(e) => setStade(e.target.value)}
+              placeholder="Ex. 32"
+              maxLength={20}
+            />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Application réalisée par" htmlFor="appliedBy">
+            <Select id="appliedBy" value={realisePar} onChange={(e) => setRealisePar(e.target.value)}>
+              <option value="">Non renseigné</option>
+              <option value="EXPLOITATION">L’exploitation</option>
+              <option value="PRESTATAIRE">Un prestataire</option>
+              <option value="ENTRAIDE">Une exploitation en entraide</option>
+            </Select>
+          </Field>
+          {tiers ? (
+            <>
+              <Field label="Nom de l’intervenant" htmlFor="contractorName" error={fieldErrors.contractorName}>
+                <Input
+                  id="contractorName"
+                  value={prestataire}
+                  onChange={(e) => setPrestataire(e.target.value)}
+                  maxLength={160}
+                />
+              </Field>
+              <Field label="SIRET de l’intervenant" htmlFor="contractorSiret" error={fieldErrors.contractorSiret}>
+                <Input
+                  id="contractorSiret"
+                  value={siretPrestataire}
+                  onChange={(e) => setSiretPrestataire(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="14 chiffres"
+                />
+              </Field>
+            </>
+          ) : null}
+        </div>
+        {demanderBio ? (
+          <Field
+            label="Production en agriculture biologique"
+            htmlFor="organicProduction"
+            hint={
+              conduiteBio === null
+                ? 'Renseignez la conduite bio de l’exploitation dans les paramètres : elle sera reprise d’office.'
+                : 'Votre exploitation est en partie en bio : précisez-le pour ce traitement.'
+            }
+          >
+            <Select id="organicProduction" value={bio} onChange={(e) => setBio(e.target.value)}>
+              <option value="">Non renseigné</option>
+              <option value="oui">Oui</option>
+              <option value="non">Non</option>
+            </Select>
+          </Field>
+        ) : null}
+      </fieldset>
 
       {/* Ce que le catalogue officiel dit de ce produit sur cette culture :
           dose retenue, ZNT, sol drainé. Placé après la dose pour que l'écart
@@ -435,6 +576,7 @@ export function PhytoForm({
         doseUnit={doseUnit}
         parcelDrained={parcelDrained}
         appliedOn={appliedOn}
+        onCibles={setCibles}
       />
 
       {preview ? (

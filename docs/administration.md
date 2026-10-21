@@ -140,6 +140,24 @@ hors-ligne), inséré une seule fois en base puis éditable dans
 `/administration/aide`. Les réponses à confirmer portent la mention
 « À vérifier ».
 
+Depuis la 0.12.0, une entrée écrite après la première installation porte
+`ajouteeEn` : elle est **livrée une fois** aux serveurs déjà installés (réglage
+`faq.ajouts-livres`). Une entrée de même identifiant déjà présente n'est pas
+écrasée ; une entrée livrée puis supprimée par l'administrateur ne revient
+pas. Avant la 0.12.0, les réponses ajoutées en 0.11.1 et 0.11.2 n'arrivaient
+jamais sur un serveur installé avant elles.
+
+### Journal d'audit et durées de conservation
+
+La purge (`/administration/maintenance`, « journal d'audit ») efface le journal
+ordinaire au-delà de la durée choisie (un an par défaut). Les **traces de
+registre** — créations, corrections (avant/après) et suppressions (copie de la
+ligne) de traitements, apports, travaux, couverts, cultures, plans de fumure —
+sont gardées **six ans** : les registres se conservent au moins cinq ans, et
+leur trace de correction avec eux. Leur adresse IP et leur navigateur sont
+effacés au même terme que le journal ordinaire. Aucune purge n'est
+automatique : elle se lance depuis la maintenance.
+
 ---
 
 ## 7. Fichiers

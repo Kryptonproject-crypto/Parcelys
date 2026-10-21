@@ -403,6 +403,13 @@ export async function registresMobile(
       conditions,
       operator: t.operator,
       notes: t.notes,
+      startTime: t.startTime,
+      endTime: t.endTime,
+      bbchStage: t.bbchStage,
+      organicProduction: t.organicProduction,
+      appliedBy: t.appliedBy,
+      contractorName: t.contractorName,
+      contractorSiret: t.contractorSiret,
     });
     historiques.get(t.parcelId)?.push(evenementPhyto(t, ref(t.parcelId)));
   }

@@ -1,5 +1,5 @@
 /**
- * Sonder les 75 routes de l'API, sans navigateur.
+ * Sonder les routes de l'API, sans navigateur.
  *
  *   npm run audit:api
  *
@@ -103,6 +103,9 @@ const ROUTES_PUBLIQUES = [
   '/api/health',
   '/api/auth/session',
   '/api/mobile/version',
+  // Le centre d'aide se lit sans compte : c'est là qu'on cherche comment
+  // s'en créer un.
+  '/api/aide/faq',
 ];
 
 const ROUTES_LECTURE = [
@@ -133,6 +136,11 @@ const ROUTES_LECTURE = [
   '/api/pac/control',
   '/api/pac/snapshots',
   '/api/mobile/bootstrap',
+  '/api/mobile/registres',
+  '/api/regulatory/map-layers',
+  '/api/stocks/phyto',
+  '/api/support/contexte',
+  '/api/support/tickets',
   '/api/weather',
   '/api/exports',
 ];
@@ -144,6 +152,27 @@ const ROUTES_ADMIN = [
   '/api/admin/experts',
   '/api/admin/maintenance',
   '/api/admin/updates',
+  '/api/admin/administrateurs',
+  '/api/admin/exports?type=exploitations',
+  '/api/admin/faq',
+  '/api/admin/portefeuilles',
+  '/api/admin/recherche?q=audit',
+  '/api/admin/support',
+];
+
+/**
+ * Routes d'écriture seule : sans session, elles doivent refuser — et refuser
+ * proprement (4xx), pas tomber (5xx). `/api/support/suivi` est publique — on
+ * y répond par un lien reçu par courriel —, mais un jeton absent doit être
+ * refusé, jamais accepté.
+ */
+const ROUTES_ECRITURE = [
+  { chemin: '/api/farms/pulverisateur', methode: 'PUT' },
+  { chemin: '/api/stocks/achats', methode: 'POST' },
+  { chemin: '/api/support/suivi', methode: 'POST' },
+  { chemin: '/api/admin/faq/categories', methode: 'POST', admin: true },
+  { chemin: '/api/admin/faq/entrees', methode: 'POST', admin: true },
+  { chemin: '/api/admin/portefeuilles/affectations', methode: 'POST', admin: true },
 ];
 
 async function main() {
@@ -169,6 +198,17 @@ async function main() {
       ouvertes.length === 0,
       `les ${ROUTES_LECTURE.length + ROUTES_ADMIN.length} routes de données refusent un inconnu`,
       ouvertes.join(', '),
+    );
+
+    const malRefusees = [];
+    for (const { chemin, methode } of ROUTES_ECRITURE) {
+      const r = await anonyme.appeler(chemin, { methode, corps: {} });
+      if (r.statut < 400 || r.statut >= 500) malRefusees.push(`${methode} ${chemin} (${r.statut})`);
+    }
+    attendu(
+      malRefusees.length === 0,
+      `les ${ROUTES_ECRITURE.length} routes d’écriture refusent proprement un inconnu (4xx)`,
+      malRefusees.join(', '),
     );
   }
 
@@ -242,11 +282,102 @@ async function main() {
       const r = await exploitant.appeler(chemin);
       if (r.statut >= 200 && r.statut < 300) accordees.push(`${chemin} (${r.statut})`);
     }
+    for (const { chemin, methode } of ROUTES_ECRITURE.filter((e) => e.admin)) {
+      const r = await exploitant.appeler(chemin, { methode, corps: {} });
+      if (r.statut >= 200 && r.statut < 300) accordees.push(`${methode} ${chemin} (${r.statut})`);
+    }
+    const categorie = await exploitant.appeler('/api/admin/faq/categories/inexistante', {
+      methode: 'PATCH',
+      corps: { name: 'Détournée' },
+    });
+    if (categorie.statut >= 200 && categorie.statut < 300) accordees.push('PATCH /api/admin/faq/categories/[id]');
     attendu(
       accordees.length === 0,
-      `les ${ROUTES_ADMIN.length} routes d’administration refusent un exploitant`,
+      `les routes d’administration refusent un exploitant`,
       accordees.join(', '),
     );
+  }
+
+  // --- 3 bis. L'administration répond à son administrateur ---------------
+  console.info('\n▸ l’administration, vue par l’administrateur général');
+  {
+    const admin = new Client();
+    await admin.connecter(d.adminEmail, d.motDePasse);
+    const cassees = [];
+    const dependantes = [];
+    for (const chemin of ROUTES_ADMIN) {
+      // La recherche par numéro répond 404 à un numéro inconnu, par
+      // conception : elle est sondée à part, avec un vrai numéro.
+      if (chemin.startsWith('/api/admin/recherche')) continue;
+      const r = await admin.appeler(chemin);
+      if (r.statut < 400) continue;
+      const code = r.json?.error?.code ?? '';
+      if (r.statut >= 500 && /UNAVAILABLE|UPSTREAM/.test(code)) dependantes.push(`${chemin} → ${code}`);
+      else cassees.push(`${chemin} → ${r.statut}`);
+    }
+    attendu(
+      cassees.length === 0,
+      `les ${ROUTES_ADMIN.length} routes d’administration répondent à l’administrateur général`,
+      cassees.join(', '),
+    );
+    if (dependantes.length) {
+      console.info(`· non vérifiable ici, service tiers injoignable : ${dependantes.join(', ')}`);
+    }
+
+    const fermes = await admin.appeler('/api/admin/farms');
+    const numero = JSON.stringify(fermes.json ?? {}).match(/EXP-\d{6}/)?.[0];
+    attendu(Boolean(numero), 'les exploitations portent un numéro client', numero ?? '');
+    if (numero) {
+      const trouve = await admin.appeler(`/api/admin/recherche?q=${numero}`);
+      attendu(trouve.statut === 200, 'la recherche par numéro client trouve l’exploitation', `${numero} → HTTP ${trouve.statut}`);
+    }
+    const inconnu = await admin.appeler('/api/admin/recherche?q=EXP-999999');
+    attendu(inconnu.statut === 404, 'un numéro inconnu répond 404, sans rien révéler', `HTTP ${inconnu.statut}`);
+  }
+
+  // --- 3 ter. Routes à paramètre que seuls ces audits sondent ------------
+  console.info('\n▸ plan de fumure et produits organiques, avec de vrais identifiants');
+  {
+    const cultures = await exploitant.appeler(`/api/parcels/${d.parcelId}/crops`);
+    const cropYearId = (cultures.json?.items ?? [])[0]?.id;
+    attendu(Boolean(cropYearId), 'la parcelle auditée porte une culture');
+    if (cropYearId) {
+      const fumure = await exploitant.appeler(`/api/crop-years/${cropYearId}/fumure`);
+      attendu(fumure.statut < 400, 'le plan de fumure de la culture se lit', `HTTP ${fumure.statut}`);
+    }
+
+    const produit = await exploitant.appeler('/api/organic-inputs', {
+      methode: 'POST',
+      corps: { name: `Fumier d’audit ${Date.now()}`, nContent: 5.5, defaultUnit: 't/ha' },
+    });
+    attendu(produit.statut === 201, 'un produit organique de l’exploitation se crée', `HTTP ${produit.statut}`);
+    const produitId = produit.json?.item?.id ?? produit.json?.id;
+    if (produitId) {
+      const voisin = new Client();
+      await voisin.connecter(d.voisinEmail, d.motDePasse);
+      const detourne = await voisin.appeler(`/api/organic-inputs/${produitId}`, {
+        methode: 'PATCH',
+        corps: { name: 'Détourné', defaultUnit: 't/ha' },
+      });
+      attendu(
+        detourne.statut >= 400 && detourne.statut < 500,
+        'le voisin ne modifie pas le produit organique d’autrui',
+        `HTTP ${detourne.statut}`,
+      );
+      const modifie = await exploitant.appeler(`/api/organic-inputs/${produitId}`, {
+        methode: 'PATCH',
+        corps: { name: `Fumier d’audit corrigé ${Date.now()}`, nContent: 6, defaultUnit: 't/ha' },
+      });
+      attendu(modifie.statut === 200, 'l’exploitant modifie son produit organique', `HTTP ${modifie.statut}`);
+      if (cropYearId) {
+        const fumureVoisin = await voisin.appeler(`/api/crop-years/${cropYearId}/fumure`);
+        attendu(
+          fumureVoisin.statut >= 400 && fumureVoisin.statut < 500,
+          'le voisin ne lit pas le plan de fumure d’autrui',
+          `HTTP ${fumureVoisin.statut}`,
+        );
+      }
+    }
   }
 
   // --- 4. Cloisonnement : la ressource du voisin ------------------------
@@ -387,6 +518,10 @@ async function main() {
     // mais qui le sont bel et bien ailleurs dans ce fichier. Les déclarer ici
     // plutôt que dans HORS_PORTEE, parce qu'elles sont couvertes, pas écartées.
     sondees.add('/api/regulatory/spreading'); // § cloisonnement, ci-dessus
+    for (const { chemin } of ROUTES_ECRITURE) sondees.add(chemin);
+    sondees.add('/api/admin/faq/categories/[id]'); // § administration, ci-dessus
+    sondees.add('/api/crop-years/[id]/fumure'); // § plan de fumure, ci-dessus
+    sondees.add('/api/organic-inputs/[id]'); // § produits organiques, ci-dessus
     // Les routes à paramètre sont sondées via leur parent ; celles qui ne sont
     // joignables que par la synchronisation ou un formulaire multipart le sont
     // ailleurs (tests d'intégration, audit mobile). On les nomme plutôt que de
@@ -405,6 +540,18 @@ async function main() {
       '/api/admin/cleanup',
       '/api/admin/invitations/[id]',
       '/api/admin/users/[id]',
+      // Sondées par les tests d'intégration : administration-multi.test.ts
+      // (administrateurs, portefeuilles), aide.test.ts (FAQ), support.test.ts
+      // (demandes, messages, pièces jointes).
+      '/api/admin/administrateurs/[id]',
+      '/api/admin/faq/entrees/[id]',
+      '/api/admin/portefeuilles/[id]',
+      '/api/admin/support/[id]',
+      '/api/admin/support/[id]/messages',
+      '/api/admin/support/[id]/pieces/[pieceId]',
+      '/api/support/tickets/[id]',
+      '/api/support/tickets/[id]/messages',
+      '/api/support/tickets/[id]/pieces/[pieceId]',
       '/api/crop-years/[id]',
       '/api/documents/[id]',
       '/api/farms/switch',

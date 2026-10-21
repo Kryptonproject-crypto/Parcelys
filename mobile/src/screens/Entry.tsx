@@ -19,7 +19,7 @@ import {
 } from '../lib/api';
 // Même code que le site : le contrôle de dose réglementaire n'existe qu'une
 // fois. Voir l'alias `@partage` dans vite.config.ts.
-import { checkDose, usagesForCrop } from '@partage/dose';
+import { checkDose, ciblesProposees, usagesForCrop } from '@partage/dose';
 import {
   chercherHorsLigne,
   ficheHorsLigne,
@@ -41,6 +41,7 @@ import {
 } from '../components/ui';
 import { uniteAffichee } from '@commun/unites';
 import { etatDuProduit } from '@commun/produits';
+import { dernierOperateur, retenirOperateur } from '@commun/operateur';
 
 export type { EntryKind } from '../lib/corrections';
 
@@ -187,6 +188,34 @@ export function EntryScreen({
   const [actualHarvestDate, setActualHarvestDate] = useState(ini?.actualHarvestDate ?? '');
   const [yieldValue, setYieldValue] = useState(ini?.yieldValue ?? '');
   const [yieldUnit, setYieldUnit] = useState(ini?.yieldUnit || 'q/ha');
+
+  // Mentions du registre. L'opérateur se propose d'après la dernière saisie
+  // faite sur ce téléphone : c'est presque toujours la même personne qui
+  // traite, et un nom à retaper à chaque fois finit par ne plus l'être.
+  const [operator, setOperator] = useState(ini ? (ini.operator ?? '') : dernierOperateur());
+  const [treatedArea, setTreatedArea] = useState(
+    ini?.treatedArea || (parcel.areaHa > 0 ? parcel.areaHa.toFixed(4) : ''),
+  );
+  const [targetLabel, setTargetLabel] = useState(ini?.targetLabel ?? '');
+  const [sprayVolume, setSprayVolume] = useState(ini?.sprayVolume ?? '');
+  const [startTime, setStartTime] = useState(ini?.startTime ?? '');
+  const [endTime, setEndTime] = useState(ini?.endTime ?? '');
+  const [bbchStage, setBbchStage] = useState(ini?.bbchStage ?? '');
+  const [appliedBy, setAppliedBy] = useState(ini?.appliedBy ?? '');
+  const [contractorName, setContractorName] = useState(ini?.contractorName ?? '');
+  const [contractorSiret, setContractorSiret] = useState(ini?.contractorSiret ?? '');
+  const [organicProduction, setOrganicProduction] = useState(ini?.organicProduction ?? '');
+  const [nitrogen, setNitrogen] = useState(ini?.nitrogen ?? '');
+  const [autresMentions, setAutresMentions] = useState(
+    Boolean(ini && (ini.sprayVolume || ini.bbchStage || ini.appliedBy || ini.organicProduction)),
+  );
+  /**
+   * Conduite bio de l'exploitation : toute en bio ou sans bio, la mention se
+   * déduit au serveur ; en partie ou non renseignée, elle se donne ici.
+   */
+  const conduiteBio = snapshot?.farm.organicFarming ?? null;
+  const demanderBio = conduiteBio === 'PARTIELLE' || conduiteBio === null;
+  const tiers = appliedBy === 'PRESTATAIRE' || appliedBy === 'ENTRAIDE';
 
   const doseUnits = referential?.doseUnits ?? ['L/ha', 'kg/ha'];
 
@@ -452,6 +481,20 @@ export function EntryScreen({
       : [];
 
   /**
+   * Cibles proposées : celles que le catalogue autorise pour ce produit sur
+   * cette culture, puis celles déjà saisies sur l'exploitation.
+   */
+  const ciblesSuggerees: string[] = (() => {
+    const vues = new Map<string, string>();
+    const catalogue = usages ? ciblesProposees(usages.usages, cropLabel || parcel.cropName) : [];
+    for (const c of [...catalogue, ...(referential?.recentTargets ?? [])]) {
+      const cle = c.toLocaleLowerCase('fr-FR');
+      if (!vues.has(cle)) vues.set(cle, c);
+    }
+    return [...vues.values()];
+  })();
+
+  /**
    * Restriction de sol drainé à signaler ?
    *
    * `drainedSoil === null` veut dire « non renseigné », pas « non drainé » : on
@@ -489,6 +532,21 @@ export function EntryScreen({
     return champs;
   }
 
+  /** Surface traitée saisie, contrôlée comme le serveur la contrôlera. */
+  function surfaceSaisie(): number | null | undefined {
+    if (!treatedArea.trim()) return undefined;
+    const surface = Number(treatedArea.replace(',', '.'));
+    if (!Number.isFinite(surface) || surface <= 0) {
+      setError('La surface traitée doit être supérieure à 0.');
+      return null;
+    }
+    if (parcel.areaHa > 0 && surface > parcel.areaHa * 1.05) {
+      setError(`La surface traitée dépasse celle de la parcelle (${parcel.areaHa.toFixed(4)} ha).`);
+      return null;
+    }
+    return surface;
+  }
+
   function buildPayload(): Record<string, unknown> | null {
     if (kind === 'phyto') {
       if (!productName.trim()) {
@@ -497,6 +555,17 @@ export function EntryScreen({
       }
       if (!phytoDose || Number(phytoDose) <= 0) {
         setError('Indiquez la dose appliquée.');
+        return null;
+      }
+      const surface = surfaceSaisie();
+      if (surface === null) return null;
+      if (startTime && endTime && endTime < startTime) {
+        setError('L’heure de fin précède l’heure de début.');
+        return null;
+      }
+      const siret = contractorSiret.replace(/\s/g, '');
+      if (tiers && siret && !/^\d{14}$/.test(siret)) {
+        setError('Le SIRET de l’intervenant comporte 14 chiffres.');
         return null;
       }
       return {
@@ -525,6 +594,22 @@ export function EntryScreen({
           : stockLotId
             ? { stockLotId }
             : {}),
+        // Les mentions du registre partent toujours, même vides : en
+        // correction, un champ vidé doit effacer, pas laisser l'ancienne
+        // valeur (le serveur lit `''` comme « effacer »).
+        targetLabel: targetLabel.trim(),
+        operator: operator.trim(),
+        ...(surface !== undefined ? { treatedAreaHa: surface } : {}),
+        sprayVolumeLHa: sprayVolume.trim() ? Number(sprayVolume.replace(',', '.')) : '',
+        startTime,
+        endTime,
+        bbchStage: bbchStage.trim(),
+        appliedBy: appliedBy || null,
+        contractorName: tiers ? contractorName.trim() : '',
+        contractorSiret: tiers ? siret : '',
+        ...(demanderBio
+          ? { organicProduction: organicProduction === '' ? null : organicProduction === 'oui' }
+          : {}),
         // Relevées à l'ouverture du formulaire, sur la parcelle : c'est la
         // météo de l'intervention, pas celle de la synchronisation.
         ...weatherPayload(),
@@ -542,9 +627,28 @@ export function EntryScreen({
         setError('Indiquez la dose apportée.');
         return null;
       }
+      const surface = surfaceSaisie();
+      if (surface === null) return null;
+      const azote = nitrogen.trim() ? Number(nitrogen.replace(',', '.')) : null;
+      if (azote !== null && (!Number.isFinite(azote) || azote < 0)) {
+        setError('L’azote apporté doit être un nombre positif (kg N/ha).');
+        return null;
+      }
       return {
         appliedOn: date,
         inputType,
+        operator: operator.trim(),
+        ...(surface !== undefined ? { treatedAreaHa: surface } : {}),
+        // L'azote saisi ne vaut que pour un produit hors référentiel : celui
+        // du référentiel se calcule d'après ses teneurs. En correction, un
+        // champ vidé demande le recalcul (`null`).
+        ...(!productId
+          ? azote !== null
+            ? { nSupplied: azote }
+            : correction
+              ? { nSupplied: null }
+              : {}
+          : {}),
         ...(productId
           ? inputType === 'MINERAL'
             ? { fertilizerId: productId }
@@ -602,6 +706,7 @@ export function EntryScreen({
       performedOn: date,
       type: operationType,
       ...(equipment.trim() ? { equipment: equipment.trim() } : {}),
+      operator: operator.trim(),
       // L'irrigation n'est pas un objet à part : c'est un travail sur la
       // parcelle, avec sa date, son opérateur et sa météo. Le serveur applique
       // les mêmes contrôles qu'en ligne.
@@ -656,6 +761,7 @@ export function EntryScreen({
           payload,
         });
       }
+      if (kind !== 'culture' && kind !== 'couvert') retenirOperateur(operator);
       await refreshPending();
       back();
     } finally {
@@ -684,8 +790,8 @@ export function EntryScreen({
         {correction ? (
           <Banner tone="info">
             Correction : elle part par la file d’attente comme toute saisie. Les
-            conditions météo, l’opérateur et ce que ce formulaire ne montre pas
-            restent ceux de l’enregistrement.
+            conditions météo et ce que ce formulaire ne montre pas (fournisseur,
+            culture rattachée…) restent ceux de l’enregistrement.
           </Banner>
         ) : null}
 
@@ -1084,6 +1190,160 @@ export function EntryScreen({
                 </Select>
               </Field>
             ) : null}
+
+            {/*
+              Cible et opérateur : les deux mentions que le registre réclamait
+              et que l'application ne demandait pas. La cible se propose
+              d'après les usages autorisés du produit et les cibles déjà
+              saisies ; elle se tape aussi librement.
+            */}
+            <Field label="Cible" hint="Organisme visé : adventices, septoriose, pucerons…">
+              <Input
+                value={targetLabel}
+                onChange={(event) => setTargetLabel(event.target.value)}
+                list="cibles-proposees"
+                autoComplete="off"
+                placeholder="Ex. : septoriose"
+              />
+            </Field>
+            {ciblesSuggerees.length > 0 ? (
+              <div className="-mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Suggestions de cible">
+                {ciblesSuggerees.slice(0, 6).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setTargetLabel(c)}
+                    className={`max-w-full truncate rounded-full border px-2.5 py-1 text-[12.5px] ${
+                      targetLabel === c
+                        ? 'border-champ-600 bg-champ-50 text-champ-700 dark:bg-champ-500/15 dark:text-champ-400'
+                        : 'border-line bg-surface text-ink-2'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <Field label="Opérateur" hint="Retenu pour vos prochaines saisies sur ce téléphone.">
+              <Input
+                value={operator}
+                onChange={(event) => setOperator(event.target.value)}
+                placeholder="Nom de l’applicateur"
+                list="operateurs-connus"
+                autoComplete="off"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Surface traitée (ha)" hint={parcel.areaHa > 0 ? `Parcelle : ${parcel.areaHa.toFixed(2)} ha` : undefined}>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.0001"
+                  min="0"
+                  value={treatedArea}
+                  onChange={(event) => setTreatedArea(event.target.value)}
+                />
+              </Field>
+              <Field label="Bouillie (L/ha)">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="1"
+                  min="0"
+                  value={sprayVolume}
+                  onChange={(event) => setSprayVolume(event.target.value)}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Heure de début">
+                <Input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+              </Field>
+              <Field label="Heure de fin">
+                <Input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+              </Field>
+            </div>
+            <p className="-mt-2 px-1 text-[12.5px] leading-relaxed text-ink-3">
+              Heures et stade : exigés au registre quand l’autorisation du produit les
+              encadre (traitement en floraison, stade limite…). Vides, ils restent vides.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setAutresMentions((v) => !v)}
+              aria-expanded={autresMentions}
+              className="w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-[14px] font-medium text-ink active:bg-surface-2"
+            >
+              {autresMentions ? '▾' : '▸'} Autres mentions du registre
+              <span className="block text-[12.5px] font-normal text-ink-3">
+                Stade, prestataire ou entraide{demanderBio ? ', agriculture biologique' : ''}
+              </span>
+            </button>
+
+            {autresMentions ? (
+              <div className="space-y-4">
+                <Field label="Stade de la culture (BBCH)">
+                  <Input
+                    value={bbchStage}
+                    onChange={(event) => setBbchStage(event.target.value)}
+                    placeholder="Ex. : 32"
+                    maxLength={20}
+                  />
+                </Field>
+
+                <Field label="Application réalisée par">
+                  <Select value={appliedBy} onChange={(event) => setAppliedBy(event.target.value)}>
+                    <option value="">Non renseigné</option>
+                    <option value="EXPLOITATION">L’exploitation</option>
+                    <option value="PRESTATAIRE">Un prestataire</option>
+                    <option value="ENTRAIDE">Une exploitation en entraide</option>
+                  </Select>
+                </Field>
+
+                {tiers ? (
+                  <>
+                    <Field label="Nom de l’intervenant">
+                      <Input
+                        value={contractorName}
+                        onChange={(event) => setContractorName(event.target.value)}
+                        maxLength={160}
+                      />
+                    </Field>
+                    <Field label="SIRET de l’intervenant">
+                      <Input
+                        value={contractorSiret}
+                        onChange={(event) => setContractorSiret(event.target.value)}
+                        inputMode="numeric"
+                        placeholder="14 chiffres"
+                      />
+                    </Field>
+                  </>
+                ) : null}
+
+                {demanderBio ? (
+                  <Field
+                    label="Production en agriculture biologique"
+                    hint={
+                      conduiteBio === null
+                        ? 'Indiquez la conduite bio de l’exploitation sur le site (Paramètres) : elle sera reprise d’office.'
+                        : 'Exploitation en partie en bio : précisez-le pour ce traitement.'
+                    }
+                  >
+                    <Select
+                      value={organicProduction}
+                      onChange={(event) => setOrganicProduction(event.target.value)}
+                    >
+                      <option value="">Non renseigné</option>
+                      <option value="oui">Oui</option>
+                      <option value="non">Non</option>
+                    </Select>
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -1157,6 +1417,49 @@ export function EntryScreen({
                 </Select>
               </Field>
             </div>
+
+            <Field label="Surface épandue (ha)" hint={parcel.areaHa > 0 ? `Parcelle : ${parcel.areaHa.toFixed(2)} ha` : undefined}>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.0001"
+                min="0"
+                value={treatedArea}
+                onChange={(event) => setTreatedArea(event.target.value)}
+              />
+            </Field>
+
+            {/*
+              Le cahier d'enregistrement « nitrates » demande la teneur en azote
+              de chaque apport. Pour un produit du référentiel, elle se calcule ;
+              pour un produit saisi à la main, seul l'exploitant la connaît
+              (étiquette, analyse) — sans elle, l'apport reste sans azote chiffré.
+            */}
+            {!productId ? (
+              <Field
+                label="Azote apporté (kg N/ha)"
+                hint="D’après l’étiquette ou l’analyse du produit. Vide : non chiffré, jamais estimé."
+              >
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  min="0"
+                  value={nitrogen}
+                  onChange={(event) => setNitrogen(event.target.value)}
+                />
+              </Field>
+            ) : null}
+
+            <Field label="Opérateur" hint="Retenu pour vos prochaines saisies sur ce téléphone.">
+              <Input
+                value={operator}
+                onChange={(event) => setOperator(event.target.value)}
+                placeholder="Nom de l’applicateur"
+                list="operateurs-connus"
+                autoComplete="off"
+              />
+            </Field>
           </>
         ) : null}
 
@@ -1182,6 +1485,16 @@ export function EntryScreen({
                 value={equipment}
                 onChange={(event) => setEquipment(event.target.value)}
                 placeholder="Charrue 4 corps"
+              />
+            </Field>
+
+            <Field label="Opérateur" hint="Retenu pour vos prochaines saisies sur ce téléphone.">
+              <Input
+                value={operator}
+                onChange={(event) => setOperator(event.target.value)}
+                placeholder="Nom de l’applicateur"
+                list="operateurs-connus"
+                autoComplete="off"
               />
             </Field>
 
@@ -1367,13 +1680,23 @@ export function EntryScreen({
           />
         </Field>
 
-        {kind === 'culture' || kind === 'couvert' ? null : (
-        <p className="px-1 text-[13px] leading-relaxed text-ink-3">
-          {correction ? 'La surface traitée reste celle de l’enregistrement' : 'La surface traitée retenue sera celle de la parcelle'}
-          {!correction && parcel.areaHa > 0 ? ` (${parcel.areaHa.toFixed(2)} ha)` : ''}, et les
-          quantités totales seront calculées par le serveur.
-        </p>
-        )}
+        {kind === 'phyto' || kind === 'apport' ? (
+          <p className="px-1 text-[13px] leading-relaxed text-ink-3">
+            La quantité totale (dose × surface) est calculée par le serveur à
+            l’enregistrement, comme sur le site.
+          </p>
+        ) : null}
+
+        <datalist id="cibles-proposees">
+          {ciblesSuggerees.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+        <datalist id="operateurs-connus">
+          {(referential?.recentOperators ?? []).map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
       </div>
 
       <ActionBar>

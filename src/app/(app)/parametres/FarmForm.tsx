@@ -10,6 +10,7 @@ import {
   CardHeader,
   Field,
   Input,
+  Select,
   Spinner,
 } from '@/components/ui';
 
@@ -22,6 +23,7 @@ type Farm = {
   department: string | null;
   latitude: number | null;
   longitude: number | null;
+  organicFarming: 'AUCUNE' | 'TOTALE' | 'PARTIELLE' | null;
 };
 
 type GeocodeHit = {
@@ -112,6 +114,7 @@ export function FarmForm({ farm, canEdit }: { farm: Farm; canEdit: boolean }) {
         postalCode: String(form.get('postalCode') ?? ''),
         city: String(form.get('city') ?? ''),
         department: String(form.get('department') ?? ''),
+        organicFarming: String(form.get('organicFarming') ?? ''),
         ...(coords.lat !== null && coords.lng !== null
           ? { latitude: coords.lat, longitude: coords.lng }
           : {}),
@@ -192,6 +195,26 @@ export function FarmForm({ farm, canEdit }: { farm: Farm; canEdit: boolean }) {
 
           <Field label="Commune" htmlFor="city">
             <Input id="city" name="city" defaultValue={farm.city ?? ''} disabled={!canEdit} />
+          </Field>
+
+          <Field
+            label="Agriculture biologique"
+            htmlFor="organicFarming"
+            className="sm:col-span-2"
+            hint="Mention du registre phytosanitaire depuis le 1er janvier 2026. « En partie » : elle se précise à chaque traitement."
+            error={fieldErrors.organicFarming}
+          >
+            <Select
+              id="organicFarming"
+              name="organicFarming"
+              defaultValue={farm.organicFarming ?? ''}
+              disabled={!canEdit}
+            >
+              <option value="">Non renseigné</option>
+              <option value="AUCUNE">Aucune surface en bio</option>
+              <option value="TOTALE">Toute l’exploitation en bio (ou en conversion)</option>
+              <option value="PARTIELLE">En partie</option>
+            </Select>
           </Field>
         </div>
 

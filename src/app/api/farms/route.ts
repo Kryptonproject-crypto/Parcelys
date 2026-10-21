@@ -28,6 +28,9 @@ export const PUT = route(async (request: NextRequest) => {
       department: input.department ?? null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      // Absent : inchangé — un client qui ne connaît pas encore ce champ ne
+      // l'efface pas.
+      ...(input.organicFarming !== undefined ? { organicFarming: input.organicFarming } : {}),
     },
   });
 

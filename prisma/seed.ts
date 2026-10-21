@@ -121,14 +121,19 @@ const DEMO_PARCELS: ParcelSeed[] = [
   },
 ];
 
-async function seedReferential(): Promise<void> {
-  console.info('→ Référentiel global (cultures, engrais, produits organiques)');
+async function seedReferential(options: { cultures?: boolean } = {}): Promise<void> {
+  const avecCultures = options.cultures ?? true;
+  console.info(
+    avecCultures
+      ? '→ Référentiel global (cultures, engrais, produits organiques)'
+      : '→ Référentiel global (engrais, produits organiques)',
+  );
 
   // `@@unique([farmId, code])` ne s'applique pas aux lignes globales (farmId
   // NULL n'est jamais égal à lui-même en SQL) : l'unicité du référentiel global
   // est garantie par un index partiel (migration 20260907093000) et on cible ici
   // la ligne existante explicitement.
-  for (const crop of DEFAULT_CROPS) {
+  for (const crop of avecCultures ? DEFAULT_CROPS : []) {
     const existing = await prisma.crop.findFirst({
       where: { farmId: null, code: crop.code },
       select: { id: true },
@@ -485,6 +490,25 @@ async function seedDemoFarm(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  /*
+   * `--referentiel-seul` : ce que l'installation et la mise à jour du Raspberry
+   * Pi appliquent à chaque fois (`npm run referentiel:engrais`). Les engrais et les
+   * produits organiques d'usage courant — ceux dont la teneur est dans le nom
+   * (« Ammonitrate 33,5 % ») ou que l'exploitant analyse lui-même — sans
+   * exploitation de démonstration. Les cultures n'y sont pas : chaque
+   * exploitation reçoit les siennes à l'inscription, et un référentiel global
+   * en plus les afficherait deux fois.
+   *
+   * Sans cette étape, une installation neuve n'avait **aucun** engrais au
+   * référentiel : chaque apport était une saisie libre, sans azote calculé —
+   * et le cahier d'enregistrement « nitrates » restait vide de teneurs.
+   */
+  if (process.argv.includes('--referentiel-seul')) {
+    await seedReferential({ cultures: false });
+    console.info('✓ Référentiel des engrais et produits organiques à jour.');
+    return;
+  }
+
   await seedReferential();
 
   if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO !== 'true') {

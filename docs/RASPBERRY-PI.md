@@ -1322,6 +1322,35 @@ Il termine en mettant à jour le contexte réglementaire des parcelles qui en on
 besoin (`npm run contextes`) : seuls ceux qu'un nouveau contour, un nouveau
 référentiel ou une nouvelle version du calcul ont périmés sont recalculés.
 
+### Passer en 0.12.0
+
+Version **à migration** : elle ajoute des colonnes facultatives (mentions du
+registre phytosanitaire 2026, conduite bio de l'exploitation) et ne modifie
+aucune donnée existante. La mise à jour habituelle suffit :
+
+```bash
+cd /opt/parcelys && sudo bash scripts/update-pi.sh
+```
+
+Le script installe désormais aussi le **référentiel des engrais et produits
+organiques** d'usage courant (`npm run referentiel:engrais`, sans exploitation
+de démonstration, rejouable). Puis :
+
+1. **Relancez la compilation de l’APK** et réinstallez-la : cible, opérateur,
+   surface, heures et mentions du registre arrivent dans la saisie de
+   l’application. Les registres de l’application sont retéléchargés à la
+   première synchronisation (format 3).
+2. Dans **Paramètres**, renseignez le **SIRET** et la conduite en
+   **agriculture biologique** : ils figurent au registre depuis le 1er janvier
+   2026, et « À faire » les réclame tant qu’ils manquent.
+3. Pour l’éditeur : l’**adresse postale**, le **téléphone** et le **SIRET** de
+   l’éditeur sont exigés par les mentions légales (LCEN). Ils se renseignent
+   dans `src/lib/constants/identity.ts` ; tant qu’ils sont vides, les pages
+   légales l’affichent au lieu d’inventer.
+
+Si la migration s’interrompt : `npx prisma migrate resolve --rolled-back
+20261018090000_registre_phyto_2026`, puis relancez la mise à jour.
+
 ### Passer en 0.11.2
 
 Aucune migration : `cd /opt/parcelys && sudo bash scripts/update-pi.sh`, puis

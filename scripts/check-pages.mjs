@@ -79,12 +79,14 @@ const PUBLIC_PAGES = [
   '/inscription',
   '/cgu',
   '/confidentialite',
+  '/cookies',
+  '/mentions-legales',
 ];
 
 
 // Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
 // manifeste trente secondes plus tard par un délai d'attente dépassé.
-await verifierCompte(BASE, EMAIL, PASSWORD);
+await verifierCompte(BASE, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 const browser = await chromium.launch({
   executablePath: cheminDuNavigateur(),

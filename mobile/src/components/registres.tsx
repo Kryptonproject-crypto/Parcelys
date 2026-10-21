@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
+  LIBELLES_APPLICATEUR,
   LIBELLES_EVENEMENT,
   type ApportFiche,
   type FicheParcelle,
@@ -581,6 +582,7 @@ function CarteApport({ a, actions }: { a: ApportFiche; actions: ActionsEnregistr
           {nombreFr(a.totalQuantity, 2)} {a.totalUnit}
         </Ligne>
         <Ligne libelle="Éléments (kg/ha)">{elements.length ? elements.join(' · ') : '—'}</Ligne>
+        {a.operator ? <Ligne libelle="Opérateur">{a.operator}</Ligne> : null}
       </dl>
       {a.notes ? <p className="mt-2 text-[13px] text-ink-2">{a.notes}</p> : null}
     </CarteEnregistrement>
@@ -692,7 +694,7 @@ function CarteTraitement({ t, actions }: { t: TraitementFiche; actions: ActionsE
       <dl className="mt-2 divide-y divide-line">
         <Ligne libelle="AMM">{t.amm ? <span className="tabular-nums">{t.amm}</span> : <Badge tone="amber">Manquant</Badge>}</Ligne>
         {t.activeSubstances ? <Ligne libelle="Substances">{t.activeSubstances}</Ligne> : null}
-        <Ligne libelle="Cible">{t.targetLabel ?? '—'}</Ligne>
+        <Ligne libelle="Cible">{t.targetLabel ?? <Badge tone="amber">Manquante</Badge>}</Ligne>
         <Ligne libelle="Dose">
           {nombreFr(t.dose, 3)} {t.doseUnit}
         </Ligne>
@@ -703,7 +705,23 @@ function CarteTraitement({ t, actions }: { t: TraitementFiche; actions: ActionsE
         <Ligne libelle="Conditions">
           {t.conditions ?? <span className="text-ble-600 dark:text-ble-400">Non renseignées</span>}
         </Ligne>
-        {t.operator ? <Ligne libelle="Opérateur">{t.operator}</Ligne> : null}
+        <Ligne libelle="Opérateur">{t.operator ?? <Badge tone="amber">Manquant</Badge>}</Ligne>
+        {t.startTime || t.endTime ? (
+          <Ligne libelle="Heures">
+            {t.startTime ?? '?'} – {t.endTime ?? '?'}
+          </Ligne>
+        ) : null}
+        {t.bbchStage ? <Ligne libelle="Stade BBCH">{t.bbchStage}</Ligne> : null}
+        {t.appliedBy ? (
+          <Ligne libelle="Réalisé par">
+            {LIBELLES_APPLICATEUR[t.appliedBy]}
+            {t.contractorName ? ` — ${t.contractorName}` : ''}
+            {t.contractorSiret ? ` (SIRET ${t.contractorSiret})` : ''}
+          </Ligne>
+        ) : null}
+        {t.organicProduction !== null && t.organicProduction !== undefined ? (
+          <Ligne libelle="Bio">{t.organicProduction ? 'Oui' : 'Non'}</Ligne>
+        ) : null}
       </dl>
       {t.notes ? <p className="mt-2 text-[13px] text-ink-2">{t.notes}</p> : null}
     </CarteEnregistrement>

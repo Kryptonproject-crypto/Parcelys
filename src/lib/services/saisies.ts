@@ -338,9 +338,11 @@ export async function preparerTraitement(params: {
   await verifierCulture(input.cropYearId, parcel.id);
   const { totalQuantity, totalUnit } = computeTotalQuantity(input.dose, input.doseUnit, treatedAreaHa);
   const meteo = await meteoDeLaSaisie(input, parcel.id, modification);
+  const mentions = await mentionsDuRegistre(parcel.id, input, modification);
 
   return {
     data: {
+      ...mentions,
       cropYearId: input.cropYearId ?? null,
       appliedOn: input.appliedOn,
       productId,
@@ -365,6 +367,67 @@ export async function preparerTraitement(params: {
     totalQuantity,
     totalUnit,
   };
+}
+
+type MentionsRegistre = {
+  startTime?: string | null;
+  endTime?: string | null;
+  bbchStage?: string | null;
+  organicProduction?: boolean | null;
+  appliedBy?: 'EXPLOITATION' | 'PRESTATAIRE' | 'ENTRAIDE' | null;
+  contractorName?: string | null;
+  contractorSiret?: string | null;
+};
+
+/**
+ * Les mentions ajoutées au registre au 1er janvier 2026 (arrêté du 24 décembre
+ * 2025) : heures, stade, conduite biologique, prestataire.
+ *
+ * Une mention **absente** de la requête n'est pas touchée à la modification :
+ * une application de terrain pas encore mise à jour, qui ne les connaît pas,
+ * ne doit pas effacer ce qui avait été saisi au bureau.
+ *
+ * La conduite biologique se lit dans le profil de l'exploitation : toute en
+ * bio, oui ; aucune surface en bio, non ; en partie ou non renseignée, c'est
+ * la saisie qui le dit, et sans elle la mention reste vide. Elle est figée à
+ * la création — une conversion ultérieure ne réécrit pas le passé.
+ *
+ * Le nom et le SIRET d'un prestataire n'ont de sens que si un prestataire (ou
+ * une entraide) a appliqué : pour un traitement fait par l'exploitation, ils
+ * sont effacés plutôt que laissés traîner.
+ */
+async function mentionsDuRegistre(
+  parcelId: string,
+  input: MentionsRegistre,
+  modification: boolean,
+): Promise<MentionsRegistre> {
+  const mentions: MentionsRegistre = {};
+  if (input.startTime !== undefined) mentions.startTime = input.startTime;
+  if (input.endTime !== undefined) mentions.endTime = input.endTime;
+  if (input.bbchStage !== undefined) mentions.bbchStage = input.bbchStage;
+
+  if (input.appliedBy !== undefined) {
+    const tiers = input.appliedBy === 'PRESTATAIRE' || input.appliedBy === 'ENTRAIDE';
+    mentions.appliedBy = input.appliedBy;
+    mentions.contractorName = tiers ? (input.contractorName ?? null) : null;
+    mentions.contractorSiret = tiers ? (input.contractorSiret ?? null) : null;
+  } else {
+    if (input.contractorName !== undefined) mentions.contractorName = input.contractorName;
+    if (input.contractorSiret !== undefined) mentions.contractorSiret = input.contractorSiret;
+  }
+
+  if (modification) {
+    if (input.organicProduction !== undefined) mentions.organicProduction = input.organicProduction;
+  } else {
+    const ferme = await prisma.parcel.findUnique({
+      where: { id: parcelId },
+      select: { farm: { select: { organicFarming: true } } },
+    });
+    const conduite = ferme?.farm.organicFarming ?? null;
+    mentions.organicProduction =
+      conduite === 'TOTALE' ? true : conduite === 'AUCUNE' ? false : (input.organicProduction ?? null);
+  }
+  return mentions;
 }
 
 // ---------------------------------------------------------------------------

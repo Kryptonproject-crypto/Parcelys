@@ -330,6 +330,16 @@ fi
 grep -E 'migration|applied|Applying' /tmp/parcelys-update-migrate.log | tail -3 | sed 's/^/    /'
 ok "Migrations appliquées"
 
+# Engrais et produits organiques d'usage courant (jamais d'exploitation de
+# démonstration). Idempotent : rejoué à chaque mise à jour, il ajoute ce qui
+# manque et ne duplique rien. Un échec n'est pas bloquant — les apports se
+# saisissent alors en texte libre, comme avant.
+if as_service npm run --silent referentiel:engrais >/tmp/parcelys-update-referentiel.log 2>&1; then
+  ok "$(tail -1 /tmp/parcelys-update-referentiel.log)"
+else
+  warn "Référentiel des engrais non installé (journal : /tmp/parcelys-update-referentiel.log)."
+fi
+
 # --- 5. Compilation ---------------------------------------------------------
 
 step "Compilation"

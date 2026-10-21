@@ -250,6 +250,8 @@ async function main() {
         '/mot-de-passe-oublie',
         '/cgu',
         '/confidentialite',
+        '/cookies',
+        '/mentions-legales',
         '/contact',
       ]) {
         await verifierPage(page, chemin);

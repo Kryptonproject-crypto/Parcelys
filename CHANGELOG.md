@@ -6,6 +6,144 @@ plus tard, de comprendre pourquoi une décision a été prise.
 
 ---
 
+## 0.12.0 — Le registre phytosanitaire de 2026-2027, et les pages que la loi demande
+
+### Ce que dit la réglementation (sources : arrêté du 24 décembre 2025, JORF du 31 décembre 2025 ; règlement d'exécution (UE) 2023/564 modifié par le règlement (UE) 2025/2203)
+
+- Depuis le **1er janvier 2026**, le registre phytopharmaceutique porte de
+  nouvelles mentions : SIRET de l'exploitation et, en cas de prestation ou
+  d'entraide, celui de l'intervenant ; numéro d'AMM ; heures de début et de fin
+  et stade de la culture quand l'autorisation les encadre ; localisation de la
+  parcelle ; conduite en agriculture biologique. Conservation : cinq ans.
+- À partir du **1er janvier 2027**, le registre doit être tenu au **format
+  électronique lisible par machine**. Selon les modalités annoncées en France :
+  de 2027 à 2029, une saisie d'abord papier reste possible si elle est convertie
+  avant le 31 janvier de l'année suivante ; à partir de 2030, dans les 30 jours.
+  La liste exacte des mentions est l'annexe I de l'arrêté, que nous n'avons pas
+  pu consulter directement : les entrées d'aide qui la résument portent « À
+  vérifier ».
+
+### Le registre
+
+- **Nouvelles mentions** sur chaque traitement, sur le site comme dans
+  l'application : heures de début et de fin, stade BBCH, réalisé par
+  l'exploitation / un prestataire / une entraide (nom et SIRET de
+  l'intervenant), production biologique. Toutes facultatives — exigées
+  seulement quand l'autorisation les encadre —, jamais déduites. Une correction
+  qui ne les porte pas (une application pas encore mise à jour) ne les efface
+  pas.
+- **Conduite bio de l'exploitation** dans Paramètres : toute en bio ou sans
+  bio, la mention est portée d'office (et figée à la saisie : une conversion
+  ultérieure ne réécrit pas le passé) ; en partie, elle se donne à chaque
+  traitement ; non renseignée, elle reste vide.
+- **Registre phytosanitaire numérique** (Exports) : une information par
+  colonne, dates ISO, heures HH:MM, nombres à point décimal, îlot et parcelle
+  PAC de la déclaration la plus proche, coordonnées WGS 84 du centre de la
+  parcelle, code culture PAC, SIRET. CSV, Excel ou **JSON** (nouveau format
+  d'export) ; pas de PDF — trente colonnes ne s'impriment pas, le registre
+  imprimable reste le « Registre phytosanitaire », qui gagne heures, stade, bio
+  et intervenant. Les mentions manquantes sont comptées en tête ; le code OEPP,
+  inconnu de Parcelys, n'est pas deviné.
+- **Registre des apports** : teneur en azote du produit et azote total de
+  l'apport, comme le cahier d'enregistrement « nitrates » les demande.
+- **Dossier de contrôle** : la pièce « registre phytosanitaire » signale le
+  SIRET et la mention bio manquants ; nouvelle pièce « registre au format
+  électronique ».
+
+### L'application, au champ
+
+L'application ne demandait ni la **cible** ni l'**opérateur** : les traitements
+saisis au téléphone remontaient tous dans « À faire ». Le formulaire demande
+désormais :
+
+- **Cible**, avec les cibles autorisées pour le produit sur cette culture
+  (catalogue E-Phy, aussi hors réseau) et celles déjà saisies sur
+  l'exploitation, en suggestions ;
+- **Opérateur**, repris de la dernière saisie faite sur le téléphone ;
+- **surface traitée** (une parcelle traitée en partie), **bouillie**, **heures**
+  ; « Autres mentions du registre » ouvre stade, intervenant et mention bio ;
+- pour un **apport** : surface épandue, opérateur, et **azote apporté** pour un
+  produit hors référentiel (sans quoi il restait non chiffré) ; pour un
+  **travail** : l'opérateur.
+
+Tout se corrige aussi (« Modifier »), y compris hors réseau. La fiche affiche
+heures, stade, intervenant, mention bio, et « Manquant » en clair pour une
+cible ou un opérateur absents. Se déconnecter avec des saisies pas encore
+parties demande désormais une confirmation : la file d'attente est vidée à la
+déconnexion, et une saisie de registre perdue est un traitement qui n'a jamais
+existé.
+
+### Tableau de bord
+
+- Le bloc **Conformité** n'y figure plus (la page Conformité reste au menu) :
+  le tableau de bord s'affiche aussi plus vite.
+- « À faire » dit **quelles** mentions manquent (« manque : cible (3),
+  opérateur (2) ») et réclame le SIRET et la conduite bio tant qu'ils ne sont
+  pas renseignés.
+
+### Pages légales, cookies, données personnelles
+
+- **Cookies et traceurs** (nouvelle page) : chaque cookie et chaque stockage du
+  site et de l'application, sa finalité, sa durée — réelle, lue dans la
+  configuration. Tous sont strictement nécessaires, donc exemptés de
+  consentement (art. 82 de la loi Informatique et Libertés, lignes directrices
+  CNIL 2020-091) ; un **bandeau d'information** l'explique à la première
+  visite, sans faux bouton « Refuser ». Un test confronte cette liste au code :
+  un stockage ajouté sans être déclaré fait échouer la suite (il en a trouvé
+  quatre dans l'application dès sa première exécution).
+- **Mentions légales** (nouvelle page, LCEN art. 6 III) : l'adresse, le
+  téléphone et le SIRET de l'éditeur, exigés, sont signalés « à renseigner » au
+  lieu d'être inventés.
+- **Données personnelles** réécrite : responsable de traitement pour le compte,
+  sous-traitant (art. 28 RGPD) pour le contenu des registres ; données, bases
+  légales, destinataires (y compris les fournisseurs de fonds de carte et le
+  seul flux hors UE, la vue satellite), durées réelles, droits, saisine de la
+  CNIL. Elle contenait encore « écrivez à [adresse e-mail] ».
+- **Conditions générales** : registres et responsabilité de l'exploitant en cas
+  de contrôle, conservation cinq ans ; le « tribunaux de [ressort] » à compléter
+  est remplacé.
+- Liens vers les quatre pages en pied de page du site et dans les réglages de
+  l'application ; la suppression de compte rappelle d'exporter ses registres.
+
+### Traçabilité des corrections
+
+- Le **journal d'audit** était purgé après un an, **traces de correction des
+  registres comprises** : un registre corrigé perdait la trace de ce qu'il
+  disait avant, bien avant la fin de sa durée de conservation. Ces traces
+  sont désormais gardées **six ans** (cinq ans réglementaires et la campagne en
+  cours) ; leur adresse IP et leur navigateur sont effacés au bout d'un an
+  comme le reste du journal.
+- Supprimer un traitement, un apport ou un travail garde dans le journal
+  **ce que contenait la ligne** (produit, AMM, dose, date, cible, opérateur…),
+  et plus seulement son nom.
+
+### Centre d'aide
+
+Le contenu d'aide n'était écrit en base qu'à la première installation : une
+réponse rédigée ensuite (0.11.1, 0.11.2) n'apparaissait **jamais** sur un
+serveur déjà installé. Les entrées nouvelles sont désormais livrées une fois —
+sans écraser une entrée modifiée à la main, sans faire revenir une entrée
+supprimée. Nouvelles réponses : mentions du registre 2026, registre numérique
+2027, cahier d'enregistrement « nitrates », conduite bio, cible et opérateur
+dans l'application, cookies et données personnelles.
+
+### Installation et contrôles
+
+- Une installation neuve n'avait **aucun engrais** au référentiel (le seed qui
+  les installe n'était lancé ni par l'installation ni par la mise à jour du
+  Pi) : chaque apport était une saisie libre, sans azote calculé.
+  `install-pi.sh` et `update-pi.sh` installent maintenant engrais et produits
+  organiques d'usage courant (`npm run referentiel:engrais`, rejouable, sans
+  exploitation de démonstration ni cultures en double).
+- L'**audit des API** ne sondait plus 30 routes ajoutées depuis la 0.9
+  (administration, portefeuilles, support, aide, registres mobiles, plan de
+  fumure, produits organiques) : toutes sont couvertes, avec l'administrateur
+  général, l'exploitant et le voisin (107 routes sur 107).
+- Quatre contrôles de navigateur ne s'exécutaient plus (`EMAIL is not
+  defined`), deux autres suivaient un écran d'avant la 0.11.0 : réparés.
+- Accueil : « exports conformes » retiré (Parcelys ne certifie pas une
+  conformité) ; en-tête lisible sur téléphone.
+
 ## 0.11.2 — Tout se corrige, sur le site comme dans l'application
 
 ### Corriger un enregistrement

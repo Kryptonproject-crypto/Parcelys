@@ -139,7 +139,7 @@ async function assemblerDossierCalcule(params: {
 
   const ferme = await prisma.farm.findUniqueOrThrow({
     where: { id: params.farmId },
-    select: { name: true },
+    select: { name: true, siret: true, organicFarming: true },
   });
 
   const pieces: PieceDossier[] = [];
@@ -178,11 +178,21 @@ async function assemblerDossierCalcule(params: {
       parcel: { farmId: params.farmId, deletedAt: null },
       appliedOn: { gte: debut, lte: fin },
     },
-    select: { id: true, amm: true, operator: true, targetLabel: true },
+    select: { id: true, amm: true, operator: true, targetLabel: true, organicProduction: true },
   });
   const phytoIncomplets = traitements.filter(
     (t) => !t.amm || !t.operator || !t.targetLabel,
   ).length;
+  // Mentions d'exploitation que le registre porte depuis le 1er janvier 2026
+  // (arrêté du 24 décembre 2025) : le SIRET, la conduite biologique.
+  const sansBio =
+    ferme.organicFarming === 'TOTALE' || ferme?.organicFarming === 'AUCUNE'
+      ? 0
+      : traitements.filter((t) => t.organicProduction === null).length;
+  const mentionsExploitation = [
+    ferme.siret ? null : 'SIRET de l’exploitation',
+    sansBio > 0 ? `mention « agriculture biologique » (${sansBio} traitement(s))` : null,
+  ].filter((m): m is string => m !== null);
 
   pieces.push({
     code: 'registre-phyto',
@@ -191,19 +201,43 @@ async function assemblerDossierCalcule(params: {
     statut:
       traitements.length === 0
         ? 'absente'
-        : phytoIncomplets > 0
+        : phytoIncomplets > 0 || mentionsExploitation.length > 0
           ? 'incomplete'
           : 'presente',
     detail:
       traitements.length === 0
         ? 'Aucun traitement enregistré sur cette campagne.'
-        : phytoIncomplets > 0
-          ? `${traitements.length} traitement(s), dont ${phytoIncomplets} incomplet(s) ` +
-            '(AMM, cible ou opérateur manquant).'
-          : `${traitements.length} traitement(s), tous complets.`,
+        : [
+            phytoIncomplets > 0
+              ? `${traitements.length} traitement(s), dont ${phytoIncomplets} incomplet(s) ` +
+                '(AMM, cible ou opérateur manquant).'
+              : `${traitements.length} traitement(s), AMM, cible et opérateur renseignés.`,
+            mentionsExploitation.length > 0 ? `À renseigner : ${mentionsExploitation.join(', ')}.` : null,
+          ]
+            .filter(Boolean)
+            .join(' '),
     compte: traitements.length,
     action:
-      phytoIncomplets > 0 ? 'Complétez les traitements signalés dans le registre.' : null,
+      phytoIncomplets > 0
+        ? 'Complétez les traitements signalés dans le registre.'
+        : mentionsExploitation.length > 0
+          ? 'Renseignez le SIRET et la conduite bio dans Paramètres.'
+          : null,
+    documents: [],
+  });
+
+  pieces.push({
+    code: 'registre-phyto-numerique',
+    label: 'Registre phytosanitaire au format électronique',
+    usage:
+      'Le même registre, lisible par machine (CSV, Excel ou JSON) : exigé à partir du 1er janvier 2027.',
+    statut: traitements.length === 0 ? 'absente' : 'presente',
+    detail:
+      traitements.length === 0
+        ? 'Aucun traitement à exporter sur cette campagne.'
+        : 'Produit à la demande à partir du registre, une information par colonne. L’année d’export est l’année civile.',
+    compte: traitements.length,
+    action: traitements.length > 0 ? 'Exports → Registre phytosanitaire numérique.' : null,
     documents: [],
   });
 

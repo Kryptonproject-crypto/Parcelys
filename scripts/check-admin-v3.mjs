@@ -47,7 +47,7 @@ await mkdir(SHOTS, { recursive: true });
 
 // Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
 // manifeste trente secondes plus tard par un délai d'attente dépassé.
-await verifierCompte(BASE, EMAIL, PASSWORD);
+await verifierCompte(BASE, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 const browser = await chromium.launch({
   executablePath: cheminDuNavigateur(),
@@ -197,17 +197,26 @@ try {
 
   await gestion.page.goto(`${BASE}/administration`, { waitUntil: 'networkidle' });
   const navigation = await gestion.page.locator('nav').first().innerText();
+  // Les liens, pas les libellés : « Portefeuilles » est un menu de
+  // l'administration (portefeuilles de gestion, 0.11.0), sans rapport avec le
+  // portefeuille d'un expert (`/portefeuille`) qu'un administrateur ne doit
+  // pas se voir proposer.
+  const liens = await gestion.page
+    .locator('nav')
+    .first()
+    .locator('a')
+    .evaluateAll((as) => as.map((a) => new URL(a.href).pathname));
   expect(
-    !/parcelles/i.test(navigation),
+    !liens.some((l) => l === '/parcelles' || l.startsWith('/parcelles/')),
     `La navigation d'un compte d'administration propose « Parcelles » :\n${navigation}`,
   );
   expect(
-    !/portefeuille/i.test(navigation),
-    `La navigation d'un compte d'administration propose « Portefeuille » :\n${navigation}`,
+    !liens.some((l) => l === '/portefeuille' || l.startsWith('/portefeuille/')),
+    `La navigation d'un compte d'administration propose le portefeuille d'expert :\n${navigation}`,
   );
   // …mais elle ne doit pas être vide pour autant : ce compte doit voir ce
   // qu'il est venu faire.
-  for (const attendu of [/utilisateurs/i, /invitations/i, /exploitations/i, /experts/i]) {
+  for (const attendu of [/comptes/i, /invitations/i, /exploitations/i, /techniciens/i]) {
     expect(
       attendu.test(navigation),
       `La barre latérale d'administration ne propose pas ${attendu} :\n${navigation}`,

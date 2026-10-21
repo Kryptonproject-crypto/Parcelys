@@ -567,11 +567,27 @@ Le rapprochement dose saisie / dose retenue se fait à partir de ces valeurs
   "sprayVolumeLHa": 150,
   "treatedAreaHa": 12.5,
   "operator": "Camille Durand",
+  "startTime": "18:30",
+  "endTime": "19:15",
+  "bbchStage": "61",
+  "appliedBy": "PRESTATAIRE",
+  "contractorName": "ETA du Val",
+  "contractorSiret": "12345678900012",
+  "organicProduction": false,
   "captureWeather": true,
   "notes": "..."
 }
 ```
 
+- **Mentions du registre 2026** (arrêté du 24 décembre 2025), toutes
+  facultatives : `startTime` / `endTime` (`HH:MM`, fin ≥ début), `bbchStage`,
+  `appliedBy` (`EXPLOITATION`, `PRESTATAIRE`, `ENTRAIDE`), `contractorName` et
+  `contractorSiret` (14 chiffres, effacés si `appliedBy` vaut `EXPLOITATION`),
+  `organicProduction`. À la création, `organicProduction` est imposé par la
+  conduite bio de l'exploitation quand elle est `TOTALE` (vrai) ou `AUCUNE`
+  (faux). À la modification (`PUT`), une mention **absente** du corps est
+  conservée — un client qui ne la connaît pas ne l'efface pas ; `""` ou `null`
+  l'efface.
 - Avec `productId`, le nom, le numéro d'AMM et les substances actives sont
   **repris du référentiel** ; les valeurs envoyées par le client sont ignorées.
 - Sans `productId` (saisie libre), `amm` reste ce qui est fourni — souvent
@@ -764,9 +780,9 @@ repli n'est fabriquée.
 
 | Paramètre | Valeurs |
 | --- | --- |
-| `dataset` | `parcelles`, `phytosanitaire`, `apports`, `historique`, `cultures`, `travaux` |
-| `format` | `csv`, `xlsx`, `pdf` |
-| `year` | Campagne (1er août → 31 juillet) |
+| `dataset` | `parcelles`, `phytosanitaire`, `registre-phyto-numerique`, `apports`, `bilan-engrais`, `cahier-epandage`, `historique`, `cultures`, `travaux` |
+| `format` | `csv`, `xlsx`, `pdf`, `json` |
+| `year` | Campagne (1er août → 31 juillet) ; **année civile** pour `registre-phyto-numerique` |
 | `from` / `to` | Période explicite (prioritaire sur `year`) |
 | `parcelIds` | Identifiants séparés par des virgules |
 | `cropIds` | Identifiants séparés par des virgules |
@@ -777,6 +793,19 @@ Renvoie le fichier en pièce jointe.
   francophone), neutralisation de l'injection de formule.
 - **Excel** : en-tête figé, filtre automatique, largeurs de colonnes.
 - **PDF** : A4 paysage, en-tête et pagination, mention de provenance en pied.
+- **JSON** : `{ titre, sousTitre, genereLe, avertissements, note, colonnes:
+  [{ cle, libelle }], lignes: [...] }` — nombres en nombres.
+
+`registre-phyto-numerique` est le registre phytopharmaceutique au format
+électronique lisible par machine (exigé à partir du 1er janvier 2027) : une
+information par colonne (`date_utilisation` ISO, `heure_debut`, `heure_fin`,
+`siret_exploitation`, `application_par`, `intervenant_siret`, `ilot_pac`,
+`parcelle_pac`, `latitude`, `longitude`, `surface_traitee_ha`,
+`code_culture_pac`, `stade_bbch`, `agriculture_biologique`, `numero_amm`,
+`dose`, `unite_dose`, `quantite_utilisee`, `cible`, `operateur`…), nombres à
+point décimal. Il se télécharge en CSV, Excel ou JSON ; le PDF est refusé
+(400) — le registre imprimable est `phytosanitaire`. Les mentions manquantes
+sont comptées dans `avertissements` ; rien n'est complété.
 
 Les identifiants de parcelles fournis sont **filtrés côté serveur** : impossible
 d'inclure une parcelle d'une autre exploitation. Limitation : 30 exports par

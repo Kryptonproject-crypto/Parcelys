@@ -48,7 +48,7 @@ const PAGES = [
 
 // Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
 // manifeste trente secondes plus tard par un délai d'attente dépassé.
-await verifierCompte(BASE, EMAIL, PASSWORD);
+await verifierCompte(BASE, EMAIL, MOT_DE_PASSE);
 
 const browser = await chromium.launch({
   executablePath: cheminDuNavigateur(),

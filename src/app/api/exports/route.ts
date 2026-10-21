@@ -8,6 +8,7 @@ import {
   CONTENT_TYPES,
   exportFileName,
   renderCsv,
+  renderJson,
   renderPdf,
   renderXlsx,
 } from '@/lib/exports/renderers';
@@ -17,7 +18,7 @@ import { badRequest } from '@/lib/api/errors';
 /**
  * GET /api/exports?dataset=&format=&year=&parcelIds=
  *
- * Génère un export (CSV, Excel ou PDF). Les données sont systématiquement
+ * Génère un export (CSV, Excel, PDF ou JSON). Les données sont systématiquement
  * restreintes à l'exploitation active : les identifiants de parcelles fournis
  * en paramètre sont filtrés côté serveur.
  */
@@ -38,6 +39,14 @@ export const GET = route(async (request: NextRequest) => {
     return date;
   };
 
+  // Le registre numérique est fait pour les logiciels : trente colonnes ne
+  // s'impriment pas. Le registre à imprimer est « phytosanitaire ».
+  if (query.dataset === 'registre-phyto-numerique' && query.format === 'pdf') {
+    throw badRequest(
+      'Le registre numérique se télécharge en CSV, Excel ou JSON. Pour l’imprimer, choisissez le registre phytosanitaire.',
+    );
+  }
+
   const builder = DATASET_BUILDERS[query.dataset];
   const dataset = await builder({
     farmId: ctx.farmId,
@@ -52,9 +61,11 @@ export const GET = route(async (request: NextRequest) => {
   const body =
     query.format === 'csv'
       ? renderCsv(dataset)
-      : query.format === 'xlsx'
-        ? await renderXlsx(dataset)
-        : await renderPdf(dataset);
+      : query.format === 'json'
+        ? renderJson(dataset)
+        : query.format === 'xlsx'
+          ? await renderXlsx(dataset)
+          : await renderPdf(dataset);
 
   await logAudit({
     action: 'export.generated',

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/client/api';
-import { checkDose, usagesForCrop, type UsageForDose } from '@/lib/ephy/dose';
+import { checkDose, ciblesProposees, usagesForCrop, type UsageForDose } from '@/lib/ephy/dose';
 import { Alert, Badge, Select, Spinner } from '@/components/ui';
 
 export type ProductUsages = {
@@ -44,6 +44,7 @@ export function PhytoUsagePanel({
   doseUnit,
   parcelDrained,
   appliedOn,
+  onCibles,
 }: {
   productId: string | null;
   /** Culture retenue pour la comparaison (libellé E-Phy ou saisie). */
@@ -58,6 +59,11 @@ export function PhytoUsagePanel({
    * usage retiré vaut jusqu'à sa fin d'utilisation publiée.
    */
   appliedOn?: string;
+  /**
+   * Reçoit les cibles autorisées pour la culture retenue, à proposer dans le
+   * champ « Cible » du formulaire. Vide sans produit du catalogue.
+   */
+  onCibles?: (cibles: string[]) => void;
 }) {
   const [data, setData] = useState<ProductUsages | null>(null);
   const [loading, setLoading] = useState(false);
@@ -107,6 +113,13 @@ export function PhytoUsagePanel({
       at: Number.isNaN(le.getTime()) ? new Date() : le,
     });
   }, [data, crop, doseNombre, doseUnit, appliedOn]);
+
+  useEffect(() => {
+    onCibles?.(data && productId ? ciblesProposees(data.usages, crop) : []);
+    // `onCibles` est un rappel du parent ; le relancer à chaque rendu ne
+    // changerait rien à ce qu'il reçoit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, crop, productId]);
 
   /** Usages en vigueur pour la culture retenue, pour le tableau des ZNT. */
   const usagesCulture = useMemo(() => {

@@ -1071,6 +1071,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
           cropYears={cropYears}
           hasLocation={parcel.centroidLat !== null && parcel.centroidLng !== null}
           parcelDrained={parcel.drainedSoil}
+          conduiteBio={parcel.conduiteBio}
           onDone={() => setModal(null)}
         />
       </Modal>
@@ -1165,6 +1166,7 @@ export function ParcelTabs(props: ParcelTabsProps) {
             cropYears={cropYears}
             hasLocation={parcel.centroidLat !== null && parcel.centroidLng !== null}
             parcelDrained={parcel.drainedSoil}
+            conduiteBio={parcel.conduiteBio}
             existing={correction.row}
             onDone={fermerCorrection}
           />

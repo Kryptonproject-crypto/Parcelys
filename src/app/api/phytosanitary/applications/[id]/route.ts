@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
-import { logAudit } from '@/lib/audit';
+import { copieDeRegistre, logAudit } from '@/lib/audit';
 import { notFound } from '@/lib/api/errors';
 import { phytoApplicationUpdateSchema } from '@/lib/validation/farming';
 import { differences, preparerTraitement } from '@/lib/services/saisies';
@@ -16,10 +16,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
   const id = (await context.params).id;
   if (!id) throw notFound('Traitement introuvable');
 
-  const record = await prisma.phytosanitaryApplication.findUnique({
-    where: { id },
-    select: { id: true, parcelId: true, productName: true },
-  });
+  const record = await prisma.phytosanitaryApplication.findUnique({ where: { id } });
   if (!record) throw notFound('Traitement introuvable');
 
   const { ctx } = await requireParcelAccess(record.parcelId, 'record:delete');
@@ -32,7 +29,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
     entity: 'phytosanitaryApplication',
     entityId: id,
     ipAddress: clientIp(request),
-    metadata: { productName: record.productName },
+    metadata: { productName: record.productName, supprime: copieDeRegistre(record) },
   });
 
   return ok({ message: 'Traitement supprimé du registre' });
@@ -53,6 +50,13 @@ const CHAMPS_JOURNAL = [
   'cropYearId',
   'operator',
   'notes',
+  'startTime',
+  'endTime',
+  'bbchStage',
+  'organicProduction',
+  'appliedBy',
+  'contractorName',
+  'contractorSiret',
 ];
 
 /**

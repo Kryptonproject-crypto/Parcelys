@@ -29,8 +29,11 @@
  * 2 (0.11.2) : chaque enregistrement porte aussi ses valeurs brutes (codes,
  * identifiants, champs que la fiche n'affiche pas), pour être **corrigé**
  * depuis le téléphone sans rien perdre de ce que le formulaire ne montre pas.
+ *
+ * 3 (0.12.0) : les traitements portent les mentions du registre en vigueur au
+ * 1er janvier 2026 — heures, stade, conduite bio, prestataire.
  */
-export const FORMAT_REGISTRES = 2;
+export const FORMAT_REGISTRES = 3;
 
 export type TypeEvenement = 'CROP' | 'HARVEST' | 'FERTILIZATION' | 'PHYTO' | 'OPERATION' | 'DOCUMENT';
 
@@ -144,6 +147,21 @@ export type TraitementFiche = {
   conditions: string | null;
   operator: string | null;
   notes: string | null;
+  /** Mentions du registre en vigueur au 1er janvier 2026 ; `null` = non renseigné. */
+  startTime: string | null;
+  endTime: string | null;
+  bbchStage: string | null;
+  organicProduction: boolean | null;
+  appliedBy: 'EXPLOITATION' | 'PRESTATAIRE' | 'ENTRAIDE' | null;
+  contractorName: string | null;
+  contractorSiret: string | null;
+};
+
+/** Qui a appliqué, en clair. */
+export const LIBELLES_APPLICATEUR: Record<'EXPLOITATION' | 'PRESTATAIRE' | 'ENTRAIDE', string> = {
+  EXPLOITATION: 'L’exploitation',
+  PRESTATAIRE: 'Un prestataire',
+  ENTRAIDE: 'Entraide',
 };
 
 export type TravailFiche = {

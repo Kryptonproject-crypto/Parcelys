@@ -8,8 +8,10 @@ import type { ExportDataset } from '@/lib/exports/datasets';
 export function renderCsv(dataset: ExportDataset): Buffer {
   const escape = (value: string | number): string => {
     const text = String(value ?? '');
-    // Neutralise l'injection de formule dans les tableurs.
-    const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+    // Neutralise l'injection de formule dans les tableurs. Un nombre n'est
+    // jamais une formule : le préfixer abîmerait une longitude négative
+    // (ouest de Greenwich), que plus aucun logiciel ne lirait comme un nombre.
+    const safe = typeof value !== 'number' && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
     return `"${safe.replace(/"/g, '""')}"`;
   };
 
@@ -379,9 +381,35 @@ export async function renderPdf(dataset: ExportDataset): Promise<Buffer> {
   return done;
 }
 
+/**
+ * JSON : le format qu'un autre logiciel relit sans configuration — colonnes
+ * nommées, nombres en nombres, avertissements joints aux données plutôt que
+ * perdus en marge d'une impression.
+ */
+export function renderJson(dataset: ExportDataset): Buffer {
+  return Buffer.from(
+    JSON.stringify(
+      {
+        titre: dataset.title,
+        sousTitre: dataset.subtitle,
+        genereLe: new Date().toISOString(),
+        avertissements: dataset.notices ?? [],
+        note: dataset.footnote ?? null,
+        colonnes: dataset.columns.map((c) => ({ cle: c.key, libelle: c.header })),
+        lignes: dataset.rows,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+}
+
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf' | 'json';
+
 export function exportFileName(
   dataset: ExportDataset,
-  format: 'csv' | 'xlsx' | 'pdf',
+  format: ExportFormat,
 ): string {
   const slug = dataset.title
     .normalize('NFD')
@@ -392,8 +420,9 @@ export function exportFileName(
   return `${slug}-${new Date().toISOString().slice(0, 10)}.${format}`;
 }
 
-export const CONTENT_TYPES: Record<'csv' | 'xlsx' | 'pdf', string> = {
+export const CONTENT_TYPES: Record<ExportFormat, string> = {
   csv: 'text/csv; charset=utf-8',
+  json: 'application/json; charset=utf-8',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   pdf: 'application/pdf',
 };

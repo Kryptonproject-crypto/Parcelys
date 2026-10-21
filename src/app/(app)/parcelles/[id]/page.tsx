@@ -121,6 +121,7 @@ export default async function ParcelPage({
           include: { crop: true, nitrogenPlan: { select: { computation: true } } },
           orderBy: { campaignYear: 'desc' },
         },
+        farm: { select: { organicFarming: true } },
       },
     }),
     getParcelGeometry(id),
@@ -329,6 +330,7 @@ export default async function ParcelPage({
           centroidLat: parcel.centroidLat,
           centroidLng: parcel.centroidLng,
           drainedSoil: parcel.drainedSoil,
+          conduiteBio: parcel.farm.organicFarming,
           createdAt: parcel.createdAt.toISOString(),
           declarationsPac: declarationsPac.map((d) => ({
             campagne: d.campaign.year,
@@ -421,6 +423,13 @@ export default async function ParcelPage({
           operator: p.operator,
           productStatus: p.product?.status ?? null,
           notes: p.notes,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          bbchStage: p.bbchStage,
+          organicProduction: p.organicProduction,
+          appliedBy: p.appliedBy,
+          contractorName: p.contractorName,
+          contractorSiret: p.contractorSiret,
         }))}
         operations={operations.map((o) => ({
           id: o.id,

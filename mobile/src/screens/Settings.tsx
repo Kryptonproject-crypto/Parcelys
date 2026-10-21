@@ -11,6 +11,13 @@ export function SettingsScreen({ context }: { context: AppContext }) {
     context;
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  /**
+   * Saisies en attente : la déconnexion vide la file, et une saisie de
+   * registre perdue est un traitement qui n'a jamais existé aux yeux d'un
+   * contrôle. Il faut alors confirmer, en sachant ce que l'on perd.
+   */
+  const [confirmerPerte, setConfirmerPerte] = useState(false);
+  const pageLegale = (chemin: string) => `${session.serverUrl.replace(/\/$/, '')}${chemin}`;
   const [version, setVersion] = useState<VersionInfo | null>(null);
 
   // La vérification passe par l'instance, jamais par un hôte tiers : c'est le
@@ -172,12 +179,42 @@ export function SettingsScreen({ context }: { context: AppContext }) {
           full
           loading={loggingOut}
           onClick={() => {
+            if (pending > 0 && !confirmerPerte) {
+              setConfirmerPerte(true);
+              return;
+            }
             setLoggingOut(true);
             void logout().finally(() => setLoggingOut(false));
           }}
         >
-          Se déconnecter
+          {pending > 0 && confirmerPerte
+            ? `Confirmer : perdre ${pending} saisie(s) et se déconnecter`
+            : 'Se déconnecter'}
         </Button>
+        {confirmerPerte ? (
+          <Button variant="secondary" full onClick={() => setConfirmerPerte(false)}>
+            Annuler — garder mes saisies
+          </Button>
+        ) : null}
+
+        <nav aria-label="Informations légales" className="flex flex-wrap justify-center gap-x-4 gap-y-1 pt-1 text-[12.5px]">
+          {[
+            ['/confidentialite', 'Données personnelles'],
+            ['/cookies', 'Cookies et traceurs'],
+            ['/mentions-legales', 'Mentions légales'],
+            ['/cgu', 'Conditions générales'],
+          ].map(([chemin, libelle]) => (
+            <a
+              key={chemin}
+              href={pageLegale(chemin as string)}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-ink-3 underline"
+            >
+              {libelle}
+            </a>
+          ))}
+        </nav>
 
         <p className="px-1 text-center text-[12.5px] leading-relaxed text-ink-3">
           Parcelys au champ — les données réglementaires proviennent de votre

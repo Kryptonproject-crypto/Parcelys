@@ -26,6 +26,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { saveParcelGeometry } from '@/lib/geo/repository';
 import { campagneCourante } from '@/lib/shared/campagne';
+import { DEFAULT_CROPS } from '@/lib/constants/agronomy';
 
 const MOT_DE_PASSE = 'AuditParcelys1';
 
@@ -98,6 +99,16 @@ async function main() {
     });
   }
 
+  // Le référentiel de cultures qu'une inscription donne à toute exploitation
+  // (`POST /api/auth/register`). Sans lui, l'exploitation d'audit ne
+  // ressemblait à aucune exploitation réelle : l'audit de bout en bout ne
+  // trouvait pas de blé à semer et s'arrêtait là, sur une faute du jeu
+  // d'essai et non du produit.
+  await prisma.crop.createMany({
+    data: DEFAULT_CROPS.map((c) => ({ farmId: ferme!.id, code: c.code, name: c.name, category: c.category })),
+    skipDuplicates: true,
+  });
+
   // --- Des parcelles, avec géométrie et culture --------------------------
   const parcellesVoulues = [
     { nom: 'La Croix Rouge', numero: 'A-01', lng: 1.7, lat: 48.2 },
@@ -138,7 +149,10 @@ async function main() {
   }
 
   // --- Une culture sur la campagne en cours ------------------------------
-  const ble = await prisma.crop.findFirst({ where: { code: 'BLE_TENDRE' }, select: { id: true } });
+  const ble = await prisma.crop.findFirst({
+    where: { code: 'BLE_TENDRE', OR: [{ farmId: ferme.id }, { farmId: null }] },
+    select: { id: true },
+  });
   if (ble) {
     for (const parcelId of parcelIds) {
       const deja = await prisma.cropYear.findFirst({

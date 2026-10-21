@@ -30,6 +30,17 @@ const DATASETS = [
     formats: ['pdf', 'xlsx', 'csv'],
   },
   {
+    key: 'registre-phyto-numerique',
+    label: 'Registre phytosanitaire numérique',
+    icon: IconPhyto,
+    description:
+      'Le registre au format électronique lisible par machine, obligatoire à partir du ' +
+      '1er janvier 2027 : une information par colonne, dates ISO, nombres à point décimal, ' +
+      'SIRET, heures, stade, îlot PAC, coordonnées, conduite bio. L’année choisie est ' +
+      'l’année civile.',
+    formats: ['csv', 'xlsx', 'json'],
+  },
+  {
     key: 'apports',
     label: 'Registre des apports',
     icon: IconInputs,
@@ -81,6 +92,7 @@ const FORMAT_LABELS: Record<string, string> = {
   pdf: 'PDF',
   xlsx: 'Excel',
   csv: 'CSV',
+  json: 'JSON',
 };
 
 export function ExportBuilder({

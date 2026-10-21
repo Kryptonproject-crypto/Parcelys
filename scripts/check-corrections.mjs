@@ -50,7 +50,7 @@ await mkdir(SHOTS, { recursive: true });
 
 // Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
 // manifeste trente secondes plus tard par un délai d'attente dépassé.
-await verifierCompte(BASE, EMAIL, PASSWORD);
+await verifierCompte(BASE, COMPTES.exploitant.email, COMPTES.exploitant.password);
 
 const browser = await chromium.launch({
   executablePath: cheminDuNavigateur(),

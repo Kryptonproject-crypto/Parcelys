@@ -175,7 +175,7 @@ async function ephyProvenance(): Promise<string> {
 
   if (!run) {
     return (
-      'Catalogue officiel E-Phy non importé sur cette instance : les produits, ' +
+      'Catalogue officiel E-Phy non importé sur ce serveur : les produits, ' +
       'AMM et substances actives ci-dessous sont ceux saisis par l’exploitation, ' +
       'sans vérification automatique.'
     );
@@ -192,7 +192,7 @@ export async function buildPhytoDataset(filters: DatasetFilters): Promise<Export
   const parcelIds = await resolveParcelIds(filters);
   const range = dateRange(filters);
 
-  const [rows, provenance] = await Promise.all([
+  const [rows, provenance, farm] = await Promise.all([
     prisma.phytosanitaryApplication.findMany({
       where: { parcelId: { in: parcelIds }, ...(range ? { appliedOn: range } : {}) },
       include: {
@@ -202,7 +202,14 @@ export async function buildPhytoDataset(filters: DatasetFilters): Promise<Export
       orderBy: { appliedOn: 'desc' },
     }),
     ephyProvenance(),
+    prisma.farm.findUnique({
+      where: { id: filters.farmId },
+      select: { siret: true, organicFarming: true },
+    }),
   ]);
+  const bioDuProfil =
+    farm?.organicFarming === 'TOTALE' ? true : farm?.organicFarming === 'AUCUNE' ? false : null;
+  const TIERS: Record<string, string> = { PRESTATAIRE: 'prestataire', ENTRAIDE: 'entraide' };
 
   const treatedArea = rows.reduce((sum, r) => sum + Number(r.treatedAreaHa), 0);
   const products = new Set(rows.map((r) => r.productName.toLowerCase()));
@@ -210,7 +217,7 @@ export async function buildPhytoDataset(filters: DatasetFilters): Promise<Export
 
   return {
     title: 'Registre phytosanitaire',
-    subtitle: `${filters.farmName} — ${periodLabel(filters)}`,
+    subtitle: `${filters.farmName}${farm?.siret ? ` — SIRET ${farm.siret}` : ''} — ${periodLabel(filters)}`,
     footnote:
       'Registre généré à partir des interventions saisies dans Parcelys. ' + provenance,
     summary: [
@@ -222,29 +229,49 @@ export async function buildPhytoDataset(filters: DatasetFilters): Promise<Export
         value: String(new Set(rows.map((r) => r.parcelId)).size),
       },
     ],
-    notices: withoutAmm > 0
-      ? [
+    notices: (() => {
+      const avis: string[] = [];
+      if (withoutAmm > 0) {
+        avis.push(
           `${withoutAmm} intervention(s) sans numéro d’AMM renseigné : le numéro ` +
             'figure sur l’étiquette du produit et doit être porté au registre.',
-        ]
-      : undefined,
+        );
+      }
+      if (rows.length > 0 && !farm?.siret) {
+        avis.push('SIRET de l’exploitation non renseigné (Paramètres) : le registre le mentionne depuis le 1er janvier 2026.');
+      }
+      const sansBio = rows.filter((r) => (r.organicProduction ?? bioDuProfil) === null).length;
+      if (sansBio > 0) {
+        avis.push(`${sansBio} intervention(s) sans mention « agriculture biologique » (conduite bio à renseigner dans les Paramètres).`);
+      }
+      return avis.length > 0 ? avis : undefined;
+    })(),
     columns: [
-      { key: 'date', header: 'Date', width: 15 },
-      { key: 'parcel', header: 'Parcelle', width: 22 },
-      { key: 'areaHa', header: 'Surface traitée (ha)', width: 15, align: 'right' },
-      { key: 'crop', header: 'Culture', width: 16 },
-      { key: 'product', header: 'Produit', width: 26 },
-      { key: 'amm', header: 'N° AMM', width: 13 },
-      { key: 'substances', header: 'Substances actives', width: 28 },
-      { key: 'target', header: 'Cible', width: 19 },
-      { key: 'dose', header: 'Dose', width: 14, align: 'right' },
-      { key: 'quantity', header: 'Quantité utilisée', width: 15, align: 'right' },
-      { key: 'sprayVolume', header: 'Bouillie L/ha', width: 14, align: 'right' },
-      { key: 'weather', header: 'Conditions météo', width: 22 },
-      { key: 'operator', header: 'Opérateur', width: 16 },
+      { key: 'date', header: 'Date', width: 13 },
+      { key: 'hours', header: 'Heures', width: 11 },
+      { key: 'parcel', header: 'Parcelle', width: 20 },
+      { key: 'areaHa', header: 'Surface traitée (ha)', width: 13, align: 'right' },
+      { key: 'crop', header: 'Culture', width: 15 },
+      { key: 'stage', header: 'Stade', width: 8 },
+      { key: 'organic', header: 'Bio', width: 6 },
+      { key: 'product', header: 'Produit', width: 22 },
+      { key: 'amm', header: 'N° AMM', width: 12 },
+      { key: 'substances', header: 'Substances actives', width: 24 },
+      { key: 'target', header: 'Cible', width: 17 },
+      { key: 'dose', header: 'Dose', width: 13, align: 'right' },
+      { key: 'quantity', header: 'Quantité utilisée', width: 14, align: 'right' },
+      { key: 'sprayVolume', header: 'Bouillie L/ha', width: 11, align: 'right' },
+      { key: 'weather', header: 'Conditions météo', width: 20 },
+      { key: 'operator', header: 'Opérateur', width: 18 },
     ],
     rows: rows.map((r) => ({
       date: fmtDate(r.appliedOn),
+      hours: r.startTime || r.endTime ? `${r.startTime ?? '?'}–${r.endTime ?? '?'}` : '',
+      stage: r.bbchStage ?? '',
+      organic: (() => {
+        const bio = r.organicProduction ?? bioDuProfil;
+        return bio === true ? 'Oui' : bio === false ? 'Non' : '';
+      })(),
       parcel: r.parcel.internalNumber
         ? `${r.parcel.internalNumber} — ${r.parcel.name}`
         : r.parcel.name,
@@ -265,7 +292,14 @@ export async function buildPhytoDataset(filters: DatasetFilters): Promise<Export
       ]
         .filter(Boolean)
         .join(' · '),
-      operator: r.operator ?? '',
+      operator: [
+        r.operator,
+        r.appliedBy && TIERS[r.appliedBy]
+          ? `${TIERS[r.appliedBy]}${r.contractorName ? ` ${r.contractorName}` : ''}${r.contractorSiret ? ` (SIRET ${r.contractorSiret})` : ''}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' — '),
     })),
   };
 }
@@ -281,9 +315,25 @@ export async function buildFertilizationDataset(
     include: {
       parcel: { select: { name: true, internalNumber: true } },
       cropYear: { include: { crop: true } },
+      fertilizer: { select: { nPercent: true } },
+      organicInput: { select: { nContent: true, defaultUnit: true } },
     },
     orderBy: { appliedOn: 'desc' },
   });
+
+  /**
+   * Teneur en azote du produit, telle que le cahier d'enregistrement « nitrates »
+   * la demande : en % pour un engrais minéral, en kg N par tonne ou par m³ pour
+   * un produit organique. Vide pour un produit saisi hors référentiel.
+   */
+  const teneurN = (r: (typeof rows)[number]): string => {
+    if (r.fertilizer?.nPercent != null) return `${fmtNum(r.fertilizer.nPercent, 1)} %`;
+    if (r.organicInput?.nContent != null) {
+      const unite = r.organicInput.defaultUnit === 'm3/ha' ? 'kg N/m³' : 'kg N/t';
+      return `${fmtNum(r.organicInput.nContent, 2)} ${unite}`;
+    }
+    return '';
+  };
 
   const organic = rows.filter((r) => r.inputType === 'ORGANIC').length;
   const withoutContent = rows.filter((r) => r.nSupplied == null).length;
@@ -318,11 +368,14 @@ export async function buildFertilizationDataset(
       { key: 'dose', header: 'Dose', width: 15, align: 'right' },
       { key: 'areaHa', header: 'Surface (ha)', width: 14, align: 'right' },
       { key: 'total', header: 'Quantité totale', width: 16, align: 'right' },
+      { key: 'teneur', header: 'Teneur en N', width: 12, align: 'right' },
       { key: 'n', header: 'N kg/ha', width: 11, align: 'right' },
+      { key: 'nTotal', header: 'N total (kg)', width: 12, align: 'right' },
       { key: 'p', header: 'P₂O₅ kg/ha', width: 12, align: 'right' },
       { key: 'k', header: 'K₂O kg/ha', width: 12, align: 'right' },
-      { key: 'supplier', header: 'Fournisseur', width: 19 },
-      { key: 'batch', header: 'N° de lot', width: 14 },
+      { key: 'supplier', header: 'Fournisseur', width: 17 },
+      { key: 'batch', header: 'N° de lot', width: 12 },
+      { key: 'operator', header: 'Opérateur', width: 15 },
     ],
     rows: rows.map((r) => ({
       date: fmtDate(r.appliedOn),
@@ -335,11 +388,17 @@ export async function buildFertilizationDataset(
       dose: `${fmtNum(r.dose, 3)} ${r.doseUnit}`,
       areaHa: fmtNum(r.treatedAreaHa, 4),
       total: `${fmtNum(r.totalQuantity, 2)} ${r.totalUnit}`,
+      teneur: teneurN(r),
       n: r.nSupplied != null ? fmtNum(r.nSupplied, 1) : '',
+      // L'azote total de l'apport : ce que le cahier d'enregistrement
+      // demande ligne à ligne, à côté de la dose à l'hectare.
+      nTotal:
+        r.nSupplied != null ? fmtNum(Number(r.nSupplied) * Number(r.treatedAreaHa), 1) : '',
       p: r.pSupplied != null ? fmtNum(r.pSupplied, 1) : '',
       k: r.kSupplied != null ? fmtNum(r.kSupplied, 1) : '',
       supplier: r.supplier ?? '',
       batch: r.batchNumber ?? '',
+      operator: r.operator ?? '',
     })),
   };
 }
@@ -743,9 +802,241 @@ export async function buildSpreadingLogDataset(
   };
 }
 
+/**
+ * Registre phytopharmaceutique au format électronique.
+ *
+ * ## Pourquoi un second registre phyto
+ *
+ * Le registre « Registre phytosanitaire » est fait pour être **lu** : dates à
+ * la française, dose et unité dans la même case, nombres avec virgule. Le
+ * format électronique exigé à partir du 1er janvier 2027 (règlement
+ * d'exécution (UE) 2023/564 modifié par le règlement (UE) 2025/2203 ; arrêté
+ * du 24 décembre 2025) doit être **lisible par machine** : une information par
+ * colonne, dates ISO 8601, nombres à point décimal, codes plutôt que libellés
+ * quand il en existe. C'est ce que produit ce jeu-ci.
+ *
+ * ## Année civile
+ *
+ * La conversion au format électronique se compte par année civile (« avant le
+ * 31 janvier de l'année suivant l'utilisation »). `year` désigne donc ici
+ * l'année civile, et non la campagne culturale comme pour les autres
+ * registres.
+ *
+ * ## Rien n'est complété
+ *
+ * Une mention absente reste une case vide, comptée en tête du document. Le
+ * code culture est celui de la déclaration PAC quand la parcelle y est
+ * rapprochée ; le code OEPP, que le règlement européen prévoit, n'est pas
+ * connu de Parcelys et n'est pas deviné. La conduite biologique vient du
+ * traitement, ou à défaut du profil de l'exploitation quand celui-ci la tranche
+ * (toute en bio, ou sans bio).
+ */
+export async function buildPhytoElectronicDataset(
+  filters: DatasetFilters,
+): Promise<ExportDataset> {
+  const parcelIds = await resolveParcelIds(filters);
+  const range =
+    filters.from || filters.to
+      ? { gte: filters.from, lte: filters.to }
+      : filters.year
+        ? {
+            gte: new Date(Date.UTC(filters.year, 0, 1)),
+            lte: new Date(Date.UTC(filters.year, 11, 31, 23, 59, 59)),
+          }
+        : undefined;
+
+  const [rows, farm, provenance] = await Promise.all([
+    prisma.phytosanitaryApplication.findMany({
+      where: { parcelId: { in: parcelIds }, ...(range ? { appliedOn: range } : {}) },
+      include: {
+        parcel: {
+          select: {
+            name: true,
+            internalNumber: true,
+            centroidLat: true,
+            centroidLng: true,
+            pacFeatures: {
+              where: { kind: 'PARCELLE' },
+              select: {
+                numero: true,
+                cropCode: true,
+                ilot: { select: { numero: true } },
+                campaign: { select: { year: true } },
+              },
+            },
+          },
+        },
+        cropYear: { include: { crop: true } },
+      },
+      orderBy: [{ appliedOn: 'asc' }, { startTime: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.farm.findUnique({
+      where: { id: filters.farmId },
+      select: { siret: true, organicFarming: true },
+    }),
+    ephyProvenance(),
+  ]);
+
+  const siret = farm?.siret?.replace(/\s/g, '') || '';
+  const bioDuProfil =
+    farm?.organicFarming === 'TOTALE' ? true : farm?.organicFarming === 'AUCUNE' ? false : null;
+  const nombre = (v: unknown): number | string => {
+    if (v === null || v === undefined) return '';
+    const n = Number(v);
+    return Number.isFinite(n) ? n : '';
+  };
+  const ouiNon = (v: boolean | null): string => (v === true ? 'oui' : v === false ? 'non' : '');
+  const APPLICATEUR: Record<string, string> = {
+    EXPLOITATION: 'exploitation',
+    PRESTATAIRE: 'prestataire',
+    ENTRAIDE: 'entraide',
+  };
+
+  /** Déclaration PAC de la parcelle pour l'année du traitement, ou la plus proche. */
+  const declaration = (
+    features: Array<{ numero: string | null; cropCode: string | null; ilot: { numero: string } | null; campaign: { year: number } }>,
+    annee: number,
+  ) =>
+    [...features].sort(
+      (a, b) => Math.abs(a.campaign.year - annee) - Math.abs(b.campaign.year - annee) || b.campaign.year - a.campaign.year,
+    )[0] ?? null;
+
+  let sansAmm = 0;
+  let sansBio = 0;
+  let sansLieu = 0;
+  let sansCible = 0;
+  let sansOperateur = 0;
+
+  const lignes = rows.map((r) => {
+    const pac = declaration(r.parcel.pacFeatures, r.appliedOn.getUTCFullYear());
+    const bio = r.organicProduction ?? bioDuProfil;
+    if (!r.amm) sansAmm += 1;
+    if (bio === null) sansBio += 1;
+    if (!pac?.ilot && (r.parcel.centroidLat === null || r.parcel.centroidLng === null)) sansLieu += 1;
+    if (!r.targetLabel) sansCible += 1;
+    if (!r.operator) sansOperateur += 1;
+    return {
+      identifiant: r.id,
+      date_utilisation: r.appliedOn.toISOString().slice(0, 10),
+      heure_debut: r.startTime ?? '',
+      heure_fin: r.endTime ?? '',
+      siret_exploitation: siret,
+      application_par: r.appliedBy ? APPLICATEUR[r.appliedBy] ?? '' : '',
+      intervenant_nom: r.contractorName ?? '',
+      intervenant_siret: r.contractorSiret ?? '',
+      parcelle: r.parcel.name,
+      numero_interne: r.parcel.internalNumber ?? '',
+      campagne_pac: pac ? pac.campaign.year : '',
+      ilot_pac: pac?.ilot?.numero ?? '',
+      parcelle_pac: pac?.numero ?? '',
+      latitude: r.parcel.centroidLat === null ? '' : Number(r.parcel.centroidLat.toFixed(6)),
+      longitude: r.parcel.centroidLng === null ? '' : Number(r.parcel.centroidLng.toFixed(6)),
+      surface_traitee_ha: nombre(r.treatedAreaHa),
+      culture: r.cropYear?.crop.name ?? r.cropLabel ?? '',
+      code_culture_pac: pac?.cropCode ?? '',
+      stade_bbch: r.bbchStage ?? '',
+      agriculture_biologique: ouiNon(bio),
+      produit: r.productName,
+      numero_amm: r.amm ?? '',
+      substances_actives: r.activeSubstances ?? '',
+      dose: nombre(r.dose),
+      unite_dose: r.doseUnit,
+      quantite_utilisee: nombre(r.quantityUsed),
+      unite_quantite: r.quantityUnit,
+      volume_bouillie_l_ha: nombre(r.sprayVolumeLHa),
+      cible: r.targetLabel ?? '',
+      operateur: r.operator ?? '',
+      observations: r.notes ?? '',
+      enregistre_le: r.createdAt.toISOString(),
+      modifie_le: r.updatedAt.toISOString(),
+    };
+  });
+
+  const notices: string[] = [];
+  if (!siret) notices.push('SIRET de l’exploitation non renseigné (Paramètres) : la colonne siret_exploitation est vide.');
+  if (sansBio > 0)
+    notices.push(
+      `${sansBio} ligne(s) sans mention « agriculture biologique » : renseignez la conduite bio de l’exploitation (Paramètres), ou la mention sur chaque traitement si l’exploitation est en partie en bio.`,
+    );
+  if (sansAmm > 0) notices.push(`${sansAmm} ligne(s) sans numéro d’AMM.`);
+  if (sansLieu > 0)
+    notices.push(`${sansLieu} ligne(s) sans localisation : ni îlot PAC rapproché, ni contour de parcelle.`);
+  if (sansCible > 0) notices.push(`${sansCible} ligne(s) sans cible.`);
+  if (sansOperateur > 0) notices.push(`${sansOperateur} ligne(s) sans opérateur.`);
+
+  const periode =
+    filters.from || filters.to
+      ? `Période : ${fmtDate(filters.from) || '…'} → ${fmtDate(filters.to) || '…'}`
+      : filters.year
+        ? `Année civile ${filters.year}`
+        : 'Toutes périodes';
+
+  const col = (key: string, header: string, align?: 'left' | 'right'): ExportColumn => ({
+    key,
+    header,
+    ...(align ? { align } : {}),
+  });
+
+  return {
+    title: 'Registre phytosanitaire numérique',
+    subtitle: `${filters.farmName}${siret ? ` — SIRET ${siret}` : ''} — ${periode}`,
+    summary: [
+      { label: 'Utilisations', value: String(lignes.length) },
+      { label: 'Mentions à compléter', value: String(notices.length) },
+    ],
+    notices: notices.length > 0 ? notices : undefined,
+    orientation: 'landscape',
+    footnote:
+      'Format électronique structuré : une information par colonne, dates ISO 8601 ' +
+      '(AAAA-MM-JJ), heures HH:MM, nombres à point décimal. Heures et stade BBCH ne sont ' +
+      'renseignés que lorsque l’autorisation du produit les encadre. Localisation : îlot et ' +
+      'parcelle de la déclaration PAC la plus proche de la date du traitement, et ' +
+      'coordonnées du centre de la parcelle (WGS 84). Code culture : nomenclature PAC ; le ' +
+      'code OEPP n’est pas connu de Parcelys et n’est pas deviné. ' +
+      provenance,
+    columns: [
+      col('identifiant', 'identifiant'),
+      col('date_utilisation', 'date_utilisation'),
+      col('heure_debut', 'heure_debut'),
+      col('heure_fin', 'heure_fin'),
+      col('siret_exploitation', 'siret_exploitation'),
+      col('application_par', 'application_par'),
+      col('intervenant_nom', 'intervenant_nom'),
+      col('intervenant_siret', 'intervenant_siret'),
+      col('parcelle', 'parcelle'),
+      col('numero_interne', 'numero_interne'),
+      col('campagne_pac', 'campagne_pac'),
+      col('ilot_pac', 'ilot_pac'),
+      col('parcelle_pac', 'parcelle_pac'),
+      col('latitude', 'latitude', 'right'),
+      col('longitude', 'longitude', 'right'),
+      col('surface_traitee_ha', 'surface_traitee_ha', 'right'),
+      col('culture', 'culture'),
+      col('code_culture_pac', 'code_culture_pac'),
+      col('stade_bbch', 'stade_bbch'),
+      col('agriculture_biologique', 'agriculture_biologique'),
+      col('produit', 'produit'),
+      col('numero_amm', 'numero_amm'),
+      col('substances_actives', 'substances_actives'),
+      col('dose', 'dose', 'right'),
+      col('unite_dose', 'unite_dose'),
+      col('quantite_utilisee', 'quantite_utilisee', 'right'),
+      col('unite_quantite', 'unite_quantite'),
+      col('volume_bouillie_l_ha', 'volume_bouillie_l_ha', 'right'),
+      col('cible', 'cible'),
+      col('operateur', 'operateur'),
+      col('observations', 'observations'),
+      col('enregistre_le', 'enregistre_le'),
+      col('modifie_le', 'modifie_le'),
+    ],
+    rows: lignes,
+  };
+}
+
 export const DATASET_BUILDERS = {
   parcelles: buildParcelDataset,
   phytosanitaire: buildPhytoDataset,
+  'registre-phyto-numerique': buildPhytoElectronicDataset,
   apports: buildFertilizationDataset,
   'bilan-engrais': buildFertilizerBalanceDataset,
   travaux: buildOperationsDataset,

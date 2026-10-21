@@ -2,7 +2,9 @@
  * Contenu initial du centre d'aide.
  *
  * Inséré une seule fois en base au premier affichage (voir
- * `src/lib/aide/faq.ts`), puis modifiable par l'administrateur général dans
+ * `src/lib/aide/faq.ts`) — les entrées ajoutées ensuite (`ajouteeEn`) le sont
+ * une fois sur les serveurs déjà installés —, puis modifiable par
+ * l'administrateur général dans
  * `/administration/aide` — sans toucher au code. L'application mobile en
  * embarque une copie pour s'afficher sans réseau.
  *
@@ -25,6 +27,13 @@ export type FaqCategorieInitiale = {
     reponse: string;
     motsCles?: string;
     aVerifier?: boolean;
+    /**
+     * Version qui a ajouté l'entrée, quand elle est postérieure au contenu
+     * initial (0.11.0). Ces entrées sont livrées **une fois** aux serveurs
+     * déjà installés (voir `livrerNouvellesEntrees`) : sans cela, une aide
+     * écrite après la première installation n'y apparaîtrait jamais.
+     */
+    ajouteeEn?: string;
   }>;
 };
 
@@ -121,6 +130,14 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
         motsCles: 'changer exploitation sélecteur plusieurs',
       },
       {
+        slug: 'exploitation-bio',
+        ajouteeEn: '0.12.0',
+        question: 'Où indiquer que mon exploitation est en agriculture biologique ?',
+        reponse:
+          "Dans « Paramètres », champ « Agriculture biologique ». Toute l'exploitation en bio, ou aucune surface en bio : la mention est portée d'office sur chaque traitement. En partie seulement : elle se donne à chaque traitement. Non renseignée, elle reste vide dans le registre — jamais supposée.",
+        motsCles: 'bio agriculture biologique conversion registre mention',
+      },
+      {
         slug: 'exploitation-pulverisateur',
         question: 'Pourquoi renseigner mon pulvérisateur ?',
         reponse:
@@ -196,6 +213,16 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
         motsCles: 'épandage calendrier interdiction période nitrates zone vulnérable',
         aVerifier: true,
       },
+      {
+        slug: 'fertilisation-cahier',
+        ajouteeEn: '0.12.0',
+        question: 'Que contient le cahier d’enregistrement « nitrates » ?',
+        reponse:
+          "En zone vulnérable, le cahier d'enregistrement des pratiques est tenu par îlot et mis à jour après chaque semis, apport et récolte. Il porte notamment : la culture et sa date d'implantation, le rendement réalisé, et pour chaque apport d'azote la date, la surface, la nature du fertilisant, sa teneur en azote et la quantité d'azote apportée ; ainsi que la gestion de l'interculture (couvert, destruction). Il se conserve cinq ans.\n\n" +
+          "Dans Parcelys : les cultures (semis, récolte, rendement), les apports (« Registre des apports » : teneur en N, N à l'hectare, N total), les couverts et le plan de fumure. Pour un produit hors référentiel, indiquez l'azote apporté à la saisie : sinon il reste non chiffré. Le programme d'actions régional peut ajouter des exigences.",
+        motsCles: 'cahier enregistrement nitrates zone vulnérable azote teneur rendement interculture',
+        aVerifier: true,
+      },
     ],
   },
   {
@@ -212,10 +239,38 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
       },
       {
         slug: 'phyto-corriger',
+        ajouteeEn: '0.11.2',
         question: 'Corriger ou supprimer un traitement, un apport, un travail',
         reponse:
           "Sur le site, fiche de la parcelle : « Modifier » ou « Supprimer » sur la ligne (aussi depuis les registres Apports et Phytosanitaire). Dans l'application, ouvrez la parcelle puis la rubrique : chaque enregistrement porte les mêmes boutons, réseau ou pas — la correction part à la synchronisation. Les quantités et les éléments fertilisants sont recalculés, la sortie de stock d'un traitement suit la nouvelle dose, la météo du jour de l'intervention est conservée, et chaque correction est inscrite au journal avec l'ancienne et la nouvelle valeur.",
         motsCles: 'corriger modifier supprimer erreur dose traitement apport travail couvert culture',
+      },
+      {
+        slug: 'phyto-mentions-2026',
+        ajouteeEn: '0.12.0',
+        question: 'Quelles mentions mon registre phytosanitaire doit-il porter ?',
+        reponse:
+          "Depuis le 1er janvier 2026 (arrêté du 24 décembre 2025, qui applique le règlement européen 2023/564), le registre porte notamment :\n" +
+          "- le SIRET de l'exploitation, et celui du prestataire ou de l'exploitation en entraide quand ce n'est pas vous qui avez traité ;\n" +
+          "- le nom commercial du produit et son numéro d'AMM ;\n" +
+          "- la date, et les heures de début et de fin quand l'autorisation du produit les encadre ;\n" +
+          "- la dose et son unité, la surface traitée, la culture, et le stade (BBCH) quand l'autorisation le limite ;\n" +
+          "- la localisation de la parcelle (îlot PAC ou coordonnées) ;\n" +
+          "- la conduite en agriculture biologique.\n\n" +
+          "Parcelys les demande à la saisie (site et application) ; la localisation vient de la parcelle, le SIRET et la conduite bio des Paramètres. Cible, opérateur, volume de bouillie et météo ne sont pas tous exigés par ce texte mais restent demandés : c'est ce qu'un contrôle ou un conseiller regarde. La liste officielle complète est l'annexe I de l'arrêté.",
+        motsCles: 'registre mentions obligatoires siret amm heure stade bbch bio prestataire entraide 2026',
+        aVerifier: true,
+      },
+      {
+        slug: 'phyto-registre-numerique',
+        ajouteeEn: '0.12.0',
+        question: 'Le registre phytosanitaire numérique obligatoire en 2027',
+        reponse:
+          "Le règlement européen 2023/564, modifié par le règlement 2025/2203, impose un registre au format électronique lisible par machine à partir du 1er janvier 2027 : un tableau structuré ou un logiciel, pas un cahier scanné ni un PDF.\n\n" +
+          "Selon les modalités françaises annoncées (arrêté du 24 décembre 2025) : de 2027 à 2029, une saisie d'abord sur papier reste possible si elle est convertie au format électronique avant le 31 janvier de l'année suivante ; à partir de 2030, la conversion doit se faire dans les 30 jours.\n\n" +
+          "Avec Parcelys, la saisie est déjà électronique. « Exports › Registre phytosanitaire numérique » produit le registre de l'année civile en CSV, Excel ou JSON : une information par colonne, dates ISO, nombres à point décimal. Les mentions manquantes sont comptées en tête du fichier.",
+        motsCles: 'registre numérique électronique 2027 obligatoire csv json lisible machine',
+        aVerifier: true,
       },
       {
         slug: 'phyto-retire',
@@ -342,6 +397,7 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
       },
       {
         slug: 'technique-registres-appli',
+        ajouteeEn: '0.11.1',
         question: 'Voir depuis l’application ce qui a déjà été fait sur une parcelle',
         reponse:
           "Ouvrez la parcelle : les rubriques Général, Cultures, Apports, Phyto, Travaux et Historique reprennent celles du site. Elles sont gardées dans le téléphone à chaque synchronisation et restent lisibles sans réseau ; la date de la dernière mise à jour est écrite en bas de la fiche. Une saisie pas encore envoyée apparaît dans sa rubrique, marquée « en attente d'envoi ».",
@@ -349,10 +405,19 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
       },
       {
         slug: 'technique-gps',
+        ajouteeEn: '0.11.1',
         question: 'La position GPS est imprécise',
         reponse:
           "Vérifiez d'abord que Parcelys a la position exacte : Réglages du téléphone › Applications › Parcelys › Autorisations › Position › « Utiliser la position exacte » ; avec la seule position approximative, l'erreur peut atteindre plusieurs centaines de mètres. À découvert, laissez au GPS quelques secondes : « Où suis-je ? » et « Poser un sommet » écoutent plusieurs points et affichent la précision obtenue (±… m). Sous les arbres, près des bâtiments ou en cabine, la précision se dégrade.",
         motsCles: 'gps position précision localisation où suis-je sommet contour imprécis',
+      },
+      {
+        slug: 'technique-cible-operateur',
+        ajouteeEn: '0.12.0',
+        question: 'Cible, opérateur, heures : où les saisir dans l’application ?',
+        reponse:
+          "Dans le formulaire de traitement, sous la dose : « Cible » (les cibles autorisées pour le produit et celles déjà saisies sont proposées), « Opérateur » (repris de votre dernière saisie sur le téléphone), surface traitée, bouillie, heures de début et de fin. « Autres mentions du registre » ouvre le stade, le prestataire ou l'entraide et la mention bio. Un traitement déjà enregistré se complète avec « Modifier ».",
+        motsCles: 'cible opérateur heure stade prestataire application mobile traitement compléter',
       },
       {
         slug: 'technique-mise-a-jour-appli',
@@ -405,6 +470,14 @@ export const FAQ_INITIALE: FaqCategorieInitiale[] = [
         reponse:
           "Une demande envoyée sans être connecté ne prouve pas qui l'a écrite. Tant que votre identité n'est pas vérifiée, nous ne communiquons aucune donnée de votre compte ou de votre exploitation. Le plus simple : connectez-vous et écrivez depuis la page Contact.",
         motsCles: 'identité vérifier sécurité anonyme',
+      },
+      {
+        slug: 'contact-cookies',
+        ajouteeEn: '0.12.0',
+        question: 'Quels cookies Parcelys utilise-t-il, et que fait-il de mes données ?',
+        reponse:
+          "Un seul cookie, celui qui vous garde connecté, et quelques préférences gardées dans votre navigateur : aucune publicité, aucune mesure d'audience, aucune revente. Le détail est dans « Cookies et traceurs » ; ce que deviennent vos données, combien de temps elles sont gardées et comment exercer vos droits, dans « Données personnelles » (liens en bas de chaque page).",
+        motsCles: 'cookies rgpd données personnelles confidentialité cnil',
       },
     ],
   },

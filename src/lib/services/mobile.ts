@@ -75,6 +75,7 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
           department: true,
           latitude: true,
           longitude: true,
+          organicFarming: true,
         },
       }),
       getFarmParcelsGeoJSON(ctx.farmId, year),
@@ -104,6 +105,8 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
           activeSubstances: true,
           doseUnit: true,
           dose: true,
+          targetLabel: true,
+          operator: true,
         },
         orderBy: { appliedOn: 'desc' },
         take: 200,
@@ -131,6 +134,19 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       doseUnit: application.doseUnit,
     });
   }
+
+  // Cibles et opérateurs déjà saisis, du plus récent au plus ancien : ce
+  // qu'on a écrit une fois se propose ensuite, au lieu de se retaper au champ.
+  const distincts = (valeurs: Array<string | null>): string[] => {
+    const vus = new Map<string, string>();
+    for (const v of valeurs) {
+      const propre = v?.trim();
+      if (propre && !vus.has(propre.toLocaleLowerCase('fr-FR'))) vus.set(propre.toLocaleLowerCase('fr-FR'), propre);
+    }
+    return [...vus.values()].slice(0, 30);
+  };
+  const recentTargets = distincts(recentPhyto.map((a) => a.targetLabel));
+  const recentOperators = distincts(recentPhyto.map((a) => a.operator));
 
   // Usages officiels des produits employés, pour que le contrôle de dose
   // fonctionne sans réseau.
@@ -247,6 +263,11 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
       department: farm.department,
       latitude: farm.latitude,
       longitude: farm.longitude,
+      /**
+       * Conduite bio, pour la mention du registre : déduite si l'exploitation
+       * est toute en bio ou sans bio, demandée au traitement sinon.
+       */
+      organicFarming: farm.organicFarming,
     },
     /** Exploitant ou expert : décide de ce que l'application propose. */
     accountType: ctx.user.accountType,
@@ -311,6 +332,9 @@ export async function buildMobileSnapshot(ctx: FarmContext) {
         k: input.kContent === null ? null : Number(input.kContent),
       })),
       recentPhytoProducts: [...products.values()],
+      /** Cibles et opérateurs déjà saisis, proposés à la saisie. */
+      recentTargets,
+      recentOperators,
       /**
        * Usages officiels des produits employés : dose retenue, culture, DAR,
        * ZNT, nombre maximal d'applications, conditions d'emploi.

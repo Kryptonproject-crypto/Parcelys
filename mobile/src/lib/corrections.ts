@@ -15,13 +15,13 @@ import type { OperationKind, QueuedOperation } from './types';
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * Le formulaire de l'application est plus court que celui du site : ni
- * fournisseur, ni volume de bouillie, ni surface traitée partielle. Une
+ * fournisseur, ni numéro de lot d'engrais, ni culture rattachée. Une
  * correction se compose donc de deux moitiés :
  *
  *   · `initial` — ce que le formulaire montre, pré-rempli ;
  *   · `base` — tout le reste de l'enregistrement, renvoyé **tel quel** au
  *     serveur, qui remplace l'enregistrement entier : sans elle, corriger une
- *     dose au champ effacerait l'opérateur saisi au bureau.
+ *     dose au champ effacerait le fournisseur saisi au bureau.
  *
  * Trois choses ne sont jamais renvoyées, et le serveur les garde :
  *
@@ -40,6 +40,10 @@ export type EntryKind = 'phyto' | 'apport' | 'travaux' | 'couvert' | 'culture';
 export type Initial = {
   date: string;
   notes: string;
+  // Communs aux traitements, apports et travaux
+  operator?: string;
+  /** Surface traitée (ha) ; vide : celle de la parcelle. */
+  treatedArea?: string;
   // Phytosanitaire
   productName?: string;
   amm?: string;
@@ -48,12 +52,25 @@ export type Initial = {
   phytoDose?: string;
   phytoUnit?: string;
   stockLotId?: string;
+  targetLabel?: string;
+  sprayVolume?: string;
+  startTime?: string;
+  endTime?: string;
+  bbchStage?: string;
+  /** `''`, `EXPLOITATION`, `PRESTATAIRE` ou `ENTRAIDE`. */
+  appliedBy?: string;
+  contractorName?: string;
+  contractorSiret?: string;
+  /** `''` (non renseigné), `oui` ou `non`. */
+  organicProduction?: string;
   // Apport
   inputType?: 'MINERAL' | 'ORGANIC';
   productId?: string;
   productLabel?: string;
   dose?: string;
   doseUnit?: string;
+  /** Azote apporté (kg N/ha), saisi pour un produit hors référentiel. */
+  nitrogen?: string;
   // Travaux
   operationType?: string;
   equipment?: string;
@@ -120,6 +137,7 @@ export function natureDeLaSaisie(kind: OperationKind): EntryKind | null {
 const jour = (v: string | null | undefined): string => (v ? v.slice(0, 10) : '');
 const texte = (v: string | number | null | undefined): string =>
   v === null || v === undefined ? '' : String(v);
+const ouiNon = (v: unknown): string => (v === true ? 'oui' : v === false ? 'non' : '');
 
 // ---------------------------------------------------------------------------
 // Depuis un enregistrement du serveur
@@ -136,13 +154,16 @@ export function correctionApport(a: ApportFiche): Correction {
       productLabel: a.productLabel,
       dose: texte(a.dose),
       doseUnit: a.doseUnit,
+      operator: texte(a.operator),
+      treatedArea: texte(a.treatedAreaHa),
+      // L'azote ne se saisit que pour un produit hors référentiel : pour un
+      // produit du référentiel, il se recalcule.
+      nitrogen: a.fertilizerId || a.organicInputId ? '' : texte(a.n),
     },
     base: {
-      treatedAreaHa: a.treatedAreaHa,
       ...(a.cropYearId ? { cropYearId: a.cropYearId } : {}),
       supplier: a.supplier,
       batchNumber: a.batchNumber,
-      operator: a.operator,
     },
   };
 }
@@ -160,13 +181,23 @@ export function correctionTraitement(t: TraitementFiche): Correction {
       phytoDose: texte(t.dose),
       phytoUnit: t.doseUnit,
       stockLotId: texte(t.stockLotId),
+      targetLabel: texte(t.targetLabel),
+      operator: texte(t.operator),
+      treatedArea: texte(t.treatedAreaHa),
+      sprayVolume: texte(t.sprayVolumeLHa),
+      // Une fiche prise avant la 0.12.0 n'a pas ces mentions : `undefined`
+      // devient un champ vide, que le serveur ne touche pas tant qu'on ne le
+      // remplit pas (voir `Entry`).
+      startTime: texte(t.startTime),
+      endTime: texte(t.endTime),
+      bbchStage: texte(t.bbchStage),
+      appliedBy: texte(t.appliedBy),
+      contractorName: texte(t.contractorName),
+      contractorSiret: texte(t.contractorSiret),
+      organicProduction: ouiNon(t.organicProduction),
     },
     base: {
-      treatedAreaHa: t.treatedAreaHa,
       ...(t.cropYearId ? { cropYearId: t.cropYearId } : {}),
-      targetLabel: t.targetLabel,
-      ...(t.sprayVolumeLHa !== null ? { sprayVolumeLHa: t.sprayVolumeLHa } : {}),
-      operator: t.operator,
       captureWeather: false,
     },
   };
@@ -183,9 +214,9 @@ export function correctionTravail(o: TravailFiche): Correction {
       irrigationMm: texte(o.irrigationMm),
       waterSource: texte(o.waterSource),
       waterNitrate: texte(o.waterNitrateMgL),
+      operator: texte(o.operator),
     },
     base: {
-      operator: o.operator,
       ...(o.durationHours !== null ? { durationHours: o.durationHours } : {}),
       ...(o.irrigationVolumeM3Ha !== null ? { irrigationVolumeM3Ha: o.irrigationVolumeM3Ha } : {}),
       ...(o.waterAnalysisOn ? { waterAnalysisOn: jour(o.waterAnalysisOn) } : {}),
@@ -254,6 +285,18 @@ export function correctionDeLaFile(operation: QueuedOperation): { nature: EntryK
     phytoDose: nature === 'phyto' ? s('dose') : undefined,
     phytoUnit: nature === 'phyto' ? s('doseUnit') : undefined,
     stockLotId: s('stockLotId'),
+    targetLabel: s('targetLabel'),
+    operator: s('operator'),
+    treatedArea: s('treatedAreaHa'),
+    sprayVolume: s('sprayVolumeLHa'),
+    startTime: s('startTime'),
+    endTime: s('endTime'),
+    bbchStage: s('bbchStage'),
+    appliedBy: s('appliedBy'),
+    contractorName: s('contractorName'),
+    contractorSiret: s('contractorSiret'),
+    organicProduction: ouiNon(p.organicProduction),
+    nitrogen: nature === 'apport' ? s('nSupplied') : undefined,
     inputType: p.inputType === 'ORGANIC' ? 'ORGANIC' : 'MINERAL',
     productId: s('fertilizerId') || s('organicInputId'),
     productLabel: s('productLabel'),

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { CookieNotice } from '@/components/legal/CookieNotice';
 
 /** Gabarit commun aux pages d'authentification. */
 export function AuthShell({
@@ -16,6 +17,7 @@ export function AuthShell({
 }) {
   return (
     <div className="relative flex min-h-screen flex-col bg-canvas">
+      <CookieNotice />
       {/* Halo discret : donne du relief sans image ni requête. */}
       <div
         aria-hidden
@@ -53,6 +55,13 @@ export function AuthShell({
           {footer ? (
             <div className="mt-5 text-center text-[13.5px] text-ink-3">{footer}</div>
           ) : null}
+
+          <nav aria-label="Informations légales" className="mt-8 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12.5px] text-ink-3">
+            <Link href="/mentions-legales" className="hover:text-ink hover:underline">Mentions légales</Link>
+            <Link href="/confidentialite" className="hover:text-ink hover:underline">Données personnelles</Link>
+            <Link href="/cookies" className="hover:text-ink hover:underline">Cookies</Link>
+            <Link href="/cgu" className="hover:text-ink hover:underline">Conditions générales</Link>
+          </nav>
         </div>
       </main>
     </div>

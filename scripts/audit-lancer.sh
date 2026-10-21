@@ -48,6 +48,10 @@ code=0
 lancer() {
   printf '\n════ %s ════\n' "$1"
   shift
+  # Chaque audit se connecte plusieurs fois avec les mêmes comptes : enchaînés,
+  # ils dépassaient la limite de tentatives, et le dernier (performance)
+  # mesurait des 401. Le compteur repart donc de zéro avant chacun.
+  npm run audit:debit --silent >/dev/null
   "$@" || code=1
 }
 

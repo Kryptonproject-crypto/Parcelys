@@ -230,7 +230,52 @@ export const fertilizationUpdateSchema = fertilizationFields
 // Phytosanitaire
 // ---------------------------------------------------------------------------
 
-export const phytoApplicationSchema = z.object({
+/** Heure `HH:MM` (00:00 à 23:59), facultative et effaçable comme un texte. */
+const heureSchema = optionalText(5).refine(
+  (v) => v == null || /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
+  'Heure attendue au format HH:MM (ex. 07:30).',
+);
+
+/**
+ * SIRET d'un prestataire ou d'une exploitation en entraide : 14 chiffres,
+ * espaces tolérés. Vide efface.
+ */
+const siretFacultatif = optionalText(20)
+  .transform((v) => (typeof v === 'string' ? v.replace(/\s/g, '') : v))
+  .refine((v) => v == null || /^\d{14}$/.test(v), 'Le SIRET comporte 14 chiffres.');
+
+/**
+ * Mentions du registre en vigueur au 1er janvier 2026 (arrêté du 24 décembre
+ * 2025, annexe I). Facultatives : les heures et le stade ne sont exigés que
+ * lorsque l'autorisation du produit les encadre, et le serveur n'invente
+ * jamais une valeur qu'on ne lui a pas donnée.
+ */
+const mentionsRegistre2026 = {
+  startTime: heureSchema,
+  endTime: heureSchema,
+  bbchStage: optionalText(20),
+  /** Production biologique au moment du traitement ; `null` : non renseigné. */
+  organicProduction: z.boolean().nullish(),
+  appliedBy: z.enum(['EXPLOITATION', 'PRESTATAIRE', 'ENTRAIDE']).nullish(),
+  contractorName: optionalText(160),
+  contractorSiret: siretFacultatif,
+} as const;
+
+/** Un traitement ne finit pas avant d'avoir commencé. */
+function heuresCoherentes(
+  d: { startTime?: string | null; endTime?: string | null },
+  ctx: z.RefinementCtx,
+): void {
+  if (d.startTime && d.endTime && d.endTime < d.startTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'L’heure de fin précède l’heure de début.',
+      path: ['endTime'],
+    });
+  }
+}
+
+const phytoFields = z.object({
   appliedOn: dateSchema,
   /** Référence au produit E-Phy ; absent si saisie libre (produit non trouvé). */
   productId: z.string().optional(),
@@ -255,8 +300,11 @@ export const phytoApplicationSchema = z.object({
    * effectué, ce qui produirait un registre faux.
    */
   stockLotId: z.string().optional(),
+  ...mentionsRegistre2026,
   ...weatherFields,
 });
+
+export const phytoApplicationSchema = phytoFields.superRefine(heuresCoherentes);
 
 /**
  * Modification d'un traitement. Le lot de stock suit trois cas : absent, la
@@ -264,12 +312,14 @@ export const phytoApplicationSchema = z.object({
  * quantité) ; vide ou `null`, elle est annulée ; un autre lot, elle passe sur
  * celui-ci.
  */
-export const phytoApplicationUpdateSchema = phytoApplicationSchema.extend({
-  stockLotId: z
-    .string()
-    .nullish()
-    .transform((v) => (v === undefined ? undefined : v ? v : null)),
-});
+export const phytoApplicationUpdateSchema = phytoFields
+  .extend({
+    stockLotId: z
+      .string()
+      .nullish()
+      .transform((v) => (v === undefined ? undefined : v ? v : null)),
+  })
+  .superRefine(heuresCoherentes);
 
 // ---------------------------------------------------------------------------
 // Travaux
@@ -327,8 +377,9 @@ export const exportQuerySchema = z.object({
     'travaux',
     'cultures',
     'cahier-epandage',
+    'registre-phyto-numerique',
   ]),
-  format: z.enum(['csv', 'xlsx', 'pdf']),
+  format: z.enum(['csv', 'xlsx', 'pdf', 'json']),
   year: z.coerce.number().int().min(1900).max(2200).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
@@ -368,6 +419,14 @@ export const farmSchema = z.object({
   department: optionalText(80),
   latitude: z.coerce.number().min(-90).max(90).optional(),
   longitude: z.coerce.number().min(-180).max(180).optional(),
+  /**
+   * Conduite en agriculture biologique. Absent : inchangé ; `null` ou `''` :
+   * « non renseigné ».
+   */
+  organicFarming: z
+    .enum(['AUCUNE', 'TOTALE', 'PARTIELLE'])
+    .nullish()
+    .or(z.literal('').transform(() => null)),
 });
 
 /**

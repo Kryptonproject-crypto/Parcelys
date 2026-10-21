@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireParcelAccess } from '@/lib/auth/rbac';
 import { clientIp, ok, parseBody, route } from '@/lib/api/handler';
-import { logAudit } from '@/lib/audit';
+import { copieDeRegistre, logAudit } from '@/lib/audit';
 import { notFound } from '@/lib/api/errors';
 import { fertilizationUpdateSchema } from '@/lib/validation/farming';
 import { differences, preparerApport } from '@/lib/services/saisies';
@@ -20,10 +20,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
   const id = (await context.params).id;
   if (!id) throw notFound('Apport introuvable');
 
-  const record = await prisma.fertilizerApplication.findUnique({
-    where: { id },
-    select: { id: true, parcelId: true, productLabel: true },
-  });
+  const record = await prisma.fertilizerApplication.findUnique({ where: { id } });
   if (!record) throw notFound('Apport introuvable');
 
   const { ctx } = await requireParcelAccess(record.parcelId, 'record:delete');
@@ -36,7 +33,7 @@ export const DELETE = route(async (request: NextRequest, context: Ctx) => {
     entity: 'fertilizerApplication',
     entityId: id,
     ipAddress: clientIp(request),
-    metadata: { productLabel: record.productLabel },
+    metadata: { productLabel: record.productLabel, supprime: copieDeRegistre(record) },
   });
 
   return ok({ message: 'Apport supprimé' });

@@ -123,6 +123,32 @@ describe('Centre d’aide en ligne', () => {
     expect(apres.body.categories.map((c) => c.slug)).not.toContain('numero');
   });
 
+  it('livre une fois aux serveurs déjà installés les réponses ajoutées depuis', async () => {
+    // Un serveur installé en 0.11.0 : contenu initial inséré, sans les ajouts.
+    await new TestClient().get('/api/aide/faq');
+    const ajouts = FAQ_INITIALE.flatMap((c) => c.entrees.filter((e) => e.ajouteeEn).map((e) => e.slug));
+    expect(ajouts).toContain('phyto-registre-numerique');
+    await prisma.faqEntry.deleteMany({ where: { slug: { in: ajouts } } });
+    await prisma.appSetting.delete({ where: { key: 'faq.ajouts-livres' } });
+    // Une entrée déjà présente à la main (même slug) n'est pas écrasée.
+    const categorie = await prisma.faqCategory.findUniqueOrThrow({ where: { slug: 'contact' } });
+    await prisma.faqEntry.create({
+      data: { slug: 'contact-cookies', categoryId: categorie.id, question: 'Rédigée par l’administrateur', answer: 'Texte maison.' },
+    });
+
+    await new TestClient().get('/api/aide/faq');
+    const total = FAQ_INITIALE.reduce((n, c) => n + c.entrees.length, 0);
+    expect(await prisma.faqEntry.count()).toBe(total);
+    expect((await prisma.faqEntry.findUniqueOrThrow({ where: { slug: 'contact-cookies' } })).question).toBe(
+      'Rédigée par l’administrateur',
+    );
+
+    // Supprimée ensuite par l'administrateur : elle ne revient pas.
+    await prisma.faqEntry.delete({ where: { slug: 'phyto-registre-numerique' } });
+    await new TestClient().get('/api/aide/faq');
+    expect(await prisma.faqEntry.count({ where: { slug: 'phyto-registre-numerique' } })).toBe(0);
+  });
+
   it('se modifie par l’administrateur général, sans toucher au code', async () => {
     const admin = await general.get<{ categories: Array<{ id: string; slug: string }> }>('/api/admin/faq');
     const compte = admin.body.categories.find((c) => c.slug === 'compte');

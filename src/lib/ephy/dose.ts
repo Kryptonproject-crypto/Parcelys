@@ -228,6 +228,28 @@ export function usagesForCrop(usages: UsageForDose[], crop: string): UsageForDos
 }
 
 /**
+ * Cibles que le catalogue autorise pour ce produit sur cette culture, à
+ * proposer à la saisie.
+ *
+ * Ce sont des suggestions, jamais une liste fermée : la cible se tape aussi à
+ * la main (« adventices », « septoriose »). Sans culture reconnue, toutes les
+ * cibles du produit sont proposées plutôt qu'aucune. Les libellés sont ceux
+ * d'E-Phy, sans réécriture.
+ */
+export function ciblesProposees(usages: UsageForDose[], crop: string | null | undefined): string[] {
+  const retenus = crop ? usagesForCrop(usages, crop) : [];
+  const source = retenus.length > 0 ? retenus : usages;
+  const vues = new Map<string, string>();
+  for (const usage of source) {
+    const cible = usage.targetLabel?.trim();
+    if (!cible) continue;
+    const cle = cible.toLocaleLowerCase('fr-FR');
+    if (!vues.has(cle)) vues.set(cle, cible);
+  }
+  return [...vues.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/**
  * Cultures que le catalogue range sous un autre nom.
  *
  * Établis d'après le catalogue E-Phy lui-même : les usages « Blé » portent des

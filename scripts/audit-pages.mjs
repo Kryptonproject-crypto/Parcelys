@@ -72,6 +72,8 @@ const PUBLIQUES = [
   '/',
   '/contact',
   '/confidentialite',
+  '/cookies',
+  '/mentions-legales',
   '/cgu',
   '/connexion',
   '/connexion-expert',

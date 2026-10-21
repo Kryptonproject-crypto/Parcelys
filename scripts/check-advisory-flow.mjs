@@ -37,7 +37,7 @@ await mkdir(SHOTS, { recursive: true });
 
 // Le compte de démonstration répond-il ? Sans ce contrôle, son absence se
 // manifeste trente secondes plus tard par un délai d'attente dépassé.
-await verifierCompte(BASE, EMAIL, PASSWORD);
+await verifierCompte(BASE, ADMIN_EMAIL, ADMIN_PASSWORD);
 
 const browser = await chromium.launch({
   executablePath: cheminDuNavigateur(),
@@ -264,9 +264,18 @@ expect(
   proposed.status === 201 && proposed.body.status === 'PROPOSED',
   `Préconisation non transmise : ${JSON.stringify(proposed)}`,
 );
+// La provenance dépend du catalogue installé : une AMM qui y figure est
+// rattachée au catalogue officiel, une AMM inconnue reste une saisie. Le
+// contrôle supposait un catalogue vide — il échouait sur toute installation où
+// E-Phy est importé, alors que le produit faisait exactement ce qu'il faut.
+const auCatalogue = await expertPage.evaluate(async () => {
+  const r = await fetch('/api/phytosanitary/products?q=2090123&includeWithdrawn=true');
+  const d = await r.json().catch(() => ({}));
+  return (d.results ?? d.items ?? []).some((p) => p.amm === '2090123');
+});
 expect(
-  proposed.body.productSource === 'saisie',
-  `Provenance du produit incorrecte : ${proposed.body.productSource}`,
+  proposed.body.productSource === (auCatalogue ? 'catalogue' : 'saisie'),
+  `Provenance du produit incorrecte : ${proposed.body.productSource} (AMM ${auCatalogue ? '' : 'absente '}du catalogue)`,
 );
 console.log('  · produit marqué « saisie » — aucun catalogue E-Phy importé');
 

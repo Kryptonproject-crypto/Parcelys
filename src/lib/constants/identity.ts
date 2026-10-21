@@ -27,6 +27,8 @@ export const PARCELYS = {
      */
     adressePostale: null as string | null,
     siret: null as string | null,
+    /** Téléphone de l'éditeur, exigé par les mentions légales (LCEN, art. 6 III). */
+    telephone: null as string | null,
   },
 
   contact: {
@@ -46,6 +48,8 @@ export const PARCELYS = {
 /** Les mentions légales sont-elles complètes ? */
 export function mentionsCompletes(): boolean {
   return (
-    PARCELYS.editeur.adressePostale !== null && PARCELYS.editeur.siret !== null
+    PARCELYS.editeur.adressePostale !== null &&
+    PARCELYS.editeur.siret !== null &&
+    PARCELYS.editeur.telephone !== null
   );
 }

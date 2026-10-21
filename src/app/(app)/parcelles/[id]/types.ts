@@ -19,6 +19,11 @@ export type ParcelSummary = {
   centroidLng: number | null;
   /** Sol artificiellement drainé. `null` = non renseigné, pas « non drainé ». */
   drainedSoil: boolean | null;
+  /**
+   * Conduite bio de l'exploitation, telle que son profil la déclare : décide
+   * si le formulaire de traitement demande la mention, ou la connaît déjà.
+   */
+  conduiteBio: 'AUCUNE' | 'TOTALE' | 'PARTIELLE' | null;
   createdAt: string;
   /**
    * Numéros sous lesquels la parcelle a été déclarée à TéléPAC, campagne par
@@ -94,6 +99,14 @@ export type PhytoRow = {
   operator: string | null;
   productStatus: string | null;
   notes: string | null;
+  /** Mentions du registre en vigueur au 1er janvier 2026. */
+  startTime: string | null;
+  endTime: string | null;
+  bbchStage: string | null;
+  organicProduction: boolean | null;
+  appliedBy: 'EXPLOITATION' | 'PRESTATAIRE' | 'ENTRAIDE' | null;
+  contractorName: string | null;
+  contractorSiret: string | null;
 };
 
 export type OperationRow = {

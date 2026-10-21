@@ -73,6 +73,9 @@ export type Referential = {
     lastDose: number;
     doseUnit: string;
   }>;
+  /** Cibles et opérateurs déjà saisis (absents avant la 0.12.0). */
+  recentTargets?: string[];
+  recentOperators?: string[];
   doseUnits: string[];
   parcelTypes: string[];
   operationTypes: Array<{ value: string; label: string }>;
@@ -200,6 +203,8 @@ export type Snapshot = {
     department: string | null;
     latitude: number | null;
     longitude: number | null;
+    /** Conduite bio (registre 2026) ; absente d'un instantané antérieur à la 0.12.0. */
+    organicFarming?: 'AUCUNE' | 'TOTALE' | 'PARTIELLE' | null;
   };
   accountType: AccountType;
   /** `TEC-…` pour un compte expert ; absent d'un instantané antérieur à la 0.11.0. */

@@ -171,11 +171,83 @@ export async function logAudit(params: {
   }
 }
 
-/** Purge conforme à la limitation de conservation (RGPD). */
+/**
+ * Ce que contenait un enregistrement de registre au moment de sa suppression,
+ * en valeurs simples (nombres, dates ISO) pour le journal.
+ *
+ * Supprimer une ligne du registre est permis — une saisie en double, une
+ * erreur de parcelle —, mais la ligne ne doit pas disparaître sans laisser de
+ * trace : le journal garde ce qu'elle disait, six ans comme les autres traces
+ * de registre (voir `CONSERVATION_TRACES_REGISTRE_JOURS`).
+ */
+export function copieDeRegistre(enregistrement: Record<string, unknown>): Record<string, unknown> {
+  const copie: Record<string, unknown> = {};
+  for (const [cle, valeur] of Object.entries(enregistrement)) {
+    if (valeur === null || valeur === undefined) continue;
+    if (valeur instanceof Date) copie[cle] = valeur.toISOString();
+    else if (typeof valeur === 'object' && valeur !== null && 'toNumber' in valeur) {
+      copie[cle] = (valeur as { toNumber(): number }).toNumber();
+    } else if (typeof valeur !== 'object') copie[cle] = valeur;
+  }
+  return copie;
+}
+
+/**
+ * Familles d'actions qui tracent l'écriture d'un **registre réglementaire** :
+ * traitements, apports, travaux, couverts, cultures, plan de fumure, documents
+ * de campagne verrouillés. C'est l'avant/après de chaque correction.
+ */
+export const PREFIXES_REGISTRE = [
+  'phyto.',
+  'fertilization.',
+  'operation.',
+  'soilCover.',
+  'cropyear.',
+  'nitrogenplan.',
+  'campaignDocument.',
+] as const;
+
+/**
+ * Durée de conservation de ces traces : six ans.
+ *
+ * Les registres phytopharmaceutiques se conservent au moins cinq ans
+ * (arrêté du 24 décembre 2025), le cahier d'enregistrement « nitrates »
+ * cinq ans aussi. Une correction de registre effacée au bout d'un an — comme
+ * le reste du journal — laisserait un registre corrigé sans trace de ce qu'il
+ * disait avant : exactement ce qu'un contrôle demanderait. Six ans couvrent
+ * les cinq ans et la campagne en cours.
+ */
+export const CONSERVATION_TRACES_REGISTRE_JOURS = 6 * 365;
+
+/**
+ * Purge conforme à la limitation de conservation (RGPD).
+ *
+ * Deux durées :
+ *
+ *   · le journal ordinaire (connexions, administration, exports…) est
+ *     supprimé au-delà de `retentionDays` (un an par défaut) ;
+ *   · les traces de registre sont gardées six ans — mais leurs données
+ *     techniques (adresse IP, navigateur), utiles à la sécurité et non au
+ *     registre, sont effacées au même terme que le journal ordinaire.
+ */
 export async function purgeOldAuditLogs(retentionDays = 365): Promise<number> {
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 3600 * 1000);
-  const { count } = await prisma.auditLog.deleteMany({
-    where: { createdAt: { lt: cutoff } },
+  const jour = 24 * 3600 * 1000;
+  const cutoff = new Date(Date.now() - retentionDays * jour);
+  const finRegistre = new Date(Date.now() - Math.max(retentionDays, CONSERVATION_TRACES_REGISTRE_JOURS) * jour);
+  const deRegistre = { OR: PREFIXES_REGISTRE.map((p) => ({ action: { startsWith: p } })) };
+
+  const ordinaires = await prisma.auditLog.deleteMany({
+    where: { createdAt: { lt: cutoff }, NOT: deRegistre },
   });
-  return count;
+  await prisma.auditLog.updateMany({
+    where: {
+      createdAt: { lt: cutoff },
+      AND: [deRegistre, { OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }] }],
+    },
+    data: { ipAddress: null, userAgent: null },
+  });
+  const registre = await prisma.auditLog.deleteMany({
+    where: { createdAt: { lt: finRegistre }, ...deRegistre },
+  });
+  return ordinaires.count + registre.count;
 }

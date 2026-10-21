@@ -480,6 +480,11 @@ fi
 run_sh "cd '$APP_DIR' && sudo -u '$SERVICE_USER' npm run db:deploy"
 ok "Migrations appliquées"
 
+# Engrais et produits organiques d'usage courant — sans exploitation de
+# démonstration (voir `prisma/seed.ts`, option --referentiel-seul).
+run_sh "cd '$APP_DIR' && sudo -u '$SERVICE_USER' npm run --silent referentiel:engrais"
+ok "Référentiel des engrais installé"
+
 # La limite mémoire évite que la compilation soit tuée sur une petite machine.
 run_sh "cd '$APP_DIR' && sudo -u '$SERVICE_USER' env NODE_OPTIONS=--max-old-space-size=2048 npm run build"
 

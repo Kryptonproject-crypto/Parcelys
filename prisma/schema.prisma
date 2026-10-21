@@ -432,6 +432,12 @@ model Farm {
   /// approuvée par le préfet (distances aux habitations) ?
   riverainCharterApplied   Boolean?     @map("riverain_charter_applied")
 
+  /// Conduite en agriculture biologique, que le registre phytopharmaceutique
+  /// mentionne depuis le 1er janvier 2026 (arrêté du 24 décembre 2025). `null` :
+  /// non renseigné — jamais supposé « non bio ». `PARTIELLE` : la mention se
+  /// donne traitement par traitement.
+  organicFarming OrganicFarming? @map("organic_farming")
+
   isDemo    Boolean   @default(false) @map("is_demo")
   deletedAt DateTime? @map("deleted_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -461,6 +467,26 @@ model Farm {
   @@index([isDemo])
   @@index([portfolioId])
   @@map("farms")
+}
+
+/// Conduite de l'exploitation en agriculture biologique.
+enum OrganicFarming {
+  /// Aucune surface en agriculture biologique (ni en conversion).
+  AUCUNE
+  /// Toute l'exploitation en agriculture biologique ou en conversion.
+  TOTALE
+  /// Une partie seulement : la mention se donne à chaque traitement.
+  PARTIELLE
+}
+
+/// Qui a réalisé une application de produit phytopharmaceutique.
+enum ApplicatorKind {
+  /// L'exploitation elle-même (exploitant, salarié).
+  EXPLOITATION
+  /// Une entreprise prestataire de services.
+  PRESTATAIRE
+  /// Une autre exploitation, dans le cadre de l'entraide.
+  ENTRAIDE
 }
 
 /// Type de pulvérisateur.
@@ -970,6 +996,26 @@ model PhytosanitaryApplication {
   weatherSource    String?  @map("weather_source")
   operator         String?
   notes            String?
+
+  /// Mentions du registre ajoutées par l'arrêté du 24 décembre 2025 (en
+  /// vigueur au 1er janvier 2026). Toutes facultatives en base : les heures et
+  /// le stade ne sont exigés que lorsque l'autorisation du produit les
+  /// encadre, et rien de tout cela ne se déduit — un champ vide reste vide.
+  ///
+  /// Heures de début et de fin, `HH:MM`, heure locale de la parcelle.
+  startTime         String?         @map("start_time")
+  endTime           String?         @map("end_time")
+  /// Stade phénologique de la culture au traitement (code BBCH, ex. `32`).
+  bbchStage         String?         @map("bbch_stage")
+  /// Production en agriculture biologique au moment du traitement. Figé à la
+  /// saisie : une conversion ultérieure ne réécrit pas le passé.
+  organicProduction Boolean?        @map("organic_production")
+  /// Qui a appliqué : l'exploitation, un prestataire, une entraide.
+  appliedBy         ApplicatorKind? @map("applied_by")
+  /// Prestataire ou exploitation en entraide : nom et SIRET.
+  contractorName    String?         @map("contractor_name")
+  contractorSiret   String?         @map("contractor_siret")
+
   createdById      String?  @map("created_by_id")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

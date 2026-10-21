@@ -63,6 +63,7 @@ export default async function SettingsPage() {
             department: farm.department,
             latitude: farm.latitude,
             longitude: farm.longitude,
+            organicFarming: farm.organicFarming,
           }}
           canEdit={roleHasPermission(ctx.role, 'farm:update')}
         />

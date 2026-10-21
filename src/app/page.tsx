@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PARCELYS } from '@/lib/constants/identity';
 import { PublicFooter } from '@/components/marketing/PublicShell';
+import { CookieNotice } from '@/components/legal/CookieNotice';
 import { getAuthContext } from '@/lib/auth/session';
 import { LinkButton } from '@/components/ui';
 import { HeroParcels } from '@/components/marketing/HeroParcels';
@@ -38,8 +39,8 @@ const FEATURES: Array<{ icon: LucideIcon; title: string; text: string }> = [
   },
   {
     icon: IconPhyto,
-    title: 'Phytosanitaire E-Phy',
-    text: 'Recherchez le produit dans le catalogue officiel de l’ANSES : AMM, substances actives et usages autorisés sont repris tels quels.',
+    title: 'Registre phytosanitaire 2027',
+    text: 'Produit cherché dans le catalogue officiel E-Phy de l’Anses, mentions exigées depuis 2026 (SIRET, heures, stade, bio, prestataire), et registre au format électronique attendu au 1er janvier 2027.',
   },
   {
     icon: IconWeather,
@@ -53,8 +54,8 @@ const FEATURES: Array<{ icon: LucideIcon; title: string; text: string }> = [
   },
   {
     icon: IconExport,
-    title: 'Exports conformes',
-    text: 'Registre parcellaire, phytosanitaire, apports et historique en PDF, Excel et CSV, filtrables par campagne et par parcelle.',
+    title: 'Registres et dossier de contrôle',
+    text: 'Registres parcellaire, phytosanitaire, des apports, cahier d’épandage : PDF, Excel, CSV ou JSON. Le dossier de contrôle dit ce qui est prêt et ce qui manque.',
   },
   {
     icon: IconSecurity,
@@ -79,6 +80,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-canvas">
+      <CookieNotice />
       {/* En-tête */}
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -97,12 +99,16 @@ export default async function HomePage() {
             />
             {PARCELYS.nom}
           </Link>
-          <nav className="flex items-center gap-2">
+          {/* Sur téléphone, le libellé long de l'invitation recouvrait le nom
+              du site : « Code d'invitation » y suffit, le bandeau principal
+              redonne les deux actions en entier. */}
+          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
             <LinkButton href="/connexion" variant="ghost" size="sm">
               Se connecter
             </LinkButton>
             <LinkButton href="/inscription" size="sm">
-              J&apos;ai un code d&apos;invitation
+              <span className="sm:hidden">Invitation</span>
+              <span className="hidden sm:inline">J&apos;ai un code d&apos;invitation</span>
             </LinkButton>
           </nav>
         </div>
@@ -138,8 +144,8 @@ export default async function HomePage() {
 
             <p className="mt-6 max-w-2xl text-[17px] leading-relaxed text-ink-2">
               Parcelys réunit la cartographie de vos parcelles, le suivi des cultures, le
-              registre des apports et le registre phytosanitaire. Une saisie rapide sur le
-              terrain, des exports conformes au bureau.
+              registre des apports et le registre phytosanitaire. Une saisie rapide au champ,
+              même sans réseau, et des registres prêts à présenter au bureau.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">

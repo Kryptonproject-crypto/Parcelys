@@ -2,9 +2,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PARCELYS } from '@/lib/constants/identity';
 import { LinkButton } from '@/components/ui';
+import { CookieNotice } from '@/components/legal/CookieNotice';
 
 /**
- * Coque des pages publiques : contact, confidentialité, CGU.
+ * Coque des pages publiques : aide, contact et pages légales.
  *
  * Ces pages se ressemblaient de loin sans jamais se ressembler tout à fait —
  * un lien de retour ici, rien là, un pied de page nulle part. Un visiteur qui
@@ -31,6 +32,7 @@ export function PublicShell({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
+      <CookieNotice />
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
           <Link
@@ -83,8 +85,14 @@ export function PublicFooter() {
           <Link href="/contact" className="transition-colors hover:text-ink">
             Contact
           </Link>
+          <Link href="/mentions-legales" className="transition-colors hover:text-ink">
+            Mentions légales
+          </Link>
           <Link href="/confidentialite" className="transition-colors hover:text-ink">
-            Confidentialité
+            Données personnelles
+          </Link>
+          <Link href="/cookies" className="transition-colors hover:text-ink">
+            Cookies
           </Link>
           <Link href="/cgu" className="transition-colors hover:text-ink">
             Conditions générales

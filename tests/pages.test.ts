@@ -137,7 +137,9 @@ describe('Rendu des pages', () => {
       ['/mot-de-passe-oublie', 'Mot de passe oublié'],
       ['/verification-email', 'Vérifier mon adresse'],
       ['/cgu', 'Conditions générales'],
-      ['/confidentialite', 'confidentialité'],
+      ['/confidentialite', 'Données personnelles'],
+      ['/cookies', 'Cookies et traceurs'],
+      ['/mentions-legales', 'Mentions légales'],
     ] as const) {
       const { status, html } = await fetchPage(path, false);
       expect(status, `${path} — statut HTTP`).toBe(200);
